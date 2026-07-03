@@ -1,0 +1,12 @@
+# Build output
+target/
+
+# Environment files (contain secrets)
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+*.iml
+.idea/
+.DS_Store
