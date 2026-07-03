@@ -95,8 +95,6 @@ cd frontend && npm run build           # type-check + build
 
 ## Do not
 
-- Touch the sibling `Patio` project — it is a **read-only reference**, not part
-  of this repo.
 - Commit build output (`target/`, `dist/`, `node_modules/`) or `.env` files.
 - Introduce hand-written CSS on the frontend, or add roles/phone/other fields to
   `User` without updating the domain model docs, a migration, and tests.
