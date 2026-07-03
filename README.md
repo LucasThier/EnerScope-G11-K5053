@@ -1,5 +1,19 @@
 # EnerScope
 
+**Grupo 11 — Curso K5053 — Año 2026**
+
+### Integrantes
+
+| Legajo | Nombre | E-Mail |
+| --- | --- | --- |
+| 172.329-7 | Pasqualino Franco Nehuen | fpasqualino@frba.utn.edu.ar |
+| 203.583-2 | Theo Dyzenchauz | tdyzenchauz@frba.utn.edu.ar |
+| 204.109-1 | Thier Lucas | lthier@frba.utn.edu.ar |
+| 159.668-8 | Julian López | julilopez@frba.utn.edu.ar |
+| 164.344-7 | Camila Agustina Sanchez | camsanchez@frba.utn.edu.ar |
+
+---
+
 Monorepo for **EnerScope** — a web application with a Spring Boot backend and a
 React + Vite frontend. This initial scaffold covers **users, authentication and
 session management** (JWT based). Domain features are added on top of this base.
