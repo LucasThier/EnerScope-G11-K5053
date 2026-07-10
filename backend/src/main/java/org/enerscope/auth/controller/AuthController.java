@@ -1,17 +1,17 @@
-package org.enerscope.auth;
+package org.enerscope.auth.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.enerscope.dto.session.LoginRequestDTO;
-import org.enerscope.dto.session.NewSessionDTO;
-import org.enerscope.dto.session.RefreshRequestDTO;
-import org.enerscope.dto.session.RegisterRequestDTO;
-import org.enerscope.session.Session;
-import org.enerscope.session.SessionService;
-import org.enerscope.user.User;
-import org.enerscope.user.UserRepository;
-import org.enerscope.user.UserService;
+import org.enerscope.auth.dto.LoginRequestDTO;
+import org.enerscope.auth.dto.NewSessionDTO;
+import org.enerscope.auth.dto.RefreshRequestDTO;
+import org.enerscope.auth.dto.RegisterRequestDTO;
+import org.enerscope.session.model.Session;
+import org.enerscope.session.service.SessionService;
+import org.enerscope.user.model.User;
+import org.enerscope.user.repository.UserRepository;
+import org.enerscope.user.service.UserService;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.springframework.http.ResponseEntity;

@@ -1,7 +1,9 @@
-package org.enerscope.user;
+package org.enerscope.user.service;
 
-import org.enerscope.dto.session.RegisterRequestDTO;
+import org.enerscope.auth.dto.RegisterRequestDTO;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.user.model.User;
+import org.enerscope.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -1,6 +1,6 @@
 package org.enerscope.util;
 
-import org.enerscope.session.Session;
+import org.enerscope.session.model.Session;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 public final class AuthUtil {

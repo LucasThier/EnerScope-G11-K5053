@@ -1,8 +1,9 @@
-package org.enerscope.session;
+package org.enerscope.session.service;
 
 import io.jsonwebtoken.Claims;
 import org.enerscope.jwt.JwtService;
-import org.enerscope.user.User;
+import org.enerscope.session.model.Session;
+import org.enerscope.user.model.User;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;

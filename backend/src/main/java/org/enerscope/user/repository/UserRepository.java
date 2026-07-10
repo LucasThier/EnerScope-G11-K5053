@@ -1,5 +1,6 @@
-package org.enerscope.user;
+package org.enerscope.user.repository;
 
+import org.enerscope.user.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

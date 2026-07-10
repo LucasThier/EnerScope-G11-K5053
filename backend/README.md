@@ -36,6 +36,9 @@ Run the tests:
 mvn test
 ```
 
+See [`../docs/testing.md`](../docs/testing.md) for the test catalog — every test
+class and what each case verifies.
+
 Build a jar:
 
 ```bash
@@ -85,7 +88,49 @@ paste a token obtained from `/auth/login`.
 | `POST` | `/auth/login` | public | Authenticate, returns a session |
 | `POST` | `/auth/refresh` | public | Exchange a refresh token for a new session |
 | `POST` | `/auth/logout` | public | No-op server side (client clears tokens) |
+| `POST` | `/users/bulk` | bearer | Bulk-register users from a CSV; returns generated credentials |
 | `GET` | `/health` | public | Liveness probe |
+
+### Bulk user registration (`POST /users/bulk`)
+
+Upload a CSV (`multipart/form-data`, form field **`file`**) to create many users
+at once. The file needs a header row with columns for the email, first name and
+last name. Column names are case-insensitive and a few aliases are accepted:
+
+- email → `mail`, `email`, `e-mail`, `correo`
+- first name → `firstName`, `first_name`, `first name`, `nombre`
+- last name → `lastName`, `last_name`, `last name`, `apellido`
+
+Example input:
+
+```csv
+mail,firstName,lastName
+jane@example.com,Jane,Doe
+john@example.com,John,Roe
+```
+
+Each valid row is created with a **securely generated password** (never stored
+in plaintext — only the BCrypt hash is persisted). The response envelope's
+`data` contains a summary plus a `credentialsCsv` field with the
+`mail,password` rows to save as a `.csv` and distribute:
+
+```json
+{
+  "success": true,
+  "message": "Processed 2 rows: 2 created, 0 failed",
+  "data": {
+    "total": 2,
+    "created": 2,
+    "failed": 0,
+    "credentialsCsv": "mail,password\r\njane@example.com,Str0ng!Pass-01\r\n...",
+    "failures": []
+  }
+}
+```
+
+Invalid or duplicate rows do not abort the batch: they are skipped and listed in
+`failures` (with the line number and reason), never carrying a password. The
+endpoint requires a Bearer token like every non-`/auth` route.
 
 All responses are wrapped in a standard envelope:
 
@@ -98,18 +143,33 @@ All responses are wrapped in a standard envelope:
 ```
 backend/src/main/java/org/enerscope/
 ├─ Main.java                 Application entry point
-├─ auth/                     AuthController, AuthFilter (JWT bearer filter)
-├─ common/                   BaseEntity, GlobalExceptionHandler, exceptions
+├─ auth/                     Authentication feature
+│  ├─ controller/            AuthController
+│  ├─ filter/                AuthFilter (JWT bearer filter)
+│  └─ dto/                   Login/Register/Refresh/NewSession records
+├─ user/                     User feature
+│  ├─ controller/            UserController (bulk registration)
+│  ├─ service/               UserService, BulkRegistrationService, PasswordGenerator
+│  ├─ repository/            UserRepository
+│  ├─ model/                 User entity
+│  └─ dto/                   BulkRegistration result/failure records
+├─ session/                  Session feature
+│  ├─ model/                 Session (non-persistent)
+│  └─ service/               SessionService
+├─ common/                   BaseEntity, GlobalExceptionHandler, exceptions, CsvUtil
 ├─ config/                   Security, CORS, Crypto, JPA, OpenAPI config
-├─ dto/session/              Request/response records
 ├─ health/                   HealthController
 ├─ jwt/                      JwtService (token issue + validation)
 ├─ logging/                  AppLogger interface + ConsoleAppLogger
 ├─ money/                    MoneyAmount value type
 ├─ seed/                     AdminSeeder (default admin on startup)
-├─ session/                  Session, SessionService
-├─ user/                     User entity, repository, service
 └─ util/                     ApiResponse, Responses, AuthUtil
+
+Backend packages are organised by feature, then by layer. Feature packages with
+more than one class split into layer subpackages (`controller`, `service`,
+`repository`, `model`, `filter`, `dto`) and own their DTOs; single-class or
+purely cross-cutting packages (`jwt`, `health`, `money`, `seed`, `logging`,
+`util`, `common`, `config`) stay flat. See `AGENTS.md` for the convention.
 
 backend/src/main/resources/
 ├─ application.properties

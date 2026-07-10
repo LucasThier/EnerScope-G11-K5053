@@ -1,6 +1,6 @@
 package org.enerscope.config;
 
-import org.enerscope.auth.AuthFilter;
+import org.enerscope.auth.filter.AuthFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

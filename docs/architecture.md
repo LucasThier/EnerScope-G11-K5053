@@ -45,10 +45,17 @@ EnerScope is a two-tier web application kept in a single repository (monorepo).
 
 ## Layers (backend)
 
-| Layer | Responsibility |
-| --- | --- |
-| Controller (`auth`, `health`) | HTTP endpoints, validation, response shaping |
-| Service (`UserService`, `SessionService`, `JwtService`) | Business logic |
-| Repository (`UserRepository`) | Data access (Spring Data JPA) |
-| Entity (`User`, `BaseEntity`) | Persistent model |
-| Config | Security, CORS, crypto, OpenAPI, JPA |
+Packages are organised **by feature, then by layer**: a feature package with
+more than one class (e.g. `user`, `auth`, `session`) splits into layer
+subpackages and owns its DTOs. Single-class or cross-cutting packages stay flat.
+See `AGENTS.md` for the full convention.
+
+| Layer | Subpackage | Responsibility |
+| --- | --- | --- |
+| Controller | `<feature>/controller` | HTTP endpoints, validation, response shaping |
+| Service | `<feature>/service` | Business logic |
+| Repository | `<feature>/repository` | Data access (Spring Data JPA) |
+| Model | `<feature>/model` | Persistent entities / value objects |
+| DTO | `<feature>/dto` | Request/response records for that feature |
+| Filter | `<feature>/filter` | Servlet filters (e.g. `auth/filter/AuthFilter`) |
+| Config | `config` | Security, CORS, crypto, OpenAPI, JPA (flat, cross-cutting) |

@@ -1,8 +1,8 @@
-package org.enerscope.session;
+package org.enerscope.session.model;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
-import org.enerscope.user.User;
+import org.enerscope.user.model.User;
 
 import java.time.Instant;
 import java.util.Objects;

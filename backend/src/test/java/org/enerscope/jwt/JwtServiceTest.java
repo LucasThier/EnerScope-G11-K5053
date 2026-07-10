@@ -1,7 +1,7 @@
 package org.enerscope.jwt;
 
 import io.jsonwebtoken.Claims;
-import org.enerscope.user.User;
+import org.enerscope.user.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
