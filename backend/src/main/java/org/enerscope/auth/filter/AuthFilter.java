@@ -1,11 +1,11 @@
-package org.enerscope.auth;
+package org.enerscope.auth.filter;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.enerscope.session.Session;
-import org.enerscope.session.SessionService;
+import org.enerscope.session.model.Session;
+import org.enerscope.session.service.SessionService;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;

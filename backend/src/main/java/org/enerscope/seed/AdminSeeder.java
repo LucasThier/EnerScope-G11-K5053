@@ -1,8 +1,8 @@
 package org.enerscope.seed;
 
 import org.enerscope.logging.AppLogger;
-import org.enerscope.user.User;
-import org.enerscope.user.UserRepository;
+import org.enerscope.user.model.User;
+import org.enerscope.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;

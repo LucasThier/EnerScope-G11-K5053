@@ -1,4 +1,4 @@
-package org.enerscope.dto.session;
+package org.enerscope.auth.dto;
 
 import java.time.Instant;
 

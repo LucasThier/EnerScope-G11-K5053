@@ -1,4 +1,4 @@
-package org.enerscope.user;
+package org.enerscope.user.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

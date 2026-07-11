@@ -29,8 +29,17 @@ and session management**; domain features are built on top.
 ## Definition of done (every change must satisfy all of these)
 
 1. **Tests.** Any change to behavior comes with tests.
-   - Backend: unit tests next to the code (`backend/src/test/...`). Prefer fast
-     unit tests (no DB); use the H2 context-load test only for wiring.
+   - Backend: unit tests next to the code (`backend/src/test/...`), mirroring the
+     class under test (e.g. `user/service/UserServiceTest`). Prefer fast unit
+     tests (no DB); use `@WebMvcTest` for endpoint tests and the H2 context-load
+     test only for wiring.
+   - Name test methods after the scenario and expected outcome
+     (`registerRejectsDuplicateMail`).
+   - **Document every test.** Register each test case in
+     [`docs/testing.md`](docs/testing.md): the test class, its type, and a
+     one-line "what it verifies" per case. Whenever you add, remove or rename a
+     test, update that catalog (and its per-class/total counts) in the same
+     change.
    - `cd backend && mvn test` must stay green.
    - Frontend: `cd frontend && npm run build` (type-check) must pass; add tests
      when a test setup exists.
@@ -48,6 +57,8 @@ and session management**; domain features are built on top.
    - `README.md` (root / `backend` / `frontend`) when setup, commands, env vars
      or the public surface change.
    - `docs/` when architecture, the domain model, or a decision changes.
+   - `docs/testing.md` — the test catalog; update it whenever tests change (see
+     the Tests criterion above).
    - `docs/considerations.md` — append any decision, assumption, or expectation
      that future agents/humans should keep in mind. Prefer dated, concise bullets.
 4. **Schema changes** go through a new Flyway migration
@@ -58,8 +69,22 @@ and session management**; domain features are built on top.
 ## Conventions
 
 - **Language:** all identifiers, files, comments and log messages in **English**.
-- **Backend package:** `org.enerscope`. Keep the layered structure
-  (controller → service → repository → entity); config under `config/`.
+- **Backend package:** `org.enerscope`. Organise **by feature, then by layer**.
+  Each feature package that holds more than one class splits into layer
+  subpackages — use these names: `controller`, `service`, `repository`,
+  `model`, `filter`, `dto`. A feature owns its own DTOs (e.g.
+  `user/dto`, `auth/dto`); there is **no** shared top-level `dto/` package.
+  Example: `user/{controller,service,repository,model,dto}`,
+  `auth/{controller,filter,dto}`, `session/{model,service}`.
+  - **Do not** over-nest: single-class or purely cross-cutting/infrastructure
+    packages stay **flat** — `jwt`, `health`, `money`, `seed`, `logging`,
+    `util`, `common`, `config`. Only introduce layer subpackages once a feature
+    package grows past one class.
+  - When you add a class, put it in the matching layer subpackage of its
+    feature (create the subpackage if the feature is being split for the first
+    time). Keep the flow controller → service → repository → model.
+  - Test packages mirror the class under test (e.g.
+    `user/service/UserServiceTest`).
 - **API shape:** every response uses the `ApiResponse<T>` envelope via the
   `Responses` helper; errors flow through `GlobalExceptionHandler`.
 - **Auth:** stateless JWT (access + refresh). Public endpoints: `/auth/**`,
