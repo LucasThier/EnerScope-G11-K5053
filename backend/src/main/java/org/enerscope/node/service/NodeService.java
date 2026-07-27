@@ -27,6 +27,7 @@ import org.enerscope.node.repository.FLNGUnitRepository;
 import org.enerscope.node.repository.GatheringNetworkRepository;
 import org.enerscope.node.repository.GroundBasedLiquefactionPlantRepository;
 import org.enerscope.node.repository.LNGCarrierRepository;
+import org.enerscope.node.repository.NodeConnectionRepository;
 import org.enerscope.node.repository.PipelineConnectionRepository;
 import org.enerscope.node.repository.PipelineRepository;
 import org.enerscope.node.repository.SeaportTerminalRepository;
@@ -64,6 +65,7 @@ public class NodeService {
     private final SeaportTerminalRepository seaportTerminalRepository;
     private final CompressingPlantRepository compressingPlantRepository;
     private final PipelineConnectionRepository pipelineConnectionRepository;
+    private final NodeConnectionRepository nodeConnectionRepository;
 
     public NodeService(
             WellRepository wellRepository,
@@ -75,7 +77,8 @@ public class NodeService {
             LNGCarrierRepository lngCarrierRepository,
             SeaportTerminalRepository seaportTerminalRepository,
             CompressingPlantRepository compressingPlantRepository,
-            PipelineConnectionRepository pipelineConnectionRepository) {
+            PipelineConnectionRepository pipelineConnectionRepository,
+            NodeConnectionRepository nodeConnectionRepository) {
         this.wellRepository = wellRepository;
         this.gatheringNetworkRepository = gatheringNetworkRepository;
         this.treatmentPlantRepository = treatmentPlantRepository;
@@ -86,6 +89,7 @@ public class NodeService {
         this.seaportTerminalRepository = seaportTerminalRepository;
         this.compressingPlantRepository = compressingPlantRepository;
         this.pipelineConnectionRepository = pipelineConnectionRepository;
+        this.nodeConnectionRepository = nodeConnectionRepository;
     }
 
     private NodeTypeData DTOtoEntity(NodeTypeDataDTO data) {
@@ -115,7 +119,7 @@ public class NodeService {
 
     }
 
-    public Well createWell(WellDTO data) {
+    public Well saveWell(WellDTO data) {
         Well well = new Well(data.getName(), data.getState(), data.getStartupDate(), data.getLifespanInMonths(),
                 data.getUpkeepCosts(),
                 data.getMaintenanceIntervalInDays(), data.getOperatingCosts(), data.getWastePercentage(),
@@ -128,43 +132,140 @@ public class NodeService {
         return saved;
     }
 
-    public GatheringNetworkDTO createGatheringNetwork(GatheringNetworkDTO gatheringNetworkDTO) {
-        return gatheringNetworkDTO;
+    public GatheringNetwork saveGatheringNetwork(GatheringNetworkDTO data) {
+        GatheringNetwork gatheringNetwork = new GatheringNetwork(data.getName(), data.getState(), data.getStartupDate(),
+                data.getLifespanInMonths(),
+                data.getUpkeepCosts(),
+                data.getMaintenanceIntervalInDays(), data.getOperatingCosts(), data.getWastePercentage(),
+                this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), new NodeIdentity(),
+                this.DTOtoEntity(data.getType()), data.getMaxTransportCapacity(), data.getLength(),
+                data.getLossPerMeter(),
+                data.getConnectedWells());
+
+        GatheringNetwork saved = gatheringNetworkRepository.save(gatheringNetwork);
+
+        return saved;
     }
 
-    public TreatmentPlantDTO createTreatmentPlant(TreatmentPlantDTO treatmentPlantDTO) {
-        return treatmentPlantDTO;
+    public TreatmentPlant saveTreatmentPlant(TreatmentPlantDTO data) {
+        TreatmentPlant treatmentPlant = new TreatmentPlant(data.getName(), data.getState(), data.getStartupDate(),
+                data.getLifespanInMonths(),
+                data.getUpkeepCosts(),
+                data.getMaintenanceIntervalInDays(), data.getOperatingCosts(), data.getWastePercentage(),
+                this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), new NodeIdentity(),
+                this.DTOtoEntity(data.getType()), data.getMaxTreatmentCapacity(), data.getContaminantWaste(),
+                data.getIntermediateStorage(), data.getTreatmentCost());
+
+        TreatmentPlant saved = treatmentPlantRepository.save(treatmentPlant);
+
+        return saved;
     }
 
-    public PipelineDTO createPipeline(PipelineDTO pipelineDTO) {
-        return pipelineDTO;
+    public Pipeline savePipeline(PipelineDTO data) {
+        Pipeline pipeline = new Pipeline(data.getName(), data.getState(), data.getStartupDate(),
+                data.getLifespanInMonths(),
+                data.getUpkeepCosts(),
+                data.getMaintenanceIntervalInDays(), data.getOperatingCosts(), data.getWastePercentage(),
+                this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), new NodeIdentity(),
+                this.DTOtoEntity(data.getType()), data.getMaxFlowCapacity(), data.getLength(), data.getLossPerKm());
+
+        Pipeline saved = pipelineRepository.save(pipeline);
+
+        return saved;
     }
 
-    public PipelineConnectionDTO createPipelineConnection(PipelineConnectionDTO pipelineConnectionDTO) {
-        return pipelineConnectionDTO;
+    public PipelineConnection savePipelineConnection(PipelineConnectionDTO data) {
+        PipelineConnection pipelineConnection = new PipelineConnection(data.getName(), data.getState(),
+                data.getStartupDate(), data.getLifespanInMonths(),
+                data.getUpkeepCosts(),
+                data.getMaintenanceIntervalInDays(), data.getOperatingCosts(), data.getWastePercentage(),
+                this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), new NodeIdentity(),
+                this.DTOtoEntity(data.getType()), data.getTransferCapacity(), data.getOutputPriority());
+
+        PipelineConnection saved = pipelineConnectionRepository.save(pipelineConnection);
+
+        return saved;
     }
 
-    public CompressingPlantDTO createCompressingPlant(CompressingPlantDTO compressingPlantDTO) {
-        return compressingPlantDTO;
+    public CompressingPlant saveCompressingPlant(CompressingPlantDTO data) {
+        CompressingPlant compressingPlant = new CompressingPlant(data.getName(), data.getState(), data.getStartupDate(),
+                data.getLifespanInMonths(),
+                data.getUpkeepCosts(),
+                data.getMaintenanceIntervalInDays(), data.getOperatingCosts(), data.getWastePercentage(),
+                this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), new NodeIdentity(),
+                this.DTOtoEntity(data.getType()), data.getMaxCompressionCapacity(), data.getProcessWaste(),
+                data.getGasConsumption());
+
+        CompressingPlant saved = compressingPlantRepository.save(compressingPlant);
+
+        return saved;
     }
 
-    public GroundBasedLiquefactionPlantDTO createGroundBasedLiquefactionPlant(GroundBasedLiquefactionPlantDTO gblpDTO) {
-        return gblpDTO;
+    public GroundBasedLiquefactionPlant saveGroundBasedLiquefactionPlant(GroundBasedLiquefactionPlantDTO data) {
+        GroundBasedLiquefactionPlant groundBasedLiquefactionPlant = new GroundBasedLiquefactionPlant(data.getName(),
+                data.getState(), data.getStartupDate(), data.getLifespanInMonths(),
+                data.getUpkeepCosts(),
+                data.getMaintenanceIntervalInDays(), data.getOperatingCosts(), data.getWastePercentage(),
+                this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), new NodeIdentity(),
+                this.DTOtoEntity(data.getType()), data.getMaxProcessingCapacity(), data.getMTPARatio(),
+                data.getIntermediateStorage(), data.getGasConsumption());
+
+        GroundBasedLiquefactionPlant saved = gblpRepository.save(groundBasedLiquefactionPlant);
+
+        return saved;
     }
 
-    public FLNGUnitDTO createFLNGUnit(FLNGUnitDTO flngUnitDTO) {
-        return flngUnitDTO;
+    public FLNGUnit saveFLNGUnit(FLNGUnitDTO data) {
+        FLNGUnit flngUnit = new FLNGUnit(data.getName(), data.getState(), data.getStartupDate(),
+                data.getLifespanInMonths(),
+                data.getUpkeepCosts(),
+                data.getMaintenanceIntervalInDays(), data.getOperatingCosts(), data.getWastePercentage(),
+                this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), new NodeIdentity(),
+                this.DTOtoEntity(data.getType()), data.getMaxProcessingCapacity(), data.getMTPARatio(),
+                data.getIntermediateStorage(),
+                data.getVesselDepth(), data.getHiringCost());
+
+        FLNGUnit saved = flngUnitRepository.save(flngUnit);
+
+        return saved;
     }
 
-    public LNGCarrierDTO createLNGCarrier(LNGCarrierDTO lngCarrierDTO) {
-        return lngCarrierDTO;
+    public LNGCarrier saveLNGCarrier(LNGCarrierDTO data) {
+        LNGCarrier lngCarrier = new LNGCarrier(data.getName(), data.getState(), data.getStartupDate(),
+                data.getLifespanInMonths(),
+                data.getUpkeepCosts(),
+                data.getMaintenanceIntervalInDays(), data.getOperatingCosts(), data.getWastePercentage(),
+                this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), new NodeIdentity(),
+                this.DTOtoEntity(data.getType()), data.getExportFrequency(), data.getShipCapacity(),
+                data.getFullLoadTime(),
+                data.getHiringCost(), data.getTimeToDestination());
+
+        LNGCarrier saved = lngCarrierRepository.save(lngCarrier);
+
+        return saved;
     }
 
-    public SeaportTerminalDTO createSeaportTerminal(SeaportTerminalDTO seaportTerminalDTO) {
-        return seaportTerminalDTO;
+    public SeaportTerminal saveSeaportTerminal(SeaportTerminalDTO data) {
+        SeaportTerminal seaportTerminal = new SeaportTerminal(data.getName(), data.getState(), data.getStartupDate(),
+                data.getLifespanInMonths(),
+                data.getUpkeepCosts(),
+                data.getMaintenanceIntervalInDays(), data.getOperatingCosts(), data.getWastePercentage(),
+                this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), new NodeIdentity(),
+                this.DTOtoEntity(data.getType()), data.getIntermediateStorage(), data.getPortDepth(),
+                data.getShipCapacity());
+
+        SeaportTerminal saved = seaportTerminalRepository.save(seaportTerminal);
+
+        return saved;
     }
 
-    public ConnectionDTO createConnection(ConnectionDTO connectionDTO) {
-        return connectionDTO;
+    public NodeConnection saveConnection(ConnectionDTO data) {
+
+        NodeConnection connection = new NodeConnection(new ConnectionIdentity(), new NodeIdentity(data.getFromNodeId()),
+                new NodeIdentity(data.getToNodeId()));
+
+        NodeConnection saved = nodeConnectionRepository.save(connection);
+
+        return saved;
     }
 }

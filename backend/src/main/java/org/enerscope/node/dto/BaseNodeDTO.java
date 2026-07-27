@@ -28,4 +28,5 @@ public class BaseNodeDTO {
     private InvestmentCostDTO investmentCost;
     private NodeGraphDataDTO graphData;
     private NodeTypeDataDTO type;
+    // private NodeIdentity desp pensar como seria
 }

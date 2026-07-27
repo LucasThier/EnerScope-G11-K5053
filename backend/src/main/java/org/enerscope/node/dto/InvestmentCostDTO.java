@@ -17,12 +17,4 @@ import lombok.Setter;
 public class InvestmentCostDTO {
     private List<InvestmentCostComponentDTO> components;
 
-    public InvestmentCost DTOtoEntity() {
-        List<InvestmentCostComponent> componentEntities = this.components.stream()
-                .map(InvestmentCostComponentDTO::DTOtoEntity)
-                .collect(Collectors.toList());
-
-        InvestmentCost invCost = new InvestmentCost(componentEntities);
-        return invCost;
-    }
 }
