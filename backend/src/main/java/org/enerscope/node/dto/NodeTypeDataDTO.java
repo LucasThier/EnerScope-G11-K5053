@@ -1,7 +1,5 @@
 package org.enerscope.node.dto;
 
-import org.enerscope.node.model.NodeGraphData;
-import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.enums.NodeTypeEnum;
 import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.enums.VerticalEnum;

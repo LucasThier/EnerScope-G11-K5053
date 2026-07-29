@@ -1,8 +1,5 @@
 package org.enerscope.node.dto;
 
-import org.enerscope.money.MoneyAmount;
-
-import jakarta.persistence.Column;
 import lombok.Getter;
 import lombok.Setter;
 

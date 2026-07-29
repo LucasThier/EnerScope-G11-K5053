@@ -9,19 +9,15 @@ import org.enerscope.node.model.NodeIdentity;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.transportation.PipelineConnection;
-import org.enerscope.node.model.extraction.ExtractionNode;
 import org.enerscope.node.model.extraction.GatheringNetwork;
 import org.enerscope.node.model.extraction.TreatmentPlant;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
-import org.enerscope.node.model.liquefaction.LiquefactionNode;
-import org.enerscope.node.model.export.ExportNode;
 import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
-import org.enerscope.node.model.transportation.TransportNode;
 import org.enerscope.node.repository.CompressingPlantRepository;
 import org.enerscope.node.repository.FLNGUnitRepository;
 import org.enerscope.node.repository.GatheringNetworkRepository;
@@ -33,12 +29,8 @@ import org.enerscope.node.repository.PipelineRepository;
 import org.enerscope.node.repository.SeaportTerminalRepository;
 import org.enerscope.node.repository.TreatmentPlantRepository;
 import org.enerscope.node.repository.WellRepository;
-import org.apache.commons.lang3.ObjectUtils.Null;
-import org.enerscope.money.MoneyAmount;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.List;
 
@@ -51,8 +43,6 @@ import java.util.List;
  */
 @Service
 public class NodeService {
-
-    private static final UUID PROV_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
     // Repositories for each node type
     private final WellRepository wellRepository;

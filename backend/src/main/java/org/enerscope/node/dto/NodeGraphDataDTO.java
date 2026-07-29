@@ -1,8 +1,5 @@
 package org.enerscope.node.dto;
 
-import org.enerscope.node.model.InvestmentCostComponent;
-import org.enerscope.node.model.NodeGraphData;
-
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
