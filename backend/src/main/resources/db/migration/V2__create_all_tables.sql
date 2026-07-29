@@ -1,6 +1,30 @@
 -- V2: Create all necessary tables for the Nodes
 -- This migration creates tables for all @Entity classes in the correct dependency order
 
+
+
+
+-- CompressingPlant table (our target)
+CREATE TABLE  node_change (
+    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
+    -- Inherited from BaseEntity
+    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
+    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
+    -- Specific fields for CompressingPlant
+    changeType                VARCHAR(320)             NOT NULL,
+    -- Foreign keys (NOT NULL as per entity mappings)
+    changed_node_identity     UUID                     NOT NULL,
+    changed_node              UUID                     NOT NULL,
+    result_node               UUID                     NOT NULL,
+    PRIMARY KEY (id),
+    -- Foreign key constraints
+    CONSTRAINT fk_nc_changed_node FOREIGN KEY (changed_node) REFERENCES base_node(id),  ???
+    CONSTRAINT fk_nc_result_node FOREIGN KEY (result_node) REFERENCES node_graph_data(id), ???
+    CONSTRAINT fk_nc_identity FOREIGN KEY (changed_node_identity) REFERENCES node_identity(id)
+);
+
+
 -- NodeTypeData table
 CREATE TABLE  node_type_data (
     id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
@@ -9,9 +33,9 @@ CREATE TABLE  node_type_data (
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
     last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
     -- Specific fields
-    vertical                  VARCHAR(30)                NOT NULL,
-    role                      VARCHAR(30)                NOT NULL,
-    type                      VARCHAR(30)                NOT NULL,
+    vertical                  VARCHAR(20)                NOT NULL,
+    role                      VARCHAR(15)                NOT NULL,
+    type                      VARCHAR(25)                NOT NULL,
     PRIMARY KEY (id)
 );
 
