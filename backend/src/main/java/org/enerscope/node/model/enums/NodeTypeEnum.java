@@ -1,0 +1,15 @@
+package org.enerscope.node.model.enums;
+
+public enum NodeTypeEnum {
+    WELL,
+    GATHERING_NETWORK,
+    TREATMENT_PLANT,
+    PIPELINE,
+    PIPELINE_CONECTION,
+    COMPRESSING_PLANT,
+    GROUND_LIQUEFACTION_PLANT,
+    FLNG_UNIT,
+    SEAPORT_TERMINAL,
+    LNG_CAMER,
+    INTERNAL_CONSUMPTION
+}
