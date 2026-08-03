@@ -88,4 +88,8 @@ public abstract class BaseNode extends BaseEntity {
         double remainingMonths = lifespanInMonths - Math.max(0, monthsElapsed);
         return Math.max(0, Math.min(100, (remainingMonths / lifespanInMonths) * 100));
     }
+
+    public MoneyAmount CalculateCost(){
+        return investmentCost.CalculateCost(this);
+    }
 }

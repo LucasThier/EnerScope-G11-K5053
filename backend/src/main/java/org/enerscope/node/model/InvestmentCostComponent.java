@@ -12,6 +12,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.enerscope.strategyCost.*;
 
 @Entity
 @Table(name = "investment_cost_component")
@@ -30,4 +31,19 @@ public class InvestmentCostComponent extends BaseEntity {
     @Column(name = "costBasis")
     @Enumerated(EnumType.STRING)
     private CostBasisEnum costBasis;
+
+    public MoneyAmount CalculateCost(BaseNode baseNode) {
+        switch (costBasis) {
+            case PER_M:
+                return new Per_M().CalculateCost(baseNode, this.amount);
+            case PER_KM:
+                return new Per_KM().CalculateCost(baseNode, this.amount);
+            case PER_KM2:
+                return new Per_KM2().CalculateCost(baseNode, this.amount);
+            case PER_CONECTIONS_TOTAL:
+                return new Per_Conections_Total().CalculateCost(baseNode, this.amount);
+            default:
+                return MoneyAmount.of(0);
+        }
+    }
 }

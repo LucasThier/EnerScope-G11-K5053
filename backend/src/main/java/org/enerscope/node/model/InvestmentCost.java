@@ -11,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.enerscope.money.MoneyAmount;
 
 @Entity
 @Getter
@@ -22,4 +23,8 @@ public class InvestmentCost extends BaseEntity {
     @OneToMany
     @JoinColumn(nullable = false)
     private List<InvestmentCostComponent> components;
+
+    public MoneyAmount CalculateCost(BaseNode baseNode){
+        return MoneyAmount.of(0).addAll(components.stream().map(component -> component.CalculateCost(baseNode)).toList());
+    }
 }
