@@ -33,17 +33,21 @@ public class InvestmentCostComponent extends BaseEntity {
     private CostBasisEnum costBasis;
 
     public MoneyAmount CalculateCost(BaseNode baseNode) {
-        switch (costBasis) {
-            case PER_M:
-                return new Per_M().CalculateCost(baseNode, this.amount);
-            case PER_KM:
-                return new Per_KM().CalculateCost(baseNode, this.amount);
-            case PER_KM2:
-                return new Per_KM2().CalculateCost(baseNode, this.amount);
-            case PER_CONECTIONS_TOTAL:
-                return new Per_Conections_Total().CalculateCost(baseNode, this.amount);
-            default:
-                return MoneyAmount.of(0);
+        if(this.amount != null){
+            switch (costBasis) {
+                case PER_M:
+                    return new Per_M().CalculateCost(baseNode, this.amount);
+                case PER_KM:
+                    return new Per_KM().CalculateCost(baseNode, this.amount);
+                case PER_KM2:
+                    return new Per_KM2().CalculateCost(baseNode, this.amount);
+                case PER_CONECTIONS_TOTAL:
+                    return new Per_Conections_Total().CalculateCost(baseNode, this.amount);
+                default:
+                    return MoneyAmount.of(0);
+            }
+        } else {
+            throw new RuntimeException("Investment Component amount is empty");
         }
     }
 }

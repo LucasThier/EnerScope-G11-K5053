@@ -7,8 +7,9 @@ import org.enerscope.node.model.transportation.PipelineConnection;
 
 public class Per_Conections_Total {
     public MoneyAmount CalculateCost(BaseNode baseNode, org.enerscope.money.MoneyAmount moneyAmount){
-        if (baseNode instanceof GatheringNetwork){
-            return moneyAmount.multiply(((GatheringNetwork) baseNode).getConnectedWells());
+        Integer number = ((GatheringNetwork) baseNode).getConnectedWells();
+        if (baseNode instanceof GatheringNetwork && number != null){
+            return moneyAmount.multiply(number);
         } else if (baseNode instanceof PipelineConnection) {
             return moneyAmount;
         } else {

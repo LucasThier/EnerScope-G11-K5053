@@ -6,8 +6,9 @@ import org.enerscope.node.model.extraction.GatheringNetwork;
 
 public class Per_M {
     public MoneyAmount CalculateCost(BaseNode baseNode, MoneyAmount moneyAmount){
-        if (baseNode instanceof GatheringNetwork){
-            return moneyAmount.multiply(((GatheringNetwork) baseNode).getLength());
+        Float length = ((GatheringNetwork) baseNode).getLength();
+        if (baseNode instanceof GatheringNetwork && length != null){
+            return moneyAmount.multiply(length);
         } else {
             throw new RuntimeException("Wrong type of node");
         }

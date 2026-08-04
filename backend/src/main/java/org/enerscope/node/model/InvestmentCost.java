@@ -25,6 +25,18 @@ public class InvestmentCost extends BaseEntity {
     private List<InvestmentCostComponent> components;
 
     public MoneyAmount CalculateCost(BaseNode baseNode){
-        return MoneyAmount.of(0).addAll(components.stream().map(component -> component.CalculateCost(baseNode)).toList());
+        return MoneyAmount.of(0).addAll(components.stream().map(component -> TryCalculateCost(component, baseNode)).toList());
+    }
+    private MoneyAmount TryCalculateCost(InvestmentCostComponent investmentCostComponent, BaseNode baseNode){
+        if(components != null && !components.isEmpty()){
+            try {
+                return investmentCostComponent.CalculateCost(baseNode);
+            } catch (RuntimeException e) {
+                System.out.println("Catched error: " + e.getMessage());
+                return MoneyAmount.of(0);
+            }
+        } else {
+            throw new RuntimeException("Investment Cost components is empty");
+        }
     }
 }
