@@ -95,8 +95,8 @@ CREATE TABLE  investment_cost_component (
     CONSTRAINT fk_icc_investment_cost FOREIGN KEY (components_id) REFERENCES investment_cost(id)
 );
 
--- CompressingPlant table (our target)
-CREATE TABLE  compressing_plant (
+-- BaseNode table (our target)
+CREATE TABLE  base_node (
     id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
     -- Inherited from BaseEntity
     active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
@@ -111,10 +111,6 @@ CREATE TABLE  compressing_plant (
     maintenance_interval_in_days INTEGER,
     operating_costs          NUMERIC(19,2)              NOT NULL,
     waste_percentage          REAL,
-    -- Specific fields for CompressingPlant
-    max_compression_capacity  REAL,
-    process_waste             REAL,
-    gas_consumption           REAL,
     -- Foreign keys (NOT NULL as per entity mappings)
     type_id                   UUID                     NOT NULL,
     investment_cost_id        UUID                     NOT NULL,
@@ -128,6 +124,21 @@ CREATE TABLE  compressing_plant (
     CONSTRAINT fk_cp_identity FOREIGN KEY (identity_id) REFERENCES node_identity(id)
 );
 
+-- CompressingPlant table (our target)
+CREATE TABLE  compressing_plant (
+    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
+    -- Inherited from BaseEntity
+    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
+    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
+    -- Inherited from BaseNode
+    -- Specific fields for CompressingPlant
+    max_compression_capacity  REAL,
+    process_waste             REAL,
+    gas_consumption           REAL,
+    PRIMARY KEY (id),
+);
+
 -- ExportNode based tables
 -- SeaportTerminal table
 CREATE TABLE  seaport_terminal (
@@ -137,29 +148,12 @@ CREATE TABLE  seaport_terminal (
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
     last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
     -- Inherited from BaseNode via ExportNode
-    name                      VARCHAR(320)               NOT NULL,
-    node_state                VARCHAR(30)                NOT NULL,
-    startup_date              TIMESTAMP WITH TIME ZONE,
-    lifespan_in_months        INTEGER,
-    up_keep_costs             NUMERIC(19,2)              NOT NULL,
-    maintenance_interval_in_days INTEGER,
-    operating_costs          NUMERIC(19,2)              NOT NULL,
-    waste_percentage          REAL,
+    
     -- Specific fields for SeaportTerminal
     intermediate_storage      REAL,
     port_depth                REAL,
     ship_capacity             INTEGER,
-    -- Foreign keys (inherited from BaseNode)
-    type_id                   UUID                     NOT NULL,
-    investment_cost_id        UUID                     NOT NULL,
-    graph_data_id             UUID                     NOT NULL,
-    identity_id               UUID                     NOT NULL,
     PRIMARY KEY (id),
-    -- Foreign keys (inherited from BaseNode)
-    CONSTRAINT fk_st_type FOREIGN KEY (type_id) REFERENCES node_type_data(id),
-    CONSTRAINT fk_st_investment_cost FOREIGN KEY (investment_cost_id) REFERENCES investment_cost(id),
-    CONSTRAINT fk_st_graph_data FOREIGN KEY (graph_data_id) REFERENCES node_graph_data(id),
-    CONSTRAINT fk_st_identity FOREIGN KEY (identity_id) REFERENCES node_identity(id)
 );
 
 -- LNGCarrier table
@@ -170,14 +164,7 @@ CREATE TABLE  lng_carrier (
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
     last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
     -- Inherited from BaseNode via ExportNode
-    name                      VARCHAR(320)               NOT NULL,
-    node_state                VARCHAR(30)                NOT NULL,
-    startup_date              TIMESTAMP WITH TIME ZONE,
-    lifespan_in_months        INTEGER,
-    up_keep_costs             NUMERIC(19,2)              NOT NULL,
-    maintenance_interval_in_days INTEGER,
-    operating_costs          NUMERIC(19,2)              NOT NULL,
-    waste_percentage          REAL,
+    
     -- Specific fields
     export_frequency          INTEGER,
     ship_capacity             REAL,
@@ -185,16 +172,8 @@ CREATE TABLE  lng_carrier (
     hiring_cost        NUMERIC(19,2)              NOT NULL,
     time_to_destination       INTEGER,
     -- Foreign keys (inherited from BaseNode)
-    type_id                   UUID                     NOT NULL,
-    investment_cost_id        UUID                     NOT NULL,
-    graph_data_id             UUID                     NOT NULL,
-    identity_id               UUID                     NOT NULL,
+
     PRIMARY KEY (id),
-    -- Foreign key constraints
-    CONSTRAINT fk_lc_type FOREIGN KEY (type_id) REFERENCES node_type_data(id),
-    CONSTRAINT fk_lc_investment_cost FOREIGN KEY (investment_cost_id) REFERENCES investment_cost(id),
-    CONSTRAINT fk_lc_graph_data FOREIGN KEY (graph_data_id) REFERENCES node_graph_data(id),
-    CONSTRAINT fk_lc_identity FOREIGN KEY (identity_id) REFERENCES node_identity(id)
 );
 
 -- LiquefactionNode based tables
@@ -206,14 +185,7 @@ CREATE TABLE  flng_unit (
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
     last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
     -- Inherited from BaseNode via LiquefactionNode
-    name                      VARCHAR(320)               NOT NULL,
-    node_state                VARCHAR(30)                NOT NULL,
-    startup_date              TIMESTAMP WITH TIME ZONE,
-    lifespan_in_months        INTEGER,
-    up_keep_costs             NUMERIC(19,2)              NOT NULL,
-    maintenance_interval_in_days INTEGER,
-    operating_costs          NUMERIC(19,2)              NOT NULL,
-    waste_percentage          REAL,
+    
     -- Specific fields
     max_processing_capacity   REAL,
     mtpa_ratio                REAL,
@@ -221,16 +193,8 @@ CREATE TABLE  flng_unit (
     vessel_depth              REAL,
     hiring_cost        NUMERIC(19,2)              NOT NULL,
     -- Foreign keys (inherited from BaseNode)
-    type_id                   UUID                     NOT NULL,
-    investment_cost_id        UUID                     NOT NULL,
-    graph_data_id             UUID                     NOT NULL,
-    identity_id               UUID                     NOT NULL,
+
     PRIMARY KEY (id),
-    -- Foreign key constraints
-    CONSTRAINT fk_fu_type FOREIGN KEY (type_id) REFERENCES node_type_data(id),
-    CONSTRAINT fk_fu_investment_cost FOREIGN KEY (investment_cost_id) REFERENCES investment_cost(id),
-    CONSTRAINT fk_fu_graph_data FOREIGN KEY (graph_data_id) REFERENCES node_graph_data(id),
-    CONSTRAINT fk_fu_identity FOREIGN KEY (identity_id) REFERENCES node_identity(id)
 );
 
 -- GroundBasedLiquefactionPlant table
@@ -241,30 +205,14 @@ CREATE TABLE  ground_based_liquefaction_plant (
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
     last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
     -- Inherited from BaseNode via LiquefactionNode
-    name                      VARCHAR(320)               NOT NULL,
-    node_state                VARCHAR(30)                NOT NULL,
-    startup_date              TIMESTAMP WITH TIME ZONE,
-    lifespan_in_months        INTEGER,
-    up_keep_costs             NUMERIC(19,2)              NOT NULL,
-    maintenance_interval_in_days INTEGER,
-    operating_costs          NUMERIC(19,2)              NOT NULL,
-    waste_percentage          REAL,
+    
     -- Specific fields
     max_processing_capacity   REAL,
     mtpa_ratio                REAL,
     intermediate_storage      REAL,
     gas_consumption           REAL,
-    -- Foreign keys (inherited from BaseNode)
-    type_id                   UUID                     NOT NULL,
-    investment_cost_id        UUID                     NOT NULL,
-    graph_data_id             UUID                     NOT NULL,
-    identity_id               UUID                     NOT NULL,
+
     PRIMARY KEY (id),
-    -- Foreign key constraints
-    CONSTRAINT fk_gblp_type FOREIGN KEY (type_id) REFERENCES node_type_data(id),
-    CONSTRAINT fk_gblp_investment_cost FOREIGN KEY (investment_cost_id) REFERENCES investment_cost(id),
-    CONSTRAINT fk_gblp_graph_data FOREIGN KEY (graph_data_id) REFERENCES node_graph_data(id),
-    CONSTRAINT fk_gblp_identity FOREIGN KEY (identity_id) REFERENCES node_identity(id)
 );
 
 -- ExtractionNode based tables
@@ -276,31 +224,15 @@ CREATE TABLE  well (
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
     last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
     -- Inherited from BaseNode via ExtractionNode
-    name                      VARCHAR(320)               NOT NULL,
-    node_state                VARCHAR(30)                NOT NULL,
-    startup_date              TIMESTAMP WITH TIME ZONE,
-    lifespan_in_months        INTEGER,
-    up_keep_costs             NUMERIC(19,2)              NOT NULL,
-    maintenance_interval_in_days INTEGER,
-    operating_costs          NUMERIC(19,2)              NOT NULL,
-    waste_percentage          REAL,
+    
     -- Specific fields
     max_collection_capacity   REAL,
     decline_curve             REAL,
     gas_richness               REAL,
     dtm_time                  INTEGER,
     DTMCost                   NUMERIC(19,2)              NOT NULL,
-    -- Foreign keys (inherited from BaseNode)
-    type_id                   UUID                     NOT NULL,
-    investment_cost_id        UUID                     NOT NULL,
-    graph_data_id             UUID                     NOT NULL,
-    identity_id               UUID                     NOT NULL,
-    PRIMARY KEY (id),
-    -- Foreign key constraints
-    CONSTRAINT fk_w_type FOREIGN KEY (type_id) REFERENCES node_type_data(id),
-    CONSTRAINT fk_w_investment_cost FOREIGN KEY (investment_cost_id) REFERENCES investment_cost(id),
-    CONSTRAINT fk_w_graph_data FOREIGN KEY (graph_data_id) REFERENCES node_graph_data(id),
-    CONSTRAINT fk_w_identity FOREIGN KEY (identity_id) REFERENCES node_identity(id)
+
+    PRIMARY KEY (id)
 );
 
 -- TreatmentPlant table
@@ -311,30 +243,14 @@ CREATE TABLE  treatment_plant (
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
     last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
     -- Inherited from BaseNode via ExtractionNode
-    name                      VARCHAR(320)               NOT NULL,
-    node_state                VARCHAR(30)                NOT NULL,
-    startup_date              TIMESTAMP WITH TIME ZONE,
-    lifespan_in_months        INTEGER,
-    up_keep_costs             NUMERIC(19,2)              NOT NULL,
-    maintenance_interval_in_days INTEGER,
-    operating_costs          NUMERIC(19,2)              NOT NULL,
-    waste_percentage          REAL,
+    
     -- Specific fields
     max_treatment_capacity    REAL,
     contaminant_waste         REAL,
     intermediate_storage      REAL,
     treatment_cost             NUMERIC(19,2)              NOT NULL,
-    -- Foreign keys (inherited from BaseNode)
-    type_id                   UUID                     NOT NULL,
-    investment_cost_id        UUID                     NOT NULL,
-    graph_data_id             UUID                     NOT NULL,
-    identity_id               UUID                     NOT NULL,
-    PRIMARY KEY (id),
-    -- Foreign key constraints
-    CONSTRAINT fk_tp_type FOREIGN KEY (type_id) REFERENCES node_type_data(id),
-    CONSTRAINT fk_tp_investment_cost FOREIGN KEY (investment_cost_id) REFERENCES investment_cost(id),
-    CONSTRAINT fk_tp_graph_data FOREIGN KEY (graph_data_id) REFERENCES node_graph_data(id),
-    CONSTRAINT fk_tp_identity FOREIGN KEY (identity_id) REFERENCES node_identity(id)
+
+    PRIMARY KEY (id)
 );
 
 -- GatheringNetwork table
@@ -345,30 +261,15 @@ CREATE TABLE  gathering_network (
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
     last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
     -- Inherited from BaseNode via ExtractionNode
-    name                      VARCHAR(320)               NOT NULL,
-    node_state                VARCHAR(30)                NOT NULL,
-    startup_date              TIMESTAMP WITH TIME ZONE,
-    lifespan_in_months        INTEGER,
-    up_keep_costs             NUMERIC(19,2)              NOT NULL,
-    maintenance_interval_in_days INTEGER,
-    operating_costs          NUMERIC(19,2)              NOT NULL,
-    waste_percentage          REAL,
+    
     -- Specific fields (GatheringNetwork)
     max_transport_capacity        REAL,                 
     length                        REAL,
     loss_per_meter                REAL,
     connected_wells               INTEGER,
     -- Foreign keys (inherited from BaseNode)
-    type_id                   UUID                     NOT NULL,
-    investment_cost_id        UUID                     NOT NULL,
-    graph_data_id             UUID                     NOT NULL,
-    identity_id               UUID                     NOT NULL,
-    PRIMARY KEY (id),
-    -- Foreign key constraints
-    CONSTRAINT fk_gn_type FOREIGN KEY (type_id) REFERENCES node_type_data(id),
-    CONSTRAINT fk_gn_investment_cost FOREIGN KEY (investment_cost_id) REFERENCES investment_cost(id),
-    CONSTRAINT fk_gn_graph_data FOREIGN KEY (graph_data_id) REFERENCES node_graph_data(id),
-    CONSTRAINT fk_gn_identity FOREIGN KEY (identity_id) REFERENCES node_identity(id)
+
+    PRIMARY KEY (id)
 );
 
 -- TransportationNode based tables
@@ -380,28 +281,13 @@ CREATE TABLE  pipeline_connection (
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
     last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
     -- Inherited from BaseNode via TransportNode
-    name                      VARCHAR(320)               NOT NULL,
-    node_state                VARCHAR(30)                NOT NULL,
-    startup_date              TIMESTAMP WITH TIME ZONE,
-    lifespan_in_months        INTEGER,
-    up_keep_costs             NUMERIC(19,2)              NOT NULL,
-    maintenance_interval_in_days INTEGER,
-    operating_costs          NUMERIC(19,2)              NOT NULL,
-    waste_percentage          REAL,
+    
     -- Specific fields (PipelineConnection seems to have no specific fields beyond TransportNode)
     transfer_capacity         REAL,
     output_priority           REAL,
     -- Foreign keys (inherited from BaseNode)
-    type_id                   UUID                     NOT NULL,
-    investment_cost_id        UUID                     NOT NULL,
-    graph_data_id             UUID                     NOT NULL,
-    identity_id               UUID                     NOT NULL,
-    PRIMARY KEY (id),
-    -- Foreign key constraints
-    CONSTRAINT fk_pc_type FOREIGN KEY (type_id) REFERENCES node_type_data(id),
-    CONSTRAINT fk_pc_investment_cost FOREIGN KEY (investment_cost_id) REFERENCES investment_cost(id),
-    CONSTRAINT fk_pc_graph_data FOREIGN KEY (graph_data_id) REFERENCES node_graph_data(id),
-    CONSTRAINT fk_pc_identity FOREIGN KEY (identity_id) REFERENCES node_identity(id)
+
+    PRIMARY KEY (id)
 );
 
 -- Pipeline table
@@ -412,30 +298,15 @@ CREATE TABLE  pipeline (
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
     last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
     -- Inherited from BaseNode via TransportNode
-    name                      VARCHAR(320)               NOT NULL,
-    node_state                VARCHAR(30)                NOT NULL,
-    startup_date              TIMESTAMP WITH TIME ZONE,
-    lifespan_in_months        INTEGER,
-    up_keep_costs             NUMERIC(19,2)              NOT NULL,
-    maintenance_interval_in_days INTEGER,
-    operating_costs          NUMERIC(19,2)              NOT NULL,
-    waste_percentage          REAL,
+    
     -- Specific fields
     max_flow_capacity         REAL,
     length                    REAL,
     loss_per_km               REAL,
     
     -- Foreign keys (inherited from BaseNode)
-    type_id                   UUID                     NOT NULL,
-    investment_cost_id        UUID                     NOT NULL,
-    graph_data_id             UUID                     NOT NULL,
-    identity_id               UUID                     NOT NULL,
-    PRIMARY KEY (id),
-    -- Foreign key constraints
-    CONSTRAINT fk_p_type FOREIGN KEY (type_id) REFERENCES node_type_data(id),
-    CONSTRAINT fk_p_investment_cost FOREIGN KEY (investment_cost_id) REFERENCES investment_cost(id),
-    CONSTRAINT fk_p_graph_data FOREIGN KEY (graph_data_id) REFERENCES node_graph_data(id),
-    CONSTRAINT fk_p_identity FOREIGN KEY (identity_id) REFERENCES node_identity(id)
+
+    PRIMARY KEY (id)
 );
 
 -- ConnectionIdentity table

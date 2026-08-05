@@ -22,10 +22,6 @@ public class NodeChange {
 
     @OneToOne
     @JoinColumn(nullable = false)
-    private NodeIdentity changedNodeIdentity;
-
-    @OneToOne
-    @JoinColumn(nullable = false)
     private BaseNode changedNode;
 
     @OneToOne

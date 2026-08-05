@@ -12,12 +12,14 @@ import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.enums.NodeStateEnum;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @NoArgsConstructor
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 @Setter
-@MappedSuperclass
+@Inheritance(strategy = InheritanceType.JOINED)
+@Entity
 public abstract class BaseNode extends BaseEntity {
 
     @Column(nullable = false, length = 320)
@@ -59,9 +61,8 @@ public abstract class BaseNode extends BaseEntity {
     @JoinColumn(name = "graphDataId", nullable = false)
     protected NodeGraphData graphData;
 
-    @ManyToOne
-    @JoinColumn(name = "identityId", nullable = false)
-    protected NodeIdentity identity; // Neccesary class, or it can be just an id?
+    @Column
+    protected UUID identity; // Neccesary class, or it can be just an id?
 
     //
     /*

@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.enums.NodeStateEnum;
@@ -28,5 +29,5 @@ public class BaseNodeDTO {
     private InvestmentCostDTO investmentCost;
     private NodeGraphDataDTO graphData;
     private NodeTypeDataDTO type;
-    // private NodeIdentity desp pensar como seria
+    private UUID identity;
 }

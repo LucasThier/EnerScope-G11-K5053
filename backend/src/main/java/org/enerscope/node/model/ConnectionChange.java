@@ -1,5 +1,7 @@
 package org.enerscope.node.model;
 
+import java.util.UUID;
+
 import org.enerscope.node.model.enums.ChangeTypeEnum;
 import jakarta.persistence.Column;
 import jakarta.persistence.Enumerated;
@@ -19,10 +21,6 @@ public class ConnectionChange {
     @Column
     @Enumerated
     private ChangeTypeEnum changeType;
-
-    @OneToOne
-    @JoinColumn(nullable = false)
-    private ConnectionIdentity changedConnectionIdentity;
 
     @OneToOne
     @JoinColumn(nullable = false)
