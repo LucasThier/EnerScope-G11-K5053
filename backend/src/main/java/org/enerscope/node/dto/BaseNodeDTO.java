@@ -6,7 +6,6 @@ import lombok.Setter;
 import java.time.Instant;
 import java.util.UUID;
 
-import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.enums.NodeStateEnum;
 
 /**
@@ -21,9 +20,9 @@ public class BaseNodeDTO {
     // private String state; // Using String for simplicity, could use enum
     private Instant startupDate; // Using String for simplicity, could use Instant
     private Integer lifespanInMonths;
-    private MoneyAmount upkeepCosts;
+    private Float upkeepCosts;
     private Integer maintenanceIntervalInDays;
-    private MoneyAmount operatingCosts;
+    private Float operatingCosts;
     private Float wastePercentage;
     private NodeStateEnum state;
     private InvestmentCostDTO investmentCost;

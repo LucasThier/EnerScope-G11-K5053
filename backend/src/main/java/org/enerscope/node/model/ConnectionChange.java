@@ -1,7 +1,5 @@
 package org.enerscope.node.model;
 
-import java.util.UUID;
-
 import org.enerscope.node.model.enums.ChangeTypeEnum;
 import jakarta.persistence.Column;
 import jakarta.persistence.Enumerated;

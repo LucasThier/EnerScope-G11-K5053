@@ -5,7 +5,7 @@ import lombok.*;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.NodeGraphData;
-import org.enerscope.node.model.NodeIdentity;
+import java.util.UUID;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.enums.NodeStateEnum;
 
@@ -39,7 +39,7 @@ public class FLNGUnit extends LiquefactionNode {
             int lifespanInMonths, MoneyAmount upkeepCosts,
             int maintenanceIntervalInDays, MoneyAmount operatingCosts,
             float wastePercentage, InvestmentCost investmentCost,
-            NodeGraphData graphData, NodeIdentity identity, NodeTypeData type,
+            NodeGraphData graphData, UUID identity, NodeTypeData type,
             float maxProcessingCapacity, float MTPARatio,
             float intermediateStorage, float vesselDepth,
             MoneyAmount hiringCost) {

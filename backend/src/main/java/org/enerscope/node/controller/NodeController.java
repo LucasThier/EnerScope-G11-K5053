@@ -25,7 +25,7 @@ public class NodeController {
                 this.nodeService = nodeService;
         }
 
-        /**
+        /*
          * Create a Well node.
          */
         @PostMapping(value = "/well", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -36,9 +36,6 @@ public class NodeController {
                 return Responses.ok("Well created successfully");
         }
 
-        /**
-         * Create a Gathering Network node.
-         */
         @PostMapping(value = "/gathering-network", consumes = MediaType.APPLICATION_JSON_VALUE)
         @Operation(summary = "Create a Gathering Network node", description = "Create a new Gathering Network node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createGatheringNetwork(
@@ -47,104 +44,96 @@ public class NodeController {
                 return Responses.ok("Gathering Network created successfully");
         }
 
-        /**
-         * Create a Treatment Plant node.
-         */
         @PostMapping(value = "/treatment-plant", consumes = MediaType.APPLICATION_JSON_VALUE)
+
         @Operation(summary = "Create a Treatment Plant node", description = "Create a new Treatment Plant node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createTreatmentPlant(
+
                         @RequestBody TreatmentPlantDTO treatmentPlantDTO) {
                 nodeService.saveTreatmentPlant(treatmentPlantDTO);
                 return Responses.ok("Treatment Plant created successfully");
         }
 
-        /**
-         * Create a Pipeline node.
-         */
         @PostMapping(value = "/pipeline", consumes = MediaType.APPLICATION_JSON_VALUE)
+
         @Operation(summary = "Create a Pipeline node", description = "Create a new Pipeline node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createPipeline(
+
                         @RequestBody PipelineDTO pipelineDTO) {
                 nodeService.savePipeline(pipelineDTO);
                 return Responses.ok("Pipeline created successfully");
         }
 
-        /**
-         * Create a Pipeline Connection node.
-         */
         @PostMapping(value = "/pipeline-connection", consumes = MediaType.APPLICATION_JSON_VALUE)
+
         @Operation(summary = "Create a Pipeline Connection node", description = "Create a new Pipeline Connection node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createPipelineConnection(
+
                         @RequestBody PipelineConnectionDTO pipelineConnectionDTO) {
                 nodeService.savePipelineConnection(pipelineConnectionDTO);
                 return Responses.ok("Pipeline Connection created successfully");
         }
 
-        /**
-         * Create a Compressing Plant node.
-         */
         @PostMapping(value = "/compressing-plant", consumes = MediaType.APPLICATION_JSON_VALUE)
+
         @Operation(summary = "Create a Compressing Plant node", description = "Create a new Compressing Plant node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createCompressingPlant(
+
                         @RequestBody CompressingPlantDTO compressingPlantDTO) {
                 nodeService.saveCompressingPlant(compressingPlantDTO);
                 return Responses.ok("Compressing Plant created successfully");
         }
 
-        /**
-         * Create a Ground Based Liquefaction Plant node.
-         */
         @PostMapping(value = "/ground-liquefaction-plant", consumes = MediaType.APPLICATION_JSON_VALUE)
+
         @Operation(summary = "Create a Ground Based Liquefaction Plant node", description = "Create a new Ground Based Liquefaction Plant node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createGroundBasedLiquefactionPlant(
+
                         @RequestBody GroundBasedLiquefactionPlantDTO gblpDTO) {
                 nodeService.saveGroundBasedLiquefactionPlant(gblpDTO);
                 return Responses.ok("Ground Based Liquefaction Plant created successfully");
         }
 
-        /**
-         * Create an FLNG Unit node.
-         */
         @PostMapping(value = "/flng-unit", consumes = MediaType.APPLICATION_JSON_VALUE)
+
         @Operation(summary = "Create an FLNG Unit node", description = "Create a new FLNG Unit node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createFLNGUnit(
+
                         @RequestBody FLNGUnitDTO flngUnitDTO) {
                 nodeService.saveFLNGUnit(flngUnitDTO);
                 return Responses.ok("FLNG Unit created successfully");
         }
 
-        /**
-         * Create an LNG Carrier node.
-         */
         @PostMapping(value = "/lng-carrier", consumes = MediaType.APPLICATION_JSON_VALUE)
+
         @Operation(summary = "Create an LNG Carrier node", description = "Create a new LNG Carrier node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createLNGCarrier(
+
                         @RequestBody LNGCarrierDTO lngCarrierDTO) {
                 nodeService.saveLNGCarrier(lngCarrierDTO);
                 return Responses.ok("LNG Carrier created successfully");
         }
 
-        /**
-         * Create a Seaport Terminal node.
-         */
         @PostMapping(value = "/seaport-terminal", consumes = MediaType.APPLICATION_JSON_VALUE)
+
         @Operation(summary = "Create a Seaport Terminal node", description = "Create a new Seaport Terminal node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createSeaportTerminal(
+
                         @RequestBody SeaportTerminalDTO seaportTerminalDTO) {
                 nodeService.saveSeaportTerminal(seaportTerminalDTO);
                 return Responses.ok("Seaport Terminal created successfully");
         }
 
-        /**
-         * Create a connection between two nodes.
-         */
         @PostMapping(value = "/connections", consumes = MediaType.APPLICATION_JSON_VALUE)
+
         @Operation(summary = "Create a connection between two nodes", description = "Create a new connection (edge) between two existing nodes.")
         public ResponseEntity<ApiResponse<Void>> createConnection(
+
                         @RequestBody ConnectionDTO connectionDTO) {
                 nodeService.saveConnection(connectionDTO);
                 return Responses.ok("Connection created successfully");
         }
 
-        // Additional endpoints for nodes (e.g., get, update, delete) can be added here.
+        // Additional endpoints for nodes (e.g., get, update, delete) can be added
+        // here.
 }

@@ -2,7 +2,6 @@ package org.enerscope.node.dto;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.enerscope.money.MoneyAmount;
 
 /**
  * Data Transfer Object for FLNGUnit node type.
@@ -17,5 +16,5 @@ public class FLNGUnitDTO extends BaseNodeDTO {
     private Float MTPARatio;
     private Float intermediateStorage;
     private Float vesselDepth;
-    private MoneyAmount hiringCost;
+    private Float hiringCost;
 }

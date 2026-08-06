@@ -1,30 +1,6 @@
 -- V2: Create all necessary tables for the Nodes
 -- This migration creates tables for all @Entity classes in the correct dependency order
 
-
-
-
--- CompressingPlant table (our target)
-CREATE TABLE  node_change (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Specific fields for CompressingPlant
-    changeType                VARCHAR(320)             NOT NULL,
-    -- Foreign keys (NOT NULL as per entity mappings)
-    changed_node_identity     UUID                     NOT NULL,
-    changed_node              UUID                     NOT NULL,
-    result_node               UUID                     NOT NULL,
-    PRIMARY KEY (id),
-    -- Foreign key constraints
-    CONSTRAINT fk_nc_changed_node FOREIGN KEY (changed_node) REFERENCES base_node(id),  ???
-    CONSTRAINT fk_nc_result_node FOREIGN KEY (result_node) REFERENCES node_graph_data(id), ???
-    CONSTRAINT fk_nc_identity FOREIGN KEY (changed_node_identity) REFERENCES node_identity(id)
-);
-
-
 -- NodeTypeData table
 CREATE TABLE  node_type_data (
     id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
@@ -38,9 +14,6 @@ CREATE TABLE  node_type_data (
     type                      VARCHAR(25)                NOT NULL,
     PRIMARY KEY (id)
 );
-
--- BaseEntity based tables (no specific fields beyond BaseEntity)
--- These would typically be inherited, but we need to check if they have specific mappings
 
 -- NodeGraphData table
 CREATE TABLE  node_graph_data (
@@ -56,15 +29,6 @@ CREATE TABLE  node_graph_data (
     PRIMARY KEY (id)
 );
 
--- NodeIdentity table
-CREATE TABLE  node_identity (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    PRIMARY KEY (id)
-);
 
 -- InvestmentCost table
 CREATE TABLE  investment_cost (
@@ -109,62 +73,46 @@ CREATE TABLE  base_node (
     lifespan_in_months        INTEGER,
     up_keep_costs             NUMERIC(19,2)              NOT NULL,
     maintenance_interval_in_days INTEGER,
-    operating_costs          NUMERIC(19,2)              NOT NULL,
+    operating_costs           NUMERIC(19,2)              NOT NULL,
     waste_percentage          REAL,
+    identity_id                  UUID                     NOT NULL,
     -- Foreign keys (NOT NULL as per entity mappings)
     type_id                   UUID                     NOT NULL,
     investment_cost_id        UUID                     NOT NULL,
     graph_data_id             UUID                     NOT NULL,
-    identity_id               UUID                     NOT NULL,
     PRIMARY KEY (id),
     -- Foreign key constraints
     CONSTRAINT fk_cp_type FOREIGN KEY (type_id) REFERENCES node_type_data(id),
     CONSTRAINT fk_cp_investment_cost FOREIGN KEY (investment_cost_id) REFERENCES investment_cost(id),
-    CONSTRAINT fk_cp_graph_data FOREIGN KEY (graph_data_id) REFERENCES node_graph_data(id),
-    CONSTRAINT fk_cp_identity FOREIGN KEY (identity_id) REFERENCES node_identity(id)
+    CONSTRAINT fk_cp_graph_data FOREIGN KEY (graph_data_id) REFERENCES node_graph_data(id)
 );
 
 -- CompressingPlant table (our target)
 CREATE TABLE  compressing_plant (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Inherited from BaseNode
+    id                        UUID                     NOT NULL ,
     -- Specific fields for CompressingPlant
     max_compression_capacity  REAL,
     process_waste             REAL,
     gas_consumption           REAL,
     PRIMARY KEY (id),
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 -- ExportNode based tables
 -- SeaportTerminal table
 CREATE TABLE  seaport_terminal (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Inherited from BaseNode via ExportNode
-    
+    id                        UUID                     NOT NULL ,
     -- Specific fields for SeaportTerminal
     intermediate_storage      REAL,
     port_depth                REAL,
     ship_capacity             INTEGER,
     PRIMARY KEY (id),
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 -- LNGCarrier table
 CREATE TABLE  lng_carrier (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Inherited from BaseNode via ExportNode
-    
+    id                        UUID                     NOT NULL ,
     -- Specific fields
     export_frequency          INTEGER,
     ship_capacity             REAL,
@@ -174,18 +122,13 @@ CREATE TABLE  lng_carrier (
     -- Foreign keys (inherited from BaseNode)
 
     PRIMARY KEY (id),
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 -- LiquefactionNode based tables
 -- FLNGUnit table
 CREATE TABLE  flng_unit (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Inherited from BaseNode via LiquefactionNode
-    
+    id                        UUID                     NOT NULL ,
     -- Specific fields
     max_processing_capacity   REAL,
     mtpa_ratio                REAL,
@@ -195,17 +138,12 @@ CREATE TABLE  flng_unit (
     -- Foreign keys (inherited from BaseNode)
 
     PRIMARY KEY (id),
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 -- GroundBasedLiquefactionPlant table
 CREATE TABLE  ground_based_liquefaction_plant (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Inherited from BaseNode via LiquefactionNode
-    
+    id                        UUID                     NOT NULL ,
     -- Specific fields
     max_processing_capacity   REAL,
     mtpa_ratio                REAL,
@@ -213,18 +151,13 @@ CREATE TABLE  ground_based_liquefaction_plant (
     gas_consumption           REAL,
 
     PRIMARY KEY (id),
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 -- ExtractionNode based tables
 -- Well table
 CREATE TABLE  well (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Inherited from BaseNode via ExtractionNode
-    
+    id                        UUID                     NOT NULL ,
     -- Specific fields
     max_collection_capacity   REAL,
     decline_curve             REAL,
@@ -232,36 +165,26 @@ CREATE TABLE  well (
     dtm_time                  INTEGER,
     DTMCost                   NUMERIC(19,2)              NOT NULL,
 
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 -- TreatmentPlant table
 CREATE TABLE  treatment_plant (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Inherited from BaseNode via ExtractionNode
-    
+    id                        UUID                     NOT NULL ,
     -- Specific fields
     max_treatment_capacity    REAL,
     contaminant_waste         REAL,
     intermediate_storage      REAL,
     treatment_cost             NUMERIC(19,2)              NOT NULL,
 
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 -- GatheringNetwork table
 CREATE TABLE  gathering_network (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Inherited from BaseNode via ExtractionNode
-    
+    id                        UUID                     NOT NULL ,
     -- Specific fields (GatheringNetwork)
     max_transport_capacity        REAL,                 
     length                        REAL,
@@ -269,36 +192,26 @@ CREATE TABLE  gathering_network (
     connected_wells               INTEGER,
     -- Foreign keys (inherited from BaseNode)
 
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 -- TransportationNode based tables
 -- PipelineConnection table
 CREATE TABLE  pipeline_connection (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Inherited from BaseNode via TransportNode
-    
-    -- Specific fields (PipelineConnection seems to have no specific fields beyond TransportNode)
+    id                        UUID                     NOT NULL ,
+    -- Specific fields
     transfer_capacity         REAL,
     output_priority           REAL,
     -- Foreign keys (inherited from BaseNode)
 
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 -- Pipeline table
 CREATE TABLE  pipeline (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Inherited from BaseNode via TransportNode
-    
+    id                        UUID                     NOT NULL ,
     -- Specific fields
     max_flow_capacity         REAL,
     length                    REAL,
@@ -306,18 +219,8 @@ CREATE TABLE  pipeline (
     
     -- Foreign keys (inherited from BaseNode)
 
-    PRIMARY KEY (id)
-);
-
--- ConnectionIdentity table
-CREATE TABLE  connection_identity (
-    id           UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- No additional fields in ConnectionIdentity beyond BaseEntity
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 -- NodeConnection table
@@ -327,14 +230,46 @@ CREATE TABLE  node_connection (
     active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
     last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- FK
+    -- identities
     from_node_id              UUID                     NOT NULL,
     to_node_id                UUID                     NOT NULL,
     identity_id               UUID                     NOT NULL,
 
     PRIMARY KEY (id),
-
-    CONSTRAINT fk_nc_1_identity FOREIGN KEY (from_node_id) REFERENCES node_identity(id),
-    CONSTRAINT fk_nc_2_identity FOREIGN KEY (to_node_id) REFERENCES node_identity(id),
-    CONSTRAINT fk_nc_3_identity FOREIGN KEY (identity_id) REFERENCES connection_identity(id)
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
+
+
+CREATE TABLE  node_change (
+    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
+    -- Inherited from BaseEntity
+    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
+    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
+    -- Specific fields for CompressingPlant
+    changeType                VARCHAR(320)             NOT NULL,
+    -- Foreign keys (NOT NULL as per entity mappings)
+    changed_node              UUID                     NOT NULL,
+    result_node               UUID                     NOT NULL,
+    PRIMARY KEY (id),
+    -- Foreign key constraints
+    CONSTRAINT fk_nc_changed_node FOREIGN KEY (changed_node) REFERENCES base_node(id),  
+    CONSTRAINT fk_nc_result_node FOREIGN KEY (result_node) REFERENCES base_node(id) 
+    );
+
+CREATE TABLE  connection_change (
+    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
+    -- Inherited from BaseEntity
+    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
+    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
+    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
+    -- Specific fields for CompressingPlant
+    changeType                VARCHAR(320)             NOT NULL,
+    -- Foreign keys (NOT NULL as per entity mappings)
+    changed_connection              UUID                     NOT NULL,
+    result_connection               UUID                     NOT NULL,
+    PRIMARY KEY (id),
+    -- Foreign key constraints
+    CONSTRAINT fk_cc_changed_connection FOREIGN KEY (changed_connection) REFERENCES node_connection(id),  
+    CONSTRAINT fk_cc_result_connection FOREIGN KEY (result_connection) REFERENCES node_connection(id)
+    );

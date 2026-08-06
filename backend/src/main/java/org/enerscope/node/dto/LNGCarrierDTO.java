@@ -2,7 +2,6 @@ package org.enerscope.node.dto;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.enerscope.money.MoneyAmount;
 
 /**
  * Data Transfer Object for LNGCarrier node type.
@@ -16,6 +15,6 @@ public class LNGCarrierDTO extends BaseNodeDTO {
     private int exportFrequency;
     private Float shipCapacity;
     private Float fullLoadTime;
-    private MoneyAmount hiringCost;
+    private Float hiringCost;
     private int timeToDestination;
 }

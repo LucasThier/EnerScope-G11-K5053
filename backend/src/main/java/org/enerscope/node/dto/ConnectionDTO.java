@@ -13,4 +13,5 @@ public class ConnectionDTO {
 
     private UUID fromNodeId;
     private UUID toNodeId;
+    private UUID identity;
 }

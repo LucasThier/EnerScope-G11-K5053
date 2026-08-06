@@ -5,7 +5,7 @@ import lombok.*;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.NodeGraphData;
-import org.enerscope.node.model.NodeIdentity;
+import java.util.UUID;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.enums.NodeStateEnum;
 
@@ -34,7 +34,7 @@ public class GroundBasedLiquefactionPlant extends LiquefactionNode {
             int lifespanInMonths, MoneyAmount upkeepCosts,
             int maintenanceIntervalInDays, MoneyAmount operatingCosts,
             Float wastePercentage, InvestmentCost investmentCost,
-            NodeGraphData graphData, NodeIdentity identity, NodeTypeData type,
+            NodeGraphData graphData, UUID identity, NodeTypeData type,
             Float maxProcessingCapacity, Float MTPARatio,
             Float intermediateStorage, Float gasConsumption) {
         super(name, state, startupDate, lifespanInMonths, upkeepCosts,
