@@ -4,6 +4,7 @@ import org.enerscope.logging.AppLogger;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -12,7 +13,12 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @ControllerAdvice
@@ -30,8 +36,7 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.toMap(
                         FieldError::getField,
                         e -> e.getDefaultMessage() != null ? e.getDefaultMessage() : "Invalid value",
-                        (m1, m2) -> m1
-                ));
+                        (m1, m2) -> m1));
         return Responses.badRequest("Validation error", errors);
     }
 
@@ -58,6 +63,36 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return Responses.badRequest("Invalid argument for parameter '" + ex.getName() + "'");
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        Throwable cause = ex.getCause();
+
+        if (cause instanceof InvalidFormatException ife) {
+            String field = ife.getPath().stream()
+                    .map(JsonMappingException.Reference::getFieldName)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.joining("."));
+
+            Class<?> targetType = ife.getTargetType();
+            String message;
+
+            if (targetType.isEnum()) {
+                String validValues = Arrays.stream(targetType.getEnumConstants())
+                        .map(Object::toString)
+                        .collect(Collectors.joining(", "));
+                message = "Invalid value '%s' for field '%s'. Allowed values: [%s]"
+                        .formatted(ife.getValue(), field, validValues);
+            } else {
+                message = "Invalid value '%s' for field '%s'. Expected type: %s"
+                        .formatted(ife.getValue(), field, targetType.getSimpleName());
+            }
+
+            return Responses.badRequest(message);
+        }
+
+        return Responses.badRequest("Malformed request body");
     }
 
     @ExceptionHandler(Exception.class)

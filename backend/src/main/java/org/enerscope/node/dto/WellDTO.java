@@ -2,7 +2,6 @@ package org.enerscope.node.dto;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.enerscope.money.MoneyAmount;
 
 /**
  * Data Transfer Object for Well node type.
