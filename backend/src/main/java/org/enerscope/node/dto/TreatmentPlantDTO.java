@@ -1,7 +1,5 @@
 package org.enerscope.node.dto;
 
-import org.enerscope.money.MoneyAmount;
-
 import lombok.Getter;
 import lombok.Setter;
 
@@ -16,5 +14,5 @@ public class TreatmentPlantDTO extends BaseNodeDTO {
     private float maxTreatmentCapacity;
     private float contaminantWaste;
     private float intermediateStorage;
-    private MoneyAmount treatmentCost;
+    private float treatmentCost;
 }

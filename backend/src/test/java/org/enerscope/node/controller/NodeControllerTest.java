@@ -5,7 +5,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.dto.*;
-import org.enerscope.node.model.NodeIdentity;
+import java.util.UUID;
 import org.enerscope.node.model.enums.CostBasisEnum;
 import org.enerscope.node.model.enums.NodeStateEnum;
 import org.enerscope.node.model.enums.NodeTypeEnum;
@@ -35,6 +35,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class NodeControllerTest {
+
+    UUID id = UUID.randomUUID();
 
     private MockMvc mockMvc;
 
@@ -74,14 +76,14 @@ class NodeControllerTest {
         wellDTO.setState(NodeStateEnum.RUNNING);
         wellDTO.setStartupDate(Instant.parse("2025-01-01T00:00:00Z"));
         wellDTO.setLifespanInMonths(240);
-        wellDTO.setUpkeepCosts(MoneyAmount.of("500.00"));
+        wellDTO.setUpkeepCosts(500.00f);
         wellDTO.setMaintenanceIntervalInDays(30);
-        wellDTO.setOperatingCosts(MoneyAmount.of("200.00"));
+        wellDTO.setOperatingCosts(200.00f);
         wellDTO.setWastePercentage(2.5f);
 
         InvestmentCostComponentDTO componentDTO = new InvestmentCostComponentDTO();
         componentDTO.setName("Drilling");
-        componentDTO.setAmount(MoneyAmount.of("10000.00"));
+        componentDTO.setAmount(1000.0f);
         componentDTO.setCostBasis(CostBasisEnum.FLAT);
 
         InvestmentCostDTO investmentCostDTO = new InvestmentCostDTO();
@@ -94,20 +96,16 @@ class NodeControllerTest {
         graphDataDTO.setCoordinates(0.0);
         wellDTO.setGraphData(graphDataDTO);
 
-        wellDTO.setType(new NodeTypeDataDTO(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
+        wellDTO.setType(new NodeTypeDataDTO(VerticalEnum.EXTRACTION,
+                StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
 
         wellDTO.setMaxCollectionCapacity(1000.0f);
         wellDTO.setDeclineCurve(0.05f);
         wellDTO.setGasRichness(0.3f);
         wellDTO.setDTMTime(15);
-        wellDTO.setDTMCost(MoneyAmount.of("1500.00"));
-        // 👇 FALTABA ESTO: le decimos al mock de NodeService qué debe devolver
-        Well mockWell = new Well(
-                wellDTO.getName(), wellDTO.getState(), wellDTO.getStartupDate(), wellDTO.getLifespanInMonths(),
-                wellDTO.getUpkeepCosts(), wellDTO.getMaintenanceIntervalInDays(), wellDTO.getOperatingCosts(),
-                wellDTO.getWastePercentage(), null, null, new NodeIdentity(), null,
-                wellDTO.getMaxCollectionCapacity(), wellDTO.getDeclineCurve(), wellDTO.getGasRichness(),
-                wellDTO.getDTMTime(), wellDTO.getDTMCost());
+        wellDTO.setDTMCost("1500.00");
+
+        Well mockWell = new Well();
 
         when(nodeService.saveWell(any(WellDTO.class))).thenReturn(mockWell);
 

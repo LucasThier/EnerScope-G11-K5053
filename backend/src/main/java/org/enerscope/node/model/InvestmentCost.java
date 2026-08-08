@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.enerscope.common.BaseEntity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
@@ -19,7 +20,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class InvestmentCost extends BaseEntity {
 
-    @OneToMany
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(nullable = false)
     private List<InvestmentCostComponent> components;
 }

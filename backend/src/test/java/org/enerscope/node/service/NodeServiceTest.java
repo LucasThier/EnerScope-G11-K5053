@@ -16,7 +16,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -80,14 +81,14 @@ class NodeServiceTest {
         wellDTO.setState(NodeStateEnum.RUNNING);
         wellDTO.setStartupDate(Instant.parse("2025-01-01T00:00:00Z"));
         wellDTO.setLifespanInMonths(240);
-        wellDTO.setUpkeepCosts(MoneyAmount.of("500.00"));
+        wellDTO.setUpkeepCosts(500.00f);
         wellDTO.setMaintenanceIntervalInDays(30);
-        wellDTO.setOperatingCosts(MoneyAmount.of("200.00"));
+        wellDTO.setOperatingCosts(200.00f);
         wellDTO.setWastePercentage(2.5f);
 
         InvestmentCostComponentDTO componentDTO = new InvestmentCostComponentDTO();
         componentDTO.setName("Drilling");
-        componentDTO.setAmount(MoneyAmount.of("10000.00"));
+        componentDTO.setAmount(1000.0f);
         componentDTO.setCostBasis(CostBasisEnum.FLAT);
 
         InvestmentCostDTO investmentCostDTO = new InvestmentCostDTO();
@@ -100,13 +101,14 @@ class NodeServiceTest {
         graphDataDTO.setCoordinates(0.0);
         wellDTO.setGraphData(graphDataDTO);
 
-        wellDTO.setType(new NodeTypeDataDTO(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
+        wellDTO.setType(new NodeTypeDataDTO(VerticalEnum.EXTRACTION,
+                StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
 
         wellDTO.setMaxCollectionCapacity(1000.0f);
         wellDTO.setDeclineCurve(0.05f);
         wellDTO.setGasRichness(0.3f);
         wellDTO.setDTMTime(15);
-        wellDTO.setDTMCost(MoneyAmount.of("1500.00"));
+        wellDTO.setDTMCost("1500.00");
 
         when(wellRepository.save(any(Well.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -124,4 +126,5 @@ class NodeServiceTest {
         assertEquals(0.05f, foundWell.get().getDeclineCurve());
 
     }
+
 }

@@ -22,10 +22,6 @@ public class ConnectionChange {
 
     @OneToOne
     @JoinColumn(nullable = false)
-    private ConnectionIdentity changedConnectionIdentity;
-
-    @OneToOne
-    @JoinColumn(nullable = false)
     private NodeConnection changedConnection;
 
     @OneToOne

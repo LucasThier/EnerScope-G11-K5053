@@ -6,7 +6,7 @@ import org.enerscope.money.MoneyAmount;
 import java.time.Instant;
 import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.NodeGraphData;
-import org.enerscope.node.model.NodeIdentity;
+import java.util.UUID;
 import org.enerscope.node.model.enums.NodeStateEnum;
 
 import org.enerscope.node.model.NodeTypeData;
@@ -30,7 +30,7 @@ public class SeaportTerminal extends ExportNode {
             int lifespanInMonths, MoneyAmount upkeepCosts,
             int maintenanceIntervalInDays, MoneyAmount operatingCosts,
             float wastePercentage, InvestmentCost investmentCost,
-            NodeGraphData graphData, NodeIdentity identity, NodeTypeData type,
+            NodeGraphData graphData, UUID identity, NodeTypeData type,
             float intermediateStorage, float portDepth, int shipCapacity) {
         super(name, state, startupDate, lifespanInMonths, upkeepCosts,
                 maintenanceIntervalInDays, operatingCosts, wastePercentage,

@@ -12,12 +12,14 @@ import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.enums.NodeStateEnum;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @NoArgsConstructor
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 @Setter
-@MappedSuperclass
+@Inheritance(strategy = InheritanceType.JOINED)
+@Entity
 public abstract class BaseNode extends BaseEntity {
 
     @Column(nullable = false, length = 320)
@@ -47,21 +49,32 @@ public abstract class BaseNode extends BaseEntity {
     @Column(name = "wastePercentage")
     protected float wastePercentage;
 
-    @OneToOne
+    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true) // Esta guardado junto al nodo en su repositorio
+                                                               // ("entidad
+                                                               // transient asociada"), en caso de necesitar acceder a
+                                                               // esta clase por separado, crear nuevo repositorio y
+                                                               // guardarlos por separado en el service
     @JoinColumn(name = "typeId", nullable = false)
     protected NodeTypeData type;
 
-    @OneToOne
+    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true) // Esta guardado junto al nodo en su repositorio
+                                                               // ("entidad
+                                                               // transient asociada"), en caso de necesitar acceder a
+                                                               // esta clase por separado, crear nuevo repositorio y
+                                                               // guardarlos por separado en el service
     @JoinColumn(name = "investmentCostId", nullable = false)
     protected InvestmentCost investmentCost;
 
-    @OneToOne
+    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true) // Esta guardado junto al nodo en su repositorio
+                                                               // ("entidad
+                                                               // transient asociada"), en caso de necesitar acceder a
+                                                               // esta clase por separado, crear nuevo repositorio y
+                                                               // guardarlos por separado en el service
     @JoinColumn(name = "graphDataId", nullable = false)
     protected NodeGraphData graphData;
 
-    @ManyToOne
-    @JoinColumn(name = "identityId", nullable = false)
-    protected NodeIdentity identity; // Neccesary class, or it can be just an id?
+    @Column
+    protected UUID identityId;
 
     //
     /*

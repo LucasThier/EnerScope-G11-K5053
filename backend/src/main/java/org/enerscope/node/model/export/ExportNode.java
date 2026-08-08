@@ -5,11 +5,12 @@ import lombok.NoArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import java.time.Instant;
+import java.util.UUID;
+
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.NodeGraphData;
-import org.enerscope.node.model.NodeIdentity;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.enums.NodeStateEnum;
 
@@ -23,7 +24,7 @@ public abstract class ExportNode extends BaseNode {
             int lifespanInMonths, MoneyAmount upkeepCosts,
             int maintenanceIntervalInDays, MoneyAmount operatingCosts,
             float wastePercentage, NodeTypeData type,
-            InvestmentCost investmentCost, NodeGraphData graphData, NodeIdentity identity) {
+            InvestmentCost investmentCost, NodeGraphData graphData, UUID identity) {
         super(name, state, startupDate, lifespanInMonths, upkeepCosts,
                 maintenanceIntervalInDays, operatingCosts, wastePercentage,
                 type, investmentCost, graphData, identity);

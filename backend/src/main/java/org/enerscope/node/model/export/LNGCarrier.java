@@ -5,11 +5,11 @@ import lombok.*;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.NodeGraphData;
-import org.enerscope.node.model.NodeIdentity;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.enums.NodeStateEnum;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Getter
@@ -38,7 +38,7 @@ public class LNGCarrier extends ExportNode {
             int lifespanInMonths, MoneyAmount upkeepCosts,
             int maintenanceIntervalInDays, MoneyAmount operatingCosts,
             float wastePercentage, InvestmentCost investmentCost,
-            NodeGraphData graphData, NodeIdentity identity, NodeTypeData type,
+            NodeGraphData graphData, UUID identity, NodeTypeData type,
             int exportFrequency, float shipCapacity, float fullLoadTime,
             MoneyAmount hiringCost, int timeToDestination) {
         super(name, state, startupDate, lifespanInMonths, upkeepCosts,

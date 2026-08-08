@@ -1,10 +1,11 @@
 package org.enerscope.node.model;
 
+import java.util.UUID;
+
 import org.enerscope.common.BaseEntity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -17,15 +18,12 @@ import lombok.Setter;
 @Setter
 public class NodeConnection extends BaseEntity {
 
-    @OneToOne
-    @JoinColumn(name = "identityId", nullable = false)
-    private ConnectionIdentity identity;
+    @Column
+    private UUID identityId;
 
-    @OneToOne
-    @JoinColumn(name = "fromNodeId", nullable = false)
-    private NodeIdentity fromNode;
+    @Column
+    private UUID fromNodeId;
 
-    @OneToOne
-    @JoinColumn(name = "toNodeId", nullable = false)
-    private NodeIdentity toNode;
+    @Column
+    private UUID toNodeId;
 }
