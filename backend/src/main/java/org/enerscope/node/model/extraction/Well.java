@@ -32,6 +32,9 @@ public class Well extends ExtractionNode {
     @Column(name = "dtm_time")
     private int DTMTime;
 
+    @Column(name = "surface")
+    private float surface;
+
     @Embedded
     @AttributeOverride(name = "value", column = @Column(name = "DTMCost"))
     private MoneyAmount DTMCost;
