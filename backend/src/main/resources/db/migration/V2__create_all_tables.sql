@@ -266,6 +266,7 @@ CREATE TABLE  well (
     gas_richness               REAL,
     dtm_time                  INTEGER,
     DTMCost                   NUMERIC(19,2)              NOT NULL,
+    surface                   REAL,
     -- Foreign keys (inherited from BaseNode)
     type_id                   UUID                     NOT NULL,
     investment_cost_id        UUID                     NOT NULL,

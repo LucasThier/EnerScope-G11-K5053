@@ -18,4 +18,5 @@ public class WellDTO extends BaseNodeDTO {
     private Float gasRichness;
     private int DTMTime;
     private MoneyAmount DTMCost;
+    private Float surface;
 }
