@@ -115,7 +115,7 @@ public class NodeService {
                 data.getMaintenanceIntervalInDays(), data.getOperatingCosts(), data.getWastePercentage(),
                 this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), new NodeIdentity(),
                 this.DTOtoEntity(data.getType()), data.getMaxCollectionCapacity(), data.getDeclineCurve(),
-                data.getGasRichness(), data.getDTMTime(), data.getDTMCost());
+                data.getGasRichness(), data.getDTMTime(), data.getDTMCost(), data.getSurface());
 
         Well saved = wellRepository.save(well);
 

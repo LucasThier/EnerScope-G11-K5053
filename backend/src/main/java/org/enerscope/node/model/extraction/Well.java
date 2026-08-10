@@ -45,7 +45,7 @@ public class Well extends ExtractionNode {
             float wastePercentage, InvestmentCost investmentCost,
             NodeGraphData graphData, NodeIdentity identity, NodeTypeData type,
             float maxCollectionCapacity, float decline_curve, float gasRichness,
-            int DTMTime, MoneyAmount DTMCost) {
+            int DTMTime, MoneyAmount DTMCost, float surface) {
         super(name, state, startupDate, lifespanInMonths, upkeepCosts,
                 maintenanceIntervalInDays, operatingCosts, wastePercentage,
                 investmentCost, graphData, identity, type);
@@ -54,5 +54,6 @@ public class Well extends ExtractionNode {
         this.gasRichness = gasRichness;
         this.DTMTime = DTMTime;
         this.DTMCost = DTMCost;
+        this.surface = surface;
     }
 }

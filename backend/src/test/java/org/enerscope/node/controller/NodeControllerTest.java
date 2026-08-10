@@ -107,7 +107,7 @@ class NodeControllerTest {
                 wellDTO.getUpkeepCosts(), wellDTO.getMaintenanceIntervalInDays(), wellDTO.getOperatingCosts(),
                 wellDTO.getWastePercentage(), null, null, new NodeIdentity(), null,
                 wellDTO.getMaxCollectionCapacity(), wellDTO.getDeclineCurve(), wellDTO.getGasRichness(),
-                wellDTO.getDTMTime(), wellDTO.getDTMCost());
+                wellDTO.getDTMTime(), wellDTO.getDTMCost(), wellDTO.getSurface());
 
         when(nodeService.saveWell(any(WellDTO.class))).thenReturn(mockWell);
 
