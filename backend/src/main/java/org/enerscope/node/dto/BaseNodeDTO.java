@@ -22,6 +22,7 @@ public class BaseNodeDTO {
     private Integer lifespanInMonths;
     private Float upkeepCosts;
     private Integer maintenanceIntervalInDays;
+    private Integer maintenanceDuration;
     private Float operatingCosts;
     private Float wastePercentage;
     private NodeStateEnum state;

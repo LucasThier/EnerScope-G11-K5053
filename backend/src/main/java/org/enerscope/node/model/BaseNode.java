@@ -42,6 +42,9 @@ public abstract class BaseNode extends BaseEntity {
     @Column(name = "maintenance_interval_in_days")
     protected int maintenanceIntervalInDays;
 
+    @Column(name = "maintenanceDuration")
+    protected int maintenanceDuration;
+
     @Embedded
     @AttributeOverride(name = "value", column = @Column(name = "operatingCosts"))
     protected MoneyAmount operatingCosts; // monthly
