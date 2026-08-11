@@ -14,7 +14,6 @@ public class SimGatheringNetwork extends SimBaseNode{
     private float loss;
     private List<SimWell> simWells;
 
-    private float toDeliver;
     private float totalGathered;
     private float totalLost;
     private float totalNotDelivered;
@@ -22,7 +21,6 @@ public class SimGatheringNetwork extends SimBaseNode{
         super(gatheringNetwork);
         this.maxTransportCapacity = gatheringNetwork.getMaxTransportCapacity();
         this.loss = gatheringNetwork.getLength() * gatheringNetwork.getLossPerMeter();
-        this.toDeliver = 0;
         this.totalLost = 0;
         this.totalGathered = 0;
         this.totalNotDelivered = 0;

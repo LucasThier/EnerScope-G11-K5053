@@ -23,33 +23,31 @@ public class SimTreatmentPlant extends SimBaseNode{
         this.intermediateStorage = treatmentPlant.getIntermediateStorage();
         this.contaminantWaste = treatmentPlant.getContaminantWaste();
         this.amountInintermediateStorage = 0;
+        this.totalProcesed = 0;
+        this.totalDelivered = 0;
     }
 
     @Override
     protected void activeAction(int time){
+        totalDelivered -= toDeliver;
 
         float amountToTake =  (float) simGatheringNetworks.stream().mapToDouble(simGatheringNetwork -> simGatheringNetwork.getToDeliver()).sum();
         float capacity = maxTreatmentCapacity + intermediateStorage - amountInintermediateStorage;
-        float toProccess;
+        float toProccess = intermediateStorage;
+
         if(amountToTake >= capacity){
-             toProccess = new FlowCalculator().takeEqualAmounts(simGatheringNetworks,capacity,SimGatheringNetwork::getToDeliver,SimGatheringNetwork::deliver);
+             toProccess += new FlowCalculator().takeEqualAmounts(simGatheringNetworks,capacity,SimGatheringNetwork::getToDeliver,SimGatheringNetwork::deliver);
         } else {
-            toProccess = new FlowCalculator().calculateAndTakeAll(simGatheringNetworks,SimGatheringNetwork::getToDeliver,SimGatheringNetwork::deliver);
+            toProccess += new FlowCalculator().calculateAndTakeAll(simGatheringNetworks,SimGatheringNetwork::getToDeliver,SimGatheringNetwork::deliver);
         }
 
         if(toProccess >= maxTreatmentCapacity){
-            toDeliver = maintenanceDuration *  contaminantWaste /100;
-            amountInintermediateStorage += toProccess - maxTreatmentCapacity;
+            toDeliver = maxTreatmentCapacity * contaminantWaste /100;
+            amountInintermediateStorage = toProccess - maxTreatmentCapacity;
         } else {
             toDeliver = toProccess *  contaminantWaste /100;
         }
         totalProcesed += toDeliver;
         totalDelivered += toDeliver;
-    }
-    @Override
-    protected void inactiveAction(int time){
-        totalDelivered -= toDeliver;
-        toDeliver = 0;
-        checkInactivity(time);
     }
 }

@@ -40,10 +40,10 @@ public abstract class SimBaseNode {
     }
 
     protected void checkInactivity(int time){
-        int timeOfInactiivity = time - timeStartOfInactivity;
+        int timeOfInactivity = time - timeStartOfInactivity;
         switch (flagOfInactivity){
             case Mantainance: {
-                if(timeOfInactiivity >= maintenanceDuration){
+                if(timeOfInactivity >= maintenanceDuration){
                     active = true;
                 }
             }
@@ -83,5 +83,9 @@ public abstract class SimBaseNode {
 
     public void deliver(float amount){
         toDeliver -= amount;
+    }
+
+    public boolean readyToBeProcessed() {
+        return true;
     }
 }
