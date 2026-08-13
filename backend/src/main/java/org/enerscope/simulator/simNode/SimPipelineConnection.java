@@ -13,6 +13,7 @@ public class SimPipelineConnection extends SimBaseNode{
         super(pipelineConnection);
         this.transferCapacity = pipelineConnection.getTransferCapacity();
         this.outputPriority = pipelineConnection.getOutputPriority();
+        #############
     }
 
 

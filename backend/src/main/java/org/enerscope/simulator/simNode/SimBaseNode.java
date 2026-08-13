@@ -5,6 +5,7 @@ import lombok.Setter;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.simulator.FlagOfInactivity;
 
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -87,5 +88,54 @@ public abstract class SimBaseNode {
 
     public boolean readyToBeProcessed() {
         return true;
+    }
+
+    public float takeEqualAmounts(List<? extends SimBaseNode> items, float capacity) {
+
+        List<? extends SimBaseNode> itemsThatProduced = items.stream()
+                .filter(item ->item.getToDeliver() > 0)
+                .toList();
+
+        if (itemsThatProduced.isEmpty() || capacity <= 0) {
+            return 0;
+        }
+
+        float quantityToTake = capacity / itemsThatProduced.size();
+
+        List<? extends SimBaseNode> withMore = itemsThatProduced.stream()
+                .filter(item -> item.getToDeliver() >= quantityToTake)
+                .toList();
+
+        List<? extends SimBaseNode> withLess = itemsThatProduced.stream()
+                .filter(item -> item.getToDeliver() < quantityToTake)
+                .toList();
+
+        if (withLess.isEmpty()) {
+            withMore.forEach(item -> item.deliver(quantityToTake));
+            return capacity;
+        } else {
+
+            float takenFromLess = calculateAndTakeAll(withLess);
+
+            float remainingTaken = takeEqualAmounts(items, capacity - takenFromLess);
+
+            return takenFromLess + remainingTaken;
+        }
+    }
+
+    private float calculateToTake(List<? extends SimBaseNode> items) {
+        return (float) items.stream()
+                .mapToDouble(item -> item.getToDeliver())
+                .sum();
+    }
+
+    private void takeAll(List<? extends SimBaseNode> items) {
+        items.forEach(item -> item.deliver(item.getToDeliver()));
+    }
+
+    public float calculateAndTakeAll(List<? extends SimBaseNode> items) {
+        float quantityTaken = calculateToTake(items);
+        takeAll(items);
+        return quantityTaken;
     }
 }

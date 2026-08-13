@@ -3,7 +3,6 @@ package org.enerscope.simulator.simNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.transportation.Pipeline;
-import org.enerscope.simulator.FlowCalculator;
 
 import java.util.List;
 @Getter
@@ -34,9 +33,9 @@ public class SimPipeline extends SimBaseNode{
         float toGather = (float) nodesBefore.stream().mapToDouble(simBaseNode -> simBaseNode.getToDeliver()).sum();
 
         if (toGather >= capacity){
-            toDeliver += new FlowCalculator().takeEqualAmounts(nodesBefore,capacity,SimBaseNode::getToDeliver,SimBaseNode::deliver);
+            toDeliver += takeEqualAmounts(nodesBefore,capacity);
         } else {
-            toDeliver += new FlowCalculator().calculateAndTakeAll(nodesBefore,SimBaseNode::getToDeliver,SimBaseNode::deliver);
+            toDeliver += calculateAndTakeAll(nodesBefore);
         }
 
         totalGathered += capacity - (maxFlowCapacity - toDeliver);

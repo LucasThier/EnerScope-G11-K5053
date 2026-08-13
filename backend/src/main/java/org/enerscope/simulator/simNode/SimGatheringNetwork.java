@@ -3,7 +3,6 @@ package org.enerscope.simulator.simNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.extraction.GatheringNetwork;
-import org.enerscope.simulator.FlowCalculator;
 
 import java.util.List;
 
@@ -34,9 +33,9 @@ public class SimGatheringNetwork extends SimBaseNode{
         float toGather = (float) simWells.stream().mapToDouble(simWell -> simWell.getToDeliver()).sum();
 
         if (toGather >= capacity){
-            toDeliver += new FlowCalculator().takeEqualAmounts(simWells,capacity,SimWell::getToDeliver,SimWell::deliver);
+            toDeliver += takeEqualAmounts(simWells,capacity);
         } else {
-            toDeliver += new FlowCalculator().calculateAndTakeAll(simWells,SimWell::getToDeliver,SimWell::deliver);
+            toDeliver += calculateAndTakeAll(simWells);
         }
 
         totalGathered += capacity - (maxTransportCapacity - toDeliver);

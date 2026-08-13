@@ -1,7 +1,6 @@
 package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.extraction.TreatmentPlant;
-import org.enerscope.simulator.FlowCalculator;
 
 import java.util.List;
 
@@ -36,9 +35,9 @@ public class SimTreatmentPlant extends SimBaseNode{
         float toProccess = intermediateStorage;
 
         if(amountToTake >= capacity){
-             toProccess += new FlowCalculator().takeEqualAmounts(simGatheringNetworks,capacity,SimGatheringNetwork::getToDeliver,SimGatheringNetwork::deliver);
+             toProccess += takeEqualAmounts(simGatheringNetworks,capacity);
         } else {
-            toProccess += new FlowCalculator().calculateAndTakeAll(simGatheringNetworks,SimGatheringNetwork::getToDeliver,SimGatheringNetwork::deliver);
+            toProccess += calculateAndTakeAll(simGatheringNetworks);
         }
 
         if(toProccess >= maxTreatmentCapacity){
