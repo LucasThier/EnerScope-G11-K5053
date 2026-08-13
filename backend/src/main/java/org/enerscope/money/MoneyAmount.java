@@ -5,6 +5,7 @@ import jakarta.persistence.Embeddable;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -63,6 +64,16 @@ public class MoneyAmount {
         return new MoneyAmount(this.value.add(other.value));
     }
 
+    public MoneyAmount addAll(List<MoneyAmount> moneyAmounts) {
+        MoneyAmount total = this;
+        if (moneyAmounts != null) {
+            for (MoneyAmount amount : moneyAmounts) {
+                total = total.add(amount);
+            }
+        }
+        return total;
+    }
+
     public MoneyAmount subtract(MoneyAmount other) {
         return new MoneyAmount(this.value.subtract(other.value));
     }
@@ -79,6 +90,9 @@ public class MoneyAmount {
     }
 
     public MoneyAmount multiply(int factor) {
+        return multiply(BigDecimal.valueOf(factor));
+    }
+    public MoneyAmount multiply(float factor) {
         return multiply(BigDecimal.valueOf(factor));
     }
 
