@@ -3,6 +3,8 @@ package org.enerscope.money;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -44,4 +46,14 @@ class MoneyAmountTest {
         assertEquals(MoneyAmount.of("1.00"), MoneyAmount.of(1));
         assertEquals(MoneyAmount.of("1.00").hashCode(), MoneyAmount.of(1).hashCode());
     }
+
+    @Test
+    void addsAll() {
+        List<MoneyAmount> moneyAmounts = new ArrayList<>();
+        moneyAmounts.add(MoneyAmount.of(10));
+        moneyAmounts.add(MoneyAmount.of("5.5"));
+        MoneyAmount amount = MoneyAmount.of(1);
+        assertEquals(MoneyAmount.of("16.5"), amount.addAll(moneyAmounts));
+    }
+
 }
