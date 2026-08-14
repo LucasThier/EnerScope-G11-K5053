@@ -124,7 +124,6 @@ class NodeServiceTest {
         assertEquals("Test Well", foundWell.get().getName());
         assertEquals(1000.0f, foundWell.get().getMaxCollectionCapacity());
         assertEquals(0.05f, foundWell.get().getDeclineCurve());
-
     }
 
 }
