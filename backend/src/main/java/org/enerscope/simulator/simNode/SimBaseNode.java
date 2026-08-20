@@ -20,6 +20,7 @@ public abstract class SimBaseNode {
     protected int timeSinceLastMaintenance;
     protected FlagOfInactivity flagOfInactivity;
     protected float toDeliver;
+    protected int lastSimulatedTime;
 
 
     SimBaseNode(BaseNode baseNode){
@@ -30,6 +31,7 @@ public abstract class SimBaseNode {
         this.active = true;
         this.timeStartOfInactivity = 0;
         this.toDeliver = 0;
+        lastSimulatedTime = -1;
     }
 
     protected void checkLifeSpan(int time){
@@ -62,7 +64,7 @@ public abstract class SimBaseNode {
         }
     }
 
-    public void simulateTime(int time){
+    public void simulate(int time){
         before(time);
         if(active){
             activeAction(time);
@@ -73,11 +75,10 @@ public abstract class SimBaseNode {
 
     protected void before(int time){
         checkMaintenanceNeeded(time);
+        lastSimulatedTime = time;
     }
 
-    protected void activeAction(int time){
-
-    }
+    protected void activeAction(int time){checkLifeSpan(time);}
     protected void inactiveAction(int time){
         checkInactivity(time);
     }
@@ -86,15 +87,13 @@ public abstract class SimBaseNode {
         toDeliver -= amount;
     }
 
-    public boolean readyToBeProcessed() {
+    public boolean readyToBeProcessed(int time) {
         return true;
     }
 
     public float takeEqualAmounts(List<? extends SimBaseNode> items, float capacity) {
 
-        List<? extends SimBaseNode> itemsThatProduced = items.stream()
-                .filter(item ->item.getToDeliver() > 0)
-                .toList();
+        List<? extends SimBaseNode> itemsThatProduced = items.stream().filter(item ->item.getToDeliver() > 0).toList();
 
         if (itemsThatProduced.isEmpty() || capacity <= 0) {
             return 0;
@@ -102,31 +101,22 @@ public abstract class SimBaseNode {
 
         float quantityToTake = capacity / itemsThatProduced.size();
 
-        List<? extends SimBaseNode> withMore = itemsThatProduced.stream()
-                .filter(item -> item.getToDeliver() >= quantityToTake)
-                .toList();
+        List<? extends SimBaseNode> withMore = itemsThatProduced.stream().filter(item -> item.getToDeliver() >= quantityToTake).toList();
 
-        List<? extends SimBaseNode> withLess = itemsThatProduced.stream()
-                .filter(item -> item.getToDeliver() < quantityToTake)
-                .toList();
+        List<? extends SimBaseNode> withLess = itemsThatProduced.stream().filter(item -> item.getToDeliver() < quantityToTake).toList();
 
         if (withLess.isEmpty()) {
             withMore.forEach(item -> item.deliver(quantityToTake));
             return capacity;
         } else {
-
             float takenFromLess = calculateAndTakeAll(withLess);
-
             float remainingTaken = takeEqualAmounts(items, capacity - takenFromLess);
-
             return takenFromLess + remainingTaken;
         }
     }
 
     private float calculateToTake(List<? extends SimBaseNode> items) {
-        return (float) items.stream()
-                .mapToDouble(item -> item.getToDeliver())
-                .sum();
+        return (float) items.stream().mapToDouble(item -> item.getToDeliver()).sum();
     }
 
     private void takeAll(List<? extends SimBaseNode> items) {

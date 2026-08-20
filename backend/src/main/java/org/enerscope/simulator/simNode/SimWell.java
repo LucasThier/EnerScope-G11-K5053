@@ -13,8 +13,6 @@ public class SimWell extends SimBaseNode{
     private float gasRichness;
     private int DTMTime;
 
-    private float totalProduced;
-    private float totalLost;
 
     SimWell(Well well){
         super(well);
@@ -22,14 +20,6 @@ public class SimWell extends SimBaseNode{
         this.declineCurve = well.getDeclineCurve();
         this.gasRichness = well.getGasRichness();
         this.DTMTime = well.getDTMTime();
-        this.totalLost = 0;
-        this.totalProduced = 0;
-    }
-
-    @Override
-    protected void before(int time){
-        totalLost += this.toDeliver;
-        checkMaintenanceNeeded(time);
     }
 
     @Override

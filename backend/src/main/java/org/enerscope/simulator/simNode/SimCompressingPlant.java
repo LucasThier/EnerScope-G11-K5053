@@ -14,35 +14,34 @@ public class SimCompressingPlant extends SimBaseNode{
     private float gasConsumption;
 
     private List<SimBaseNode> nodesBefore;
-    private float totalProcesed;
-    private float totalDelivered;
+
     SimCompressingPlant(CompressingPlant compressingPlant){
         super(compressingPlant);
         this.maxCompressionCapacity = compressingPlant.getMaxCompressionCapacity();
         this.processWaste = compressingPlant.getProcessWaste();
         this.gasConsumption = compressingPlant.getGasConsumption();
-        this.totalProcesed = 0;
-        this.totalDelivered = 0;
     }
     @Override
     protected void activeAction(int time){
-        totalDelivered -= toDeliver;
-
         float amountToTake =  (float) nodesBefore.stream().mapToDouble(simBaseNode -> simBaseNode.getToDeliver()).sum();
-        float toProccess;
+        float toProcess;
 
         if(amountToTake >= maxCompressionCapacity){
-            toProccess = takeEqualAmounts(nodesBefore,maxCompressionCapacity);
+            toProcess = takeEqualAmounts(nodesBefore,maxCompressionCapacity);
         } else {
-            toProccess = calculateAndTakeAll(nodesBefore);
+            toProcess = calculateAndTakeAll(nodesBefore);
         }
+
         float loss = ( processWaste + gasConsumption ) /100;
-        if(toProccess >= maxCompressionCapacity){
+
+        if(toProcess >= maxCompressionCapacity){
             toDeliver = maxCompressionCapacity * loss;
         } else {
-            toDeliver = toProccess * loss;
+            toDeliver = toProcess * loss;
         }
-        totalProcesed += toDeliver;
-        totalDelivered += toDeliver;
+    }
+    @Override
+    public boolean readyToBeProcessed(int time) {
+        return nodesBefore.stream().allMatch(node -> node.getLastSimulatedTime() == time);
     }
 }

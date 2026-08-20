@@ -10,8 +10,6 @@ public class SimSeaportTerminal extends SimBaseNode{
     private float amountInIntermediateStorage;
     private int amountOfShip;
     private List<SimLiquefactionPlant> simLiquefactionPlants;
-    private float totalProcesed;
-    private float totalDelivered;
 
     SimSeaportTerminal(SeaportTerminal seaportTerminal){
         super(seaportTerminal);
@@ -25,25 +23,21 @@ public class SimSeaportTerminal extends SimBaseNode{
     protected void activeAction(int time){
 
         float amountToTake =  (float) simLiquefactionPlants.stream().mapToDouble(SimBaseNode::getToDeliver).sum();
-        float toProccess;
+        float toProcess;
 
-        float capacity =intermediateStorage - amountInIntermediateStorage;
+        float capacity = intermediateStorage - amountInIntermediateStorage;
 
         if(amountToTake >= capacity){
-            toProccess = takeEqualAmounts(simLiquefactionPlants,capacity);
+            toProcess = takeEqualAmounts(simLiquefactionPlants,capacity);
         } else {
-            toProccess = calculateAndTakeAll(simLiquefactionPlants);
+            toProcess = calculateAndTakeAll(simLiquefactionPlants);
         }
 
-        if(toProccess >= capacity){
+        if(toProcess >= capacity){
             toDeliver = capacity;
         } else {
-            toDeliver = toProccess;
+            toDeliver = toProcess;
         }
-
-
-        totalProcesed += toDeliver;
-        totalDelivered += toDeliver;
 
         if((amountInIntermediateStorage + toDeliver) > intermediateStorage){
             amountInIntermediateStorage = intermediateStorage;
@@ -60,7 +54,6 @@ public class SimSeaportTerminal extends SimBaseNode{
     @Override
     public void deliver(float amount){
         amountInIntermediateStorage -= amount;
-        totalDelivered += toDeliver;
     }
 
     public void addBoat(){
@@ -70,5 +63,7 @@ public class SimSeaportTerminal extends SimBaseNode{
         amountOfShip -= 1;
     }
 
-
+    public boolean shipAbleToDock(){
+        return amountOfShip < shipCapacity;
+    }
 }

@@ -10,12 +10,7 @@ public class SimLiquefactionPlant extends SimBaseNode{
     private Float MTPARatio;
     private Float intermediateStorage;
     private Float gasConsumption;
-
     private List<SimBaseNode> nodesBefore;
-
-    private float totalProcesed;
-    private float totalDelivered;
-    private float totalLost;
     private float amountInIntermediateStorage;
 
     SimLiquefactionPlant(GroundBasedLiquefactionPlant groundBasedLiquefactionPlant){
@@ -37,34 +32,29 @@ public class SimLiquefactionPlant extends SimBaseNode{
 
     @Override
     protected void activeAction(int time){
-
         float amountToTake =  (float) nodesBefore.stream().mapToDouble(SimBaseNode::getToDeliver).sum();
-        float toProccess;
+        float toProcess;
 
         if(amountToTake >= maxProcessingCapacity){
-            toProccess = takeEqualAmounts(nodesBefore,maxProcessingCapacity);
+            toProcess = takeEqualAmounts(nodesBefore,maxProcessingCapacity);
         } else {
-            toProccess = calculateAndTakeAll(nodesBefore);
+            toProcess = calculateAndTakeAll(nodesBefore);
         }
 
         float loss =  gasConsumption /100;
         float lossCase;
 
-        if(toProccess >= maxProcessingCapacity){
+        if(toProcess >= maxProcessingCapacity){
             lossCase = maxProcessingCapacity * loss;
-            toDeliver = maxProcessingCapacity -= lossCase;
+            toDeliver = maxProcessingCapacity - lossCase;
         } else {
-            lossCase = toProccess * loss;
-            toDeliver = toProccess - lossCase;
+            lossCase = toProcess * loss;
+            toDeliver = toProcess - lossCase;
         }
 
         toDeliver = toDeliver * MTPARatio /100;
 
-        totalLost += lossCase;
-        totalProcesed += toDeliver;
-
         if((amountInIntermediateStorage + toDeliver) > intermediateStorage){
-            totalLost = amountInIntermediateStorage + toDeliver - intermediateStorage;
             amountInIntermediateStorage = intermediateStorage;
         } else {
             amountInIntermediateStorage = toDeliver;
@@ -79,6 +69,5 @@ public class SimLiquefactionPlant extends SimBaseNode{
     @Override
     public void deliver(float amount){
         amountInIntermediateStorage -= amount;
-        totalDelivered += amount;
     }
 }

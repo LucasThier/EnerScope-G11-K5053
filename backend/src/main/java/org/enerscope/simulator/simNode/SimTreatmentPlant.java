@@ -12,8 +12,6 @@ public class SimTreatmentPlant extends SimBaseNode{
 
     private float amountInintermediateStorage;
     private float toDeliver;
-    private float totalProcesed;
-    private float totalDelivered;
 
 
     SimTreatmentPlant(TreatmentPlant treatmentPlant){
@@ -22,17 +20,13 @@ public class SimTreatmentPlant extends SimBaseNode{
         this.intermediateStorage = treatmentPlant.getIntermediateStorage();
         this.contaminantWaste = treatmentPlant.getContaminantWaste();
         this.amountInintermediateStorage = 0;
-        this.totalProcesed = 0;
-        this.totalDelivered = 0;
     }
 
     @Override
     protected void activeAction(int time){
-        totalDelivered -= toDeliver;
-
         float amountToTake =  (float) simGatheringNetworks.stream().mapToDouble(simGatheringNetwork -> simGatheringNetwork.getToDeliver()).sum();
         float capacity = maxTreatmentCapacity + intermediateStorage - amountInintermediateStorage;
-        float toProccess = intermediateStorage;
+        float toProccess = amountInintermediateStorage;
 
         if(amountToTake >= capacity){
              toProccess += takeEqualAmounts(simGatheringNetworks,capacity);
@@ -45,8 +39,7 @@ public class SimTreatmentPlant extends SimBaseNode{
             amountInintermediateStorage = toProccess - maxTreatmentCapacity;
         } else {
             toDeliver = toProccess *  contaminantWaste /100;
+            amountInintermediateStorage = 0;
         }
-        totalProcesed += toDeliver;
-        totalDelivered += toDeliver;
     }
 }
