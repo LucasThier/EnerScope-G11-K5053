@@ -59,3 +59,44 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   [`docs/testing.md`](testing.md) as a **test catalog** (class, type, per-case
   "what it verifies") and made keeping it in sync a Definition-of-done item in
   `AGENTS.md` — update it in the same change as any test add/remove/rename.
+- 2026-08-22 — SCRUM-35 (ABM de Organización): added `organization/{model,
+  repository,service,controller,dto}` following the `user`/`auth` layering,
+  with `V3__create_organization_tables.sql` (`V2` is already taken twice by
+  `V2__create_all_tables.sql`/`V2__create_nodes.sql`, so new migrations start
+  at `V3`). Modeling decisions:
+  - `OrganizationMember` is a join **entity** between `Organization` and
+    `User` (not a direct `@ManyToMany`) because membership needs its own
+    roles/permissions.
+  - `OrganizationMemberRole` belongs to exactly one `OrganizationMember` (not
+    a shared role catalog) — each membership owns its own role instance(s),
+    per the provided class/ER diagrams.
+  - The "add member" endpoint (`POST /organizations/{id}/members`) takes only
+    `userId` + `memberType` (enum `OWNER`/`MEMBER`). The role's `name` and
+    `permissions` are derived server-side from a fixed
+    `memberType → permissions` map in `OrganizationService`
+    (`OWNER` → `MANAGE_ORGANIZATION` + `VIEW_ORGANIZATION`, `MEMBER` →
+    `VIEW_ORGANIZATION` only). There is **no API yet** to define a custom role
+    name or a custom permission set — if that's needed later, extend
+    `AddOrganizationMemberRequestDTO` instead of hardcoding more types.
+  - `OrganizationMemberType` (`OWNER`, `MEMBER`) and
+    `OrganizationMemberPermission` (`MANAGE_ORGANIZATION`,
+    `VIEW_ORGANIZATION`) are intentionally minimal — the class diagram didn't
+    pin concrete values, so these were chosen as the smallest set covering the
+    ticket's scope. Extend them (with a migration, since permissions are
+    persisted as strings) if a future ticket needs finer-grained roles.
+  - Creating an organization does **not** auto-add the creator as a member —
+    the ticket lists "create organization" and "add user" as separate steps,
+    so that's how they're implemented. Revisit if product wants the creator
+    to become `OWNER` automatically.
+  - `Project` only has `name`/`description`/`organization` for this ticket —
+    `members`/`versions` from the class diagram belong to a later
+    ticket/module and were deliberately left out.
+  - `(organization_id, user_id)` has a DB-level unique constraint (and a
+    matching `@UniqueConstraint` on the entity) in addition to the
+    application-level `existsByOrganizationIdAndUserId` check, mirroring how
+    `app_user.mail` enforces uniqueness at both levels.
+  - `gen_random_uuid()` (used by `id DEFAULT` on every new table) needs no
+    extension: it's a PostgreSQL core builtin since v13, and
+    `docker-compose.yml` pins `postgres:16-alpine`. Same as the pre-existing
+    `V1`/`V2` migrations, which already rely on it without a `CREATE
+    EXTENSION`.

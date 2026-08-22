@@ -89,6 +89,9 @@ paste a token obtained from `/auth/login`.
 | `POST` | `/auth/refresh` | public | Exchange a refresh token for a new session |
 | `POST` | `/auth/logout` | public | No-op server side (client clears tokens) |
 | `POST` | `/users/bulk` | bearer | Bulk-register users from a CSV; returns generated credentials |
+| `POST` | `/organizations` | bearer | Create an organization |
+| `POST` | `/organizations/{organizationId}/members` | bearer | Add a user to the organization with a role (`OWNER`/`MEMBER`) |
+| `POST` | `/organizations/{organizationId}/projects` | bearer | Add a project to the organization |
 | `GET` | `/health` | public | Liveness probe |
 
 ### Bulk user registration (`POST /users/bulk`)
@@ -132,6 +135,21 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
 `failures` (with the line number and reason), never carrying a password. The
 endpoint requires a Bearer token like every non-`/auth` route.
 
+### Organizations (`POST /organizations/**`)
+
+- `POST /organizations` creates an organization from just a `name`.
+- `POST /organizations/{organizationId}/members` adds an existing user
+  (`userId`) to the organization with a `memberType` (`OWNER` or `MEMBER`).
+  The role's permissions are derived server-side from the type — `OWNER` gets
+  `MANAGE_ORGANIZATION` + `VIEW_ORGANIZATION`, `MEMBER` gets
+  `VIEW_ORGANIZATION` only. Adding the same user to the same organization
+  twice is rejected.
+- `POST /organizations/{organizationId}/projects` adds a project
+  (`name` + `description`) to the organization. Project members/versions are
+  out of scope for now.
+
+All three endpoints require a Bearer token like every non-`/auth` route.
+
 All responses are wrapped in a standard envelope:
 
 ```json
@@ -153,6 +171,13 @@ backend/src/main/java/org/enerscope/
 │  ├─ repository/            UserRepository
 │  ├─ model/                 User entity
 │  └─ dto/                   BulkRegistration result/failure records
+├─ organization/             Organization feature
+│  ├─ controller/            OrganizationController
+│  ├─ service/               OrganizationService
+│  ├─ repository/            Organization/OrganizationMember/Project repositories
+│  ├─ model/                 Organization, OrganizationMember, OrganizationMemberRole, Project
+│  │  └─ enums/               OrganizationMemberType, OrganizationMemberPermission
+│  └─ dto/                   Create/Add request records + response records
 ├─ session/                  Session feature
 │  ├─ model/                 Session (non-persistent)
 │  └─ service/               SessionService
@@ -173,7 +198,7 @@ purely cross-cutting packages (`jwt`, `health`, `money`, `seed`, `logging`,
 
 backend/src/main/resources/
 ├─ application.properties
-└─ db/migration/             Flyway migrations (V1__init.sql)
+└─ db/migration/             Flyway migrations (V1__init.sql, V3__create_organization_tables.sql, ...)
 ```
 
 ### Logging
