@@ -100,3 +100,75 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     `docker-compose.yml` pins `postgres:16-alpine`. Same as the pre-existing
     `V1`/`V2` migrations, which already rely on it without a `CREATE
     EXTENSION`.
+- 2026-08-22 — Project ABM: moved `Project` out of
+  `organization/` into its own `project/{model,repository,service,controller,
+  dto}` package (new `ProjectService`, `ProjectController`), and added
+  `project/model/{ProjectMember,ProjectMemberRole}` +
+  `project/model/enums/{ProjectMemberType,ProjectMemberPermission}`, mirroring
+  the `organization/` membership pattern from SCRUM-35. Migration
+  `V4__create_project_member_tables.sql` (`V3` was already taken by the
+  organization tables). Modeling decisions:
+  - Project creation moved from `POST /organizations/{organizationId}/projects`
+    to `POST /projects` (with `organizationId` in the body): now that `Project`
+    has its own ABM (members with roles), it stands as a top-level resource
+    instead of staying nested under `/organizations`. `OrganizationService`/
+    `OrganizationController` no longer own project creation; `projectRepository`
+    was removed from `OrganizationService`. `Organization.addProject` still
+    exists as the domain method `ProjectService` calls (same relationship
+    `OrganizationService.addMember` has with `Organization.addMember`).
+  - `Project.members: List<ProjectMember>` was added (`@OneToMany
+    mappedBy="project"`, cascade `ALL` + orphan removal), same shape as
+    `Organization.members`. This is the field the class diagram already showed
+    on `Project` but SCRUM-35 deliberately left out as future work.
+  - `ProjectMemberType` is `ADMIN`/`EDITOR` — different vocabulary from
+    `OrganizationMemberType`'s `OWNER`/`MEMBER` on purpose, per the ticket's
+    own wording ("admin"/"modificador").
+  - `ProjectMemberPermission` has **three** values (`MANAGE_PROJECT`,
+    `EDIT_PROJECT`, `VIEW_PROJECT`) — one more than
+    `OrganizationMemberPermission`'s two. This was needed so `EDITOR` gets an
+    actual "can modify" permission distinct from `ADMIN`'s "can manage
+    membership" permission; with only two values (mirroring organizations
+    exactly) `EDITOR` would have ended up view-only, which contradicts the
+    role's name. Mapping in `ProjectService`: `ADMIN` → all three, `EDITOR` →
+    `EDIT_PROJECT` + `VIEW_PROJECT`. Same as organizations, there is no API yet
+    to customize this mapping.
+  - Same as `organization_member`, `(project_id, user_id)` has a DB-level
+    unique constraint plus an application-level
+    `existsByProjectIdAndUserId` check.
+  - Versions/scenarios (`Version`, `NodeChange`, `ConnectionChange`) and
+    project export remain explicitly out of scope for this ticket — not
+    modeled, not stubbed. (A minimal `Version` entity was added afterwards;
+    see the entry below.)
+- 2026-08-22 — Minimal `Version` entity: added `version/{model,repository,
+  service,controller,dto}` with only `name`, `project` (`@ManyToOne`) and
+  `parentVersion` (self-reference `@ManyToOne`, nullable). Migration
+  `V5__create_version_table.sql` — a single table, no join tables, no enums.
+  `Project.versions: List<Version>` + `Project.addVersion(...)` added,
+  mirroring `Project.members`/`addMember`. Modeling decisions:
+  - No dedicated `creationDate` field — reuses `createdAt` inherited from
+    `BaseEntity`, like every other entity in the codebase (`User`,
+    `Organization`, `Project` don't redeclare it either), even though the
+    class diagram lists `creationDate` as an explicit attribute of `Version`.
+  - Endpoint stays nested: `POST /projects/{projectId}/versions` (not
+    promoted to a top-level `/versions` resource like `Project` was). Unlike
+    `Project`, this minimal `Version` has no sub-resource of its own yet
+    (no "add X to version" endpoint) to justify promotion — revisit if/when
+    one is added.
+  - `VersionService.createVersion` rejects a `parentVersionId` that resolves
+    to a version belonging to a different project than the one being created
+    under (`IllegalArgumentException`, same style as every other domain
+    validation in the codebase).
+  - **Explicitly still out of scope**, and blocked on the same two issues
+    already documented above: `nodeSnapshot`/`connectionSnapshot`
+    (`VersionXNode`/`VersionXConnection` join tables) and
+    `nodeChanges`/`connectionChanges` (`NodeChange`/`ConnectionChange`).
+    Investigation found `node/model/NodeChange.java` and
+    `node/model/ConnectionChange.java` are plain classes — no `@Entity`, no
+    `@Id`, not persistable despite carrying JPA annotations — and that
+    `node/`'s migrations have a Flyway version collision
+    (`V2__create_all_tables.sql` and `V2__create_nodes.sql` both claim
+    version `2`, which `spring.flyway.locations=classpath:db/migration`
+    would load together against a real Postgres; the H2 test profile never
+    exercises this because it disables Flyway). Neither is fixed by this
+    change; both must be resolved before a `Version` with real node/
+    connection snapshots can be built.

@@ -1,4 +1,4 @@
-package org.enerscope.organization.dto;
+package org.enerscope.project.dto;
 
 import java.util.UUID;
 

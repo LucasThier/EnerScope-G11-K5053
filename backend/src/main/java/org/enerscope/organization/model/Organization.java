@@ -8,6 +8,7 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.enerscope.common.BaseEntity;
+import org.enerscope.project.model.Project;
 
 import java.util.ArrayList;
 import java.util.List;

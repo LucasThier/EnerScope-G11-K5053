@@ -3,16 +3,13 @@ package org.enerscope.organization.service;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.dto.AddOrganizationMemberRequestDTO;
 import org.enerscope.organization.dto.CreateOrganizationRequestDTO;
-import org.enerscope.organization.dto.CreateProjectRequestDTO;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.model.OrganizationMember;
 import org.enerscope.organization.model.OrganizationMemberRole;
-import org.enerscope.organization.model.Project;
 import org.enerscope.organization.model.enums.OrganizationMemberPermission;
 import org.enerscope.organization.model.enums.OrganizationMemberType;
 import org.enerscope.organization.repository.OrganizationMemberRepository;
 import org.enerscope.organization.repository.OrganizationRepository;
-import org.enerscope.organization.repository.ProjectRepository;
 import org.enerscope.user.model.User;
 import org.enerscope.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,8 +37,6 @@ class OrganizationServiceTest {
     @Mock
     private OrganizationMemberRepository organizationMemberRepository;
     @Mock
-    private ProjectRepository projectRepository;
-    @Mock
     private UserRepository userRepository;
     @Mock
     private AppLogger logger;
@@ -51,7 +46,7 @@ class OrganizationServiceTest {
     @BeforeEach
     void setUp() {
         organizationService = new OrganizationService(
-                organizationRepository, organizationMemberRepository, projectRepository, userRepository, logger);
+                organizationRepository, organizationMemberRepository, userRepository, logger);
     }
 
     // ---- createOrganization ------------------------------------------------
@@ -146,33 +141,5 @@ class OrganizationServiceTest {
         assertThrows(IllegalArgumentException.class, () -> organizationService.addMember(
                 orgId, new AddOrganizationMemberRequestDTO(userId, OrganizationMemberType.MEMBER)));
         verify(organizationMemberRepository, never()).save(any());
-    }
-
-    // ---- addProject ------------------------------------------------------
-
-    @Test
-    void addProjectPersistsAndLinksToOrganization() {
-        UUID orgId = UUID.randomUUID();
-        Organization organization = new Organization("Acme");
-        when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
-        when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        Project saved = organizationService.addProject(
-                orgId, new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid"));
-
-        assertEquals("Grid Expansion", saved.getName());
-        assertEquals("Expands the regional grid", saved.getDescription());
-        assertEquals(organization, saved.getOrganization());
-        assertTrue(organization.getProjects().contains(saved));
-    }
-
-    @Test
-    void addProjectRejectsUnknownOrganization() {
-        UUID orgId = UUID.randomUUID();
-        when(organizationRepository.findById(orgId)).thenReturn(Optional.empty());
-
-        assertThrows(IllegalArgumentException.class, () -> organizationService.addProject(
-                orgId, new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid")));
-        verify(projectRepository, never()).save(any());
     }
 }

@@ -1,17 +1,18 @@
-package org.enerscope.organization.controller;
+package org.enerscope.project.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.enerscope.auth.filter.AuthFilter;
 import org.enerscope.config.SecurityConfig;
 import org.enerscope.logging.AppLogger;
-import org.enerscope.organization.dto.AddOrganizationMemberRequestDTO;
-import org.enerscope.organization.dto.CreateOrganizationRequestDTO;
 import org.enerscope.organization.model.Organization;
-import org.enerscope.organization.model.OrganizationMember;
-import org.enerscope.organization.model.OrganizationMemberRole;
-import org.enerscope.organization.model.enums.OrganizationMemberPermission;
-import org.enerscope.organization.model.enums.OrganizationMemberType;
-import org.enerscope.organization.service.OrganizationService;
+import org.enerscope.project.dto.AddProjectMemberRequestDTO;
+import org.enerscope.project.dto.CreateProjectRequestDTO;
+import org.enerscope.project.model.Project;
+import org.enerscope.project.model.ProjectMember;
+import org.enerscope.project.model.ProjectMemberRole;
+import org.enerscope.project.model.enums.ProjectMemberPermission;
+import org.enerscope.project.model.enums.ProjectMemberType;
+import org.enerscope.project.service.ProjectService;
 import org.enerscope.session.model.Session;
 import org.enerscope.session.service.SessionService;
 import org.enerscope.user.model.User;
@@ -38,15 +39,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Endpoint tests for {@link OrganizationController}. Uses {@code @WebMvcTest}
+ * Endpoint tests for {@link ProjectController}. Uses {@code @WebMvcTest}
  * (web layer only, no database) with the real {@link SecurityConfig}/
  * {@link AuthFilter} so every request goes through the actual JWT filter
- * chain, like {@code AuthControllerTest}. {@link OrganizationService} is
+ * chain, like {@code OrganizationControllerTest}. {@link ProjectService} is
  * mocked.
  */
-@WebMvcTest(OrganizationController.class)
+@WebMvcTest(ProjectController.class)
 @Import({SecurityConfig.class, AuthFilter.class})
-class OrganizationControllerTest {
+class ProjectControllerTest {
 
     private static final String ACCESS_TOKEN = "access-token-xyz";
 
@@ -56,7 +57,7 @@ class OrganizationControllerTest {
     private ObjectMapper objectMapper;
 
     @MockitoBean
-    private OrganizationService organizationService;
+    private ProjectService projectService;
     @MockitoBean
     private SessionService sessionService;
     // GlobalExceptionHandler (@ControllerAdvice) needs an AppLogger bean to load.
@@ -74,92 +75,96 @@ class OrganizationControllerTest {
         return objectMapper.writeValueAsString(body);
     }
 
-    private OrganizationMember sampleMember(OrganizationMemberType type, Set<OrganizationMemberPermission> permissions) {
-        Organization organization = new Organization("Acme");
+    private ProjectMember sampleMember(ProjectMemberType type, Set<ProjectMemberPermission> permissions) {
+        Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
         User user = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
-        OrganizationMember member = new OrganizationMember(user, organization);
-        member.addRole(new OrganizationMemberRole(type.name(), type, permissions));
+        ProjectMember member = new ProjectMember(user, project);
+        member.addRole(new ProjectMemberRole(type.name(), type, permissions));
         return member;
     }
 
-    // ---- createOrganization ------------------------------------------------
+    // ---- createProject -------------------------------------------------------
 
     @Test
-    void createOrganizationReturnsCreatedOrganization() throws Exception {
-        when(organizationService.createOrganization(any(CreateOrganizationRequestDTO.class)))
-                .thenReturn(new Organization("Acme"));
+    void createProjectReturnsCreatedProject() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        when(projectService.createProject(any(CreateProjectRequestDTO.class)))
+                .thenReturn(new Project("Grid Expansion", "Expands the regional grid", organization));
 
-        mockMvc.perform(post("/organizations")
+        mockMvc.perform(post("/projects")
                         .header("Authorization", "Bearer " + ACCESS_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new CreateOrganizationRequestDTO("Acme"))))
+                        .content(json(new CreateProjectRequestDTO(
+                                "Grid Expansion", "Expands the regional grid", orgId))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("Organization created"))
-                .andExpect(jsonPath("$.data.name").value("Acme"));
+                .andExpect(jsonPath("$.message").value("Project created"))
+                .andExpect(jsonPath("$.data.name").value("Grid Expansion"))
+                .andExpect(jsonPath("$.data.description").value("Expands the regional grid"));
     }
 
     @Test
-    void createOrganizationRejectsBlankNameWithValidationError() throws Exception {
-        mockMvc.perform(post("/organizations")
+    void createProjectRejectsBlankFieldsWithValidationError() throws Exception {
+        mockMvc.perform(post("/projects")
                         .header("Authorization", "Bearer " + ACCESS_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"\"}"))
+                        .content("{\"name\":\"\",\"description\":\"\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation error"));
 
-        verify(organizationService, never()).createOrganization(any());
+        verify(projectService, never()).createProject(any());
     }
 
-    // ---- addMember ---------------------------------------------------------
+    // ---- addMember -------------------------------------------------------
 
     @Test
     void addMemberReturnsCreatedMember() throws Exception {
-        UUID orgId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        when(organizationService.addMember(eq(orgId), any(AddOrganizationMemberRequestDTO.class)))
-                .thenReturn(sampleMember(OrganizationMemberType.OWNER,
-                        Set.of(OrganizationMemberPermission.MANAGE_ORGANIZATION,
-                                OrganizationMemberPermission.VIEW_ORGANIZATION)));
+        when(projectService.addMember(eq(projectId), any(AddProjectMemberRequestDTO.class)))
+                .thenReturn(sampleMember(ProjectMemberType.ADMIN,
+                        Set.of(ProjectMemberPermission.MANAGE_PROJECT, ProjectMemberPermission.EDIT_PROJECT,
+                                ProjectMemberPermission.VIEW_PROJECT)));
 
-        mockMvc.perform(post("/organizations/" + orgId + "/members")
+        mockMvc.perform(post("/projects/" + projectId + "/members")
                         .header("Authorization", "Bearer " + ACCESS_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new AddOrganizationMemberRequestDTO(userId, OrganizationMemberType.OWNER))))
+                        .content(json(new AddProjectMemberRequestDTO(userId, ProjectMemberType.ADMIN))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Member added"))
-                .andExpect(jsonPath("$.data.memberType").value("OWNER"))
+                .andExpect(jsonPath("$.data.memberType").value("ADMIN"))
                 .andExpect(jsonPath("$.data.userMail").value("jane@enerscope.org"));
     }
 
     @Test
-    void addMemberRejectsUnknownOrganizationWith400() throws Exception {
-        UUID orgId = UUID.randomUUID();
+    void addMemberRejectsUnknownProjectWith400() throws Exception {
+        UUID projectId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        when(organizationService.addMember(eq(orgId), any(AddOrganizationMemberRequestDTO.class)))
-                .thenThrow(new IllegalArgumentException("Organization not found"));
+        when(projectService.addMember(eq(projectId), any(AddProjectMemberRequestDTO.class)))
+                .thenThrow(new IllegalArgumentException("Project not found"));
 
-        mockMvc.perform(post("/organizations/" + orgId + "/members")
+        mockMvc.perform(post("/projects/" + projectId + "/members")
                         .header("Authorization", "Bearer " + ACCESS_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(new AddOrganizationMemberRequestDTO(userId, OrganizationMemberType.MEMBER))))
+                        .content(json(new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("Organization not found"));
+                .andExpect(jsonPath("$.message").value("Project not found"));
     }
 
     @Test
     void addMemberRejectsInvalidBodyWithValidationError() throws Exception {
-        UUID orgId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
 
-        mockMvc.perform(post("/organizations/" + orgId + "/members")
+        mockMvc.perform(post("/projects/" + projectId + "/members")
                         .header("Authorization", "Bearer " + ACCESS_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation error"));
 
-        verify(organizationService, never()).addMember(any(), any());
+        verify(projectService, never()).addMember(any(), any());
     }
 }

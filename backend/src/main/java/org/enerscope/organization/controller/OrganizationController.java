@@ -5,14 +5,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.enerscope.organization.dto.AddOrganizationMemberRequestDTO;
 import org.enerscope.organization.dto.CreateOrganizationRequestDTO;
-import org.enerscope.organization.dto.CreateProjectRequestDTO;
 import org.enerscope.organization.dto.OrganizationDTO;
 import org.enerscope.organization.dto.OrganizationMemberDTO;
-import org.enerscope.organization.dto.ProjectDTO;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.model.OrganizationMember;
 import org.enerscope.organization.model.OrganizationMemberRole;
-import org.enerscope.organization.model.Project;
 import org.enerscope.organization.service.OrganizationService;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
@@ -58,16 +55,6 @@ public class OrganizationController {
         return Responses.created("Member added", toDTO(member));
     }
 
-    @PostMapping("/{organizationId}/projects")
-    @Operation(summary = "Add a project to an organization",
-            description = "Create a new project under the organization.")
-    public ResponseEntity<ApiResponse<ProjectDTO>> addProject(
-            @PathVariable UUID organizationId,
-            @Valid @RequestBody CreateProjectRequestDTO data) {
-        Project project = organizationService.addProject(organizationId, data);
-        return Responses.created("Project added", toDTO(project));
-    }
-
     private OrganizationDTO toDTO(Organization organization) {
         return new OrganizationDTO(organization.getId(), organization.getName(), organization.getCreatedAt());
     }
@@ -80,10 +67,5 @@ public class OrganizationController {
                 member.getUser().getMail(),
                 role.getMemberType(),
                 role.getPermissions());
-    }
-
-    private ProjectDTO toDTO(Project project) {
-        return new ProjectDTO(
-                project.getId(), project.getName(), project.getDescription(), project.getOrganization().getId());
     }
 }

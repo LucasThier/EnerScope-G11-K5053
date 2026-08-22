@@ -1,7 +1,8 @@
 # Domain model
 
-The initial domain covers **users** and their **authentication**, plus a first
-slice of **organizations** and **projects** (SCRUM-35).
+The initial domain covers **users** and their **authentication**, plus
+**organizations** (SCRUM-35), **projects** with their own membership, and a
+minimal **project version** record.
 
 ## User
 
@@ -68,9 +69,7 @@ roles or permission sets.
 
 ## Project
 
-Persistent entity mapped to the `project` table. **Minimal slice for
-SCRUM-35** — only what "add a project to an organization" needs; members and
-versions are a separate module/ticket.
+Persistent entity mapped to the `project` table.
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -78,6 +77,70 @@ versions are a separate module/ticket.
 | `name` | String | 2–120 chars |
 | `description` | String | Up to 500 chars |
 | `organization` | Organization | `@ManyToOne`, required |
+| `members` | List\<ProjectMember\> | `@OneToMany`, owned by `ProjectMember.project`, cascade `ALL` + orphan removal |
+| `versions` | List\<Version\> | `@OneToMany`, owned by `Version.project`, cascade `ALL` + orphan removal |
+
+Project export is a separate module/ticket, not modeled yet.
+
+## ProjectMember
+
+Persistent entity mapped to the `project_member` table. Join entity between
+`Project` and `User` — used instead of a direct `@ManyToMany` because
+membership carries its own roles/permissions.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID | Primary key (from `BaseEntity`) |
+| `user` | User | `@ManyToOne`, required |
+| `project` | Project | `@ManyToOne`, required |
+| `roles` | Set\<ProjectMemberRole\> | `@OneToMany`, owned by `ProjectMemberRole.member`, cascade `ALL` + orphan removal |
+
+A `(project_id, user_id)` unique constraint prevents adding the same user to
+the same project twice.
+
+## ProjectMemberRole
+
+Persistent entity mapped to the `project_member_role` table. Belongs to
+exactly one `ProjectMember` — roles are not a shared catalog, each membership
+owns its own role instance(s).
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID | Primary key (from `BaseEntity`) |
+| `name` | String | Defaults to the `memberType` name — no dedicated naming API yet |
+| `memberType` | `ProjectMemberType` (enum) | `ADMIN` \| `EDITOR` |
+| `permissions` | Set\<`ProjectMemberPermission`\> (enum) | `@ElementCollection` in `project_member_role_permission`; `MANAGE_PROJECT` \| `EDIT_PROJECT` \| `VIEW_PROJECT` |
+
+`ProjectService` assigns permissions from a fixed `memberType` →
+`permissions` mapping when a member is added (`ADMIN` gets all three
+permissions, `EDITOR` gets `EDIT_PROJECT` + `VIEW_PROJECT`). There is no API
+yet to define custom roles or permission sets.
+
+## Version
+
+Persistent entity mapped to the `version` table. **Minimal slice** — only
+`name`, the owning `project` and an optional `parentVersion` self-reference.
+No creation timestamp field of its own; it reuses `createdAt` from
+`BaseEntity` instead of duplicating it.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID | Primary key (from `BaseEntity`) |
+| `name` | String | 2–120 chars |
+| `project` | Project | `@ManyToOne`, required |
+| `parentVersion` | Version | `@ManyToOne`, self-reference, optional (the first version of a project has none) |
+
+`VersionService` rejects a `parentVersion` that belongs to a different
+`project` than the one the new version is being created under.
+
+The node/connection snapshot (`nodeSnapshot`, `connectionSnapshot` via the
+ER diagram's `VersionXNode`/`VersionXConnection` join tables) and the diff
+log (`nodeChanges`, `connectionChanges` via `NodeChange`/`ConnectionChange`)
+from the class diagram are **not modeled** — deliberately out of scope until
+two blockers are resolved: `NodeChange`/`ConnectionChange` in `node/model`
+exist as plain classes without `@Entity`/`@Id` (not persistable), and the
+`node/` migrations have a Flyway version collision (`V2__create_all_tables.sql`
+and `V2__create_nodes.sql` share version `2`).
 
 ## Session (non-persistent)
 

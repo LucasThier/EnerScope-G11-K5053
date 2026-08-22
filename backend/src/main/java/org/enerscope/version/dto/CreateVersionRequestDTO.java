@@ -1,12 +1,13 @@
-package org.enerscope.organization.dto;
+package org.enerscope.version.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-public record CreateProjectRequestDTO(
+import java.util.UUID;
+
+public record CreateVersionRequestDTO(
         @NotBlank @Size(min = 2, max = 120)
         String name,
 
-        @NotBlank @Size(max = 500)
-        String description
+        UUID parentVersionId
 ) {}
