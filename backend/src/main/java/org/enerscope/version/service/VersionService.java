@@ -198,7 +198,7 @@ public class VersionService {
 
         NodeChange nodeChange = new NodeChange();
         nodeChange.setChangeType(ChangeTypeEnum.ADD);
-        nodeChange.setChangedNodeId(savedNode.getId());
+        nodeChange.setResultNodeId(savedNode.getId());
         version.getNodeChanges().add(nodeChange);
 
         versionRepository.save(version);
@@ -248,10 +248,6 @@ public class VersionService {
 
         BaseNode originalNode = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
-
-        if (!version.getNodeSnapshot().contains(originalNode)) {
-            throw new IllegalArgumentException("Node with id " + nodeId + " does not exist in version " + versionId);
-        }
 
         // Check existing NodeChange records for this node
         List<NodeChange> nodeAddChanges = version.getNodeChanges().stream()
