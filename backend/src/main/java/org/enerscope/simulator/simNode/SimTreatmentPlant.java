@@ -2,6 +2,7 @@ package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.extraction.TreatmentPlant;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class SimTreatmentPlant extends SimBaseNode{
@@ -14,12 +15,13 @@ public class SimTreatmentPlant extends SimBaseNode{
     private float toDeliver;
 
 
-    SimTreatmentPlant(TreatmentPlant treatmentPlant){
+    public SimTreatmentPlant(TreatmentPlant treatmentPlant){
         super(treatmentPlant);
         this.maxTreatmentCapacity = treatmentPlant.getMaxTreatmentCapacity();
         this.intermediateStorage = treatmentPlant.getIntermediateStorage();
         this.contaminantWaste = treatmentPlant.getContaminantWaste();
         this.amountInintermediateStorage = 0;
+        simGatheringNetworks = new ArrayList<>();
     }
 
     @Override
@@ -41,5 +43,10 @@ public class SimTreatmentPlant extends SimBaseNode{
             toDeliver = toProccess *  contaminantWaste /100;
             amountInintermediateStorage = 0;
         }
+    }
+
+    @Override
+    public void addPreviousNode(SimBaseNode simBaseNode){
+        simGatheringNetworks.add((SimGatheringNetwork) simBaseNode);
     }
 }

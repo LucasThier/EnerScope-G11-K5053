@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.extraction.GatheringNetwork;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -13,10 +14,11 @@ public class SimGatheringNetwork extends SimBaseNode{
     private float loss;
     private List<SimWell> simWells;
 
-    SimGatheringNetwork(GatheringNetwork gatheringNetwork){
+    public SimGatheringNetwork(GatheringNetwork gatheringNetwork){
         super(gatheringNetwork);
         this.maxTransportCapacity = gatheringNetwork.getMaxTransportCapacity();
         this.loss = gatheringNetwork.getLength() * gatheringNetwork.getLossPerMeter();
+        simWells = new ArrayList<>();
     }
 
     @Override
@@ -29,5 +31,10 @@ public class SimGatheringNetwork extends SimBaseNode{
         } else {
             toDeliver += calculateAndTakeAll(simWells);
         }
+    }
+
+    @Override
+    public void addPreviousNode(SimBaseNode simBaseNode){
+        simWells.add((SimWell) simBaseNode);
     }
 }

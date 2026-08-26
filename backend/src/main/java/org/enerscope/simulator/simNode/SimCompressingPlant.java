@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.transportation.CompressingPlant;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Getter
@@ -15,11 +16,12 @@ public class SimCompressingPlant extends SimBaseNode{
 
     private List<SimBaseNode> nodesBefore;
 
-    SimCompressingPlant(CompressingPlant compressingPlant){
+    public SimCompressingPlant(CompressingPlant compressingPlant){
         super(compressingPlant);
         this.maxCompressionCapacity = compressingPlant.getMaxCompressionCapacity();
         this.processWaste = compressingPlant.getProcessWaste();
         this.gasConsumption = compressingPlant.getGasConsumption();
+        nodesBefore = new ArrayList<>();
     }
     @Override
     protected void activeAction(int time){

@@ -3,6 +3,7 @@ package org.enerscope.simulator.simNode;
 import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class SimLiquefactionPlant extends SimBaseNode{
@@ -13,15 +14,16 @@ public class SimLiquefactionPlant extends SimBaseNode{
     private List<SimBaseNode> nodesBefore;
     private float amountInIntermediateStorage;
 
-    SimLiquefactionPlant(GroundBasedLiquefactionPlant groundBasedLiquefactionPlant){
+    public SimLiquefactionPlant(GroundBasedLiquefactionPlant groundBasedLiquefactionPlant){
         super(groundBasedLiquefactionPlant);
         this.maxProcessingCapacity = groundBasedLiquefactionPlant.getMaxProcessingCapacity();
         this.MTPARatio = groundBasedLiquefactionPlant.getMTPARatio();
         this.intermediateStorage = groundBasedLiquefactionPlant.getIntermediateStorage();
         this.gasConsumption = groundBasedLiquefactionPlant.getGasConsumption();
         this.amountInIntermediateStorage = 0;
+        nodesBefore = new ArrayList<>();
     }
-    SimLiquefactionPlant(FLNGUnit flngUnit){
+    public SimLiquefactionPlant(FLNGUnit flngUnit){
         super(flngUnit);
         this.maxProcessingCapacity = flngUnit.getMaxProcessingCapacity();
         this.MTPARatio = flngUnit.getMTPARatio();
@@ -69,5 +71,10 @@ public class SimLiquefactionPlant extends SimBaseNode{
     @Override
     public void deliver(float amount){
         amountInIntermediateStorage -= amount;
+    }
+
+    @Override
+    public void addPreviousNode(SimBaseNode simBaseNode){
+        nodesBefore.add(simBaseNode);
     }
 }

@@ -128,4 +128,6 @@ public abstract class SimBaseNode {
         takeAll(items);
         return quantityTaken;
     }
+
+    public void addPreviousNode(SimBaseNode simBaseNode){}
 }

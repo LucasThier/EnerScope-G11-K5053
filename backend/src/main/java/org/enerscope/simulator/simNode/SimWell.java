@@ -14,7 +14,7 @@ public class SimWell extends SimBaseNode{
     private int DTMTime;
 
 
-    SimWell(Well well){
+    public SimWell(Well well){
         super(well);
         this.maxCollectionCapacity = well.getMaxCollectionCapacity();
         this.declineCurve = well.getDeclineCurve();
@@ -65,5 +65,4 @@ public class SimWell extends SimBaseNode{
             }
         }
     }
-
 }

@@ -15,7 +15,7 @@ public class SimLNGCarrier extends SimBaseNode{
     private float amountToTake;
     private float amountInTank;
 
-    SimLNGCarrier(LNGCarrier lngCarrier){
+    public SimLNGCarrier(LNGCarrier lngCarrier){
         super(lngCarrier);
         this.exportFrequency = lngCarrier.getExportFrequency();
         this.shipCapacity = lngCarrier.getShipCapacity();
@@ -68,5 +68,10 @@ public class SimLNGCarrier extends SimBaseNode{
                }
             }
         }
+    }
+
+    @Override
+    public void addPreviousNode(SimBaseNode simBaseNode){
+        simSeaportTerminal = (SimSeaportTerminal) simBaseNode;
     }
 }

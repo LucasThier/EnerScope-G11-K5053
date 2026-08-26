@@ -2,6 +2,7 @@ package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.export.SeaportTerminal;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class SimSeaportTerminal extends SimBaseNode{
@@ -11,12 +12,13 @@ public class SimSeaportTerminal extends SimBaseNode{
     private int amountOfShip;
     private List<SimLiquefactionPlant> simLiquefactionPlants;
 
-    SimSeaportTerminal(SeaportTerminal seaportTerminal){
+    public SimSeaportTerminal(SeaportTerminal seaportTerminal){
         super(seaportTerminal);
         this.intermediateStorage = seaportTerminal.getIntermediateStorage();
         this.shipCapacity = seaportTerminal.getShipCapacity();
         this.amountInIntermediateStorage = 0;
         this.amountOfShip = 0;
+        simLiquefactionPlants = new ArrayList<>();
     }
 
     @Override
@@ -65,5 +67,10 @@ public class SimSeaportTerminal extends SimBaseNode{
 
     public boolean shipAbleToDock(){
         return amountOfShip < shipCapacity;
+    }
+
+    @Override
+    public void addPreviousNode(SimBaseNode simBaseNode){
+        simLiquefactionPlants.add((SimLiquefactionPlant) simBaseNode);
     }
 }
