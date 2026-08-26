@@ -1,4 +1,4 @@
-package org.enerscope.version;
+package org.enerscope.common;
 
 import java.util.UUID;
 

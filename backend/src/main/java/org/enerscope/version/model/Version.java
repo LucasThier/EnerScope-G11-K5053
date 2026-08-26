@@ -3,6 +3,7 @@ package org.enerscope.version.model;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
@@ -12,6 +13,8 @@ import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import org.enerscope.common.BaseEntity;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.ConnectionChange;
@@ -19,10 +22,12 @@ import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
 
 import java.util.List;
+import java.util.UUID;
 
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
+@Setter
 @Entity
 @Table
 public class Version extends BaseEntity {
@@ -30,9 +35,8 @@ public class Version extends BaseEntity {
     @Column(nullable = false, length = 320)
     private String name;
 
-    @JoinColumn
-    @ManyToOne
-    private Version parentVersion;
+    @Column
+    private UUID parentVersionId;
 
     @ManyToMany
     @JoinTable(name = "versionXNode", joinColumns = @JoinColumn(name = "version_id"), inverseJoinColumns = @JoinColumn(name = "node_id"))
@@ -42,11 +46,11 @@ public class Version extends BaseEntity {
     @JoinTable(name = "versionXConnection", joinColumns = @JoinColumn(name = "version_id"), inverseJoinColumns = @JoinColumn(name = "connection_id"))
     private List<NodeConnection> connectionSnapshot;
 
-    @JoinColumn
+    @JoinColumn(nullable = true)
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ConnectionChange> connectionChanges;
 
-    @JoinColumn
+    @JoinColumn(nullable = true)
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     private List<NodeChange> nodeChanges;
 }

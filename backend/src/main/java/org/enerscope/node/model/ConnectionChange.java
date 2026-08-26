@@ -1,10 +1,17 @@
 package org.enerscope.node.model;
 
+import java.util.UUID;
+
+import org.enerscope.common.BaseEntity;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
 import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,17 +21,18 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class ConnectionChange {
+@Entity
+@Table
+public class ConnectionChange extends BaseEntity {
 
     @Column
-    @Enumerated
+    @Enumerated(EnumType.STRING)
     private ChangeTypeEnum changeType;
 
-    @OneToOne
-    @JoinColumn(nullable = false)
-    private NodeConnection changedConnection;
+    @Column(nullable = true)
+    private UUID changedConnectionId;
 
-    @OneToOne
-    @JoinColumn(nullable = false)
-    private NodeConnection resultConnection;
+    @Column(nullable = true)
+    private UUID resultConnectionId;
+
 }
