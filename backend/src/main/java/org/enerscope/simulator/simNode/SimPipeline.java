@@ -31,7 +31,7 @@ public class SimPipeline extends SimBaseNode{
             toDeliver += calculateAndTakeAll(nodesBefore);
         }
 
-        toDeliver = toDeliver * loss/100;
+        toDeliver = toDeliver * (1 - loss/100);
     }
     @Override
     public boolean readyToBeProcessed(int time) {

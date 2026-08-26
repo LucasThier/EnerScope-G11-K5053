@@ -37,13 +37,18 @@ public class SimCompressingPlant extends SimBaseNode{
         float loss = ( processWaste + gasConsumption ) /100;
 
         if(toProcess >= maxCompressionCapacity){
-            toDeliver = maxCompressionCapacity * loss;
+            toDeliver = maxCompressionCapacity * (1 - loss);
         } else {
-            toDeliver = toProcess * loss;
+            toDeliver = toProcess * (1 - loss);
         }
     }
     @Override
     public boolean readyToBeProcessed(int time) {
         return nodesBefore.stream().allMatch(node -> node.getLastSimulatedTime() == time);
+    }
+
+    @Override
+    public void addPreviousNode(SimBaseNode simBaseNode) {
+        this.nodesBefore.add(simBaseNode);
     }
 }

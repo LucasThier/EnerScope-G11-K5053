@@ -12,7 +12,6 @@ public class SimTreatmentPlant extends SimBaseNode{
     private List<SimGatheringNetwork> simGatheringNetworks;
 
     private float amountInintermediateStorage;
-    private float toDeliver;
 
 
     public SimTreatmentPlant(TreatmentPlant treatmentPlant){
@@ -36,11 +35,13 @@ public class SimTreatmentPlant extends SimBaseNode{
             toProccess += calculateAndTakeAll(simGatheringNetworks);
         }
 
+        float wasteFactor = contaminantWaste / 100f;
+
         if(toProccess >= maxTreatmentCapacity){
-            toDeliver = maxTreatmentCapacity * contaminantWaste /100;
+            toDeliver = maxTreatmentCapacity * (1 - wasteFactor);
             amountInintermediateStorage = toProccess - maxTreatmentCapacity;
         } else {
-            toDeliver = toProccess *  contaminantWaste /100;
+            toDeliver = toProccess *  (1 - wasteFactor);
             amountInintermediateStorage = 0;
         }
     }
