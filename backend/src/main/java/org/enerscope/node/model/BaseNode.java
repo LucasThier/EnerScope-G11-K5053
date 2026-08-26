@@ -79,17 +79,6 @@ public abstract class BaseNode extends BaseEntity {
     @Column
     protected UUID identityId;
 
-    //
-    /*
-     * IDEA BASE, DESPUES SEGUIR
-     * public MoneyAmount totalCostOfNode() {
-     * MoneyAmount totalInvestment = investmentCost.getAmount();
-     * MoneyAmount totalOperating = operatingCosts.multiply(lifespanInMonths);
-     * int totalMaintenance = lifespanInMonths / (maintenanceIntervalInDays / 30);
-     * MoneyAmount totalUpkeep = upkeepCosts.multiply(totalMaintenance);
-     * return totalInvestment.add(totalOperating).add(totalUpkeep);
-     * }
-     */
     public boolean isOperational() {
         return state == NodeStateEnum.RUNNING && super.isActive();
     }
@@ -104,4 +93,51 @@ public abstract class BaseNode extends BaseEntity {
         double remainingMonths = lifespanInMonths - Math.max(0, monthsElapsed);
         return Math.max(0, Math.min(100, (remainingMonths / lifespanInMonths) * 100));
     }
+
+    public MoneyAmount CalculateInvestmentCost(){
+        if(investmentCost != null){
+            return investmentCost.CalculateCost(this);
+        } else {
+            throw new RuntimeException("Investment Cost is empty");
+        }
+    }
+
+    public MoneyAmount CalculateOperatingCost(){
+        if (operatingCosts != null && (Integer) lifespanInMonths != null){
+            return operatingCosts.multiply(lifespanInMonths);
+        } else {
+            throw new RuntimeException("Base Node missing arguments");
+        }
+    }
+    public MoneyAmount CalculateUpkeepCost(){
+        if ((Integer)maintenanceIntervalInDays != null && (Integer) lifespanInMonths != null && upkeepCosts != null){
+            int totalMaintenance = lifespanInMonths / (maintenanceIntervalInDays / 30);
+            return upkeepCosts.multiply(totalMaintenance);
+        } else {
+            throw new RuntimeException("Base Node missing arguments");
+        }
+    }
+     public MoneyAmount CalculateTotalCost(){
+        MoneyAmount investment;
+        MoneyAmount operational;
+        MoneyAmount upkeep;
+        try {
+            investment = CalculateInvestmentCost();
+        } catch (RuntimeException e) {
+            System.out.println("Catched error: " + e.getMessage() + "in CalculatedInvestmentCost");
+            investment = MoneyAmount.of(0);
+        }
+         try {
+             operational = CalculateOperatingCost();
+         } catch (RuntimeException e) {
+             System.out.println("Catched error: " + e.getMessage() + "in CalculatedOperationalCost");
+             operational = MoneyAmount.of(0);
+         }try {
+             upkeep = CalculateUpkeepCost();
+         } catch (RuntimeException e) {
+             System.out.println("Catched error: " + e.getMessage() + "in CalculatedUpkeepCost");
+             upkeep = MoneyAmount.of(0);
+         }
+         return investment.add(operational).add(upkeep); 
+     }
 }
