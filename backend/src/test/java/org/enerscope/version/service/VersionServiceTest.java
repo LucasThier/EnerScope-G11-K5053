@@ -137,7 +137,8 @@ class VersionServiceTest {
                 0.5f, // decline_curve
                 0.8f, // gasRichness
                 10, // DTMTime
-                MoneyAmount.of(5000) // DTMCost
+                MoneyAmount.of(5000), // DTMCost
+                500f // surface
         );
 
         // Add the node to version's snapshot to simulate it being added in this version
@@ -207,7 +208,8 @@ class VersionServiceTest {
                 0.5f, // decline_curve
                 0.8f, // gasRichness
                 10, // DTMTime
-                MoneyAmount.of(5000) // DTMCost
+                MoneyAmount.of(5000), // DTMCost
+                500f // surface
         );
 
         // Add the node to version's snapshot
@@ -285,7 +287,9 @@ class VersionServiceTest {
                 0.5f, // decline_curve
                 0.8f, // gasRichness
                 10, // DTMTime
-                MoneyAmount.of(5000) // DTMCost
+                MoneyAmount.of(5000), // DTMCost
+                500f // surface
+
         );
 
         // Do NOT add the node to version's snapshot to simulate it coming from parent
@@ -409,7 +413,8 @@ class VersionServiceTest {
                 0.5f, // decline_curve
                 0.8f, // gasRichness
                 10, // DTMTime
-                MoneyAmount.of(5000) // DTMCost
+                MoneyAmount.of(5000), // DTMCost
+                500f // surface
         );
 
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
