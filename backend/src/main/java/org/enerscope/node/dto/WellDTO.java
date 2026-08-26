@@ -2,6 +2,7 @@ package org.enerscope.node.dto;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.enerscope.money.MoneyAmount;
 
 /**
  * Data Transfer Object for Well node type.
@@ -17,4 +18,5 @@ public class WellDTO extends BaseNodeDTO {
     private Float gasRichness;
     private int DTMTime;
     private Float DTMCost;
+    private Float surface;
 }

@@ -109,6 +109,7 @@ class NodeServiceTest {
         wellDTO.setGasRichness(0.3f);
         wellDTO.setDTMTime(15);
         wellDTO.setDTMCost(150.000f);
+        wellDTO.setSurface(10.0f);
 
         when(wellRepository.save(any(Well.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
