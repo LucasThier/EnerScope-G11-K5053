@@ -33,7 +33,13 @@ Run everything with `cd backend && mvn test`.
 | `user.service.UserServiceTest` | Unit | 5 |
 | `user.service.PasswordGeneratorTest` | Unit | 4 |
 | `user.service.BulkRegistrationServiceTest` | Unit | 7 |
-| **Total** | | **44** |
+| `organization.service.OrganizationServiceTest` | Unit | 6 |
+| `organization.controller.OrganizationControllerTest` | Web | 5 |
+| `project.service.ProjectServiceTest` | Unit | 7 |
+| `project.controller.ProjectControllerTest` | Web | 5 |
+| `version.service.VersionServiceTest` | Unit | 5 |
+| `version.controller.VersionControllerTest` | Web | 3 |
+| **Total** | | **75** |
 
 ## `ApplicationContextTest` — Integration
 
@@ -141,3 +147,82 @@ CSV-driven bulk registration.
 | `acceptsHeaderAliasesAndAnyColumnOrder` | Header aliases (`Email`/`Nombre`/`Apellido`) and arbitrary column order are resolved. |
 | `throwsWhenRequiredHeaderColumnMissing` | A header missing a required column throws, naming the missing column. |
 | `throwsWhenFileIsEmpty` | Empty content throws `IllegalArgumentException`. |
+
+## `organization.service.OrganizationServiceTest` — Unit
+
+Organization creation and member addition (with role/permission derivation).
+
+| Case | Verifies |
+| --- | --- |
+| `createOrganizationPersistsAndReturnsOrganization` | Creating an organization persists it and returns it with the given name. |
+| `addMemberGrantsOwnerFullPermissions` | Adding a member with `memberType=OWNER` creates a role with both `MANAGE_ORGANIZATION` and `VIEW_ORGANIZATION`. |
+| `addMemberGrantsMemberViewOnlyPermission` | Adding a member with `memberType=MEMBER` creates a role with only `VIEW_ORGANIZATION`. |
+| `addMemberRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException` before the user is looked up or anything is saved. |
+| `addMemberRejectsUnknownUser` | An unknown user id throws `IllegalArgumentException`; nothing is saved. |
+| `addMemberRejectsDuplicateMembership` | Adding a user already in the organization throws `IllegalArgumentException`; nothing is saved. |
+
+## `organization.controller.OrganizationControllerTest` — Web
+
+Exercises `OrganizationController` through the real `SecurityConfig`/
+`AuthFilter` chain (a valid Bearer token is required on every request, like
+every non-`/auth` route); `OrganizationService` is mocked.
+
+| Case | Verifies |
+| --- | --- |
+| `createOrganizationReturnsCreatedOrganization` | `POST /organizations` with a valid body → `201` and an envelope with `success=true`, message `Organization created`, and the created organization's name. |
+| `createOrganizationRejectsBlankNameWithValidationError` | Blank `name` → `400` `Validation error`; `OrganizationService.createOrganization` is never called. |
+| `addMemberReturnsCreatedMember` | `POST /organizations/{id}/members` with a valid body → `201` with the member's `memberType` and `userMail`. |
+| `addMemberRejectsUnknownOrganizationWith400` | When the service throws for an unknown organization → `400` with the domain error message. |
+| `addMemberRejectsInvalidBodyWithValidationError` | Missing `userId`/`memberType` → `400` `Validation error`; the service is never called. |
+
+## `project.service.ProjectServiceTest` — Unit
+
+Project creation and member addition (with role/permission derivation).
+
+| Case | Verifies |
+| --- | --- |
+| `createProjectPersistsAndLinksToOrganization` | Creating a project persists it linked to the organization and appends it to `Organization.projects`. |
+| `createProjectRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException`; the project is never saved. |
+| `addMemberGrantsAdminFullPermissions` | Adding a member with `memberType=ADMIN` creates a role with `MANAGE_PROJECT`, `EDIT_PROJECT` and `VIEW_PROJECT`. |
+| `addMemberGrantsEditorEditAndViewPermissions` | Adding a member with `memberType=EDITOR` creates a role with only `EDIT_PROJECT` and `VIEW_PROJECT`. |
+| `addMemberRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException` before the user is looked up or anything is saved. |
+| `addMemberRejectsUnknownUser` | An unknown user id throws `IllegalArgumentException`; nothing is saved. |
+| `addMemberRejectsDuplicateMembership` | Adding a user already in the project throws `IllegalArgumentException`; nothing is saved. |
+
+## `project.controller.ProjectControllerTest` — Web
+
+Exercises `ProjectController` through the real `SecurityConfig`/`AuthFilter`
+chain (a valid Bearer token is required on every request, like every
+non-`/auth` route); `ProjectService` is mocked.
+
+| Case | Verifies |
+| --- | --- |
+| `createProjectReturnsCreatedProject` | `POST /projects` with a valid body → `201` and an envelope with `success=true`, message `Project created`, and the created project's `name`/`description`. |
+| `createProjectRejectsBlankFieldsWithValidationError` | Blank `name`/`description` → `400` `Validation error`; `ProjectService.createProject` is never called. |
+| `addMemberReturnsCreatedMember` | `POST /projects/{id}/members` with a valid body → `201` with the member's `memberType` and `userMail`. |
+| `addMemberRejectsUnknownProjectWith400` | When the service throws for an unknown project → `400` with the domain error message. |
+| `addMemberRejectsInvalidBodyWithValidationError` | Missing `userId`/`memberType` → `400` `Validation error`; the service is never called. |
+
+## `version.service.VersionServiceTest` — Unit
+
+Version creation, including the parent-version-same-project validation.
+
+| Case | Verifies |
+| --- | --- |
+| `createVersionPersistsAndLinksToProjectWithoutParent` | Creating a version without a `parentVersionId` persists it linked to the project and appends it to `Project.versions`. |
+| `createVersionPersistsWithValidParentVersion` | Creating a version with a `parentVersionId` that belongs to the same project links the new version to that parent. |
+| `createVersionRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException`; nothing is saved. |
+| `createVersionRejectsUnknownParentVersion` | An unknown `parentVersionId` throws `IllegalArgumentException`; nothing is saved. |
+| `createVersionRejectsParentVersionFromDifferentProject` | A `parentVersionId` belonging to a different project throws `IllegalArgumentException`; nothing is saved. |
+
+## `version.controller.VersionControllerTest` — Web
+
+Exercises `VersionController` through the real `SecurityConfig`/`AuthFilter`
+chain (a valid Bearer token is required on every request, like every
+non-`/auth` route); `VersionService` is mocked.
+
+| Case | Verifies |
+| --- | --- |
+| `createVersionReturnsCreatedVersion` | `POST /projects/{projectId}/versions` with a valid body → `201` and an envelope with `success=true`, message `Version created`, and the created version's `name`. |
+| `createVersionRejectsBlankNameWithValidationError` | Blank `name` → `400` `Validation error`; `VersionService.createVersion` is never called. |
+| `createVersionRejectsUnknownProjectWith400` | When the service throws for an unknown project → `400` with the domain error message. |

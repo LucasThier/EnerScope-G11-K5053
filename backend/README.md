@@ -89,6 +89,11 @@ paste a token obtained from `/auth/login`.
 | `POST` | `/auth/refresh` | public | Exchange a refresh token for a new session |
 | `POST` | `/auth/logout` | public | No-op server side (client clears tokens) |
 | `POST` | `/users/bulk` | bearer | Bulk-register users from a CSV; returns generated credentials |
+| `POST` | `/organizations` | bearer | Create an organization |
+| `POST` | `/organizations/{organizationId}/members` | bearer | Add a user to the organization with a role (`OWNER`/`MEMBER`) |
+| `POST` | `/projects` | bearer | Create a project under an organization |
+| `POST` | `/projects/{projectId}/members` | bearer | Add a user to the project with a role (`ADMIN`/`EDITOR`) |
+| `POST` | `/projects/{projectId}/versions` | bearer | Create a version of a project, optionally under a parent version |
 | `GET` | `/health` | public | Liveness probe |
 
 ### Bulk user registration (`POST /users/bulk`)
@@ -132,6 +137,44 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
 `failures` (with the line number and reason), never carrying a password. The
 endpoint requires a Bearer token like every non-`/auth` route.
 
+### Organizations (`POST /organizations/**`)
+
+- `POST /organizations` creates an organization from just a `name`.
+- `POST /organizations/{organizationId}/members` adds an existing user
+  (`userId`) to the organization with a `memberType` (`OWNER` or `MEMBER`).
+  The role's permissions are derived server-side from the type — `OWNER` gets
+  `MANAGE_ORGANIZATION` + `VIEW_ORGANIZATION`, `MEMBER` gets
+  `VIEW_ORGANIZATION` only. Adding the same user to the same organization
+  twice is rejected.
+
+### Projects (`POST /projects/**`)
+
+- `POST /projects` creates a project (`name` + `description`) under an
+  organization (`organizationId`). Projects are their own top-level resource,
+  not nested under `/organizations`.
+- `POST /projects/{projectId}/members` adds an existing user (`userId`) to
+  the project with a `memberType` (`ADMIN` or `EDITOR`). The role's
+  permissions are derived server-side from the type — `ADMIN` gets
+  `MANAGE_PROJECT` + `EDIT_PROJECT` + `VIEW_PROJECT`, `EDITOR` gets
+  `EDIT_PROJECT` + `VIEW_PROJECT`. Adding the same user to the same project
+  twice is rejected.
+
+### Versions (`POST /projects/{projectId}/versions`)
+
+- `POST /projects/{projectId}/versions` creates a version (`name`) of a
+  project, optionally derived from a `parentVersionId`. A `parentVersionId`
+  must belong to the same project or the request is rejected. Versions stay
+  nested under `/projects` for now — this minimal slice has no sub-resource
+  of its own to justify promoting it to a top-level `/versions` resource like
+  `Project` was.
+- This is a **minimal slice**: node/connection snapshots and the node/
+  connection change log from the class diagram (`nodeSnapshot`,
+  `connectionSnapshot`, `nodeChanges`, `connectionChanges`) are not modeled.
+  Scenarios and project export are also out of scope for now.
+
+All of the above endpoints require a Bearer token like every non-`/auth`
+route.
+
 All responses are wrapped in a standard envelope:
 
 ```json
@@ -153,6 +196,26 @@ backend/src/main/java/org/enerscope/
 │  ├─ repository/            UserRepository
 │  ├─ model/                 User entity
 │  └─ dto/                   BulkRegistration result/failure records
+├─ organization/             Organization feature
+│  ├─ controller/            OrganizationController
+│  ├─ service/               OrganizationService
+│  ├─ repository/            Organization/OrganizationMember repositories
+│  ├─ model/                 Organization, OrganizationMember, OrganizationMemberRole
+│  │  └─ enums/               OrganizationMemberType, OrganizationMemberPermission
+│  └─ dto/                   Create/Add request records + response records
+├─ project/                  Project feature
+│  ├─ controller/            ProjectController
+│  ├─ service/               ProjectService
+│  ├─ repository/            Project/ProjectMember repositories
+│  ├─ model/                 Project, ProjectMember, ProjectMemberRole
+│  │  └─ enums/               ProjectMemberType, ProjectMemberPermission
+│  └─ dto/                   Create/Add request records + response records
+├─ version/                  Version feature (minimal slice, no node/connection snapshots yet)
+│  ├─ controller/            VersionController
+│  ├─ service/               VersionService
+│  ├─ repository/            VersionRepository
+│  ├─ model/                 Version
+│  └─ dto/                   Create request record + response record
 ├─ session/                  Session feature
 │  ├─ model/                 Session (non-persistent)
 │  └─ service/               SessionService
@@ -173,7 +236,7 @@ purely cross-cutting packages (`jwt`, `health`, `money`, `seed`, `logging`,
 
 backend/src/main/resources/
 ├─ application.properties
-└─ db/migration/             Flyway migrations (V1__init.sql)
+└─ db/migration/             Flyway migrations (V1__init.sql, V3__create_organization_tables.sql, V4__create_project_member_tables.sql, V5__create_version_table.sql, ...)
 ```
 
 ### Logging
