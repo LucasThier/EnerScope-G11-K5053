@@ -7,6 +7,61 @@ on:
     branches: [master, main]
 
 jobs:
+  migrations:
+    name: Flyway migrations check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate migration versions are unique and well-formed
+        run: |
+          MIG_DIR="backend/src/main/resources/db/migration"
+          if [ ! -d "$MIG_DIR" ]; then
+            echo "No migration directory at $MIG_DIR — nothing to check."
+            exit 0
+          fi
+
+          fail=0
+          declare -A seen
+          shopt -s nullglob
+
+          for f in "$MIG_DIR"/*.sql; do
+            base=$(basename "$f")
+
+            # Skip Flyway repeatable migrations (R__...), they carry no version.
+            case "$base" in
+              R__*) continue ;;
+            esac
+
+            # Enforce the versioned naming convention V<version>__<description>.sql
+            if [[ ! "$base" =~ ^V[0-9]+([._][0-9]+)*__.+\.sql$ ]]; then
+              echo "::error file=$f::Migration '$base' does not follow the Flyway convention V<version>__<description>.sql"
+              fail=1
+              continue
+            fi
+
+            ver="${base#V}"       # strip leading V
+            ver="${ver%%__*}"     # keep the version part before __
+            norm="${ver//_/.}"    # normalise separators so V2_1 == V2.1
+
+            if [[ -n "${seen[$norm]:-}" ]]; then
+              echo "::error file=$f::Duplicate migration version '$ver' — collides with '${seen[$norm]}'"
+              fail=1
+            else
+              seen[$norm]="$base"
+            fi
+          done
+
+          if [[ $fail -ne 0 ]]; then
+            echo ""
+            echo "Migration check failed: fix duplicate or malformed migration versions before merging."
+            exit 1
+          fi
+
+          echo "All migration versions are unique and well-formed:"
+          for f in "$MIG_DIR"/*.sql; do echo "  - $(basename "$f")"; done
+
   backend:
     name: Backend tests
     runs-on: ubuntu-latest
