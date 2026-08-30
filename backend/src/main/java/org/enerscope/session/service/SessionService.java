@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import org.enerscope.jwt.JwtService;
 import org.enerscope.session.model.Session;
 import org.enerscope.user.model.User;
+import org.enerscope.user.model.enums.PlatformRole;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -48,6 +49,20 @@ public class SessionService {
         String mail = claims.get("mail", String.class);
         String firstName = claims.get("firstName", String.class);
         String lastName = claims.get("lastName", String.class);
-        return User.fromJwtClaims(id, mail, firstName, lastName);
+        PlatformRole role = parseRole(claims.get("role", String.class));
+        return User.fromJwtClaims(id, mail, firstName, lastName, role);
+    }
+
+    // Tokens issued before the role claim existed (or with an unknown value)
+    // are treated as regular users rather than failing the request.
+    private PlatformRole parseRole(String rawRole) {
+        if (rawRole == null) {
+            return PlatformRole.USER;
+        }
+        try {
+            return PlatformRole.valueOf(rawRole);
+        } catch (IllegalArgumentException ex) {
+            return PlatformRole.USER;
+        }
     }
 }

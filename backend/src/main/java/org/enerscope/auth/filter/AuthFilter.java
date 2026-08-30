@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.enerscope.session.model.Session;
 import org.enerscope.session.service.SessionService;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -32,10 +33,13 @@ public class AuthFilter extends OncePerRequestFilter {
         Optional<Session> session = sessionService.validate(token);
 
         session.ifPresent(s -> {
+            // Expose the platform role as a Spring Security authority so method
+            // security (e.g. hasRole('ADMIN')) and the filter chain can gate on it.
+            var authority = new SimpleGrantedAuthority("ROLE_" + s.getUser().getPlatformRole().name());
             var auth = new UsernamePasswordAuthenticationToken(
                     s.getUser(),
                     null,
-                    List.of()
+                    List.of(authority)
             );
             auth.setDetails(s);
             SecurityContextHolder.getContext().setAuthentication(auth);

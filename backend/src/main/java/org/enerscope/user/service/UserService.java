@@ -3,6 +3,7 @@ package org.enerscope.user.service;
 import org.enerscope.auth.dto.RegisterRequestDTO;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.user.model.User;
+import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,10 +27,11 @@ public class UserService {
         if (userRepository.existsByMailIgnoreCase(data.mail())) {
             throw new IllegalArgumentException("An account with that email already exists");
         }
+        PlatformRole role = data.role() != null ? data.role() : PlatformRole.USER;
         String hash = encoder.encode(data.password());
-        User user = new User(data.mail(), data.firstName(), data.lastName(), hash);
+        User user = new User(data.mail(), data.firstName(), data.lastName(), hash, role);
         User saved = userRepository.save(user);
-        logger.info("Registered new user {}", saved.getMail());
+        logger.info("Registered new user {} with role {}", saved.getMail(), role);
         return saved;
     }
 

@@ -15,12 +15,34 @@ Persistent entity mapped to the `app_user` table.
 | `firstName` | String | 2–60 chars |
 | `lastName` | String | 2–60 chars |
 | `passwordHash` | String | BCrypt hash, never exposed by the API |
+| `platformRole` | PlatformRole | `ADMIN` or `USER`; the user's app-wide role. Stored as a string (`platform_role`) |
 | `active` | boolean | Soft-activation flag (from `BaseEntity`) |
 | `createdAt` | Instant | Audit timestamp (from `BaseEntity`) |
 | `lastModified` | Instant | Audit timestamp (from `BaseEntity`) |
 
 `BaseEntity` is a `@MappedSuperclass` providing the id, the `active` flag and the
 audit timestamps to every entity.
+
+**Platform role vs. scoped roles.** `platformRole` is distinct from the
+organization/project membership roles below: it governs app-wide capabilities
+(only an `ADMIN` may create arbitrary accounts). `PlatformRole` is carried in the
+access-token `role` claim and mapped to a Spring Security `ROLE_*` authority.
+
+### Authentication & registration
+
+Registration is **not** self-service. Accounts are created by:
+
+- a platform **`ADMIN`** via `POST /auth/register` (may set the new account's
+  `platformRole`, defaulting to `USER`); or
+- an organization **owner** (an `OrganizationMember` holding
+  `MANAGE_ORGANIZATION`) — or any platform `ADMIN` — via
+  `POST /organizations/{id}/users` (one user) or
+  `POST /organizations/{id}/users/bulk` (a CSV batch), which create `USER`
+  accounts and add them to the organization (as `MEMBER` by default; the bulk CSV
+  may set `OWNER`/`MEMBER` per row).
+
+The seeded `admin@enerscope.org` starts with `platformRole = ADMIN` and is the
+bootstrap administrator.
 
 ## Organization
 
