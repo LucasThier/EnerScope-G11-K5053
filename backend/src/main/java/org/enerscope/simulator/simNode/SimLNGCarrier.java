@@ -57,7 +57,7 @@ public class SimLNGCarrier extends SimBaseNode{
                 flagOfInactivity = OverLifeSpan;
                 simSeaportTerminal.restBoat();
             } else {
-               float amountAvailable = simSeaportTerminal.getToDeliver();
+               float amountAvailable = simSeaportTerminal.getToDeliver().getAmount();
                float capacity = Math.min(shipCapacity - amountInTank , amountToTake);
                if (amountAvailable > capacity ){
                    simSeaportTerminal.deliver(capacity);

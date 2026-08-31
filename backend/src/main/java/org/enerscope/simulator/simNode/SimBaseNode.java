@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.simulator.FlagOfInactivity;
+import org.enerscope.simulator.ToDeliver;
 
 import java.util.List;
 import java.util.UUID;
@@ -19,7 +20,7 @@ public abstract class SimBaseNode {
     protected int timeStartOfInactivity;
     protected int timeSinceLastMaintenance;
     protected FlagOfInactivity flagOfInactivity;
-    protected float toDeliver;
+    protected ToDeliver toDeliver;
     protected int lastSimulatedTime;
 
 
@@ -30,7 +31,7 @@ public abstract class SimBaseNode {
         this.lifespanInMonths = baseNode.getLifespanInMonths();
         this.active = true;
         this.timeStartOfInactivity = 0;
-        this.toDeliver = 0;
+        this.toDeliver = new ToDeliver(0,0);
         lastSimulatedTime = -1;
     }
 
@@ -83,50 +84,45 @@ public abstract class SimBaseNode {
         checkInactivity(time);
     }
 
-    public void deliver(float amount){
-        toDeliver -= amount;
+    public ToDeliver deliver(float amount){
+        return toDeliver.deliver(amount);
     }
 
     public boolean readyToBeProcessed(int time) {
         return true;
     }
 
-    public float takeEqualAmounts(List<? extends SimBaseNode> items, float capacity) {
-
-        List<? extends SimBaseNode> itemsThatProduced = items.stream().filter(item ->item.getToDeliver() > 0).toList();
+    public ToDeliver takeEqualAmounts(List<? extends SimBaseNode> items, float capacity) {
+        List<? extends SimBaseNode> itemsThatProduced = items.stream().filter(item -> item.getToDeliver().getAmount() > 0).toList();
 
         if (itemsThatProduced.isEmpty() || capacity <= 0) {
-            return 0;
+            return new ToDeliver(0,0);
         }
 
         float quantityToTake = capacity / itemsThatProduced.size();
 
-        List<? extends SimBaseNode> withMore = itemsThatProduced.stream().filter(item -> item.getToDeliver() >= quantityToTake).toList();
+        List<? extends SimBaseNode> withMore = itemsThatProduced.stream().filter(item -> item.getToDeliver().getAmount() >= quantityToTake).toList();
 
-        List<? extends SimBaseNode> withLess = itemsThatProduced.stream().filter(item -> item.getToDeliver() < quantityToTake).toList();
+        List<? extends SimBaseNode> withLess = itemsThatProduced.stream().filter(item -> item.getToDeliver().getAmount() < quantityToTake).toList();
 
         if (withLess.isEmpty()) {
-            withMore.forEach(item -> item.deliver(quantityToTake));
-            return capacity;
+            List<ToDeliver> toDelivers = withMore.stream().map(simBaseNode -> simBaseNode.deliver(quantityToTake)).toList();
+            ToDeliver toDeliver1 = new ToDeliver(0,0);
+            toDeliver1.mix(toDelivers);
+            return toDeliver1;
         } else {
-            float takenFromLess = calculateAndTakeAll(withLess);
-            float remainingTaken = takeEqualAmounts(items, capacity - takenFromLess);
-            return takenFromLess + remainingTaken;
+            ToDeliver takenFromLess = calculateAndTakeAll(withLess);
+            ToDeliver remainingTaken = takeEqualAmounts(withMore, capacity - takenFromLess.getAmount());
+            takenFromLess.mix(remainingTaken);
+            return takenFromLess;
         }
     }
 
-    private float calculateToTake(List<? extends SimBaseNode> items) {
-        return (float) items.stream().mapToDouble(item -> item.getToDeliver()).sum();
-    }
-
-    private void takeAll(List<? extends SimBaseNode> items) {
-        items.forEach(item -> item.deliver(item.getToDeliver()));
-    }
-
-    public float calculateAndTakeAll(List<? extends SimBaseNode> items) {
-        float quantityTaken = calculateToTake(items);
-        takeAll(items);
-        return quantityTaken;
+    public ToDeliver calculateAndTakeAll(List<? extends SimBaseNode> items) {
+        List<ToDeliver> toDelivers = items.stream().map(item -> item.deliver(item.getToDeliver().getAmount())).toList();
+        ToDeliver toDeliver1 = new ToDeliver(0,0);
+        toDeliver1.mix(toDelivers);
+        return toDeliver1;
     }
 
     public void addPreviousNode(SimBaseNode simBaseNode){}

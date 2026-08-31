@@ -3,6 +3,7 @@ package org.enerscope.simulator.simNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.transportation.CompressingPlant;
+import org.enerscope.simulator.ToDeliver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,8 +26,8 @@ public class SimCompressingPlant extends SimBaseNode{
     }
     @Override
     protected void activeAction(int time){
-        float amountToTake =  (float) nodesBefore.stream().mapToDouble(simBaseNode -> simBaseNode.getToDeliver()).sum();
-        float toProcess;
+        float amountToTake =  (float) nodesBefore.stream().mapToDouble(simBaseNode -> simBaseNode.getToDeliver().getAmount()).sum();
+        ToDeliver toProcess;
 
         if(amountToTake >= maxCompressionCapacity){
             toProcess = takeEqualAmounts(nodesBefore,maxCompressionCapacity);
@@ -36,10 +37,10 @@ public class SimCompressingPlant extends SimBaseNode{
 
         float loss = ( processWaste + gasConsumption ) /100;
 
-        if(toProcess >= maxCompressionCapacity){
-            toDeliver = maxCompressionCapacity * (1 - loss);
+        if(toProcess.getAmount() >= maxCompressionCapacity){
+            toDeliver = new ToDeliver(maxCompressionCapacity * (1 - loss),toProcess.getContaminant());
         } else {
-            toDeliver = toProcess * (1 - loss);
+            toDeliver = new ToDeliver(toProcess.getAmount() * (1 - loss),0);
         }
     }
     @Override

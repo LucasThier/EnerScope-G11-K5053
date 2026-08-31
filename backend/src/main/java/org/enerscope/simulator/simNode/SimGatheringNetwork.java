@@ -23,13 +23,13 @@ public class SimGatheringNetwork extends SimBaseNode{
 
     @Override
     protected void activeAction(int time){
-        float capacity = maxTransportCapacity - toDeliver;
-        float toGather = (float) simWells.stream().mapToDouble(simWell -> simWell.getToDeliver()).sum();
+        float capacity = maxTransportCapacity - toDeliver.getAmount();
+        float toGather = (float) simWells.stream().mapToDouble(simWell -> simWell.getToDeliver().getAmount()).sum();
 
         if (toGather >= capacity){
-            toDeliver += takeEqualAmounts(simWells,capacity);
+            toDeliver.mix(takeEqualAmounts(simWells,capacity));
         } else {
-            toDeliver += calculateAndTakeAll(simWells);
+            toDeliver.mix(calculateAndTakeAll(simWells));
         }
     }
 

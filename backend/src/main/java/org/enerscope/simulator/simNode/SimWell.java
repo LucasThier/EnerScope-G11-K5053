@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.simulator.FlagOfInactivity;
+import org.enerscope.simulator.ToDeliver;
 
 @Getter
 @Setter
@@ -30,9 +31,9 @@ public class SimWell extends SimBaseNode{
             flagOfInactivity = FlagOfInactivity.OverLifeSpan;
             timeStartOfInactivity = time;
             active = false;
-            toDeliver = 0;
+            toDeliver = new ToDeliver(0,0);
         } else {
-            toDeliver = maxCollectionCapacity * (100 - totalDecline) / 100;
+            toDeliver =new ToDeliver(maxCollectionCapacity * (100 - totalDecline) / 100,gasRichness);
         }
 
         checkLifeSpan(time);
@@ -40,7 +41,7 @@ public class SimWell extends SimBaseNode{
 
     @Override
     protected void inactiveAction(int time){
-        toDeliver = 0;
+        toDeliver =  new ToDeliver(0,0);;
         checkInactivity(time);
     }
 

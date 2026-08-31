@@ -22,16 +22,16 @@ public class SimPipeline extends SimBaseNode{
 
     @Override
     protected void activeAction(int time){
-        float capacity = maxFlowCapacity - toDeliver;
-        float toGather = (float) nodesBefore.stream().mapToDouble(simBaseNode -> simBaseNode.getToDeliver()).sum();
+        float capacity = maxFlowCapacity - toDeliver.getAmount();
+        float toGather = (float) nodesBefore.stream().mapToDouble(simBaseNode -> simBaseNode.getToDeliver().getAmount()).sum();
 
         if (toGather >= capacity){
-            toDeliver += takeEqualAmounts(nodesBefore,capacity);
+            toDeliver.mix(takeEqualAmounts(nodesBefore,capacity));
         } else {
-            toDeliver += calculateAndTakeAll(nodesBefore);
+            toDeliver.mix(calculateAndTakeAll(nodesBefore));
         }
 
-        toDeliver = toDeliver * (1 - loss/100);
+        toDeliver.setAmount(toDeliver.getAmount() * (1 - loss/100));
     }
     @Override
     public boolean readyToBeProcessed(int time) {

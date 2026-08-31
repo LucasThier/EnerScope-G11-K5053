@@ -1,6 +1,7 @@
 package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.extraction.TreatmentPlant;
+import org.enerscope.simulator.ToDeliver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,41 +9,40 @@ import java.util.List;
 public class SimTreatmentPlant extends SimBaseNode{
     private float maxTreatmentCapacity;
     private float intermediateStorage;
-    private float contaminantWaste;
     private List<SimGatheringNetwork> simGatheringNetworks;
-
-    private float amountInintermediateStorage;
+    private ToDeliver amountInIntermediateStorage;
 
 
     public SimTreatmentPlant(TreatmentPlant treatmentPlant){
         super(treatmentPlant);
         this.maxTreatmentCapacity = treatmentPlant.getMaxTreatmentCapacity();
         this.intermediateStorage = treatmentPlant.getIntermediateStorage();
-        this.contaminantWaste = treatmentPlant.getContaminantWaste();
-        this.amountInintermediateStorage = 0;
+        this.amountInIntermediateStorage = new ToDeliver(0,0);
         simGatheringNetworks = new ArrayList<>();
     }
 
     @Override
     protected void activeAction(int time){
-        float amountToTake =  (float) simGatheringNetworks.stream().mapToDouble(simGatheringNetwork -> simGatheringNetwork.getToDeliver()).sum();
-        float capacity = maxTreatmentCapacity + intermediateStorage - amountInintermediateStorage;
-        float toProccess = amountInintermediateStorage;
+        float amountToTake =  (float) simGatheringNetworks.stream().mapToDouble(simGatheringNetwork -> simGatheringNetwork.getToDeliver().getAmount()).sum();
+        float capacity = maxTreatmentCapacity + intermediateStorage - amountInIntermediateStorage.getAmount();
+        ToDeliver toProcess;
 
         if(amountToTake >= capacity){
-             toProccess += takeEqualAmounts(simGatheringNetworks,capacity);
+            toProcess = takeEqualAmounts(simGatheringNetworks,capacity);
         } else {
-            toProccess += calculateAndTakeAll(simGatheringNetworks);
+            toProcess = calculateAndTakeAll(simGatheringNetworks);
         }
 
-        float wasteFactor = contaminantWaste / 100f;
+        toProcess.mix(amountInIntermediateStorage);
 
-        if(toProccess >= maxTreatmentCapacity){
-            toDeliver = maxTreatmentCapacity * (1 - wasteFactor);
-            amountInintermediateStorage = toProccess - maxTreatmentCapacity;
+        if(toProcess.getAmount() >= maxTreatmentCapacity){
+            toDeliver = new ToDeliver(maxTreatmentCapacity,toProcess.getContaminant());
+            toDeliver.clean();
+            amountInIntermediateStorage.setAmount(toProcess.getAmount() - maxTreatmentCapacity);
         } else {
-            toDeliver = toProccess *  (1 - wasteFactor);
-            amountInintermediateStorage = 0;
+            toProcess.clean();
+            toDeliver = toProcess;
+            amountInIntermediateStorage = new ToDeliver(0,0);
         }
     }
 

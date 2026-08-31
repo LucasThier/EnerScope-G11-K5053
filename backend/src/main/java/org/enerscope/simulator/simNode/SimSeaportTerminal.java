@@ -1,6 +1,7 @@
 package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.export.SeaportTerminal;
+import org.enerscope.simulator.ToDeliver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,7 +9,7 @@ import java.util.List;
 public class SimSeaportTerminal extends SimBaseNode{
     private float intermediateStorage;
     private int shipCapacity;
-    private float amountInIntermediateStorage;
+    private ToDeliver amountInIntermediateStorage;
     private int amountOfShip;
     private List<SimLiquefactionPlant> simLiquefactionPlants;
 
@@ -16,7 +17,7 @@ public class SimSeaportTerminal extends SimBaseNode{
         super(seaportTerminal);
         this.intermediateStorage = seaportTerminal.getIntermediateStorage();
         this.shipCapacity = seaportTerminal.getShipCapacity();
-        this.amountInIntermediateStorage = 0;
+        this.amountInIntermediateStorage = new ToDeliver(0,0);
         this.amountOfShip = 0;
         simLiquefactionPlants = new ArrayList<>();
     }
@@ -24,10 +25,10 @@ public class SimSeaportTerminal extends SimBaseNode{
     @Override
     protected void activeAction(int time){
 
-        float amountToTake =  (float) simLiquefactionPlants.stream().mapToDouble(SimBaseNode::getToDeliver).sum();
-        float toProcess;
+        float amountToTake =  (float) simLiquefactionPlants.stream().mapToDouble(SimBaseNode -> SimBaseNode.getToDeliver().getAmount()).sum();
+        ToDeliver toProcess;
 
-        float capacity = intermediateStorage - amountInIntermediateStorage;
+        float capacity = intermediateStorage - amountInIntermediateStorage.getAmount();
 
         if(amountToTake >= capacity){
             toProcess = takeEqualAmounts(simLiquefactionPlants,capacity);
@@ -35,27 +36,27 @@ public class SimSeaportTerminal extends SimBaseNode{
             toProcess = calculateAndTakeAll(simLiquefactionPlants);
         }
 
-        if(toProcess >= capacity){
-            toDeliver = capacity;
+        if(toProcess.getAmount() >= capacity){
+            toDeliver = new ToDeliver(capacity,0);
         } else {
             toDeliver = toProcess;
         }
 
-        if((amountInIntermediateStorage + toDeliver) > intermediateStorage){
-            amountInIntermediateStorage = intermediateStorage;
+        if((amountInIntermediateStorage.getAmount() + toDeliver.getAmount()) > intermediateStorage){
+            amountInIntermediateStorage.setAmount(intermediateStorage);
         } else {
             amountInIntermediateStorage = toDeliver;
         }
     }
 
     @Override
-    public float getToDeliver() {
+    public ToDeliver getToDeliver() {
         return amountInIntermediateStorage;
     }
 
     @Override
-    public void deliver(float amount){
-        amountInIntermediateStorage -= amount;
+    public ToDeliver deliver(float amount){
+        return amountInIntermediateStorage.deliver(amount);
     }
 
     public void addBoat(){
