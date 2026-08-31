@@ -28,86 +28,83 @@ import java.util.List;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final List<String> allowedOrigins;
+        private final List<String> allowedOrigins;
 
-    public SecurityConfig(
-            @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:4173}") List<String> allowedOrigins) {
-        this.allowedOrigins = allowedOrigins;
-    }
+        public SecurityConfig(
+                        @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:4173}") List<String> allowedOrigins) {
+                this.allowedOrigins = allowedOrigins;
+        }
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, AuthFilter authFilter) throws Exception {
-        // CSRF disabled: stateless REST API with JWT in the Authorization header
-        // (LocalStorage).
-        // Cross-origin protection is provided by CORS with explicit origins.
-        http
-                .cors(Customizer.withDefaults())
-                .csrf(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/**").permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // Public auth endpoints. Registration is intentionally NOT here:
-                        // accounts are created by admins/org owners, not by self-service.
-                        .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/refresh", "/auth/logout").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/register").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/health").permitAll()
-                        // OpenAPI / Swagger UI
-                        .requestMatchers(
-                                "/swagger-ui.html",
-                                "/swagger-ui/**",
-                                "/v3/api-docs",
-<<<<<<< HEAD
-                                "/v3/api-docs/**")
-                        .permitAll()
-                        .anyRequest().authenticated())
-=======
-                                "/v3/api-docs/**"
-                        ).permitAll()
-                        .anyRequest().authenticated()
-                )
-                .exceptionHandling(ex -> ex
-                        // 401 when there is no (valid) token, 403 when the token lacks the role.
-                        .authenticationEntryPoint(unauthorizedEntryPoint())
-                        .accessDeniedHandler(accessDeniedHandler()))
->>>>>>> master
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class);
+        @Bean
+        public SecurityFilterChain filterChain(HttpSecurity http, AuthFilter authFilter) throws Exception {
+                // CSRF disabled: stateless REST API with JWT in the Authorization header
+                // (LocalStorage).
+                // Cross-origin protection is provided by CORS with explicit origins.
+                http
+                                .cors(Customizer.withDefaults())
+                                .csrf(AbstractHttpConfigurer::disable)
+                                .authorizeHttpRequests(auth -> auth
+                                                .requestMatchers("/**").permitAll()
+                                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                                                // Public auth endpoints. Registration is intentionally NOT here:
+                                                // accounts are created by admins/org owners, not by self-service.
+                                                .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/refresh",
+                                                                "/auth/logout")
+                                                .permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/auth/register").hasRole("ADMIN")
+                                                .requestMatchers(HttpMethod.GET, "/health").permitAll()
+                                                // OpenAPI / Swagger UI
+                                                .requestMatchers(
+                                                                "/swagger-ui.html",
+                                                                "/swagger-ui/**",
+                                                                "/v3/api-docs",
+                                                                "/v3/api-docs/**")
+                                                .permitAll()
+                                                .anyRequest().authenticated())
+                                .exceptionHandling(ex -> ex
+                                                // 401 when there is no (valid) token, 403 when the token lacks the
+                                                // role.
+                                                .authenticationEntryPoint(unauthorizedEntryPoint())
+                                                .accessDeniedHandler(accessDeniedHandler()))
+                                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                                .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class);
 
-        return http.build();
-    }
+                return http.build();
+        }
 
-    private AuthenticationEntryPoint unauthorizedEntryPoint() {
-        return (request, response, authException) ->
-                writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "Authentication required");
-    }
+        private AuthenticationEntryPoint unauthorizedEntryPoint() {
+                return (request, response, authException) -> writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
+                                "Authentication required");
+        }
 
-    private AccessDeniedHandler accessDeniedHandler() {
-        return (request, response, accessDeniedException) ->
-                writeError(response, HttpServletResponse.SC_FORBIDDEN, "Access denied");
-    }
+        private AccessDeniedHandler accessDeniedHandler() {
+                return (request, response, accessDeniedException) -> writeError(response,
+                                HttpServletResponse.SC_FORBIDDEN, "Access denied");
+        }
 
-    // Keeps security failures in the same ApiResponse envelope the rest of the API uses.
-    private static void writeError(HttpServletResponse response, int status, String message) throws IOException {
-        response.setStatus(status);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write(
-                "{\"success\":false,\"message\":\"" + message + "\",\"data\":null,\"timestamp\":\""
-                        + Instant.now() + "\"}");
-    }
+        // Keeps security failures in the same ApiResponse envelope the rest of the API
+        // uses.
+        private static void writeError(HttpServletResponse response, int status, String message) throws IOException {
+                response.setStatus(status);
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                response.getWriter().write(
+                                "{\"success\":false,\"message\":\"" + message + "\",\"data\":null,\"timestamp\":\""
+                                                + Instant.now() + "\"}");
+        }
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration cfg = new CorsConfiguration();
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration cfg = new CorsConfiguration();
 
-        cfg.setAllowedOrigins(allowedOrigins);
-        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        cfg.setAllowedHeaders(List.of("*"));
-        cfg.setExposedHeaders(List.of("*"));
-        cfg.setAllowCredentials(false);
-        cfg.setMaxAge(3600L);
+                cfg.setAllowedOrigins(allowedOrigins);
+                cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+                cfg.setAllowedHeaders(List.of("*"));
+                cfg.setExposedHeaders(List.of("*"));
+                cfg.setAllowCredentials(false);
+                cfg.setMaxAge(3600L);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", cfg);
-        return source;
-    }
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/**", cfg);
+                return source;
+        }
 }

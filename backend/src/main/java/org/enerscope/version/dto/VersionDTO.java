@@ -1,6 +1,5 @@
 package org.enerscope.version.dto;
 
-<<<<<<< HEAD
 import java.util.List;
 import java.util.UUID;
 
@@ -26,15 +25,3 @@ public class VersionDTO {
     // con "su" master, se van a tener que updatear las subversiones con nuevos
     // cambios
 }
-=======
-import java.time.Instant;
-import java.util.UUID;
-
-public record VersionDTO(
-        UUID id,
-        String name,
-        Instant createdAt,
-        UUID projectId,
-        UUID parentVersionId
-) {}
->>>>>>> master
