@@ -108,7 +108,7 @@ class NodeServiceTest {
         wellDTO.setDeclineCurve(0.05f);
         wellDTO.setGasRichness(0.3f);
         wellDTO.setDTMTime(15);
-        wellDTO.setDTMCost("1500.00");
+        wellDTO.setDTMCost(150.000f);
         wellDTO.setSurface(10.0f);
 
         when(wellRepository.save(any(Well.class)))
@@ -125,7 +125,6 @@ class NodeServiceTest {
         assertEquals("Test Well", foundWell.get().getName());
         assertEquals(1000.0f, foundWell.get().getMaxCollectionCapacity());
         assertEquals(0.05f, foundWell.get().getDeclineCurve());
-
     }
 
 }

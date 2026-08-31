@@ -20,9 +20,6 @@ public class TreatmentPlant extends ExtractionNode {
     @Column(name = "max_treatment_capacity")
     private float maxTreatmentCapacity;
 
-    @Column(name = "contaminant_waste")
-    private float contaminantWaste;
-
     @Column(name = "intermediate_storage")
     private float intermediateStorage;
 
@@ -41,7 +38,6 @@ public class TreatmentPlant extends ExtractionNode {
                 maintenanceIntervalInDays, operatingCosts, wastePercentage,
                 investmentCost, graphData, identity, type);
         this.maxTreatmentCapacity = maxTreatmentCapacity;
-        this.contaminantWaste = contaminantWaste;
         this.intermediateStorage = intermediateStorage;
         this.treatmentCost = treatmentCost;
     }

@@ -13,6 +13,10 @@ import org.enerscope.project.model.ProjectMemberRole;
 import org.enerscope.project.service.ProjectService;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
+import org.enerscope.version.dto.VersionDTO;
+import org.enerscope.version.service.VersionService;
+import org.enerscope.version.model.Version;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,13 +49,22 @@ public class ProjectController {
     }
 
     @PostMapping("/{projectId}/members")
-    @Operation(summary = "Add a member to a project",
-            description = "Add a user to the project with a given role.")
+    @Operation(summary = "Add a member to a project", description = "Add a user to the project with a given role.")
     public ResponseEntity<ApiResponse<ProjectMemberDTO>> addMember(
             @PathVariable UUID projectId,
             @Valid @RequestBody AddProjectMemberRequestDTO data) {
         ProjectMember member = projectService.addMember(projectId, data);
         return Responses.created("Member added", toDTO(member));
+    }
+
+    @PostMapping(value = "/{projectId}/version", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Create a new version", description = "Create a new Version with all required properties.")
+    public ResponseEntity<ApiResponse<Version>> createVersion(
+            @PathVariable UUID projectId,
+            @RequestBody VersionDTO versionDTO) {
+
+        Version version = projectService.saveVersion(projectId, versionDTO);
+        return Responses.ok("Version created successfully", version);
     }
 
     private ProjectDTO toDTO(Project project) {

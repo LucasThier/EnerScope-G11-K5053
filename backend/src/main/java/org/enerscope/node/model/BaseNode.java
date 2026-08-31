@@ -10,6 +10,7 @@ import lombok.Setter;
 import org.enerscope.common.BaseEntity;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.enums.NodeStateEnum;
+import org.springframework.context.annotation.Lazy;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -20,6 +21,7 @@ import java.util.UUID;
 @Setter
 @Inheritance(strategy = InheritanceType.JOINED)
 @Entity
+@Lazy
 public abstract class BaseNode extends BaseEntity {
 
     @Column(nullable = false, length = 320)
@@ -91,30 +93,32 @@ public abstract class BaseNode extends BaseEntity {
         return Math.max(0, Math.min(100, (remainingMonths / lifespanInMonths) * 100));
     }
 
-    public MoneyAmount CalculateInvestmentCost(){
-        if(investmentCost != null){
+    public MoneyAmount CalculateInvestmentCost() {
+        if (investmentCost != null) {
             return investmentCost.CalculateCost(this);
         } else {
             throw new RuntimeException("Investment Cost is empty");
         }
     }
 
-    public MoneyAmount CalculateOperatingCost(){
-        if (operatingCosts != null && (Integer) lifespanInMonths != null){
+    public MoneyAmount CalculateOperatingCost() {
+        if (operatingCosts != null && (Integer) lifespanInMonths != null) {
             return operatingCosts.multiply(lifespanInMonths);
         } else {
             throw new RuntimeException("Base Node missing arguments");
         }
     }
-    public MoneyAmount CalculateUpkeepCost(){
-        if ((Integer)maintenanceIntervalInDays != null && (Integer) lifespanInMonths != null && upkeepCosts != null){
+
+    public MoneyAmount CalculateUpkeepCost() {
+        if ((Integer) maintenanceIntervalInDays != null && (Integer) lifespanInMonths != null && upkeepCosts != null) {
             int totalMaintenance = lifespanInMonths / (maintenanceIntervalInDays / 30);
             return upkeepCosts.multiply(totalMaintenance);
         } else {
             throw new RuntimeException("Base Node missing arguments");
         }
     }
-     public MoneyAmount CalculateTotalCost(){
+
+    public MoneyAmount CalculateTotalCost() {
         MoneyAmount investment;
         MoneyAmount operational;
         MoneyAmount upkeep;
@@ -124,17 +128,18 @@ public abstract class BaseNode extends BaseEntity {
             System.out.println("Catched error: " + e.getMessage() + "in CalculatedInvestmentCost");
             investment = MoneyAmount.of(0);
         }
-         try {
-             operational = CalculateOperatingCost();
-         } catch (RuntimeException e) {
-             System.out.println("Catched error: " + e.getMessage() + "in CalculatedOperationalCost");
-             operational = MoneyAmount.of(0);
-         }try {
-             upkeep = CalculateUpkeepCost();
-         } catch (RuntimeException e) {
-             System.out.println("Catched error: " + e.getMessage() + "in CalculatedUpkeepCost");
-             upkeep = MoneyAmount.of(0);
-         }
-         return investment.add(operational).add(upkeep); 
-     }
+        try {
+            operational = CalculateOperatingCost();
+        } catch (RuntimeException e) {
+            System.out.println("Catched error: " + e.getMessage() + "in CalculatedOperationalCost");
+            operational = MoneyAmount.of(0);
+        }
+        try {
+            upkeep = CalculateUpkeepCost();
+        } catch (RuntimeException e) {
+            System.out.println("Catched error: " + e.getMessage() + "in CalculatedUpkeepCost");
+            upkeep = MoneyAmount.of(0);
+        }
+        return investment.add(operational).add(upkeep);
+    }
 }
