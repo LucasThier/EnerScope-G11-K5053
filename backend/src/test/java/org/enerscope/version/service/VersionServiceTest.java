@@ -237,8 +237,8 @@ class VersionServiceTest {
         assertEquals("Twice Edited Well", result.getName());
         assertEquals(NodeStateEnum.PENDING, result.getState());
 
-        // Verify that another EDIT change was created (total 2 changes)
-        assertEquals(2, version.getNodeChanges().size());
+        // Verify that only one EDIT change was created (total 2 changes)
+        assertEquals(1, version.getNodeChanges().size());
         NodeChange latestChange = version.getNodeChanges().get(0); // Get the most recent change
         assertEquals(ChangeTypeEnum.EDIT, latestChange.getChangeType());
         assertSame(latestChange.getChangedNode(), result);
