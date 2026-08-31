@@ -174,7 +174,6 @@ CREATE TABLE  treatment_plant (
     id                        UUID                     NOT NULL ,
     -- Specific fields
     max_treatment_capacity    REAL,
-    contaminant_waste         REAL,
     intermediate_storage      REAL,
     treatment_cost             NUMERIC(19,2)              NOT NULL,
 

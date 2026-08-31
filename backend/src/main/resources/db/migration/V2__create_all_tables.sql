@@ -295,7 +295,6 @@ CREATE TABLE  treatment_plant (
     up_keep_costs             NUMERIC(19,2)              NOT NULL,
     maintenance_interval_in_days INTEGER,
     operating_costs          NUMERIC(19,2)              NOT NULL,
-    waste_percentage          REAL,
     -- Specific fields
     max_treatment_capacity    REAL,
     contaminant_waste         REAL,
