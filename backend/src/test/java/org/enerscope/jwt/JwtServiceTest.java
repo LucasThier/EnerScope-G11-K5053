@@ -2,6 +2,7 @@ package org.enerscope.jwt;
 
 import io.jsonwebtoken.Claims;
 import org.enerscope.user.model.User;
+import org.enerscope.user.model.enums.PlatformRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -37,6 +38,18 @@ class JwtServiceTest {
         assertEquals("user@enerscope.org", claims.get().get("mail", String.class));
         assertEquals("Jane", claims.get().get("firstName", String.class));
         assertEquals("Doe", claims.get().get("lastName", String.class));
+        assertEquals("USER", claims.get().get("role", String.class));
+    }
+
+    @Test
+    void accessTokenCarriesAdminRoleClaim() {
+        User admin = User.fromJwtClaims(UUID.randomUUID(), "admin@enerscope.org", "Admin", "User", PlatformRole.ADMIN);
+
+        String token = jwtService.generateAccessToken(admin);
+
+        Optional<Claims> claims = jwtService.validateAccessToken(token);
+        assertTrue(claims.isPresent());
+        assertEquals("ADMIN", claims.get().get("role", String.class));
     }
 
     @Test

@@ -2,6 +2,7 @@ package org.enerscope.seed;
 
 import org.enerscope.logging.AppLogger;
 import org.enerscope.user.model.User;
+import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -53,9 +54,10 @@ public class AdminSeeder implements CommandLineRunner {
                 adminMail,
                 adminFirstName,
                 adminLastName,
-                encoder.encode(adminPassword)
+                encoder.encode(adminPassword),
+                PlatformRole.ADMIN
         );
         userRepository.save(admin);
-        logger.info("Seeded admin user {}", adminMail);
+        logger.info("Seeded admin user {} with role {}", adminMail, PlatformRole.ADMIN);
     }
 }

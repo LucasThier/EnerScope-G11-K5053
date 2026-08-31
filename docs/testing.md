@@ -25,15 +25,21 @@ Run everything with `cd backend && mvn test`.
 | Test class | Type | Cases |
 | --- | --- | --- |
 | `ApplicationContextTest` | Integration | 1 |
-| `auth.controller.AuthControllerTest` | Web | 11 |
+| `auth.controller.AuthControllerTest` | Web | 13 |
 | `common.CsvUtilTest` | Unit | 5 |
-| `jwt.JwtServiceTest` | Unit | 4 |
+| `jwt.JwtServiceTest` | Unit | 5 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 |
 | `money.MoneyAmountTest` | Unit | 6 |
-| `user.service.UserServiceTest` | Unit | 5 |
+| `user.service.UserServiceTest` | Unit | 7 |
 | `user.service.PasswordGeneratorTest` | Unit | 4 |
-| `user.service.BulkRegistrationServiceTest` | Unit | 7 |
-| **Total** | | **44** |
+| `organization.service.OrganizationServiceTest` | Unit | 13 |
+| `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 12 |
+| `organization.controller.OrganizationControllerTest` | Web | 11 |
+| `project.service.ProjectServiceTest` | Unit | 7 |
+| `project.controller.ProjectControllerTest` | Web | 5 |
+| `version.service.VersionServiceTest` | Unit | 5 |
+| `version.controller.VersionControllerTest` | Web | 3 |
+| **Total** | | **98** |
 
 ## `ApplicationContextTest` — Integration
 
@@ -46,14 +52,17 @@ Smoke test that the whole application wires together.
 ## `auth.controller.AuthControllerTest` — Web
 
 Exercises `AuthController` through the real `SecurityConfig`/`AuthFilter` chain
-(`/auth/**` is public); `SessionService`, `UserService` and `UserRepository` are
-mocked.
+(`/auth/login`, `/auth/refresh`, `/auth/logout` are public; `/auth/register`
+requires an ADMIN bearer token); `SessionService`, `UserService` and
+`UserRepository` are mocked.
 
 | Case | Verifies |
 | --- | --- |
-| `registerCreatesAccountAndReturnsSession` | `POST /auth/register` with a valid body → `201` and an envelope with `success=true`, message `Registered`, and access/refresh tokens + `expiresAt`. |
-| `registerRejectsDuplicateEmailWith400` | When registration throws (duplicate email) → `400`, `success=false`, and the domain error message. |
-| `registerRejectsInvalidBodyWithValidationError` | Invalid email, too-short name and too-short password → `400` `Validation error` with field details; `UserService.register` is never called. |
+| `registerCreatesUserWhenCallerIsAdmin` | `POST /auth/register` by an authenticated ADMIN with a valid body → `201` `User registered` with the created user's `mail` and `platformRole` (no session for the admin). |
+| `registerRequiresAuthenticationWith401` | `POST /auth/register` with no token → `401`; `UserService.register` is never called. |
+| `registerRejectsNonAdminWith403` | `POST /auth/register` by an authenticated non-admin → `403`; `UserService.register` is never called. |
+| `registerRejectsDuplicateEmailWith400` | For an ADMIN caller, when registration throws (duplicate email) → `400`, `success=false`, and the domain error message. |
+| `registerRejectsInvalidBodyWithValidationError` | For an ADMIN caller, invalid email/too-short name/password → `400` `Validation error` with field details; `UserService.register` is never called. |
 | `loginReturnsSessionForValidCredentials` | `POST /auth/login` with valid credentials → `200` `Authenticated` and tokens. |
 | `loginRejectsBadCredentialsWith400` | Wrong credentials → `400` `Invalid email or password`. |
 | `loginRejectsBlankFieldsWithValidationError` | Blank mail/password → `400` `Validation error`; `UserService.login` is never called. |
@@ -81,7 +90,8 @@ Token issuing and validation.
 
 | Case | Verifies |
 | --- | --- |
-| `accessTokenCarriesUserClaims` | An access token carries `sub`, `mail`, `firstName`, `lastName` and validates successfully. |
+| `accessTokenCarriesUserClaims` | An access token carries `sub`, `mail`, `firstName`, `lastName`, `role` and validates successfully. |
+| `accessTokenCarriesAdminRoleClaim` | An access token for an ADMIN carries `role=ADMIN`. |
 | `accessAndRefreshTokensAreNotInterchangeable` | The `typ` claim keeps access and refresh tokens from being accepted in the other's place. |
 | `rejectsGarbageAndBlankTokens` | Non-JWT, empty and `null` tokens are rejected. |
 | `rejectsTokenSignedWithAnotherKey` | A token signed with a different secret fails validation. |
@@ -112,6 +122,8 @@ Registration, login and password logic.
 | Case | Verifies |
 | --- | --- |
 | `registerHashesPasswordAndPersists` | Registration normalises the email, hashes the password, and persists the user. |
+| `registerDefaultsToUserRoleWhenRoleOmitted` | Registration with no role creates a `USER` platform role. |
+| `registerHonorsExplicitAdminRole` | Registration with `role=ADMIN` creates an `ADMIN` platform role. |
 | `registerRejectsDuplicateMail` | A duplicate email throws and neither saves nor hashes. |
 | `loginReturnsUserWhenPasswordMatches` | Login returns the user when the password matches. |
 | `loginRejectsWrongPassword` | A wrong password throws `IllegalArgumentException`. |
@@ -128,16 +140,115 @@ Secure password generation.
 | `generatesDistinctPasswords` | 1000 generated passwords are all distinct (randomness sanity check). |
 | `rejectsTooShortLength` | Requesting a length below 8 throws `IllegalArgumentException`. |
 
-## `user.service.BulkRegistrationServiceTest` — Unit
+## `organization.service.OrganizationBulkRegistrationServiceTest` — Unit
 
-CSV-driven bulk registration.
+CSV-driven bulk registration of users **into an organization** (creates the
+account and adds it as a member).
 
 | Case | Verifies |
 | --- | --- |
-| `registersValidRowsAndReturnsCredentialsCsv` | Valid rows are created and the returned `credentialsCsv` holds `mail,password` with lower-cased emails. |
-| `collectsInvalidRowsAsFailuresWithoutAborting` | Missing/invalid email and too-short name rows are reported as failures (with line + reason) without stopping the batch. |
+| `registersValidRowsAndAddsThemAsMembers` | Valid rows create users, add a membership each, and the returned `credentialsCsv` holds `mail,password` with lower-cased emails. |
+| `defaultsToMemberWhenNoRoleColumn` | With no `role` column, members are created as `MEMBER`. |
+| `assignsMemberTypeFromRoleColumn` | A `role` column value (`OWNER`) sets the membership type. |
+| `rejectsInvalidRoleValueAsFailure` | An unknown role value is reported as a per-row failure; the user is not created. |
+| `collectsInvalidRowsAsFailuresWithoutAborting` | Missing/invalid email and too-short name rows are reported as failures (line + reason) without stopping the batch. |
 | `rejectsDuplicateEmailWithinFile` | A second occurrence of the same email in the file is rejected as a duplicate. |
 | `propagatesRegistrationFailuresPerRow` | A per-row registration exception (e.g. already registered) becomes a failure entry, not a batch abort. |
 | `acceptsHeaderAliasesAndAnyColumnOrder` | Header aliases (`Email`/`Nombre`/`Apellido`) and arbitrary column order are resolved. |
 | `throwsWhenRequiredHeaderColumnMissing` | A header missing a required column throws, naming the missing column. |
 | `throwsWhenFileIsEmpty` | Empty content throws `IllegalArgumentException`. |
+| `rejectsUnknownOrganization` | An unknown organization id throws before any user is created. |
+| `rejectsWhenCallerNotAuthorized` | A `ForbiddenException` from the authorization check aborts the batch; nothing is created or saved. |
+
+## `organization.service.OrganizationServiceTest` — Unit
+
+Organization creation and member addition (with role/permission derivation).
+
+| Case | Verifies |
+| --- | --- |
+| `createOrganizationPersistsAndReturnsOrganization` | Creating an organization persists it and returns it with the given name. |
+| `listForCurrentUserReturnsAllForAdmin` | A platform ADMIN caller lists every organization (`findAll`). |
+| `listForCurrentUserReturnsMembershipsForRegularUser` | A regular user lists only the organizations they are a member of. |
+| `listForCurrentUserRejectsUnauthenticated` | No authenticated caller → `UnauthorizedException`. |
+| `addMemberGrantsOwnerFullPermissions` | Adding a member with `memberType=OWNER` creates a role with both `MANAGE_ORGANIZATION` and `VIEW_ORGANIZATION`. |
+| `addMemberGrantsMemberViewOnlyPermission` | Adding a member with `memberType=MEMBER` creates a role with only `VIEW_ORGANIZATION`. |
+| `addMemberRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException` before the user is looked up or anything is saved. |
+| `addMemberRejectsUnknownUser` | An unknown user id throws `IllegalArgumentException`; nothing is saved. |
+| `addMemberRejectsDuplicateMembership` | Adding a user already in the organization throws `IllegalArgumentException`; nothing is saved. |
+| `registerUserInOrganizationAllowsPlatformAdmin` | A platform ADMIN caller can register a new user into any organization as a `MEMBER`. |
+| `registerUserInOrganizationAllowsOrganizationOwner` | A caller who is an org member with `MANAGE_ORGANIZATION` can register a new user into that organization. |
+| `registerUserInOrganizationRejectsNonOwnerMemberWith403` | A member without `MANAGE_ORGANIZATION` gets `ForbiddenException`; no user is created or saved. |
+| `registerUserInOrganizationRejectsUnauthenticatedCaller` | No authenticated caller → `UnauthorizedException`; no user is created. |
+
+## `organization.controller.OrganizationControllerTest` — Web
+
+Exercises `OrganizationController` through the real `SecurityConfig`/
+`AuthFilter` chain (a valid Bearer token is required on every request, like
+every non-`/auth` route); `OrganizationService` and
+`OrganizationBulkRegistrationService` are mocked.
+
+| Case | Verifies |
+| --- | --- |
+| `listOrganizationsReturnsList` | `GET /organizations` → `200` with the list of organizations (`data[0].name`). |
+| `createOrganizationReturnsCreatedOrganization` | `POST /organizations` with a valid body → `201` and an envelope with `success=true`, message `Organization created`, and the created organization's name. |
+| `createOrganizationRejectsBlankNameWithValidationError` | Blank `name` → `400` `Validation error`; `OrganizationService.createOrganization` is never called. |
+| `addMemberReturnsCreatedMember` | `POST /organizations/{id}/members` with a valid body → `201` with the member's `memberType` and `userMail`. |
+| `addMemberRejectsUnknownOrganizationWith400` | When the service throws for an unknown organization → `400` with the domain error message. |
+| `addMemberRejectsInvalidBodyWithValidationError` | Missing `userId`/`memberType` → `400` `Validation error`; the service is never called. |
+| `registerUserReturnsCreatedMember` | `POST /organizations/{id}/users` with a valid body → `201` `User registered into organization` with the member's `memberType`. |
+| `registerUserPropagatesForbiddenWith403` | When the service throws `ForbiddenException` → `403`, `success=false`. |
+| `registerUserRejectsInvalidBodyWithValidationError` | Invalid email → `400` `Validation error`; the service is never called. |
+| `bulkRegisterUsersReturnsResultSummary` | `POST /organizations/{id}/users/bulk` with a CSV file → `200` with the result summary (`total`/`created`) and `credentialsCsv`. |
+| `bulkRegisterUsersPropagatesForbiddenWith403` | When the bulk service throws `ForbiddenException` → `403`, `success=false`. |
+
+## `project.service.ProjectServiceTest` — Unit
+
+Project creation and member addition (with role/permission derivation).
+
+| Case | Verifies |
+| --- | --- |
+| `createProjectPersistsAndLinksToOrganization` | Creating a project persists it linked to the organization and appends it to `Organization.projects`. |
+| `createProjectRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException`; the project is never saved. |
+| `addMemberGrantsAdminFullPermissions` | Adding a member with `memberType=ADMIN` creates a role with `MANAGE_PROJECT`, `EDIT_PROJECT` and `VIEW_PROJECT`. |
+| `addMemberGrantsEditorEditAndViewPermissions` | Adding a member with `memberType=EDITOR` creates a role with only `EDIT_PROJECT` and `VIEW_PROJECT`. |
+| `addMemberRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException` before the user is looked up or anything is saved. |
+| `addMemberRejectsUnknownUser` | An unknown user id throws `IllegalArgumentException`; nothing is saved. |
+| `addMemberRejectsDuplicateMembership` | Adding a user already in the project throws `IllegalArgumentException`; nothing is saved. |
+
+## `project.controller.ProjectControllerTest` — Web
+
+Exercises `ProjectController` through the real `SecurityConfig`/`AuthFilter`
+chain (a valid Bearer token is required on every request, like every
+non-`/auth` route); `ProjectService` is mocked.
+
+| Case | Verifies |
+| --- | --- |
+| `createProjectReturnsCreatedProject` | `POST /projects` with a valid body → `201` and an envelope with `success=true`, message `Project created`, and the created project's `name`/`description`. |
+| `createProjectRejectsBlankFieldsWithValidationError` | Blank `name`/`description` → `400` `Validation error`; `ProjectService.createProject` is never called. |
+| `addMemberReturnsCreatedMember` | `POST /projects/{id}/members` with a valid body → `201` with the member's `memberType` and `userMail`. |
+| `addMemberRejectsUnknownProjectWith400` | When the service throws for an unknown project → `400` with the domain error message. |
+| `addMemberRejectsInvalidBodyWithValidationError` | Missing `userId`/`memberType` → `400` `Validation error`; the service is never called. |
+
+## `version.service.VersionServiceTest` — Unit
+
+Version creation, including the parent-version-same-project validation.
+
+| Case | Verifies |
+| --- | --- |
+| `createVersionPersistsAndLinksToProjectWithoutParent` | Creating a version without a `parentVersionId` persists it linked to the project and appends it to `Project.versions`. |
+| `createVersionPersistsWithValidParentVersion` | Creating a version with a `parentVersionId` that belongs to the same project links the new version to that parent. |
+| `createVersionRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException`; nothing is saved. |
+| `createVersionRejectsUnknownParentVersion` | An unknown `parentVersionId` throws `IllegalArgumentException`; nothing is saved. |
+| `createVersionRejectsParentVersionFromDifferentProject` | A `parentVersionId` belonging to a different project throws `IllegalArgumentException`; nothing is saved. |
+
+## `version.controller.VersionControllerTest` — Web
+
+Exercises `VersionController` through the real `SecurityConfig`/`AuthFilter`
+chain (a valid Bearer token is required on every request, like every
+non-`/auth` route); `VersionService` is mocked.
+
+| Case | Verifies |
+| --- | --- |
+| `createVersionReturnsCreatedVersion` | `POST /projects/{projectId}/versions` with a valid body → `201` and an envelope with `success=true`, message `Version created`, and the created version's `name`. |
+| `createVersionRejectsBlankNameWithValidationError` | Blank `name` → `400` `Validation error`; `VersionService.createVersion` is never called. |
+| `createVersionRejectsUnknownProjectWith400` | When the service throws for an unknown project → `400` with the domain error message. |

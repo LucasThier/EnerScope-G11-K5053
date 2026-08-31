@@ -46,6 +46,11 @@ public class GlobalExceptionHandler {
         return Responses.unauthorized(ex.getMessage());
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ApiResponse<Void>> handleForbidden(ForbiddenException ex) {
+        return Responses.forbidden(ex.getMessage());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArg(IllegalArgumentException ex) {
         return Responses.badRequest(ex.getMessage());
