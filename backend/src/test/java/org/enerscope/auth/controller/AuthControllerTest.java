@@ -10,6 +10,7 @@ import org.enerscope.logging.AppLogger;
 import org.enerscope.session.model.Session;
 import org.enerscope.session.service.SessionService;
 import org.enerscope.user.model.User;
+import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
 import org.enerscope.user.service.UserService;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,8 @@ class AuthControllerTest {
 
     private static final String ACCESS_TOKEN = "access-token-xyz";
     private static final String REFRESH_TOKEN = "refresh-token-abc";
+    private static final String ADMIN_TOKEN = "admin-bearer-token";
+    private static final String USER_TOKEN = "user-bearer-token";
 
     @Autowired
     private MockMvc mockMvc;
@@ -73,36 +76,76 @@ class AuthControllerTest {
         return objectMapper.writeValueAsString(body);
     }
 
-    // ---- register --------------------------------------------------------
+    // Stubs the auth filter to accept a bearer token as an authenticated ADMIN.
+    private void authenticateAdmin() {
+        User admin = User.fromJwtClaims(UUID.randomUUID(), "admin@enerscope.org", "Admin", "User", PlatformRole.ADMIN);
+        when(sessionService.validate(ADMIN_TOKEN))
+                .thenReturn(Optional.of(new Session(ADMIN_TOKEN, admin, Instant.now().plusSeconds(3600))));
+    }
+
+    // Stubs the auth filter to accept a bearer token as an authenticated regular USER.
+    private void authenticateUser() {
+        User user = User.fromJwtClaims(UUID.randomUUID(), "jane@enerscope.org", "Jane", "Doe", PlatformRole.USER);
+        when(sessionService.validate(USER_TOKEN))
+                .thenReturn(Optional.of(new Session(USER_TOKEN, user, Instant.now().plusSeconds(3600))));
+    }
+
+    // ---- register (admin-only) -------------------------------------------
 
     @Test
-    void registerCreatesAccountAndReturnsSession() throws Exception {
-        User user = sampleUser();
-        when(userService.register(any(RegisterRequestDTO.class))).thenReturn(user);
-        when(sessionService.create(any(User.class))).thenReturn(sampleSession(user));
-        when(sessionService.generateRefreshToken(any(User.class))).thenReturn(REFRESH_TOKEN);
+    void registerCreatesUserWhenCallerIsAdmin() throws Exception {
+        authenticateAdmin();
+        User created = User.fromJwtClaims(UUID.randomUUID(), "jane@enerscope.org", "Jane", "Doe", PlatformRole.USER);
+        when(userService.register(any(RegisterRequestDTO.class))).thenReturn(created);
 
+        mockMvc.perform(post("/auth/register")
+                        .header("Authorization", "Bearer " + ADMIN_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new RegisterRequestDTO(
+                                "jane@enerscope.org", "Jane", "Doe", "password123", null))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("User registered"))
+                .andExpect(jsonPath("$.data.mail").value("jane@enerscope.org"))
+                .andExpect(jsonPath("$.data.platformRole").value("USER"));
+    }
+
+    @Test
+    void registerRequiresAuthenticationWith401() throws Exception {
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(new RegisterRequestDTO(
-                                "jane@enerscope.org", "Jane", "Doe", "password123"))))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("Registered"))
-                .andExpect(jsonPath("$.data.accessToken").value(ACCESS_TOKEN))
-                .andExpect(jsonPath("$.data.refreshToken").value(REFRESH_TOKEN))
-                .andExpect(jsonPath("$.data.expiresAt").exists());
+                                "jane@enerscope.org", "Jane", "Doe", "password123", null))))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).register(any());
+    }
+
+    @Test
+    void registerRejectsNonAdminWith403() throws Exception {
+        authenticateUser();
+
+        mockMvc.perform(post("/auth/register")
+                        .header("Authorization", "Bearer " + USER_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new RegisterRequestDTO(
+                                "jane@enerscope.org", "Jane", "Doe", "password123", null))))
+                .andExpect(status().isForbidden());
+
+        verify(userService, never()).register(any());
     }
 
     @Test
     void registerRejectsDuplicateEmailWith400() throws Exception {
+        authenticateAdmin();
         when(userService.register(any(RegisterRequestDTO.class)))
                 .thenThrow(new IllegalArgumentException("An account with that email already exists"));
 
         mockMvc.perform(post("/auth/register")
+                        .header("Authorization", "Bearer " + ADMIN_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(new RegisterRequestDTO(
-                                "dup@enerscope.org", "Dup", "User", "password123"))))
+                                "dup@enerscope.org", "Dup", "User", "password123", null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("An account with that email already exists"));
@@ -110,11 +153,13 @@ class AuthControllerTest {
 
     @Test
     void registerRejectsInvalidBodyWithValidationError() throws Exception {
+        authenticateAdmin();
         String invalidBody = """
                 {"mail":"not-an-email","firstName":"J","lastName":"Doe","password":"short"}
                 """;
 
         mockMvc.perform(post("/auth/register")
+                        .header("Authorization", "Bearer " + ADMIN_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidBody))
                 .andExpect(status().isBadRequest())

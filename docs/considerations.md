@@ -8,19 +8,23 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 
 ## Current expectations
 
-- The `User` model is intentionally minimal: `mail`, `firstName`, `lastName`,
-  `passwordHash` (plus `BaseEntity` audit fields). There are **no roles,
-  permissions, or phone number** yet. The seeded `admin@enerscope.org` is a
-  plain user; if admin privileges become real, add a role/flag **with** a
-  migration, updated `docs/domain-model.md`, and tests.
+- The `User` model carries `mail`, `firstName`, `lastName`, `passwordHash` and a
+  `platformRole` (`ADMIN`/`USER`) — plus `BaseEntity` audit fields. There is
+  still **no phone number**. The seeded `admin@enerscope.org` is an `ADMIN`.
+  `platformRole` is the app-wide role; organization/project membership roles are
+  scoped and separate.
 - Authentication is **stateless** (JWT). There is no session table; a `Session`
   is rebuilt from the token on each request. Revocation before expiry is not
   supported — keep access-token lifetimes short.
 - Flyway owns the schema; Hibernate runs in `validate`. The H2 profile used by
   tests disables Flyway and lets Hibernate build the schema — keep entities
   portable enough for both, or adjust the test profile deliberately.
-- The frontend is a minimal shell on purpose: it must build and run, plus the
-  API/session layer and types. Tailwind only; no hand-written CSS.
+- The frontend now has the **auth portal**: an `AuthProvider`/`useAuth`
+  (login/register/logout/refresh + role state), reusable `LoginForm`/
+  `RegisterForm`, role-gated routes and admin/user panels. Design tokens live in
+  `src/index.css` under Tailwind v4 `@theme` (brand greens, ink, cream — from the
+  logo); reuse `bg-brand-*`/`text-ink-*`/`bg-cream` instead of raw hex. Tailwind
+  only; no hand-written CSS beyond those tokens.
 
 ## Log
 
@@ -37,9 +41,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   per-row failure list. Plaintext passwords are returned **once** in the
   response and never persisted; whoever calls the endpoint is responsible for
   distributing them securely. The endpoint is under `/users/**`, so it is
-  **authenticated** (no `/auth` permitAll) — but there are still **no roles**,
-  so *any* logged-in user can bulk-create accounts. When roles land, gate this
-  behind an admin role. CSV parsing/writing uses a small in-repo helper
+  **authenticated** (no `/auth` permitAll). As of 2026-08-30 this global endpoint
+  was **removed** and replaced by an organization-scoped bulk endpoint (see that
+  log entry). CSV parsing/writing uses a small in-repo helper
   (`common/CsvUtil`) instead of a new dependency; input is read fully into
   memory (fine for expected list sizes, bounded by Spring's multipart limits).
 - 2026-07-10 — Backend packages reorganised **by feature, then by layer**.
@@ -172,3 +176,60 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     exercises this because it disables Flyway). Neither is fixed by this
     change; both must be resolved before a `Version` with real node/
     connection snapshots can be built.
+- 2026-08-30 — Platform roles + auth portal. Added `PlatformRole` (`ADMIN`/
+  `USER`) to `User` (`V7__add_platform_role.sql`; column defaults `USER`, the
+  default admin mail is promoted to `ADMIN`, and `AdminSeeder` now seeds the
+  admin as `ADMIN`). The access-token gained a `role` claim; `AuthFilter` maps it
+  to a `ROLE_*` authority so `SecurityConfig`/method security can gate on it.
+  Decisions:
+  - **Registration is no longer self-service.** `POST /auth/register` now
+    requires an `ADMIN` (returns the created `UserSummaryDTO`, **not** a session —
+    the admin stays logged in), and `POST /users/bulk` is likewise `ADMIN`-only.
+    `RegisterRequestDTO` gained an optional `role` (admins can mint admins;
+    defaults to `USER`; bulk always passes `USER`).
+  - **Org-owner registration:** `POST /organizations/{id}/users` creates a
+    `USER` account and adds it to the org as a `MEMBER`. Authorized for platform
+    admins or an `OrganizationMember` with `MANAGE_ORGANIZATION` (checked in
+    `OrganizationService` via `AuthUtil.currentSession()` + a new
+    `findByOrganizationIdAndUserId`). Added `ForbiddenException` → HTTP `403` in
+    `GlobalExceptionHandler`, and `SecurityConfig` now returns the `ApiResponse`
+    envelope for `401`/`403` (auth entry point + access-denied handler).
+  - `NewSessionDTO` now embeds a `UserSummaryDTO` (id/mail/name/role) so the
+    frontend gets identity + role at login/refresh without decoding the JWT.
+  - **Frontend:** `react-router-dom` added; `AuthProvider`/`useAuth`, reusable
+    `LoginForm`/`RegisterForm` (the latter drives both the platform-admin and
+    organization flows via props), `ProtectedRoute`/`RoleRoute` guards, and
+    `AdminPanel`/`UserPanel`. Brand design tokens in `src/index.css` (`@theme`).
+  - **Carries the migration prerequisites so this PR merges independently** of
+    the migration-fix PR (`fix/migration-collision-check`), in any order: it
+    removes the duplicate `V2__create_all_tables.sql` and adds the
+    `well.surface` fix as `V6` — the same identical changes as that PR, so git
+    merges them cleanly whichever lands first. This branch also adds
+    `V7__add_platform_role.sql`. `V2__create_nodes.sql` is the surviving `V2`
+    (matches the `@Inheritance(JOINED)` node entities).
+  - Pre-existing gap noticed: `docs/testing.md` never catalogued the `node.*`
+    and `strategyCost.*` test classes, so its total trails the actual `mvn test`
+    count. Left as-is to keep this change scoped; worth a dedicated catalog
+    reconciliation.
+- 2026-08-30 — Bulk registration is now organization-scoped only. Removed the
+  global `POST /users/bulk` (and `UserController`, `BulkRegistrationService`, the
+  `user/dto` bulk records) and replaced it with
+  `POST /organizations/{id}/users/bulk` (`OrganizationBulkRegistrationService`,
+  bulk DTOs moved to `organization/dto`). Each CSV row creates a regular platform
+  `USER` and adds them to the path organization as a member; an optional `role`
+  column (`OWNER`/`MEMBER`, default `MEMBER`) sets the membership type.
+  Authorization reuses the single-user path's rule (platform admin or org member
+  with `MANAGE_ORGANIZATION`), extracted to the public
+  `OrganizationService.assertCanManageUsers`; the member-type→permissions map is
+  exposed via `OrganizationService.defaultPermissionsFor`. `PasswordGenerator`
+  stays in `user/service` (reused cross-feature, like `UserService`).
+- 2026-08-30 — Added `GET /organizations` (list): a platform ADMIN gets every
+  organization (`findAll`), any other user gets the ones they are a member of
+  (`findDistinctByMembers_User_Id`). Drives the frontend org picker. `POST
+  /organizations` (create) stays open to any bearer for now; the admin UI is the
+  only surface that exposes it. Frontend: the two separate create-user forms were
+  merged into **one** `RegisterForm` with an optional `OrganizationPicker`
+  (select an existing org or create one inline) — empty selection creates a
+  platform user, a selected org registers the user into it. The signed-in shell
+  is now `AppLayout` with a role-aware `Sidebar` (admins: Users + Organizations;
+  regular users: Workspace); `PanelLayout`/`AdminPanel`/`UserPanel` were removed.
