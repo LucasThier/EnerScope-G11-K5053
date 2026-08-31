@@ -37,7 +37,7 @@ public class VersionController {
      * create a new version.
      */
 
-    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = "/createtest", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Create a new version", description = "Create a new Version with all required properties.")
     public ResponseEntity<ApiResponse<Version>> createVersion(
             @RequestBody VersionDTO versionDTO) {

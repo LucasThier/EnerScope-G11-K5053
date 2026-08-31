@@ -1,9 +1,18 @@
 package org.enerscope.version.model;
 
+import java.util.List;
+
+import org.enerscope.common.BaseEntity;
+import org.enerscope.node.model.BaseNode;
+import org.enerscope.node.model.ConnectionChange;
+import org.enerscope.node.model.NodeChange;
+import org.enerscope.node.model.NodeConnection;
+import org.enerscope.project.model.Project;
+import org.springframework.context.annotation.Lazy;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
@@ -15,29 +24,27 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import org.enerscope.common.BaseEntity;
-import org.enerscope.node.model.BaseNode;
-import org.enerscope.node.model.ConnectionChange;
-import org.enerscope.node.model.NodeChange;
-import org.enerscope.node.model.NodeConnection;
-
-import java.util.List;
-import java.util.UUID;
-
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @Entity
 @Table
+@Lazy
 public class Version extends BaseEntity {
 
     @Column(nullable = false, length = 320)
     private String name;
 
-    @Column
-    private UUID parentVersionId;
-
+    @ManyToOne
+    @JoinColumn(name = "parent_version_id")
+    private Version parentVersion;
+    /*
+     * @ManyToOne
+     * 
+     * @JoinColumn(name = "project_id", nullable = false)
+     * private Project project;
+     */
     @ManyToMany
     @JoinTable(name = "versionXNode", joinColumns = @JoinColumn(name = "version_id"), inverseJoinColumns = @JoinColumn(name = "node_id"))
     private List<BaseNode> nodeSnapshot;

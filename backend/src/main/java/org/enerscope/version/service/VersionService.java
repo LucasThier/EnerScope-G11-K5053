@@ -79,12 +79,10 @@ public class VersionService {
             throw new IllegalArgumentException("Version name cannot be blank or whitespace only");
         }
 
-        UUID parentVersionId = null;
         Version parentVersion = null;
         List<BaseNode> nodeSnapshot = null; // do we want a new version with new changes? Or not?
         List<NodeConnection> connectionSnapshot = null;
         if (data.getParentVersion() != null) {
-            parentVersionId = data.getParentVersion();
             parentVersion = versionRepository.findById(data.getParentVersion())
                     .orElseThrow(() -> new VersionNotFoundException(data.getParentVersion()));
             // Create defensive copies to avoid sharing references with parent version
@@ -97,7 +95,7 @@ public class VersionService {
         }
 
         Version version = new Version(data.getName(),
-                parentVersionId,
+                parentVersion,
                 nodeSnapshot,
                 connectionSnapshot,
                 new ArrayList<>(), new ArrayList<>());
@@ -158,9 +156,9 @@ public class VersionService {
                 .orElseThrow(() -> new VersionNotFoundException(id));
 
         if (data.getParentVersion() != null) {
-            versionRepository.findById(data.getParentVersion())
+            Version parentVerison = versionRepository.findById(data.getParentVersion())
                     .orElseThrow(() -> new VersionNotFoundException(data.getParentVersion()));
-            existingVersion.setParentVersionId(data.getParentVersion());
+            existingVersion.setParentVersion(parentVerison);
         }
 
         if (data.getName() != null && !data.getName().isBlank()) {

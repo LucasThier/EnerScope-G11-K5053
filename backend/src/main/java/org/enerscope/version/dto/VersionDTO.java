@@ -1,6 +1,5 @@
 package org.enerscope.version.dto;
 
-import java.util.List;
 import java.util.UUID;
 
 import lombok.AllArgsConstructor;

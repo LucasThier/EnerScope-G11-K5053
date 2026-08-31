@@ -1,7 +1,6 @@
 package org.enerscope.version.service;
 
-import rg.e
-
+import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.dto.BaseNodeDTO;
@@ -15,17 +14,20 @@ import org.enerscope.node.model.NodeGraphData;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
 import org.enerscope.node.model.enums.NodeStateEnum;
-import org.enerscope.version.model.Version;import org.enerscope.version.repository.VersionRepository;
+import org.enerscope.version.model.Version;
+import org.enerscope.version.repository.VersionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
-import org.mockito.InjectMocks;import rg.mockito.Mock;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
-import java.util.ArrayList;import ava.util.List;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,27 +36,31 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockimport static org.mockito.Mockito.times;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class VrsionServiceTest {
+class VersionServiceTest {
 
     @Mock
     private VersionRepository versionRepository;
-    @Mok
+
+    @Mock
     private org.enerscope.node.repository.NodeConnectionRepository connectionRepository;
 
     @Mock
     private org.enerscope.node.repository.BaseNodeRepository nodeRepository;
 
-    @Mock    private org.enerscope.logging.AppLogger logger;
+    @Mock
+    private org.enerscope.logging.AppLogger logger;
 
     @Mock
     private org.enerscope.node.service.NodeService nodeService;
 
-    @InjectMocks    priate VersionService versionService;
+    @InjectMocks
+    private VersionService versionService;
 
     @BeforeEach
     void setUp() {
@@ -62,7 +68,8 @@ class VrsionServiceTest {
         versionService = new VersionService(
                 versionRepository,
                 connectionRepository,
-                nodeRepository,               logger,
+                nodeRepository,
+                logger,
                 nodeService);
     }
 
@@ -82,8 +89,8 @@ class VrsionServiceTest {
         versionDTO.setName(newName);
 
         // When
+        Version result = versionService.modifyVersion(versionId, versionDTO);
 
-    
         // Then
         assertEquals(newName, result.getName());
         assertTrue(result.getNodeChanges().isEmpty()); // No NodeChanges created
