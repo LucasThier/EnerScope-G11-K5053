@@ -9,7 +9,7 @@ CREATE TABLE  version (
     -- Specific fields
     name                      VARCHAR(320)               NOT NULL,
     parent_version_id         UUID,
-    versions_id        UUID                     NOT NULL,
+    versions_id        UUID,
     PRIMARY KEY (id),
     -- Foreign key constraints
     CONSTRAINT fk_version_parent FOREIGN KEY (parent_version_id) REFERENCES version(id),

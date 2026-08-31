@@ -44,7 +44,6 @@ public class SecurityConfig {
                                 .cors(Customizer.withDefaults())
                                 .csrf(AbstractHttpConfigurer::disable)
                                 .authorizeHttpRequests(auth -> auth
-                                                .requestMatchers("/**").permitAll()
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 // Public auth endpoints. Registration is intentionally NOT here:
                                                 // accounts are created by admins/org owners, not by self-service.
@@ -68,7 +67,6 @@ public class SecurityConfig {
                                                 .accessDeniedHandler(accessDeniedHandler()))
                                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class);
-
                 return http.build();
         }
 

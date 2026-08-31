@@ -196,7 +196,7 @@ public class VersionService {
 
         NodeChange nodeChange = new NodeChange();
         nodeChange.setChangeType(ChangeTypeEnum.ADD);
-        nodeChange.setResultNodeId(savedNode.getId());
+        nodeChange.setResultNode(savedNode);
         version.getNodeChanges().add(nodeChange);
 
         versionRepository.save(version);
@@ -226,7 +226,7 @@ public class VersionService {
 
         ConnectionChange connectionChange = new ConnectionChange();
         connectionChange.setChangeType(ChangeTypeEnum.ADD);
-        connectionChange.setChangedConnectionId(savedConnection.getId());
+        connectionChange.setChangedConnection(savedConnection);
         version.getConnectionChanges().add(connectionChange);
 
         versionRepository.save(version);
@@ -250,12 +250,12 @@ public class VersionService {
         // Check existing NodeChange records for this node
         List<NodeChange> nodeAddChanges = version.getNodeChanges().stream()
                 .filter(change -> ChangeTypeEnum.ADD.equals(change.getChangeType())
-                        && originalNode.equals(change.getChangedNodeId()))
+                        && originalNode.equals(change.getChangedNode()))
                 .collect(Collectors.toList());
 
         List<NodeChange> nodeEditChanges = version.getNodeChanges().stream()
                 .filter(change -> ChangeTypeEnum.EDIT.equals(change.getChangeType())
-                        && originalNode.equals(change.getChangedNodeId()))
+                        && originalNode.equals(change.getChangedNode()))
                 .collect(Collectors.toList());
 
         BaseNode editedNode;
@@ -268,8 +268,8 @@ public class VersionService {
             // Create and add NodeChange for EDIT
             NodeChange editChange = new NodeChange();
             editChange.setChangeType(ChangeTypeEnum.EDIT);
-            editChange.setChangedNodeId(editedNode.getId());
-            editChange.setResultNodeId(editedNode.getId());
+            editChange.setChangedNode(editedNode);
+            editChange.setResultNode(editedNode);
             version.getNodeChanges().add(editChange);
         } else if (!nodeEditChanges.isEmpty()) {
             // Node was edited in this version (at least once before)
@@ -286,8 +286,8 @@ public class VersionService {
             // Create and add NodeChange for EDIT
             NodeChange editChange = new NodeChange();
             editChange.setChangeType(ChangeTypeEnum.EDIT);
-            editChange.setChangedNodeId(originalNode.getId());
-            editChange.setResultNodeId(editedNode.getId());
+            editChange.setChangedNode(originalNode);
+            editChange.setResultNode(editedNode);
             version.getNodeChanges().add(editChange);
         }
 
@@ -368,12 +368,12 @@ public class VersionService {
         // Check existing ConnectionChange records for this connection
         List<ConnectionChange> connectionAddChanges = version.getConnectionChanges().stream()
                 .filter(change -> ChangeTypeEnum.ADD.equals(change.getChangeType())
-                        && originalConnection.equals(change.getChangedConnectionId()))
+                        && originalConnection.equals(change.getChangedConnection()))
                 .collect(Collectors.toList());
 
         List<ConnectionChange> connectionEditChanges = version.getConnectionChanges().stream()
                 .filter(change -> ChangeTypeEnum.EDIT.equals(change.getChangeType())
-                        && originalConnection.equals(change.getChangedConnectionId()))
+                        && originalConnection.equals(change.getChangedConnection()))
                 .collect(Collectors.toList());
 
         if (!connectionAddChanges.isEmpty()) {
@@ -386,8 +386,8 @@ public class VersionService {
 
             ConnectionChange editChange = new ConnectionChange();
             editChange.setChangeType(ChangeTypeEnum.EDIT);
-            editChange.setChangedConnectionId(editedConnection.getId());
-            editChange.setResultConnectionId(editedConnection.getId());
+            editChange.setChangedConnection(editedConnection);
+            editChange.setResultConnection(editedConnection);
             version.getConnectionChanges().add(editChange);
 
             versionRepository.save(version);
@@ -405,8 +405,8 @@ public class VersionService {
             // Create and add ConnectionChange for EDIT
             ConnectionChange editChange = new ConnectionChange();
             editChange.setChangeType(ChangeTypeEnum.EDIT);
-            editChange.setChangedConnectionId(editedConnection.getId());
-            editChange.setResultConnectionId(editedConnection.getId());
+            editChange.setChangedConnection(editedConnection);
+            editChange.setResultConnection(editedConnection);
             version.getConnectionChanges().add(editChange);
 
             versionRepository.save(version);
@@ -423,8 +423,8 @@ public class VersionService {
             // Create and add ConnectionChange for EDIT
             ConnectionChange editChange = new ConnectionChange();
             editChange.setChangeType(ChangeTypeEnum.EDIT);
-            editChange.setChangedConnectionId(editedConnection.getId());
-            editChange.setResultConnectionId(editedConnection.getId());
+            editChange.setChangedConnection(editedConnection);
+            editChange.setResultConnection(editedConnection);
             version.getConnectionChanges().add(editChange);
 
             versionRepository.save(version);
@@ -457,12 +457,12 @@ public class VersionService {
         // Check existing NodeChange records for this node
         List<NodeChange> nodeAddChanges = version.getNodeChanges().stream()
                 .filter(change -> ChangeTypeEnum.ADD.equals(change.getChangeType())
-                        && nodeToDelete.equals(change.getChangedNodeId()))
+                        && nodeToDelete.equals(change.getChangedNode()))
                 .collect(Collectors.toList());
 
         List<NodeChange> nodeEditChanges = version.getNodeChanges().stream()
                 .filter(change -> ChangeTypeEnum.EDIT.equals(change.getChangeType())
-                        && nodeToDelete.equals(change.getChangedNodeId()))
+                        && nodeToDelete.equals(change.getChangedNode()))
                 .collect(Collectors.toList());
 
         if (!nodeAddChanges.isEmpty()) {
@@ -478,7 +478,7 @@ public class VersionService {
 
             NodeChange deleteChange = new NodeChange();
             deleteChange.setChangeType(ChangeTypeEnum.DELETE);
-            deleteChange.setChangedNodeId(nodeToDelete.getId());
+            deleteChange.setChangedNode(nodeToDelete);
             version.getNodeChanges().add(deleteChange);
         } else {
             // No prior changes - node came from parent, create DELETE change
@@ -486,7 +486,7 @@ public class VersionService {
 
             NodeChange deleteChange = new NodeChange();
             deleteChange.setChangeType(ChangeTypeEnum.DELETE);
-            deleteChange.setChangedNodeId(nodeToDelete.getId());
+            deleteChange.setChangedNode(nodeToDelete);
             version.getNodeChanges().add(deleteChange);
         }
 
@@ -517,12 +517,12 @@ public class VersionService {
         // Check existing ConnectionChange records for this connection
         List<ConnectionChange> connectionAddChanges = version.getConnectionChanges().stream()
                 .filter(change -> ChangeTypeEnum.ADD.equals(change.getChangeType())
-                        && connectionToDelete.equals(change.getChangedConnectionId()))
+                        && connectionToDelete.equals(change.getChangedConnection()))
                 .collect(Collectors.toList());
 
         List<ConnectionChange> connectionEditChanges = version.getConnectionChanges().stream()
                 .filter(change -> ChangeTypeEnum.EDIT.equals(change.getChangeType())
-                        && connectionToDelete.equals(change.getChangedConnectionId()))
+                        && connectionToDelete.equals(change.getChangedConnection()))
                 .collect(Collectors.toList());
 
         if (!connectionAddChanges.isEmpty()) {
@@ -538,7 +538,7 @@ public class VersionService {
 
             ConnectionChange deleteChange = new ConnectionChange();
             deleteChange.setChangeType(ChangeTypeEnum.DELETE);
-            deleteChange.setResultConnectionId(connectionToDelete.getId());
+            deleteChange.setResultConnection(connectionToDelete);
             version.getConnectionChanges().add(deleteChange);
         } else {
             // No prior changes - connection came from parent, create DELETE change
@@ -546,7 +546,7 @@ public class VersionService {
 
             ConnectionChange deleteChange = new ConnectionChange();
             deleteChange.setChangeType(ChangeTypeEnum.DELETE);
-            deleteChange.setResultConnectionId(connectionToDelete.getId());
+            deleteChange.setResultConnection(connectionToDelete);
             version.getConnectionChanges().add(deleteChange);
         }
 

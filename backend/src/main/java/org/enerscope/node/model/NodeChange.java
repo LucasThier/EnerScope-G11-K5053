@@ -29,14 +29,12 @@ public class NodeChange extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private ChangeTypeEnum changeType;
 
-    // @OneToOne
-    // @JoinColumn(nullable = true)
-    @Column(nullable = true)
-    private UUID changedNodeId;
+    @OneToOne
+    @JoinColumn(nullable = true)
+    private BaseNode changedNode;
 
-    // @OneToOne
-    // @JoinColumn(nullable = true)
-    @Column(nullable = true)
-    private UUID resultNodeId;
+    @OneToOne
+    @JoinColumn(nullable = true)
+    private BaseNode resultNode;
 
 }

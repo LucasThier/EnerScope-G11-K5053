@@ -3,6 +3,7 @@ package org.enerscope.node.model;
 import java.util.UUID;
 
 import org.enerscope.common.BaseEntity;
+import org.springframework.context.annotation.Lazy;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,6 +17,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @Getter
 @Setter
+@Lazy
 public class NodeConnection extends BaseEntity {
 
     @Column

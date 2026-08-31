@@ -162,8 +162,8 @@ class VersionServiceTest {
         assertEquals(1, version.getNodeChanges().size());
         NodeChange nodeChange = version.getNodeChanges().get(0);
         assertEquals(ChangeTypeEnum.EDIT, nodeChange.getChangeType());
-        assertSame(nodeChange.getChangedNodeId(), result.getId());
-        assertSame(nodeChange.getResultNodeId(), result.getId());
+        assertSame(nodeChange.getChangedNode(), result);
+        assertSame(nodeChange.getResultNode(), result);
 
         // Verify that version was saved
         verify(versionRepository, times(1)).save(version);
@@ -210,8 +210,8 @@ class VersionServiceTest {
         // version
         NodeChange previousEditChange = new NodeChange();
         previousEditChange.setChangeType(ChangeTypeEnum.EDIT);
-        previousEditChange.setChangedNodeId(originalNode.getId());
-        previousEditChange.setResultNodeId(originalNode.getId());
+        previousEditChange.setChangedNode(originalNode);
+        previousEditChange.setResultNode(originalNode);
         version.getNodeChanges().add(previousEditChange);
 
         // Mock repository calls
@@ -241,8 +241,8 @@ class VersionServiceTest {
         assertEquals(2, version.getNodeChanges().size());
         NodeChange latestChange = version.getNodeChanges().get(0); // Get the most recent change
         assertEquals(ChangeTypeEnum.EDIT, latestChange.getChangeType());
-        assertSame(latestChange.getChangedNodeId(), result.getId());
-        assertSame(latestChange.getResultNodeId(), result.getId());
+        assertSame(latestChange.getChangedNode(), result);
+        assertSame(latestChange.getResultNode(), result);
 
         // Verify that version was saved
         verify(versionRepository, times(1)).save(version);

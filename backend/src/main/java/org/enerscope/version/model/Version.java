@@ -39,12 +39,7 @@ public class Version extends BaseEntity {
     @ManyToOne
     @JoinColumn(name = "parent_version_id")
     private Version parentVersion;
-    /*
-     * @ManyToOne
-     * 
-     * @JoinColumn(name = "project_id", nullable = false)
-     * private Project project;
-     */
+
     @ManyToMany
     @JoinTable(name = "versionXNode", joinColumns = @JoinColumn(name = "version_id"), inverseJoinColumns = @JoinColumn(name = "node_id"))
     private List<BaseNode> nodeSnapshot;
