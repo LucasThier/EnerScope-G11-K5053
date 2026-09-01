@@ -33,6 +33,14 @@ const icons = {
       <rect x="3" y="16" width="7" height="5" rx="1" />
     </svg>
   ),
+  editor: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <circle cx="5" cy="6" r="2.5" />
+      <circle cx="19" cy="6" r="2.5" />
+      <circle cx="12" cy="18" r="2.5" />
+      <path d="M7.5 6H16.5M6.2 8.2 10.5 15.8M17.8 8.2 13.5 15.8" strokeLinecap="round" />
+    </svg>
+  ),
 };
 
 function navFor(role: PlatformRole): NavItem[] {
@@ -40,9 +48,13 @@ function navFor(role: PlatformRole): NavItem[] {
     return [
       { to: '/admin/users', label: 'Users', icon: icons.users },
       { to: '/admin/organizations', label: 'Organizations', icon: icons.org },
+      { to: '/editor', label: 'Editor', icon: icons.editor },
     ];
   }
-  return [{ to: '/app', label: 'Workspace', icon: icons.workspace }];
+  return [
+    { to: '/app', label: 'Workspace', icon: icons.workspace },
+    { to: '/editor', label: 'Editor', icon: icons.editor },
+  ];
 }
 
 export function Sidebar() {

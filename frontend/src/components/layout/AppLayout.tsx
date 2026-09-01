@@ -19,10 +19,12 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex min-h-screen bg-cream">
+    // h-screen (not min-h-screen) so full-bleed pages like the editor can fill
+    // the remaining height; padded pages scroll inside PaddedMain.
+    <div className="flex h-screen bg-cream">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-end gap-4 border-b border-ink-100 bg-white px-6">
+        <header className="flex h-16 shrink-0 items-center justify-end gap-4 border-b border-ink-100 bg-white px-6">
           {user && (
             <div className="hidden items-center gap-2 sm:flex">
               <span className="text-sm text-ink-500">{user.mail}</span>
@@ -33,9 +35,9 @@ export function AppLayout() {
             Log out
           </Button>
         </header>
-        <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
-          <Outlet />
-        </main>
+        {/* Pages control their own area: PaddedMain centres regular pages, while
+            full-bleed pages (the editor) fill the space themselves. */}
+        <Outlet />
       </div>
     </div>
   );
