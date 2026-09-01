@@ -92,18 +92,20 @@ public class VersionService {
         }
 
         Version parentVersion = null;
-        List<BaseNode> nodeSnapshot = null; // do we want a new version with new changes? Or not?
-        List<NodeConnection> connectionSnapshot = null;
+        // Start from empty (never null) so the in-version node/connection ABM can
+        // append without a NullPointerException on a freshly created version.
+        List<BaseNode> nodeSnapshot = new ArrayList<>();
+        List<NodeConnection> connectionSnapshot = new ArrayList<>();
         if (data.getParentVersion() != null) {
             parentVersion = versionRepository.findById(data.getParentVersion())
                     .orElseThrow(() -> new VersionNotFoundException(data.getParentVersion()));
             // Create defensive copies to avoid sharing references with parent version
-            connectionSnapshot = parentVersion.getConnectionSnapshot() == null
-                    ? null
-                    : new ArrayList<>(parentVersion.getConnectionSnapshot());
-            nodeSnapshot = parentVersion.getNodeSnapshot() == null
-                    ? null
-                    : new ArrayList<>(parentVersion.getNodeSnapshot());
+            if (parentVersion.getConnectionSnapshot() != null) {
+                connectionSnapshot = new ArrayList<>(parentVersion.getConnectionSnapshot());
+            }
+            if (parentVersion.getNodeSnapshot() != null) {
+                nodeSnapshot = new ArrayList<>(parentVersion.getNodeSnapshot());
+            }
         }
 
         Version version = new Version(data.getName(),

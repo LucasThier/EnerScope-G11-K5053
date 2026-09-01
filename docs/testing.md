@@ -37,11 +37,11 @@ Run everything with `cd backend && mvn test`.
 | `organization.controller.OrganizationControllerTest` | Web | 11 |
 | `project.service.ProjectServiceTest` | Unit | 7 |
 | `project.controller.ProjectControllerTest` | Web | 6 |
-| `version.service.VersionServiceTest` | Unit | 12 |
+| `version.service.VersionServiceTest` | Unit | 13 |
 | `version.controller.VersionControllerTest` | Web | 3 |
 | `node.service.NodeServiceTest` | Unit | 1 |
 | `node.controller.NodeControllerTest` | Unit | 1 |
-| **Total** | | **110** |
+| **Total** | | **111** |
 
 > Note: the `strategyCost.*` test classes are still not catalogued here (a
 > pre-existing gap flagged in `docs/considerations.md`), so the total above
@@ -256,6 +256,7 @@ position update.
 | `getDiagram_ShouldMapNodesAndConnectionsToDTOs` | `getDiagram` maps the version snapshot to a `DiagramDTO`, including node type, graph and geographical positions, and the connection endpoints. |
 | `updateNodePosition_ShouldUpdateGraphAndGeographicalPosition` | `updateNodePosition` updates both the diagram (x/y) and geographical (lng/lat) positions and persists the node. |
 | `updateNodeBasics_ShouldUpdateNameAndState` | `updateNodeBasics` updates a node's name and state and persists it. |
+| `saveVersion_WithoutParent_InitialisesEmptyNonNullSnapshots` | A version created without a parent gets empty (non-null) node/connection snapshots, so the in-version ABM can append. |
 
 ## `version.controller.VersionControllerTest` — Web
 

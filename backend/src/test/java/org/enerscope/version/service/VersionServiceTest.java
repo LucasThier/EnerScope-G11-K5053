@@ -512,6 +512,23 @@ class VersionServiceTest {
     }
 
     @Test
+    void saveVersion_WithoutParent_InitialisesEmptyNonNullSnapshots() {
+        // Given
+        when(versionRepository.save(any(Version.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        org.enerscope.version.dto.VersionDTO dto = new org.enerscope.version.dto.VersionDTO();
+        dto.setName("V1");
+
+        // When
+        Version saved = versionService.saveVersion(dto);
+
+        // Then: snapshots must be empty (not null) so the node/connection ABM can append.
+        assertNotNull(saved.getNodeSnapshot());
+        assertTrue(saved.getNodeSnapshot().isEmpty());
+        assertNotNull(saved.getConnectionSnapshot());
+        assertTrue(saved.getConnectionSnapshot().isEmpty());
+    }
+
+    @Test
     void updateNodeBasics_ShouldUpdateNameAndState() {
         // Given
         UUID versionId = UUID.randomUUID();
