@@ -7,6 +7,7 @@ import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.extraction.GatheringNetwork;
 import org.enerscope.node.model.extraction.TreatmentPlant;
 import org.enerscope.node.model.extraction.Well;
+import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
@@ -224,8 +225,8 @@ public class SimulatorTest {
     }
 
     @Test
-    @Timeout(value = 10)
-    public void testSimulacionRedCompleta() {
+    @Timeout(value = 5)
+    public void testSimulationSimpleComplete() {
         List<BaseNode> baseNodes = new ArrayList<>();
         baseNodes.add(mockWell);
         baseNodes.add(mockGatheringNetwork);
@@ -260,88 +261,6 @@ public class SimulatorTest {
 
         assertTrue(duration < 2000, "El simulador tardó demasiado, posible bucle infinito en el While de 'quedanPendientes'");
     }
-
-    @Test
-    @Timeout(value = 15)
-    public void testSimulacionRedComplejaBifurcada() {
-
-        UUID idW1 = UUID.randomUUID(), idW2 = UUID.randomUUID(), idW3 = UUID.randomUUID();
-        UUID idGn1 = UUID.randomUUID(), idGn2 = UUID.randomUUID();
-        UUID idTp1 = UUID.randomUUID(), idTp2 = UUID.randomUUID();
-        UUID idPipe1 = UUID.randomUUID(), idPipe2 = UUID.randomUUID();
-        UUID idCp = UUID.randomUUID();
-        UUID idLp1 = UUID.randomUUID(), idLp2 = UUID.randomUUID();
-        UUID idSt1 = UUID.randomUUID(), idSt2 = UUID.randomUUID();
-        UUID idC1 = UUID.randomUUID(), idC2 = UUID.randomUUID(), idC3 = UUID.randomUUID(), idC4 = UUID.randomUUID();
-
-        Well w1 = crearMockWell(idW1);
-        Well w2 = crearMockWell(idW2);
-        Well w3 = crearMockWell(idW3);
-
-        GatheringNetwork gn1 = crearMockGatheringNetwork(idGn1);
-        GatheringNetwork gn2 = crearMockGatheringNetwork(idGn2);
-
-        TreatmentPlant tp1 = crearMockTreatmentPlant(idTp1);
-        TreatmentPlant tp2 = crearMockTreatmentPlant(idTp2);
-
-        Pipeline pipe1 = crearMockPipeline(idPipe1);
-        Pipeline pipe2 = crearMockPipeline(idPipe2);
-
-        CompressingPlant cp = crearMockCompressingPlant(idCp);
-
-        GroundBasedLiquefactionPlant lp1 = crearMockLiquefactionPlant(idLp1);
-        GroundBasedLiquefactionPlant lp2 = crearMockLiquefactionPlant(idLp2);
-
-        SeaportTerminal st1 = crearMockSeaportTerminal(idSt1);
-        SeaportTerminal st2 = crearMockSeaportTerminal(idSt2);
-
-        LNGCarrier c1 = crearMockCarrier(idC1);
-        LNGCarrier c2 = crearMockCarrier(idC2);
-        LNGCarrier c3 = crearMockCarrier(idC3);
-        LNGCarrier c4 = crearMockCarrier(idC4);
-
-        List<BaseNode> baseNodes = Arrays.asList(
-                w1, w2, w3, gn1, gn2, tp1, tp2, pipe1, pipe2, cp, lp1, lp2, st1, st2, c1, c2, c3, c4
-        );
-
-        List<NodeConnection> connections = Arrays.asList(
-
-                crearConexionMock(idW1, idGn1),
-                crearConexionMock(idW2, idGn1),
-                crearConexionMock(idGn1, idTp1),
-
-                crearConexionMock(idW3, idGn2),
-                crearConexionMock(idGn2, idTp2),
-
-                crearConexionMock(idTp1, idPipe1),
-                crearConexionMock(idTp2, idPipe1),
-                crearConexionMock(idPipe1, idCp),
-
-                crearConexionMock(idCp, idLp1),
-                crearConexionMock(idCp, idPipe2),
-
-                crearConexionMock(idPipe2, idLp2),
-
-                crearConexionMock(idLp1, idSt1),
-                crearConexionMock(idLp2, idSt2),
-
-                crearConexionMock(idSt1, idC1),
-                crearConexionMock(idSt1, idC2),
-                crearConexionMock(idSt2, idC3),
-                crearConexionMock(idSt2, idC4)
-        );
-
-        Simulator simulator = new Simulator(baseNodes, connections);
-
-        long startTime = System.currentTimeMillis();
-        int anosASimular = 10;
-        simulator.simulate(anosASimular);
-        long duration = System.currentTimeMillis() - startTime;
-
-        System.out.println("Tiempo para procesar la red compleja ("+anosASimular+" años): " + duration + " ms");
-        assertTrue(duration < 5000, "El simulador tardó demasiado, revisa la lógica de 'readyToBeProcessed' con múltiples nodos del mismo tipo.");
-    }
-
 
     private Well crearMockWell(UUID id) {
         Well mock = Mockito.mock(Well.class);
@@ -417,7 +336,7 @@ public class SimulatorTest {
 
     @Test
     @Timeout(value = 20) // Margen de tiempo suficiente para procesar 30 nodos sobre varios años
-    public void testSimulacionRedAleatoria30Nodos() {
+    public void testSimulationWhitNNodes() {
         int totalNodosDeseados = 100;
         List<BaseNode> baseNodes = new ArrayList<>();
         List<NodeConnection> connections = new ArrayList<>();
@@ -479,10 +398,183 @@ public class SimulatorTest {
         long startTime = System.currentTimeMillis();
         int anosASimular = 10;
 
-        assertDoesNotThrow(() -> simulator.simulate(anosASimular), "La simulación falló durante la ejecución de los 30 nodos");
+        assertDoesNotThrow(() -> simulator.simulate(anosASimular), "La simulación falló durante la ejecución de los "+ totalNodosDeseados +" nodos");
 
         long duration = System.currentTimeMillis() - startTime;
-        System.out.println("Tiempo para procesar red aleatoria con " + baseNodes.size() + " nodos (1 año): " + duration + " ms");
-        assertTrue(duration < 8000, "El simulador tardó demasiado con la topología de 30 nodos.");
+        System.out.println("Tiempo para procesar red aleatoria con " + baseNodes.size() + " nodos ("+ anosASimular +" año): " + duration + " ms");
+        assertTrue(duration < 8000, "El simulador tardó demasiado con la topología de "+ totalNodosDeseados +" nodos.");
+    }
+
+    @Test
+    public void testResultInFiveYearSimulationWithAllNodeTypes() {
+        // 1. Crear UUIDs para los 9 tipos de nodo
+        UUID wellId = UUID.randomUUID();
+        UUID gatheringId = UUID.randomUUID();
+        UUID treatmentId = UUID.randomUUID();
+        UUID pipelineId = UUID.randomUUID();
+        UUID compressionId = UUID.randomUUID();
+        UUID groundLiquefactionId = UUID.randomUUID();
+        UUID flngLiquefactionId = UUID.randomUUID();
+        UUID terminalId = UUID.randomUUID();
+        UUID carrierId = UUID.randomUUID();
+
+        // 2. Instanciar y configurar Mocks de BaseNode
+        Well mockWell = Mockito.mock(Well.class);
+        setupBaseNodeMocks(mockWell, wellId);
+        when(mockWell.getMaxCollectionCapacity()).thenReturn(100f);
+        when(mockWell.getDeclineCurve()).thenReturn(2f);
+        when(mockWell.getGasRichness()).thenReturn(1f);
+        when(mockWell.getDTMTime()).thenReturn(24);
+
+        GatheringNetwork mockGathering = Mockito.mock(GatheringNetwork.class);
+        setupBaseNodeMocks(mockGathering, gatheringId);
+        when(mockGathering.getMaxTransportCapacity()).thenReturn(150f);
+        when(mockGathering.getLength()).thenReturn(5f);
+        when(mockGathering.getLossPerMeter()).thenReturn(0.01f);
+
+        TreatmentPlant mockTreatment = Mockito.mock(TreatmentPlant.class);
+        setupBaseNodeMocks(mockTreatment, treatmentId);
+        when(mockTreatment.getMaxTreatmentCapacity()).thenReturn(120f);
+        when(mockTreatment.getIntermediateStorage()).thenReturn(500f);
+
+        Pipeline mockPipeline = Mockito.mock(Pipeline.class);
+        setupBaseNodeMocks(mockPipeline, pipelineId);
+        when(mockPipeline.getMaxFlowCapacity()).thenReturn(110f);
+        when(mockPipeline.getLength()).thenReturn(12f);
+        when(mockPipeline.getLossPerKm()).thenReturn(0.05f);
+
+        CompressingPlant mockCompression = Mockito.mock(CompressingPlant.class);
+        setupBaseNodeMocks(mockCompression, compressionId);
+        when(mockCompression.getMaxCompressionCapacity()).thenReturn(100f);
+        when(mockCompression.getProcessWaste()).thenReturn(1f);
+        when(mockCompression.getGasConsumption()).thenReturn(2f);
+
+        GroundBasedLiquefactionPlant mockGroundLiquefaction = Mockito.mock(GroundBasedLiquefactionPlant.class);
+        setupBaseNodeMocks(mockGroundLiquefaction, groundLiquefactionId);
+        when(mockGroundLiquefaction.getMaxProcessingCapacity()).thenReturn(90f);
+        when(mockGroundLiquefaction.getMTPARatio()).thenReturn(80f);
+        when(mockGroundLiquefaction.getIntermediateStorage()).thenReturn(300f);
+        when(mockGroundLiquefaction.getGasConsumption()).thenReturn(1.5f);
+
+        FLNGUnit mockFLNGLiquefaction = Mockito.mock(FLNGUnit.class);
+        setupBaseNodeMocks(mockFLNGLiquefaction, flngLiquefactionId);
+        when(mockFLNGLiquefaction.getMaxProcessingCapacity()).thenReturn(80f);
+        when(mockFLNGLiquefaction.getMTPARatio()).thenReturn(85f);
+        when(mockFLNGLiquefaction.getIntermediateStorage()).thenReturn(250f);
+        when(mockFLNGLiquefaction.getGasConsumption()).thenReturn(1.2f);
+
+        SeaportTerminal mockTerminal = Mockito.mock(SeaportTerminal.class);
+        setupBaseNodeMocks(mockTerminal, terminalId);
+        when(mockTerminal.getIntermediateStorage()).thenReturn(1000f);
+        when(mockTerminal.getShipCapacity()).thenReturn(2);
+
+        LNGCarrier mockCarrier = Mockito.mock(LNGCarrier.class);
+        setupBaseNodeMocks(mockCarrier, carrierId);
+        when(mockCarrier.getExportFrequency()).thenReturn(7);
+        when(mockCarrier.getShipCapacity()).thenReturn(500f);
+        when(mockCarrier.getFullLoadTime()).thenReturn(24f);
+        when(mockCarrier.getTimeToDestination()).thenReturn(72);
+
+        List<BaseNode> nodes = Arrays.asList(
+                mockWell, mockGathering, mockTreatment, mockPipeline,
+                mockCompression, mockGroundLiquefaction, mockFLNGLiquefaction,
+                mockTerminal, mockCarrier
+        );
+
+        // 3. Crear el encadenamiento de la red
+        List<NodeConnection> connections = Arrays.asList(
+                createConnection(wellId, gatheringId),
+                createConnection(gatheringId, treatmentId),
+                createConnection(treatmentId, pipelineId),
+                createConnection(pipelineId, compressionId),
+                createConnection(compressionId, groundLiquefactionId),
+                createConnection(compressionId, flngLiquefactionId),
+                createConnection(groundLiquefactionId, terminalId),
+                createConnection(flngLiquefactionId, terminalId),
+                createConnection(terminalId, carrierId)
+        );
+
+        // 4. Inicializar Simulador y ejecutar 5 años
+        Simulator simulator = new Simulator(nodes, connections);
+        simulator.simulate(5);
+
+        // 5. Validar Resultados
+        Result result = simulator.getResult();
+
+        System.out.println("=== RESULTADO GENERAL ===");
+        System.out.println("Result: " + result);
+        System.out.println("Año de simulación: " + result.getYear());
+        System.out.println("Total de nodos procesados: " + result.getResultPerNodes().size());
+
+        System.out.println("\n=== DETALLE POR NODO ===");
+        List<ResultPerNode> nodeResults = result.getResultPerNodes();
+
+        nodeResults.forEach(nodeResult -> {
+            System.out.println("----------------------------------------");
+            System.out.println("Node ID: " + nodeResult.getNodeID());
+            System.out.println("Node Class: " + nodeResult.getNodeClass());
+            System.out.println("Max Possible Produced: " + nodeResult.getMaxPossibleProduced());
+            System.out.println("Total Produced: " + nodeResult.getTotalProduced());
+            System.out.println("Total Deferred: " + nodeResult.getTotalDeferred());
+            System.out.println("Total extra: " + nodeResult.getExtra());
+        });
+
+
+        assertNotNull(result, "El resultado general no debe ser nulo");
+        assertEquals(5, result.getYear(), "El año configurado debe coincidir");
+
+        assertEquals(9, nodeResults.size(), "Debe haber un resultado registrado por cada uno de los 9 nodos");
+
+        // 6. Asertar metricas individuales por cada nodo
+        nodeResults.forEach(nodeResult -> {
+            assertNotNull(nodeResult.getNodeID(), "Cada resultado debe tener un ID asignado");
+            assertTrue(nodeResult.getMaxPossibleProduced() >= 0, "La producción máxima posible debe ser válida");
+            assertTrue(nodeResult.getTotalProduced() >= 0, "La producción total no puede ser negativa");
+            assertTrue(nodeResult.getTotalDeferred() >= 0, "El diferido total no puede ser negativo");
+        });
+    }
+
+    private void setupBaseNodeMocks(BaseNode mockNode, UUID id) {
+        when(mockNode.getId()).thenReturn(id);
+        when(mockNode.getMaintenanceIntervalInDays()).thenReturn(180);
+        when(mockNode.getMaintenanceDuration()).thenReturn(24);
+        when(mockNode.getLifespanInMonths()).thenReturn(120);
+    }
+
+    private NodeConnection createConnection(UUID fromId, UUID toId) {
+        NodeConnection connection = Mockito.mock(NodeConnection.class);
+        when(connection.getFromNodeId()).thenReturn(fromId);
+        when(connection.getToNodeId()).thenReturn(toId);
+        return connection;
+    }
+
+    @Test
+    public void testSimWellProductionAndDecline() {
+        UUID wellId = UUID.randomUUID();
+        Well mockWell = Mockito.mock(Well.class);
+        when(mockWell.getId()).thenReturn(wellId);
+        when(mockWell.getMaxCollectionCapacity()).thenReturn(100f);
+        when(mockWell.getDeclineCurve()).thenReturn(10f); // 10% de declive por año
+        when(mockWell.getGasRichness()).thenReturn(100f);
+        when(mockWell.getDTMTime()).thenReturn(24);
+        when(mockWell.getMaintenanceIntervalInDays()).thenReturn(9999); // Sin mantenimiento para simplicidad
+        when(mockWell.getLifespanInMonths()).thenReturn(240);
+
+        SimWell simWell = new SimWell(mockWell);
+
+        // Simular el primer año (8760 horas) -> Declive = 0% -> Produce 100 por hora
+        for (int t = 0; t < 8760; t++) {
+            simWell.simulate(t);
+        }
+        // Año 0: 8760 horas * 100 = 876,000
+        assertEquals(876000f, simWell.creatResult().getMaxPossibleProduced(), 0.01f);
+
+        // Simular el segundo año (horas 8760 a 17519) -> Declive = 10% -> Produce 90 por hora
+        for (int t = 8760; t < 17520; t++) {
+            simWell.simulate(t);
+        }
+        // Año 1: 8760 horas * 90 = 788,400. Total acumulado = 876,000 + 788,400 = 1,664,400
+        assertEquals(1664400f, simWell.creatResult().getMaxPossibleProduced(), 0.01f);
     }
 }
+

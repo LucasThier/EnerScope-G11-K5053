@@ -1,6 +1,8 @@
 package org.enerscope.simulator.simNode;
 
+import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.extraction.TreatmentPlant;
+import org.enerscope.simulator.ResultPerNode;
 import org.enerscope.simulator.ToDeliver;
 
 import java.util.ArrayList;
@@ -11,6 +13,7 @@ public class SimTreatmentPlant extends SimBaseNode{
     private float intermediateStorage;
     private List<SimGatheringNetwork> simGatheringNetworks;
     private ToDeliver amountInIntermediateStorage;
+    private float totalDischarged;
 
 
     public SimTreatmentPlant(TreatmentPlant treatmentPlant){
@@ -19,6 +22,7 @@ public class SimTreatmentPlant extends SimBaseNode{
         this.intermediateStorage = treatmentPlant.getIntermediateStorage();
         this.amountInIntermediateStorage = new ToDeliver(0,0);
         simGatheringNetworks = new ArrayList<>();
+        totalDischarged = 0;
     }
 
     @Override
@@ -26,6 +30,7 @@ public class SimTreatmentPlant extends SimBaseNode{
         float amountToTake =  (float) simGatheringNetworks.stream().mapToDouble(simGatheringNetwork -> simGatheringNetwork.getToDeliver().getAmount()).sum();
         float capacity = maxTreatmentCapacity + intermediateStorage - amountInIntermediateStorage.getAmount();
         ToDeliver toProcess;
+        maxPossibleProduced += maxTreatmentCapacity;
 
         if(amountToTake >= capacity){
             toProcess = takeEqualAmounts(simGatheringNetworks,capacity);
@@ -37,10 +42,10 @@ public class SimTreatmentPlant extends SimBaseNode{
 
         if(toProcess.getAmount() >= maxTreatmentCapacity){
             toDeliver = new ToDeliver(maxTreatmentCapacity,toProcess.getContaminant());
-            toDeliver.clean();
+            totalDischarged += toDeliver.clean();
             amountInIntermediateStorage.setAmount(toProcess.getAmount() - maxTreatmentCapacity);
         } else {
-            toProcess.clean();
+            totalDischarged += toProcess.clean();
             toDeliver = toProcess;
             amountInIntermediateStorage = new ToDeliver(0,0);
         }
@@ -49,5 +54,11 @@ public class SimTreatmentPlant extends SimBaseNode{
     @Override
     public void addPreviousNode(SimBaseNode simBaseNode){
         simGatheringNetworks.add((SimGatheringNetwork) simBaseNode);
+    }
+    @Override
+    public ResultPerNode creatResult() {
+        ResultPerNode resultPerNode = new ResultPerNode(this.id, TreatmentPlant.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
+        resultPerNode.setExtra(totalDischarged);
+        return resultPerNode;
     }
 }

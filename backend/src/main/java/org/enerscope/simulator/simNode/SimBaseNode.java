@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.simulator.FlagOfInactivity;
+import org.enerscope.simulator.ResultPerNode;
 import org.enerscope.simulator.ToDeliver;
 
 import java.util.List;
@@ -22,6 +23,9 @@ public abstract class SimBaseNode {
     protected FlagOfInactivity flagOfInactivity;
     protected ToDeliver toDeliver;
     protected int lastSimulatedTime;
+    protected float totalProduced;
+    protected float totalDeferred;
+    protected float maxPossibleProduced;
 
 
     SimBaseNode(BaseNode baseNode){
@@ -33,6 +37,9 @@ public abstract class SimBaseNode {
         this.timeStartOfInactivity = 0;
         this.toDeliver = new ToDeliver(0,0);
         lastSimulatedTime = -1;
+        this.totalDeferred = 0;
+        this.totalProduced = 0;
+        this. maxPossibleProduced = 0;
     }
 
     protected void checkLifeSpan(int time){
@@ -46,13 +53,15 @@ public abstract class SimBaseNode {
     protected void checkInactivity(int time){
         int timeOfInactivity = time - timeStartOfInactivity;
         switch (flagOfInactivity){
-            case Mantainance: {
+            case Maintenance: {
                 if(timeOfInactivity >= maintenanceDuration){
                     active = true;
                 }
+                break;
             }
             case OverLifeSpan:{
                 active = false;
+                break;
             }
         }
     }
@@ -60,31 +69,39 @@ public abstract class SimBaseNode {
     protected void checkMaintenanceNeeded(int time){
         if (timeSinceLastMaintenance/24 >= maintenanceIntervalInDays){
             active = false;
-            flagOfInactivity = FlagOfInactivity.Mantainance;
+            flagOfInactivity = FlagOfInactivity.Maintenance;
             timeStartOfInactivity = time;
         }
     }
 
     public void simulate(int time){
         before(time);
+        float producedThisStep = 0;
+        lastSimulatedTime = time;
         if(active){
+            float amountBefore = getToDeliver().getAmount();
             activeAction(time);
+            checkLifeSpan(time);
+            producedThisStep = Math.max(0, getToDeliver().getAmount() - amountBefore);
         } else {
             inactiveAction(time);
+            producedThisStep = 0;
         }
+        totalProduced += producedThisStep;
+        totalDeferred += producedThisStep;
     }
 
     protected void before(int time){
         checkMaintenanceNeeded(time);
-        lastSimulatedTime = time;
     }
 
-    protected void activeAction(int time){checkLifeSpan(time);}
+    protected void activeAction(int time){}
     protected void inactiveAction(int time){
         checkInactivity(time);
     }
 
     public ToDeliver deliver(float amount){
+        totalDeferred -= amount;
         return toDeliver.deliver(amount);
     }
 
@@ -126,4 +143,6 @@ public abstract class SimBaseNode {
     }
 
     public void addPreviousNode(SimBaseNode simBaseNode){}
+
+    public abstract ResultPerNode creatResult();
 }

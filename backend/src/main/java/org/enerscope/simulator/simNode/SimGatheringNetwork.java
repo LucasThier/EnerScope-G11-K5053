@@ -3,6 +3,8 @@ package org.enerscope.simulator.simNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.extraction.GatheringNetwork;
+import org.enerscope.node.model.transportation.CompressingPlant;
+import org.enerscope.simulator.ResultPerNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,6 +28,8 @@ public class SimGatheringNetwork extends SimBaseNode{
         float capacity = maxTransportCapacity - toDeliver.getAmount();
         float toGather = (float) simWells.stream().mapToDouble(simWell -> simWell.getToDeliver().getAmount()).sum();
 
+        maxPossibleProduced += maxTransportCapacity;
+
         if (toGather >= capacity){
             toDeliver.mix(takeEqualAmounts(simWells,capacity));
         } else {
@@ -36,5 +40,10 @@ public class SimGatheringNetwork extends SimBaseNode{
     @Override
     public void addPreviousNode(SimBaseNode simBaseNode){
         simWells.add((SimWell) simBaseNode);
+    }
+
+    @Override
+    public ResultPerNode creatResult() {
+        return new ResultPerNode(this.id, GatheringNetwork.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
     }
 }

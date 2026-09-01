@@ -16,9 +16,11 @@ public class ToDeliver {
         this.contaminant = contaminant;
     }
 
-    public void clean(){
-        this.amount = amount * (100 - contaminant)/ 100;
+    public float clean(){
+        float discharge = amount * (contaminant)/ 100;
+        this.amount = amount - discharge;
         this.contaminant = 0;
+        return discharge;
     }
 
     public void mix(List<ToDeliver> toDelivers) {

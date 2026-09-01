@@ -2,8 +2,10 @@ package org.enerscope.simulator.simNode;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.simulator.FlagOfInactivity;
+import org.enerscope.simulator.ResultPerNode;
 import org.enerscope.simulator.ToDeliver;
 
 @Getter
@@ -33,10 +35,11 @@ public class SimWell extends SimBaseNode{
             active = false;
             toDeliver = new ToDeliver(0,0);
         } else {
-            toDeliver =new ToDeliver(maxCollectionCapacity * (100 - totalDecline) / 100,gasRichness);
+            float produced = maxCollectionCapacity * (100 - totalDecline)/ 100;
+            maxPossibleProduced += produced;
+            toDeliver =new ToDeliver(produced,gasRichness);
         }
 
-        checkLifeSpan(time);
     }
 
     @Override
@@ -54,16 +57,22 @@ public class SimWell extends SimBaseNode{
     protected void checkInactivity(int time){
         int timeOfInactivity = time - timeStartOfInactivity;
         switch (flagOfInactivity){
-            case Mantainance: {
+            case Maintenance: {
                 if(timeOfInactivity >= maintenanceDuration){
                     active = true;
                 }
+                break;
             }
             case OverLifeSpan:{
                 if(timeOfInactivity >= DTMTime){
                     active = true;
                 }
+                break;
             }
         }
+    }
+    @Override
+    public ResultPerNode creatResult() {
+        return new ResultPerNode(this.id, Well.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
     }
 }

@@ -1,5 +1,7 @@
 package org.enerscope.simulator;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.export.LNGCarrier;
@@ -15,6 +17,8 @@ import org.enerscope.simulator.simNode.*;
 
 import java.util.*;
 
+@Getter
+@Setter
 public class Simulator {
     private UUID versionID;
     private List<SimWell> simWells;
@@ -24,6 +28,8 @@ public class Simulator {
     private List<SimLiquefactionPlant> simLiquefactionPlants;
     private List<SimSeaportTerminal> simSeaportTerminals;
     private List<SimLNGCarrier> simLNGCarriers;
+
+    private Result result;
 
     Simulator(List<BaseNode> baseNodes, List<NodeConnection> nodeConnections){
         simWells = new ArrayList<>();
@@ -61,15 +67,41 @@ public class Simulator {
             simGatheringNetworks.forEach(simGatheringNetwork -> simGatheringNetwork.simulate(exactTime));
             simTreatmentPlants.forEach(simTreatmentPlant -> simTreatmentPlant.simulate(exactTime));
             boolean quedanPendientes = true;
+            List<SimBaseNode> nodesToProcess = new ArrayList<>(simPipelineAndCompressionPlant);
+
             while (quedanPendientes) {
-                List<SimBaseNode> readyNodes = simPipelineAndCompressionPlant.stream().filter(simBaseNode -> simBaseNode.readyToBeProcessed(exactTime)).toList();
+                List<SimBaseNode> readyNodes = nodesToProcess.stream()
+                        .filter(simBaseNode -> simBaseNode.readyToBeProcessed(exactTime))
+                        .toList();
+
+                if (readyNodes.isEmpty()) {
+                    throw new IllegalStateException("Bloqueo detectado: existen nodos pendientes pero ninguno está listo para procesarse en el tiempo " + exactTime);
+                }
+
+                nodesToProcess = nodesToProcess.stream()
+                        .filter(simBaseNode -> !simBaseNode.readyToBeProcessed(exactTime))
+                        .toList();
+
                 readyNodes.forEach(simBaseNode -> simBaseNode.simulate(exactTime));
-                quedanPendientes = simPipelineAndCompressionPlant.stream().anyMatch(simBaseNode -> !simBaseNode.readyToBeProcessed(exactTime));
+                quedanPendientes = !nodesToProcess.isEmpty();
             }
             simLiquefactionPlants.forEach(simLiquefactionPlant -> simLiquefactionPlant.simulate(exactTime));
             simSeaportTerminals.forEach(simSeaportTerminal -> simSeaportTerminal.simulate(exactTime));
             simLNGCarriers.forEach(simLNGCarrier -> simLNGCarrier.simulate(exactTime));
         }
+        createResult(time);
+    }
+
+    private void createResult(int time) {
+        Result result = new Result(time);
+        result.addAllResultPerNodes(simWells.stream().map(SimWell::creatResult).toList());
+        result.addAllResultPerNodes(simGatheringNetworks.stream().map(SimGatheringNetwork::creatResult).toList());
+        result.addAllResultPerNodes(simTreatmentPlants.stream().map(SimTreatmentPlant::creatResult).toList());
+        result.addAllResultPerNodes(simPipelineAndCompressionPlant.stream().map(simBaseNode -> simBaseNode.creatResult()).toList());
+        result.addAllResultPerNodes(simLiquefactionPlants.stream().map(SimLiquefactionPlant::creatResult).toList());
+        result.addAllResultPerNodes(simSeaportTerminals.stream().map(SimSeaportTerminal::creatResult).toList());
+        result.addAllResultPerNodes(simLNGCarriers.stream().map(SimLNGCarrier::creatResult).toList());
+        this.result = result;
     }
 
     private SimBaseNode transformNode(BaseNode baseNode) {

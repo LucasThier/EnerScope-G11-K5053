@@ -2,6 +2,8 @@ package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
+import org.enerscope.node.model.transportation.CompressingPlant;
+import org.enerscope.simulator.ResultPerNode;
 import org.enerscope.simulator.ToDeliver;
 
 import java.util.ArrayList;
@@ -14,6 +16,8 @@ public class SimLiquefactionPlant extends SimBaseNode{
     private Float gasConsumption;
     private List<SimBaseNode> nodesBefore;
     private ToDeliver amountInIntermediateStorage;
+    private float totalDischarged;
+    private String nodeClass;
 
     public SimLiquefactionPlant(GroundBasedLiquefactionPlant groundBasedLiquefactionPlant){
         super(groundBasedLiquefactionPlant);
@@ -23,6 +27,8 @@ public class SimLiquefactionPlant extends SimBaseNode{
         this.gasConsumption = groundBasedLiquefactionPlant.getGasConsumption();
         this.amountInIntermediateStorage = new ToDeliver(0,0);
         nodesBefore = new ArrayList<>();
+        totalDischarged = 0;
+        nodeClass = GroundBasedLiquefactionPlant.class.getSimpleName();
     }
     public SimLiquefactionPlant(FLNGUnit flngUnit){
         super(flngUnit);
@@ -32,12 +38,15 @@ public class SimLiquefactionPlant extends SimBaseNode{
         this.gasConsumption = flngUnit.getGasConsumption();
         this.amountInIntermediateStorage = new ToDeliver(0,0);
         nodesBefore = new ArrayList<>();
+        totalDischarged = 0;
+        nodeClass = FLNGUnit.class.getSimpleName();
     }
 
     @Override
     protected void activeAction(int time){
         float amountToTake =  (float) nodesBefore.stream().mapToDouble(simBaseNode ->simBaseNode.getToDeliver().getAmount() ).sum();
         ToDeliver toProcess;
+        maxPossibleProduced += maxProcessingCapacity;
 
         if(amountToTake >= maxProcessingCapacity){
             toProcess = takeEqualAmounts(nodesBefore,maxProcessingCapacity);
@@ -56,7 +65,7 @@ public class SimLiquefactionPlant extends SimBaseNode{
             toDeliver = new ToDeliver(toProcess.getAmount() - lossCase,0);
         }
 
-        toDeliver.clean();
+        totalDischarged = toDeliver.clean();
         toDeliver.setAmount(toDeliver.getAmount() * MTPARatio /100);
 
         if((amountInIntermediateStorage.getAmount() + toDeliver.getAmount()) > intermediateStorage){
@@ -73,11 +82,19 @@ public class SimLiquefactionPlant extends SimBaseNode{
 
     @Override
     public ToDeliver deliver(float amount){
+        totalDeferred -= amount;
         return amountInIntermediateStorage.deliver(amount);
     }
 
     @Override
     public void addPreviousNode(SimBaseNode simBaseNode){
         nodesBefore.add(simBaseNode);
+    }
+
+    @Override
+    public ResultPerNode creatResult() {
+        ResultPerNode resultPerNode = new ResultPerNode(this.id, nodeClass,totalProduced,totalDeferred,maxPossibleProduced);
+        resultPerNode.setExtra(totalDischarged);
+        return resultPerNode;
     }
 }
