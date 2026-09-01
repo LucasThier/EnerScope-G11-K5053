@@ -73,16 +73,6 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
     ],
   },
   {
-    type: 'PIPELINE_CONECTION',
-    label: 'Pipeline connection',
-    vertical: 'TRANSPORTATION',
-    role: 'INTERMEDIATE',
-    fields: [
-      { key: 'transferCapacity', label: 'Transfer capacity' },
-      { key: 'outputPriority', label: 'Output priority' },
-    ],
-  },
-  {
     type: 'COMPRESSING_PLANT',
     label: 'Compressing plant',
     vertical: 'TRANSPORTATION',
@@ -182,18 +172,22 @@ export function defaultBaseValues(): NodeBaseValues {
   };
 }
 
+export interface GraphDataInput {
+  graphPosition?: { x: number | null; y: number | null } | null;
+  geographicalPosition?: { longitude: number | null; latitude: number | null } | null;
+}
+
 /**
- * Builds the create payload for a node of the given type. Includes the common
- * base fields, an (empty) investment cost, the type descriptor, the graph
- * position and the full set of type-specific fields (defaulting to 0), which is
- * what drives the backend's type deduction.
+ * Builds a node payload (create or edit) from the common base fields, the full
+ * set of type-specific fields (which drives the backend's type deduction), the
+ * graph data and, on edit, the node's existing identity.
  */
-export function buildCreatePayload(
+export function buildNodePayload(
   spec: NodeTypeSpec,
   base: NodeBaseValues,
   typeFields: Record<string, number>,
-  graphX: number,
-  graphY: number,
+  graphData: GraphDataInput,
+  identity?: string,
 ): Record<string, unknown> {
   return {
     name: base.name,
@@ -204,20 +198,33 @@ export function buildCreatePayload(
     maintenanceIntervalInDays: base.maintenanceIntervalInDays,
     wastePercentage: base.wastePercentage,
     investmentCost: { components: [] },
-    graphData: {
-      graphPosition: { x: graphX, y: graphY },
-      // Default the real-world position near Argentina (with a small spread) so
-      // the node is visible on the map immediately; the user can drag it to its
-      // true location.
-      geographicalPosition: {
-        longitude: -64 + (Math.random() - 0.5) * 6,
-        latitude: -38 + (Math.random() - 0.5) * 6,
-      },
-    },
+    graphData,
     type: { vertical: spec.vertical, role: spec.role, nodeType: spec.type },
+    ...(identity ? { identity } : {}),
     ...spec.fields.reduce<Record<string, number>>((acc, f) => {
       acc[f.key] = typeFields[f.key] ?? 0;
       return acc;
     }, {}),
   };
+}
+
+/**
+ * Create payload: places the node at the given canvas position and defaults its
+ * real-world position near Argentina (small spread) so it is visible on the map
+ * immediately; the user can drag it to its true location.
+ */
+export function buildCreatePayload(
+  spec: NodeTypeSpec,
+  base: NodeBaseValues,
+  typeFields: Record<string, number>,
+  graphX: number,
+  graphY: number,
+): Record<string, unknown> {
+  return buildNodePayload(spec, base, typeFields, {
+    graphPosition: { x: graphX, y: graphY },
+    geographicalPosition: {
+      longitude: -64 + (Math.random() - 0.5) * 6,
+      latitude: -38 + (Math.random() - 0.5) * 6,
+    },
+  });
 }

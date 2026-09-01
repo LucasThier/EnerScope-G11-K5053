@@ -37,11 +37,11 @@ Run everything with `cd backend && mvn test`.
 | `organization.controller.OrganizationControllerTest` | Web | 11 |
 | `project.service.ProjectServiceTest` | Unit | 7 |
 | `project.controller.ProjectControllerTest` | Web | 6 |
-| `version.service.VersionServiceTest` | Unit | 13 |
+| `version.service.VersionServiceTest` | Unit | 14 |
 | `version.controller.VersionControllerTest` | Web | 3 |
 | `node.service.NodeServiceTest` | Unit | 1 |
 | `node.controller.NodeControllerTest` | Unit | 1 |
-| **Total** | | **111** |
+| **Total** | | **112** |
 
 > Note: the `strategyCost.*` test classes are still not catalogued here (a
 > pre-existing gap flagged in `docs/considerations.md`), so the total above
@@ -257,6 +257,7 @@ position update.
 | `updateNodePosition_ShouldUpdateGraphAndGeographicalPosition` | `updateNodePosition` updates both the diagram (x/y) and geographical (lng/lat) positions and persists the node. |
 | `updateNodeBasics_ShouldUpdateNameAndState` | `updateNodeBasics` updates a node's name and state and persists it. |
 | `saveVersion_WithoutParent_InitialisesEmptyNonNullSnapshots` | A version created without a parent gets empty (non-null) node/connection snapshots, so the in-version ABM can append. |
+| `getNodeDetail_ShouldReturnCommonAndTypeSpecificFields` | `getNodeDetail` returns a node's common fields and its type-specific values (keyed by the frontend field names). |
 
 ## `version.controller.VersionControllerTest` — Web
 

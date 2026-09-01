@@ -512,6 +512,35 @@ class VersionServiceTest {
     }
 
     @Test
+    void getNodeDetail_ShouldReturnCommonAndTypeSpecificFields() {
+        // Given
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>());
+        Well node = new Well(
+                "W", NodeStateEnum.RUNNING, Instant.now(), 24,
+                MoneyAmount.of(100), 30, MoneyAmount.of(50), 0.0f,
+                new InvestmentCost(), new NodeGraphData(new GraphPosition(1.0, 2.0), null), nodeId,
+                new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
+                10.0f, 0.2f, 0.5f, 5, MoneyAmount.of(7), 3.0f);
+        version.getNodeSnapshot().add(node);
+
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(node));
+
+        // When
+        org.enerscope.node.dto.NodeDetailDTO detail = versionService.getNodeDetail(versionId, nodeId);
+
+        // Then
+        assertEquals("W", detail.getName());
+        assertEquals(NodeTypeEnum.WELL, detail.getType().getNodeType());
+        assertEquals(100.0, detail.getUpkeepCosts());
+        assertEquals(10.0, detail.getAttributes().get("maxCollectionCapacity"));
+        assertEquals(7.0, detail.getAttributes().get("dtmCost"));
+    }
+
+    @Test
     void saveVersion_WithoutParent_InitialisesEmptyNonNullSnapshots() {
         // Given
         when(versionRepository.save(any(Version.class))).thenAnswer(invocation -> invocation.getArgument(0));

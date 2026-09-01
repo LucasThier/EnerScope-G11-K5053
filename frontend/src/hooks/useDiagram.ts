@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { diagramApi } from '../api/diagram';
 import { getErrorMessage } from '../api/errors';
-import { buildCreatePayload, type NodeBaseValues, type NodeTypeSpec } from '../components/editor/nodeCatalog';
-import type { Diagram, DiagramNode, NodeState } from '../types/diagram';
+import {
+  buildCreatePayload,
+  buildNodePayload,
+  type GraphDataInput,
+  type NodeBaseValues,
+  type NodeTypeSpec,
+} from '../components/editor/nodeCatalog';
+import type { Diagram, DiagramNode, NodeDetail, NodeState } from '../types/diagram';
 
 interface UseDiagram {
   diagram: Diagram | null;
@@ -19,6 +25,15 @@ interface UseDiagram {
   ) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<void>;
   updateNodeBasics: (nodeId: string, basics: { name?: string; state?: NodeState }) => Promise<void>;
+  getNodeDetail: (nodeId: string) => Promise<NodeDetail | null>;
+  editNodeData: (
+    nodeId: string,
+    spec: NodeTypeSpec,
+    base: NodeBaseValues,
+    typeFields: Record<string, number>,
+    graphData: GraphDataInput,
+    identity: string,
+  ) => Promise<void>;
   addConnection: (fromNodeId: string, toNodeId: string) => Promise<void>;
   deleteConnection: (connectionId: string) => Promise<void>;
   moveNodeGraph: (nodeId: string, x: number, y: number) => Promise<void>;
@@ -127,6 +142,46 @@ export function useDiagram(versionId: string | null): UseDiagram {
     [versionId, reload],
   );
 
+  const getNodeDetail = useCallback(
+    async (nodeId: string): Promise<NodeDetail | null> => {
+      if (!versionId) return null;
+      try {
+        const res = await diagramApi.getNodeDetail(versionId, nodeId);
+        return res.data.data ?? null;
+      } catch (err) {
+        setError(getErrorMessage(err, 'Could not load the node detail'));
+        return null;
+      }
+    },
+    [versionId],
+  );
+
+  const editNodeData = useCallback(
+    async (
+      nodeId: string,
+      spec: NodeTypeSpec,
+      base: NodeBaseValues,
+      typeFields: Record<string, number>,
+      graphData: GraphDataInput,
+      identity: string,
+    ) => {
+      if (!versionId) return;
+      setBusy(true);
+      setError(null);
+      try {
+        const payload = buildNodePayload(spec, base, typeFields, graphData, identity);
+        await diagramApi.editNode(versionId, nodeId, payload);
+        await reload();
+      } catch (err) {
+        setError(getErrorMessage(err, 'Could not save the node'));
+        throw err;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [versionId, reload],
+  );
+
   const addConnection = useCallback(
     async (fromNodeId: string, toNodeId: string) => {
       if (!versionId) return;
@@ -224,6 +279,8 @@ export function useDiagram(versionId: string | null): UseDiagram {
     addNode,
     deleteNode,
     updateNodeBasics,
+    getNodeDetail,
+    editNodeData,
     addConnection,
     deleteConnection,
     moveNodeGraph,

@@ -10,6 +10,7 @@ import org.enerscope.node.dto.BaseNodeDTO;
 import org.enerscope.node.dto.ConnectionDTO;
 import org.enerscope.node.dto.DiagramDTO;
 import org.enerscope.node.dto.NodeBasicsDTO;
+import org.enerscope.node.dto.NodeDetailDTO;
 import org.enerscope.node.dto.NodeGraphDataDTO;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.NodeConnection;
@@ -81,6 +82,15 @@ public class VersionController {
             @PathVariable UUID versionId) {
         DiagramDTO diagram = versionService.getDiagram(versionId);
         return Responses.ok("Diagram retrieved successfully", diagram);
+    }
+
+    @GetMapping(value = "/{versionId}/node/{nodeId}")
+    @Operation(summary = "Get a node's full detail", description = "Return a node's common and type-specific fields, for the editor's edit form.")
+    public ResponseEntity<ApiResponse<NodeDetailDTO>> getNodeDetail(
+            @PathVariable UUID versionId,
+            @PathVariable UUID nodeId) {
+        NodeDetailDTO detail = versionService.getNodeDetail(versionId, nodeId);
+        return Responses.ok("Node detail retrieved successfully", detail);
     }
 
     @PatchMapping(value = "/{versionId}/node/{nodeId}/position", consumes = MediaType.APPLICATION_JSON_VALUE)

@@ -6,7 +6,8 @@ import { useDiagram } from '../hooks/useDiagram';
 import { DiagramCanvas } from '../components/editor/DiagramCanvas';
 import { MapView } from '../components/editor/MapView';
 import { NodeDataPanel } from '../components/editor/NodeDataPanel';
-import { AddNodePanel } from '../components/editor/AddNodePanel';
+import { NodeFormPanel, type NodeFormInitial } from '../components/editor/NodeFormPanel';
+import type { GraphDataInput, NodeBaseValues } from '../components/editor/nodeCatalog';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
@@ -14,6 +15,14 @@ import type { Project, VersionSummary } from '../types/diagram';
 
 type Mode = 'diagram' | 'map';
 type Projection = 'mercator' | 'globe';
+type PanelMode = 'data' | 'create' | 'edit';
+
+interface EditState {
+  nodeId: string;
+  identity: string;
+  graphData: GraphDataInput;
+  initial: NodeFormInitial;
+}
 
 const selectClass =
   'rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
@@ -31,7 +40,9 @@ export function EditorPage() {
   const [mode, setMode] = useState<Mode>('diagram');
   const [projection, setProjection] = useState<Projection>('mercator');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
+  const [panelMode, setPanelMode] = useState<PanelMode>('data');
+  const [createPos, setCreatePos] = useState<{ x: number; y: number }>({ x: 120, y: 120 });
+  const [editState, setEditState] = useState<EditState | null>(null);
 
   const {
     diagram,
@@ -41,11 +52,48 @@ export function EditorPage() {
     addNode,
     deleteNode,
     updateNodeBasics,
+    getNodeDetail,
+    editNodeData,
     addConnection,
     deleteConnection,
     moveNodeGraph,
     moveNodeGeo,
   } = useDiagram(versionId || null);
+
+  // Selecting a node shows its data panel (leaves the create/edit form).
+  const selectNode = useCallback((id: string | null) => {
+    setSelectedNodeId(id);
+    if (id) setPanelMode('data');
+  }, []);
+
+  const openCreateAt = useCallback((x: number, y: number) => {
+    setCreatePos({ x, y });
+    setPanelMode('create');
+  }, []);
+
+  const handleEditData = useCallback(
+    async (nodeId: string) => {
+      const detail = await getNodeDetail(nodeId);
+      if (!detail) return;
+      const base: NodeBaseValues = {
+        name: detail.name,
+        state: detail.state,
+        upkeepCosts: detail.upkeepCosts,
+        operatingCosts: detail.operatingCosts,
+        lifespanInMonths: detail.lifespanInMonths,
+        maintenanceIntervalInDays: detail.maintenanceIntervalInDays,
+        wastePercentage: detail.wastePercentage,
+      };
+      setEditState({
+        nodeId,
+        identity: detail.identity,
+        graphData: detail.graphData ?? {},
+        initial: { type: detail.type.nodeType, base, typeFields: detail.attributes },
+      });
+      setPanelMode('edit');
+    },
+    [getNodeDetail],
+  );
 
   // Default the org selection once organizations load.
   useEffect(() => {
@@ -241,8 +289,19 @@ export function EditorPage() {
 
         <div className="ml-auto flex items-center gap-2">
           {(loading || busy) && <Spinner className="h-4 w-4 text-brand-600" />}
-          <Button onClick={() => setShowAdd((s) => !s)} disabled={!versionId} className="text-sm">
-            {showAdd ? 'Cancel' : '+ Add node'}
+          <Button
+            onClick={() => {
+              if (panelMode === 'create') {
+                setPanelMode('data');
+              } else {
+                setCreatePos(nextNodePosition);
+                setPanelMode('create');
+              }
+            }}
+            disabled={!versionId}
+            className="text-sm"
+          >
+            {panelMode === 'create' ? 'Cancel' : '+ Add node'}
           </Button>
         </div>
       </div>
@@ -270,11 +329,12 @@ export function EditorPage() {
               <DiagramCanvas
                 diagram={diagram}
                 selectedNodeId={selectedNodeId}
-                onSelectNode={setSelectedNodeId}
+                onSelectNode={selectNode}
                 onMoveNode={moveNodeGraph}
                 onConnect={addConnection}
                 onDeleteNode={deleteNode}
                 onDeleteConnection={deleteConnection}
+                onCreateAt={openCreateAt}
               />
             </div>
           ) : (
@@ -282,19 +342,37 @@ export function EditorPage() {
               diagram={diagram}
               projection={projection}
               selectedNodeId={selectedNodeId}
-              onSelectNode={setSelectedNodeId}
+              onSelectNode={selectNode}
               onMoveGeo={moveNodeGeo}
             />
           )}
         </div>
 
         <aside className="w-80 shrink-0 overflow-y-auto border-l border-ink-100 bg-white">
-          {showAdd ? (
-            <AddNodePanel
+          {panelMode === 'create' ? (
+            <NodeFormPanel
+              mode="create"
               busy={busy}
-              onClose={() => setShowAdd(false)}
-              onCreate={(spec, base, typeFields) =>
-                addNode(spec, base, typeFields, nextNodePosition.x, nextNodePosition.y)
+              onClose={() => setPanelMode('data')}
+              onSubmit={(spec, base, typeFields) =>
+                addNode(spec, base, typeFields, createPos.x, createPos.y)
+              }
+            />
+          ) : panelMode === 'edit' && editState ? (
+            <NodeFormPanel
+              mode="edit"
+              busy={busy}
+              initial={editState.initial}
+              onClose={() => setPanelMode('data')}
+              onSubmit={(spec, base, typeFields) =>
+                editNodeData(
+                  editState.nodeId,
+                  spec,
+                  base,
+                  typeFields,
+                  editState.graphData,
+                  editState.identity,
+                )
               }
             />
           ) : (
@@ -302,9 +380,11 @@ export function EditorPage() {
               node={selectedNode}
               busy={busy}
               onUpdateBasics={updateNodeBasics}
+              onEditData={handleEditData}
               onDelete={(id) => {
                 void deleteNode(id);
                 setSelectedNodeId(null);
+                setPanelMode('data');
               }}
             />
           )}

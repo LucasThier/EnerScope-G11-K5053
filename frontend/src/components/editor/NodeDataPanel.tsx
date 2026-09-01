@@ -8,6 +8,7 @@ interface NodeDataPanelProps {
   node: DiagramNode | null;
   busy: boolean;
   onUpdateBasics: (nodeId: string, basics: { name?: string; state?: NodeState }) => void;
+  onEditData: (nodeId: string) => void;
   onDelete: (nodeId: string) => void;
 }
 
@@ -16,7 +17,7 @@ function fmt(n: number | null | undefined): string {
 }
 
 /** Details of the selected node, with lightweight rename/state edit and delete. */
-export function NodeDataPanel({ node, busy, onUpdateBasics, onDelete }: NodeDataPanelProps) {
+export function NodeDataPanel({ node, busy, onUpdateBasics, onEditData, onDelete }: NodeDataPanelProps) {
   const [name, setName] = useState('');
   const [state, setState] = useState<NodeState>('PROPOSED');
 
@@ -67,14 +68,20 @@ export function NodeDataPanel({ node, busy, onUpdateBasics, onDelete }: NodeData
         </select>
       </div>
 
-      <Button
-        variant="primary"
-        loading={busy}
-        disabled={!dirty || !name.trim()}
-        onClick={() => onUpdateBasics(node.id, { name: name.trim(), state })}
-      >
-        Save changes
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          variant="primary"
+          loading={busy}
+          disabled={!dirty || !name.trim()}
+          onClick={() => onUpdateBasics(node.id, { name: name.trim(), state })}
+          className="flex-1"
+        >
+          Save
+        </Button>
+        <Button variant="secondary" onClick={() => onEditData(node.id)} className="flex-1">
+          Edit all data
+        </Button>
+      </div>
 
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-ink-100 pt-3 text-xs">
         <dt className="text-ink-400">Type</dt>

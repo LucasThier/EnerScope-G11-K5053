@@ -75,6 +75,22 @@ export interface Diagram {
   connections: DiagramConnection[];
 }
 
+/** Full detail of a node, for the edit form. */
+export interface NodeDetail {
+  id: string;
+  identity: string;
+  name: string;
+  state: NodeState;
+  type: NodeTypeData;
+  graphData: NodeGraphData | null;
+  upkeepCosts: number;
+  operatingCosts: number;
+  lifespanInMonths: number;
+  maintenanceIntervalInDays: number;
+  wastePercentage: number;
+  attributes: Record<string, number>;
+}
+
 export interface VersionSummary {
   id: string;
   name: string;

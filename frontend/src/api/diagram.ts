@@ -1,7 +1,7 @@
 import type { AxiosResponse } from 'axios';
 import { client } from './client';
 import type { ApiResponse } from '../types/auth';
-import type { Diagram, DiagramNode, NodeGraphData, NodeState } from '../types/diagram';
+import type { Diagram, DiagramNode, NodeDetail, NodeGraphData, NodeState } from '../types/diagram';
 
 /**
  * Calls against the version-scoped node/connection API (`/version/**`). The
@@ -10,6 +10,13 @@ import type { Diagram, DiagramNode, NodeGraphData, NodeState } from '../types/di
 export const diagramApi = {
   get: (versionId: string): Promise<AxiosResponse<ApiResponse<Diagram>>> =>
     client.get(`/version/${versionId}/diagram`),
+
+  /** Full detail of a node (common + type-specific fields), for the edit form. */
+  getNodeDetail: (
+    versionId: string,
+    nodeId: string,
+  ): Promise<AxiosResponse<ApiResponse<NodeDetail>>> =>
+    client.get(`/version/${versionId}/node/${nodeId}`),
 
   /** Create a node. The payload's type-specific fields let the backend deduce the node subtype. */
   addNode: (

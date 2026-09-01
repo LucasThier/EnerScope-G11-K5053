@@ -37,8 +37,14 @@ import org.enerscope.node.dto.DiagramNodeDTO;
 import org.enerscope.node.dto.GeographicalPositionDTO;
 import org.enerscope.node.dto.GraphPositionDTO;
 import org.enerscope.node.dto.NodeBasicsDTO;
+import org.enerscope.node.dto.NodeDetailDTO;
 import org.enerscope.node.dto.NodeGraphDataDTO;
 import org.enerscope.node.dto.NodeTypeDataDTO;
+import org.enerscope.node.model.transportation.PipelineConnection;
+import org.enerscope.money.MoneyAmount;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.enerscope.node.model.GeographicalPosition;
 import org.enerscope.node.model.GraphPosition;
 import org.enerscope.node.model.NodeGraphData;
@@ -261,6 +267,112 @@ public class VersionService {
         return saved;
     }
 
+    /**
+     * Full detail of a node for the edit form: common fields plus the
+     * type-specific values keyed by the frontend field names.
+     */
+    @Transactional(readOnly = true)
+    public NodeDetailDTO getNodeDetail(UUID versionId, UUID nodeId) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Objects.requireNonNull(nodeId, "Node ID cannot be null");
+
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+        BaseNode node = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+        if (!version.getNodeSnapshot().contains(node)) {
+            throw new IllegalArgumentException(
+                    "Node with id " + nodeId + " does not exist in version " + versionId);
+        }
+
+        NodeTypeDataDTO type = null;
+        if (node.getType() != null) {
+            NodeTypeData t = node.getType();
+            type = new NodeTypeDataDTO(t.getVertical(), t.getRole(), t.getNodeType());
+        }
+
+        return new NodeDetailDTO(
+                node.getId(), node.getIdentityId(), node.getName(), node.getState(),
+                type, toGraphDataDTO(node.getGraphData()),
+                money(node.getUpkeepCosts()), money(node.getOperatingCosts()),
+                node.getLifespanInMonths(), node.getMaintenanceIntervalInDays(),
+                (double) node.getWastePercentage(),
+                typeAttributes(node));
+    }
+
+    private Map<String, Double> typeAttributes(BaseNode node) {
+        Map<String, Double> a = new LinkedHashMap<>();
+        if (node instanceof Well w) {
+            a.put("maxCollectionCapacity", (double) w.getMaxCollectionCapacity());
+            a.put("declineCurve", (double) w.getDeclineCurve());
+            a.put("gasRichness", (double) w.getGasRichness());
+            a.put("dtmTime", (double) w.getDTMTime());
+            a.put("dtmCost", money(w.getDTMCost()));
+            a.put("surface", (double) w.getSurface());
+        } else if (node instanceof GatheringNetwork g) {
+            a.put("maxTransportCapacity", (double) g.getMaxTransportCapacity());
+            a.put("length", (double) g.getLength());
+            a.put("lossPerMeter", (double) g.getLossPerMeter());
+            a.put("connectedWells", (double) g.getConnectedWells());
+        } else if (node instanceof TreatmentPlant t) {
+            a.put("maxTreatmentCapacity", (double) t.getMaxTreatmentCapacity());
+            a.put("contaminantWaste", 0.0); // not persisted on the entity
+            a.put("intermediateStorage", (double) t.getIntermediateStorage());
+            a.put("treatmentCost", money(t.getTreatmentCost()));
+        } else if (node instanceof Pipeline p) {
+            a.put("maxFlowCapacity", (double) p.getMaxFlowCapacity());
+            a.put("length", (double) p.getLength());
+            a.put("lossPerKm", (double) p.getLossPerKm());
+        } else if (node instanceof PipelineConnection pc) {
+            a.put("transferCapacity", (double) pc.getTransferCapacity());
+            a.put("outputPriority", (double) pc.getOutputPriority());
+        } else if (node instanceof CompressingPlant c) {
+            a.put("maxCompressionCapacity", (double) c.getMaxCompressionCapacity());
+            a.put("processWaste", (double) c.getProcessWaste());
+            a.put("gasConsumption", (double) c.getGasConsumption());
+        } else if (node instanceof GroundBasedLiquefactionPlant gb) {
+            a.put("maxProcessingCapacity", (double) gb.getMaxProcessingCapacity());
+            a.put("mtpaRatio", (double) gb.getMTPARatio());
+            a.put("intermediateStorage", (double) gb.getIntermediateStorage());
+            a.put("gasConsumption", (double) gb.getGasConsumption());
+        } else if (node instanceof FLNGUnit f) {
+            a.put("maxProcessingCapacity", (double) f.getMaxProcessingCapacity());
+            a.put("mtpaRatio", (double) f.getMTPARatio());
+            a.put("intermediateStorage", (double) f.getIntermediateStorage());
+            a.put("vesselDepth", (double) f.getVesselDepth());
+            a.put("hiringCost", money(f.getHiringCost()));
+        } else if (node instanceof SeaportTerminal s) {
+            a.put("intermediateStorage", (double) s.getIntermediateStorage());
+            a.put("portDepth", (double) s.getPortDepth());
+            a.put("shipCapacity", (double) s.getShipCapacity());
+        } else if (node instanceof LNGCarrier l) {
+            a.put("exportFrequency", (double) l.getExportFrequency());
+            a.put("shipCapacity", (double) l.getShipCapacity());
+            a.put("fullLoadTime", (double) l.getFullLoadTime());
+            a.put("hiringCost", money(l.getHiringCost()));
+            a.put("timeToDestination", (double) l.getTimeToDestination());
+        }
+        return a;
+    }
+
+    private static Double money(MoneyAmount amount) {
+        return amount == null ? 0.0 : amount.value().doubleValue();
+    }
+
+    private NodeGraphDataDTO toGraphDataDTO(NodeGraphData g) {
+        if (g == null) {
+            return null;
+        }
+        GraphPositionDTO gp = (g.getGraphPosition() == null)
+                ? null
+                : new GraphPositionDTO(g.getGraphPosition().getX(), g.getGraphPosition().getY());
+        GeographicalPositionDTO geo = (g.getGeographicalPosition() == null)
+                ? null
+                : new GeographicalPositionDTO(g.getGeographicalPosition().getLongitude(),
+                        g.getGeographicalPosition().getLatitude());
+        return new NodeGraphDataDTO(gp, geo);
+    }
+
     private DiagramNodeDTO toDiagramNode(BaseNode node) {
         NodeTypeDataDTO type = null;
         if (node.getType() != null) {
@@ -268,20 +380,8 @@ public class VersionService {
             type = new NodeTypeDataDTO(t.getVertical(), t.getRole(), t.getNodeType());
         }
 
-        NodeGraphDataDTO graph = null;
-        if (node.getGraphData() != null) {
-            NodeGraphData g = node.getGraphData();
-            GraphPositionDTO gp = (g.getGraphPosition() == null)
-                    ? null
-                    : new GraphPositionDTO(g.getGraphPosition().getX(), g.getGraphPosition().getY());
-            GeographicalPositionDTO geo = (g.getGeographicalPosition() == null)
-                    ? null
-                    : new GeographicalPositionDTO(g.getGeographicalPosition().getLongitude(),
-                            g.getGeographicalPosition().getLatitude());
-            graph = new NodeGraphDataDTO(gp, geo);
-        }
-
-        return new DiagramNodeDTO(node.getId(), node.getIdentityId(), node.getName(), node.getState(), type, graph);
+        return new DiagramNodeDTO(node.getId(), node.getIdentityId(), node.getName(), node.getState(), type,
+                toGraphDataDTO(node.getGraphData()));
     }
 
     private DiagramConnectionDTO toDiagramConnection(NodeConnection connection) {
