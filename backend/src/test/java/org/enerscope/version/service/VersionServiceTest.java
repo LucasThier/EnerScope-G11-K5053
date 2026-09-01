@@ -511,4 +511,36 @@ class VersionServiceTest {
         verify(nodeRepository, times(1)).save(node);
     }
 
+    @Test
+    void updateNodeBasics_ShouldUpdateNameAndState() {
+        // Given
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+
+        Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>());
+        Well node = new Well(
+                "Old Name", NodeStateEnum.PROPOSED, Instant.now(), 12,
+                MoneyAmount.of(1), 30, MoneyAmount.of(1), 0.0f,
+                new InvestmentCost(), new NodeGraphData(), nodeId,
+                new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
+                1.0f, 1.0f, 0.5f, 1, MoneyAmount.of(1), 1.0f);
+        version.getNodeSnapshot().add(node);
+
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(node));
+        when(nodeRepository.save(any(BaseNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        org.enerscope.node.dto.NodeBasicsDTO basics =
+                new org.enerscope.node.dto.NodeBasicsDTO("New Name", NodeStateEnum.RUNNING);
+
+        // When
+        BaseNode result = versionService.updateNodeBasics(versionId, nodeId, basics);
+
+        // Then
+        assertEquals("New Name", result.getName());
+        assertEquals(NodeStateEnum.RUNNING, result.getState());
+        verify(nodeRepository, times(1)).save(node);
+    }
+
 }

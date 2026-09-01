@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.enerscope.node.dto.BaseNodeDTO;
 import org.enerscope.node.dto.ConnectionDTO;
 import org.enerscope.node.dto.DiagramDTO;
+import org.enerscope.node.dto.NodeBasicsDTO;
 import org.enerscope.node.dto.NodeGraphDataDTO;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.NodeConnection;
@@ -90,6 +91,16 @@ public class VersionController {
             @RequestBody NodeGraphDataDTO positionDTO) {
         BaseNode result = versionService.updateNodePosition(versionId, nodeId, positionDTO);
         return Responses.ok("Node position updated successfully", result);
+    }
+
+    @PatchMapping(value = "/{versionId}/node/{nodeId}/basics", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Update a node's basic fields", description = "Update a node's name and/or state without resending its type-specific fields.")
+    public ResponseEntity<ApiResponse<BaseNode>> updateNodeBasics(
+            @PathVariable UUID versionId,
+            @PathVariable UUID nodeId,
+            @RequestBody NodeBasicsDTO basics) {
+        BaseNode result = versionService.updateNodeBasics(versionId, nodeId, basics);
+        return Responses.ok("Node updated successfully", result);
     }
 
     @PostMapping(value = "/{versionId}/node", consumes = MediaType.APPLICATION_JSON_VALUE)

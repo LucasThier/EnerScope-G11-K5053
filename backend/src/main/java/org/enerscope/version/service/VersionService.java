@@ -36,6 +36,7 @@ import org.enerscope.node.dto.DiagramDTO;
 import org.enerscope.node.dto.DiagramNodeDTO;
 import org.enerscope.node.dto.GeographicalPositionDTO;
 import org.enerscope.node.dto.GraphPositionDTO;
+import org.enerscope.node.dto.NodeBasicsDTO;
 import org.enerscope.node.dto.NodeGraphDataDTO;
 import org.enerscope.node.dto.NodeTypeDataDTO;
 import org.enerscope.node.model.GeographicalPosition;
@@ -221,6 +222,40 @@ public class VersionService {
 
         BaseNode saved = nodeRepository.save(node);
         logger.info("Updated position of node {} in version {}", nodeId, version.getName());
+        return saved;
+    }
+
+    /**
+     * Partial update of a node's basic fields (name / state) without touching
+     * its type-specific data. Presentation/labelling change, so it records no
+     * {@code NodeChange}.
+     */
+    @Transactional
+    public BaseNode updateNodeBasics(UUID versionId, UUID nodeId, NodeBasicsDTO basics) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Objects.requireNonNull(nodeId, "Node ID cannot be null");
+        Objects.requireNonNull(basics, "Basics DTO cannot be null");
+
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+
+        BaseNode node = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+
+        if (!version.getNodeSnapshot().contains(node)) {
+            throw new IllegalArgumentException(
+                    "Node with id " + nodeId + " does not exist in version " + versionId);
+        }
+
+        if (basics.getName() != null && !basics.getName().isBlank()) {
+            node.setName(basics.getName());
+        }
+        if (basics.getState() != null) {
+            node.setState(basics.getState());
+        }
+
+        BaseNode saved = nodeRepository.save(node);
+        logger.info("Updated basics of node {} in version {}", nodeId, version.getName());
         return saved;
     }
 
