@@ -14,23 +14,30 @@ interface MapViewProps {
 
 const CONNECTIONS_SOURCE = 'diagram-connections';
 
-/** Minimal light basemap (CARTO light, no labels): land/water only, no clutter. */
+/**
+ * Basemap from OpenStreetMap raster tiles — no API key required. A grayscale
+ * canvas filter (applied on load) mutes it into a clean, simplified look while
+ * leaving the coloured node markers untouched.
+ */
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
     basemap: {
       type: 'raster',
       tiles: [
-        'https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
-        'https://b.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
-        'https://c.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
+        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
       ],
       tileSize: 256,
-      attribution: '© OpenStreetMap © CARTO',
+      attribution: '© OpenStreetMap contributors',
     },
   },
   layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }],
 };
+
+/** Muted, simplified look for the raster basemap (does not touch the markers). */
+const CANVAS_FILTER = 'grayscale(1) brightness(1.07) contrast(0.92)';
 
 /** Initial view: centred on Argentina. */
 const INITIAL_CENTER: [number, number] = [-64, -38];
@@ -74,6 +81,8 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
 
     map.on('load', () => {
       loadedRef.current = true;
+      // Simplify the basemap visually without swapping to a key-gated provider.
+      map.getCanvas().style.filter = CANVAS_FILTER;
       map.addSource(CONNECTIONS_SOURCE, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
