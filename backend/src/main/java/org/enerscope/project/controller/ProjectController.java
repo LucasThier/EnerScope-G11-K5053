@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -49,6 +50,14 @@ public class ProjectController {
     public ResponseEntity<ApiResponse<ProjectDTO>> createProject(@Valid @RequestBody CreateProjectRequestDTO data) {
         Project project = projectService.createProject(data);
         return Responses.created("Project created", toDTO(project));
+    }
+
+    @GetMapping
+    @Operation(summary = "List the projects of an organization", description = "Return the projects belonging to the given organization.")
+    public ResponseEntity<ApiResponse<List<ProjectDTO>>> listProjects(
+            @RequestParam UUID organizationId) {
+        List<ProjectDTO> projects = projectService.listByOrganization(organizationId);
+        return Responses.ok("Projects retrieved successfully", projects);
     }
 
     @PostMapping("/{projectId}/members")

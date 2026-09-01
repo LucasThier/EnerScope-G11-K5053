@@ -116,6 +116,24 @@ class ProjectControllerTest {
         verify(projectService, never()).createProject(any());
     }
 
+    // ---- listProjects --------------------------------------------------------
+
+    @Test
+    void listProjectsReturnsProjectsOfOrganization() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        when(projectService.listByOrganization(eq(orgId)))
+                .thenReturn(java.util.List.of(new org.enerscope.project.dto.ProjectDTO(
+                        UUID.randomUUID(), "Grid Expansion", "Expands the regional grid", orgId)));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/projects")
+                        .param("organizationId", orgId.toString())
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].name").value("Grid Expansion"));
+    }
+
     // ---- addMember -------------------------------------------------------
 
     @Test

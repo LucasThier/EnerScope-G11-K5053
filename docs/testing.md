@@ -36,12 +36,12 @@ Run everything with `cd backend && mvn test`.
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 12 |
 | `organization.controller.OrganizationControllerTest` | Web | 11 |
 | `project.service.ProjectServiceTest` | Unit | 7 |
-| `project.controller.ProjectControllerTest` | Web | 5 |
+| `project.controller.ProjectControllerTest` | Web | 6 |
 | `version.service.VersionServiceTest` | Unit | 11 |
 | `version.controller.VersionControllerTest` | Web | 3 |
 | `node.service.NodeServiceTest` | Unit | 1 |
 | `node.controller.NodeControllerTest` | Unit | 1 |
-| **Total** | | **108** |
+| **Total** | | **109** |
 
 > Note: the `strategyCost.*` test classes are still not catalogued here (a
 > pre-existing gap flagged in `docs/considerations.md`), so the total above
@@ -232,6 +232,7 @@ non-`/auth` route); `ProjectService` is mocked.
 | --- | --- |
 | `createProjectReturnsCreatedProject` | `POST /projects` with a valid body → `201` and an envelope with `success=true`, message `Project created`, and the created project's `name`/`description`. |
 | `createProjectRejectsBlankFieldsWithValidationError` | Blank `name`/`description` → `400` `Validation error`; `ProjectService.createProject` is never called. |
+| `listProjectsReturnsProjectsOfOrganization` | `GET /projects?organizationId=` → `200` with the organization's projects (`data[0].name`). |
 | `addMemberReturnsCreatedMember` | `POST /projects/{id}/members` with a valid body → `201` with the member's `memberType` and `userMail`. |
 | `addMemberRejectsUnknownProjectWith400` | When the service throws for an unknown project → `400` with the domain error message. |
 | `addMemberRejectsInvalidBodyWithValidationError` | Missing `userId`/`memberType` → `400` `Validation error`; the service is never called. |

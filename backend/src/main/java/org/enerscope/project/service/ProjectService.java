@@ -5,6 +5,7 @@ import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
+import org.enerscope.project.dto.ProjectDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
@@ -72,6 +73,12 @@ public class ProjectService {
                 Project saved = projectRepository.save(project);
                 logger.info("Created project {} in organization {}", saved.getName(), organization.getName());
                 return saved;
+        }
+
+        public List<ProjectDTO> listByOrganization(UUID organizationId) {
+                return projectRepository.findByOrganizationId(organizationId).stream()
+                                .map(p -> new ProjectDTO(p.getId(), p.getName(), p.getDescription(), organizationId))
+                                .toList();
         }
 
         public ProjectMember addMember(UUID projectId, AddProjectMemberRequestDTO data) {
