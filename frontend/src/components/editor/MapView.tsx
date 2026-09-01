@@ -12,8 +12,25 @@ interface MapViewProps {
   onMoveGeo: (nodeId: string, longitude: number, latitude: number) => void;
 }
 
-const STYLE_URL = 'https://demotiles.maplibre.org/style.json';
 const CONNECTIONS_SOURCE = 'diagram-connections';
+
+/** Real-imagery raster style (OpenStreetMap), so land/features are visible. */
+const MAP_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors',
+    },
+  },
+  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+};
+
+/** Initial view: centred on Argentina. */
+const INITIAL_CENTER: [number, number] = [-64, -38];
+const INITIAL_ZOOM = 4;
 
 /**
  * The "map" view: nodes are placed at their real-world position on a MapLibre
@@ -44,9 +61,9 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
     const markers = markersRef.current;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: STYLE_URL,
-      center: [-64, -34],
-      zoom: 3,
+      style: MAP_STYLE,
+      center: INITIAL_CENTER,
+      zoom: INITIAL_ZOOM,
     });
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl(), 'top-right');

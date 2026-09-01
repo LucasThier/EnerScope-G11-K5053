@@ -32,8 +32,8 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
       { key: 'maxCollectionCapacity', label: 'Max collection capacity' },
       { key: 'declineCurve', label: 'Decline curve' },
       { key: 'gasRichness', label: 'Gas richness (0-1)' },
-      { key: 'DTMTime', label: 'DTM time', integer: true },
-      { key: 'DTMCost', label: 'DTM cost' },
+      { key: 'dtmTime', label: 'DTM time', integer: true },
+      { key: 'dtmCost', label: 'DTM cost' },
       { key: 'surface', label: 'Surface' },
     ],
   },
@@ -100,7 +100,7 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
     role: 'INTERMEDIATE',
     fields: [
       { key: 'maxProcessingCapacity', label: 'Max processing capacity' },
-      { key: 'MTPARatio', label: 'MTPA ratio' },
+      { key: 'mtpaRatio', label: 'MTPA ratio' },
       { key: 'intermediateStorage', label: 'Intermediate storage' },
       { key: 'gasConsumption', label: 'Gas consumption' },
     ],
@@ -112,7 +112,7 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
     role: 'INTERMEDIATE',
     fields: [
       { key: 'maxProcessingCapacity', label: 'Max processing capacity' },
-      { key: 'MTPARatio', label: 'MTPA ratio' },
+      { key: 'mtpaRatio', label: 'MTPA ratio' },
       { key: 'intermediateStorage', label: 'Intermediate storage' },
       { key: 'vesselDepth', label: 'Vessel depth' },
       { key: 'hiringCost', label: 'Hiring cost' },
