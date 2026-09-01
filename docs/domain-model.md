@@ -155,14 +155,59 @@ No creation timestamp field of its own; it reuses `createdAt` from
 `VersionService` rejects a `parentVersion` that belongs to a different
 `project` than the one the new version is being created under.
 
-The node/connection snapshot (`nodeSnapshot`, `connectionSnapshot` via the
-ER diagram's `VersionXNode`/`VersionXConnection` join tables) and the diff
-log (`nodeChanges`, `connectionChanges` via `NodeChange`/`ConnectionChange`)
-from the class diagram are **not modeled** — deliberately out of scope until
-two blockers are resolved: `NodeChange`/`ConnectionChange` in `node/model`
-exist as plain classes without `@Entity`/`@Id` (not persistable), and the
-`node/` migrations have a Flyway version collision (`V2__create_all_tables.sql`
-and `V2__create_nodes.sql` share version `2`).
+A `Version` now **owns the diagram**: its `nodeSnapshot` (`List<BaseNode>` via
+the `versionXNode` join table) and `connectionSnapshot` (`List<NodeConnection>`
+via `versionXConnection`) are the nodes and edges the editor renders, and the
+diff log (`nodeChanges`/`connectionChanges` via `NodeChange`/`ConnectionChange`)
+records the per-version changes. `VersionService` exposes the full in-version
+node/connection ABM (`addNodeToVersion`, `editNodeInVersion`,
+`deleteNodeFromVersion`, and the connection equivalents), a read model
+(`getDiagram` → `DiagramDTO`) and a presentation-only `updateNodePosition`. See
+[`Node model`](#node-model) below.
+
+> The earlier blockers noted here (non-persistable `NodeChange`/`ConnectionChange`
+> and a Flyway `V2` collision) are **resolved**: those classes are entities and
+> only `V2__create_nodes.sql` remains.
+
+## Node model
+
+The LNG value chain is modelled as a graph of typed nodes joined by connections,
+both scoped to a `Version`.
+
+### BaseNode
+
+Abstract `@Entity` (JOINED inheritance) mapped to `base_node`, extended by every
+concrete node type (`Well`, `GatheringNetwork`, `TreatmentPlant`, `Pipeline`,
+`PipelineConnection`, `CompressingPlant`, `GroundBasedLiquefactionPlant`,
+`FLNGUnit`, `SeaportTerminal`, `LNGCarrier`).
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID | Table primary key (from `BaseEntity`). **Connections reference nodes by this `id` within a version.** |
+| `identityId` | UUID | Cross-version identity: the same real node keeps this id across versions (used by the diff/merge logic). |
+| `name` | String | |
+| `state` | NodeStateEnum | `RUNNING` \| `PROPOSED` \| `PENDING` \| `REMOVED` |
+| `type` | NodeTypeData | `@OneToOne` — `vertical` / `role` / `nodeType` enums |
+| `graphData` | NodeGraphData | `@OneToOne` — see below |
+| `investmentCost` | InvestmentCost | `@OneToOne` |
+| plus per-type fields | | capacities, costs, etc. |
+
+### NodeGraphData
+
+Presentation data of a node, holding **two independent, nullable positions**:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `graphPosition` | GraphPosition (`@Embeddable`) | `x` / `y` — abstract position on the diagram canvas |
+| `geographicalPosition` | GeographicalPosition (`@Embeddable`) | `longitude` / `latitude` — real-world position for the map/globe view (MapLibre `[lng, lat]` order) |
+
+The two are independent: a node can have a diagram position without a
+geographical one, and vice versa.
+
+### NodeConnection
+
+Edge between two nodes (`node_connection` table): `identityId`, `fromNodeId`,
+`toNodeId` (both referencing endpoint node `id`s within the version).
 
 ## Session (non-persistent)
 

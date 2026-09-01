@@ -31,6 +31,17 @@ import java.util.stream.Collectors;
 // Additional imports for node management
 import org.enerscope.node.dto.BaseNodeDTO;
 import org.enerscope.node.dto.ConnectionDTO;
+import org.enerscope.node.dto.DiagramConnectionDTO;
+import org.enerscope.node.dto.DiagramDTO;
+import org.enerscope.node.dto.DiagramNodeDTO;
+import org.enerscope.node.dto.GeographicalPositionDTO;
+import org.enerscope.node.dto.GraphPositionDTO;
+import org.enerscope.node.dto.NodeGraphDataDTO;
+import org.enerscope.node.dto.NodeTypeDataDTO;
+import org.enerscope.node.model.GeographicalPosition;
+import org.enerscope.node.model.GraphPosition;
+import org.enerscope.node.model.NodeGraphData;
+import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.dto.WellDTO;
 import org.enerscope.node.dto.TreatmentPlantDTO;
 import org.enerscope.node.dto.GatheringNetworkDTO;
@@ -145,6 +156,100 @@ public class VersionService {
         Objects.requireNonNull(id, "Version ID cannot be null");
         return versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
+    }
+
+    /**
+     * Builds the flat diagram (nodes + connections) the editor renders for a
+     * version. Runs in a read-only transaction so the lazy snapshot
+     * associations are initialised before they are mapped to DTOs.
+     */
+    @Transactional(readOnly = true)
+    public DiagramDTO getDiagram(UUID versionId) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+
+        List<DiagramNodeDTO> nodes = (version.getNodeSnapshot() == null
+                ? List.<BaseNode>of()
+                : version.getNodeSnapshot())
+                .stream().map(this::toDiagramNode).toList();
+
+        List<DiagramConnectionDTO> connections = (version.getConnectionSnapshot() == null
+                ? List.<NodeConnection>of()
+                : version.getConnectionSnapshot())
+                .stream().map(this::toDiagramConnection).toList();
+
+        return new DiagramDTO(versionId, nodes, connections);
+    }
+
+    /**
+     * Presentation-only update of a node's position (diagram x/y and/or
+     * geographical lng/lat). Used when the user drags a node on the canvas or
+     * the map. It does not record a {@code NodeChange}: a move is not a
+     * structural edit, and recording one per drag would be noise.
+     */
+    @Transactional
+    public BaseNode updateNodePosition(UUID versionId, UUID nodeId, NodeGraphDataDTO positionDTO) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Objects.requireNonNull(nodeId, "Node ID cannot be null");
+        Objects.requireNonNull(positionDTO, "Position DTO cannot be null");
+
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+
+        BaseNode node = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+
+        if (!version.getNodeSnapshot().contains(node)) {
+            throw new IllegalArgumentException(
+                    "Node with id " + nodeId + " does not exist in version " + versionId);
+        }
+
+        NodeGraphData graphData = node.getGraphData();
+        if (graphData == null) {
+            graphData = new NodeGraphData();
+            node.setGraphData(graphData);
+        }
+        if (positionDTO.getGraphPosition() != null) {
+            GraphPositionDTO gp = positionDTO.getGraphPosition();
+            graphData.setGraphPosition(new GraphPosition(gp.getX(), gp.getY()));
+        }
+        if (positionDTO.getGeographicalPosition() != null) {
+            GeographicalPositionDTO geo = positionDTO.getGeographicalPosition();
+            graphData.setGeographicalPosition(new GeographicalPosition(geo.getLongitude(), geo.getLatitude()));
+        }
+
+        BaseNode saved = nodeRepository.save(node);
+        logger.info("Updated position of node {} in version {}", nodeId, version.getName());
+        return saved;
+    }
+
+    private DiagramNodeDTO toDiagramNode(BaseNode node) {
+        NodeTypeDataDTO type = null;
+        if (node.getType() != null) {
+            NodeTypeData t = node.getType();
+            type = new NodeTypeDataDTO(t.getVertical(), t.getRole(), t.getNodeType());
+        }
+
+        NodeGraphDataDTO graph = null;
+        if (node.getGraphData() != null) {
+            NodeGraphData g = node.getGraphData();
+            GraphPositionDTO gp = (g.getGraphPosition() == null)
+                    ? null
+                    : new GraphPositionDTO(g.getGraphPosition().getX(), g.getGraphPosition().getY());
+            GeographicalPositionDTO geo = (g.getGeographicalPosition() == null)
+                    ? null
+                    : new GeographicalPositionDTO(g.getGeographicalPosition().getLongitude(),
+                            g.getGeographicalPosition().getLatitude());
+            graph = new NodeGraphDataDTO(gp, geo);
+        }
+
+        return new DiagramNodeDTO(node.getId(), node.getIdentityId(), node.getName(), node.getState(), type, graph);
+    }
+
+    private DiagramConnectionDTO toDiagramConnection(NodeConnection connection) {
+        return new DiagramConnectionDTO(connection.getId(), connection.getIdentityId(),
+                connection.getFromNodeId(), connection.getToNodeId());
     }
 
     @Transactional

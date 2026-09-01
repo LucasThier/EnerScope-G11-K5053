@@ -223,6 +223,44 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   `OrganizationService.assertCanManageUsers`; the member-type→permissions map is
   exposed via `OrganizationService.defaultPermissionsFor`. `PasswordGenerator`
   stays in `user/service` (reused cross-feature, like `UserService`).
+- 2026-09-01 — Visual editor backend (SCRUM — módulo editor de diagrama). Prepares
+  the backend for the canvas/map editor. Decisions:
+  - **Two positions per node.** `NodeGraphData`'s previous single `coordinates`
+    field was replaced by two `@Embeddable` value objects: `GraphPosition`
+    (`graph_x`/`graph_y`, the abstract diagram-canvas position) and
+    `GeographicalPosition` (`longitude`/`latitude`, the real-world position for
+    the MapLibre 2D/globe view). Both nullable and independent. Migration
+    `V7__split_node_graph_position.sql` (adds the 4 columns, migrates the old
+    `x_position`/`y_position`, drops the 3 old columns; the old single
+    `coordinates` value has no meaningful lng/lat mapping and is dropped).
+  - **`id` vs `identityId`.** Confirmed with the class diagram: `id` is the table
+    PK; `identityId` is the cross-version identity (same real node across
+    versions). **Within a version, connections reference nodes by `id`** (that's
+    what `addConnectionToVersion` validates and what the diagram read exposes) —
+    identity-based referencing is reserved for the cross-version diff/merge work.
+  - **Diagram read model.** `GET /version/{versionId}/diagram` returns a flat
+    `DiagramDTO { versionId, nodes[], connections[] }` built from the version
+    snapshot, so the API never serialises lazy JPA associations or the diff
+    history. The canvas renders from this; per-type node detail beyond the common
+    fields is a follow-up.
+  - **Move persistence.** `PATCH /version/{versionId}/node/{nodeId}/position`
+    updates a node's graph and/or geographical position in place **without**
+    recording a `NodeChange` (a drag is presentation, not a structural edit).
+    The full-node `PATCH /version/{versionId}/node/{nodeId}` still exists for
+    structural edits.
+  - **Project → versions navigation.** Added `GET /projects/{projectId}/versions`
+    (`VersionSummaryDTO` list) so the editor can pick a version to open.
+  - **Bug fixed:** `ProjectService.saveVersion` ended with
+    `throw new UnsupportedOperationException(...)` after persisting, so
+    `POST /projects/{projectId}/version` always returned `500`. It now returns the
+    created version.
+  - **Docs were stale:** `domain-model.md` claimed the version node/connection
+    snapshots and `NodeChange`/`ConnectionChange` were "not modeled" and that a
+    Flyway `V2` collision blocked them. Both were already resolved by the merged
+    `version_module`; the docs were corrected in this change.
+  - **Still out of scope (separate versioning module):** snapshot-every-N-versions
+    and the diff engine's merge semantics. The base editor only needs a version to
+    own its nodes/connections, which it does.
 - 2026-08-30 — Added `GET /organizations` (list): a platform ADMIN gets every
   organization (`findAll`), any other user gets the ones they are a member of
   (`findDistinctByMembers_User_Id`). Drives the frontend org picker. `POST

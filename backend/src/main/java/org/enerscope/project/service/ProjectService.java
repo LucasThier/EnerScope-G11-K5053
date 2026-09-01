@@ -15,11 +15,14 @@ import org.enerscope.project.repository.ProjectRepository;
 import org.enerscope.user.model.User;
 import org.enerscope.user.repository.UserRepository;
 import org.enerscope.version.dto.VersionDTO;
+import org.enerscope.version.dto.VersionSummaryDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.service.VersionService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -106,6 +109,26 @@ public class ProjectService {
                 project.addVersion(version);
                 projectRepository.save(project);
 
-                throw new UnsupportedOperationException("Unimplemented method 'saveVersion'");
+                logger.info("Created version {} in project {}", version.getName(), project.getName());
+                return version;
+        }
+
+        /**
+         * Lists the versions of a project as lightweight summaries. Runs in a
+         * read-only transaction so the lazy {@code versions} association is
+         * initialised before it is mapped.
+         */
+        @Transactional(readOnly = true)
+        public List<VersionSummaryDTO> listVersions(UUID projectId) {
+                Project project = projectRepository.findById(projectId)
+                                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+
+                return project.getVersions().stream()
+                                .map(v -> new VersionSummaryDTO(
+                                                v.getId(),
+                                                v.getName(),
+                                                v.getParentVersion() == null ? null : v.getParentVersion().getId(),
+                                                v.getCreatedAt()))
+                                .toList();
         }
 }
