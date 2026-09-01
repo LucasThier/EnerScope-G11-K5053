@@ -320,6 +320,13 @@ public class VersionService {
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
 
+        // A brand-new node gets a fresh cross-version identity. Only saveWell
+        // defaulted this; centralise it here so every node type is covered and
+        // the NOT NULL identity_id column is never violated.
+        if (nodeDTO.getIdentity() == null) {
+            nodeDTO.setIdentity(UUID.randomUUID());
+        }
+
         BaseNode savedNode = switch (nodeDTO) {
             case WellDTO dto -> nodeService.saveWell(dto);
             case TreatmentPlantDTO dto -> nodeService.saveTreatmentPlant(dto);

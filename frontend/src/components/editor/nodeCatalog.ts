@@ -206,7 +206,13 @@ export function buildCreatePayload(
     investmentCost: { components: [] },
     graphData: {
       graphPosition: { x: graphX, y: graphY },
-      geographicalPosition: null,
+      // Default the real-world position near Argentina (with a small spread) so
+      // the node is visible on the map immediately; the user can drag it to its
+      // true location.
+      geographicalPosition: {
+        longitude: -64 + (Math.random() - 0.5) * 6,
+        latitude: -38 + (Math.random() - 0.5) * 6,
+      },
     },
     type: { vertical: spec.vertical, role: spec.role, nodeType: spec.type },
     ...spec.fields.reduce<Record<string, number>>((acc, f) => {

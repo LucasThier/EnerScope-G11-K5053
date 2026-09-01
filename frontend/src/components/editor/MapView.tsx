@@ -14,18 +14,22 @@ interface MapViewProps {
 
 const CONNECTIONS_SOURCE = 'diagram-connections';
 
-/** Real-imagery raster style (OpenStreetMap), so land/features are visible. */
+/** Minimal light basemap (CARTO light, no labels): land/water only, no clutter. */
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
-    osm: {
+    basemap: {
       type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      tiles: [
+        'https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
+        'https://b.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
+        'https://c.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png',
+      ],
       tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
+      attribution: '© OpenStreetMap © CARTO',
     },
   },
-  layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+  layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }],
 };
 
 /** Initial view: centred on Argentina. */
