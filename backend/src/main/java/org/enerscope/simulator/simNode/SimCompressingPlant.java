@@ -56,7 +56,7 @@ public class SimCompressingPlant extends SimBaseNode{
     }
 
     @Override
-    public ResultPerNode creatResult() {
+    public ResultPerNode createResult() {
         return new ResultPerNode(this.id,CompressingPlant.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
     }
 }

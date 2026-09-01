@@ -567,14 +567,14 @@ public class SimulatorTest {
             simWell.simulate(t);
         }
         // Año 0: 8760 horas * 100 = 876,000
-        assertEquals(876000f, simWell.creatResult().getMaxPossibleProduced(), 0.01f);
+        assertEquals(876000f, simWell.createResult().getMaxPossibleProduced(), 0.01f);
 
         // Simular el segundo año (horas 8760 a 17519) -> Declive = 10% -> Produce 90 por hora
         for (int t = 8760; t < 17520; t++) {
             simWell.simulate(t);
         }
         // Año 1: 8760 horas * 90 = 788,400. Total acumulado = 876,000 + 788,400 = 1,664,400
-        assertEquals(1664400f, simWell.creatResult().getMaxPossibleProduced(), 0.01f);
+        assertEquals(1664400f, simWell.createResult().getMaxPossibleProduced(), 0.01f);
     }
 }
 

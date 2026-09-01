@@ -1,8 +1,6 @@
 package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.export.LNGCarrier;
-import org.enerscope.node.model.extraction.GatheringNetwork;
-import org.enerscope.simulator.FlagOfInactivity;
 import org.enerscope.simulator.ResultPerNode;
 import org.enerscope.simulator.ToDeliver;
 
@@ -37,6 +35,7 @@ public class SimLNGCarrier extends SimBaseNode{
             case Maintenance: {
                 if(timeOfInactivity >= maintenanceDuration){
                     active = true;
+                    timeSinceLastMaintenance = 0;
                 }
                 break;
             }
@@ -88,7 +87,7 @@ public class SimLNGCarrier extends SimBaseNode{
     }
 
     @Override
-    public ResultPerNode creatResult() {
+    public ResultPerNode createResult() {
         return new ResultPerNode(this.id, LNGCarrier.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
     }
 }

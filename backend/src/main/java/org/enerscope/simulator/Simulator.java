@@ -94,13 +94,13 @@ public class Simulator {
 
     private void createResult(int time) {
         Result result = new Result(time);
-        result.addAllResultPerNodes(simWells.stream().map(SimWell::creatResult).toList());
-        result.addAllResultPerNodes(simGatheringNetworks.stream().map(SimGatheringNetwork::creatResult).toList());
-        result.addAllResultPerNodes(simTreatmentPlants.stream().map(SimTreatmentPlant::creatResult).toList());
-        result.addAllResultPerNodes(simPipelineAndCompressionPlant.stream().map(simBaseNode -> simBaseNode.creatResult()).toList());
-        result.addAllResultPerNodes(simLiquefactionPlants.stream().map(SimLiquefactionPlant::creatResult).toList());
-        result.addAllResultPerNodes(simSeaportTerminals.stream().map(SimSeaportTerminal::creatResult).toList());
-        result.addAllResultPerNodes(simLNGCarriers.stream().map(SimLNGCarrier::creatResult).toList());
+        result.addAllResultPerNodes(simWells.stream().map(SimWell::createResult).toList());
+        result.addAllResultPerNodes(simGatheringNetworks.stream().map(SimGatheringNetwork::createResult).toList());
+        result.addAllResultPerNodes(simTreatmentPlants.stream().map(SimTreatmentPlant::createResult).toList());
+        result.addAllResultPerNodes(simPipelineAndCompressionPlant.stream().map(simBaseNode -> simBaseNode.createResult()).toList());
+        result.addAllResultPerNodes(simLiquefactionPlants.stream().map(SimLiquefactionPlant::createResult).toList());
+        result.addAllResultPerNodes(simSeaportTerminals.stream().map(SimSeaportTerminal::createResult).toList());
+        result.addAllResultPerNodes(simLNGCarriers.stream().map(SimLNGCarrier::createResult).toList());
         this.result = result;
     }
 

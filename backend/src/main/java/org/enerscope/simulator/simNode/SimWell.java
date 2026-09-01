@@ -2,7 +2,6 @@ package org.enerscope.simulator.simNode;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.simulator.FlagOfInactivity;
 import org.enerscope.simulator.ResultPerNode;
@@ -60,6 +59,7 @@ public class SimWell extends SimBaseNode{
             case Maintenance: {
                 if(timeOfInactivity >= maintenanceDuration){
                     active = true;
+                    timeSinceLastMaintenance = 0;
                 }
                 break;
             }
@@ -72,7 +72,7 @@ public class SimWell extends SimBaseNode{
         }
     }
     @Override
-    public ResultPerNode creatResult() {
+    public ResultPerNode createResult() {
         return new ResultPerNode(this.id, Well.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
     }
 }

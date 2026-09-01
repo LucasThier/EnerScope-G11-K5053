@@ -12,7 +12,7 @@ import java.util.UUID;
 
 @Getter
 @Setter
-public abstract class SimBaseNode {
+public abstract class  SimBaseNode {
     protected UUID id;
     protected int maintenanceIntervalInDays;
     protected int maintenanceDuration;
@@ -56,6 +56,7 @@ public abstract class SimBaseNode {
             case Maintenance: {
                 if(timeOfInactivity >= maintenanceDuration){
                     active = true;
+                    timeSinceLastMaintenance = 0;
                 }
                 break;
             }
@@ -79,6 +80,7 @@ public abstract class SimBaseNode {
         float producedThisStep = 0;
         lastSimulatedTime = time;
         if(active){
+            timeSinceLastMaintenance++;
             float amountBefore = getToDeliver().getAmount();
             activeAction(time);
             checkLifeSpan(time);
@@ -144,5 +146,5 @@ public abstract class SimBaseNode {
 
     public void addPreviousNode(SimBaseNode simBaseNode){}
 
-    public abstract ResultPerNode creatResult();
+    public abstract ResultPerNode createResult();
 }

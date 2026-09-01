@@ -3,7 +3,6 @@ package org.enerscope.simulator.simNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.extraction.GatheringNetwork;
-import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.simulator.ResultPerNode;
 
 import java.util.ArrayList;
@@ -43,7 +42,7 @@ public class SimGatheringNetwork extends SimBaseNode{
     }
 
     @Override
-    public ResultPerNode creatResult() {
+    public ResultPerNode createResult() {
         return new ResultPerNode(this.id, GatheringNetwork.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
     }
 }

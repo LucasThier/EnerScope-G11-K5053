@@ -154,9 +154,9 @@ public class ResultTest {
 
     private void setupBaseNodeMocks(BaseNode mockNode, UUID id) {
         when(mockNode.getId()).thenReturn(id);
-        when(mockNode.getMaintenanceIntervalInDays()).thenReturn(180);
+        when(mockNode.getMaintenanceIntervalInDays()).thenReturn(9999);
         when(mockNode.getMaintenanceDuration()).thenReturn(24);
-        when(mockNode.getLifespanInMonths()).thenReturn(120);
+        when(mockNode.getLifespanInMonths()).thenReturn(999);
     }
 
     private NodeConnection createConnection(UUID fromId, UUID toId) {

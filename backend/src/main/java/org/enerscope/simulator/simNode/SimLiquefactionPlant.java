@@ -2,7 +2,6 @@ package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
-import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.simulator.ResultPerNode;
 import org.enerscope.simulator.ToDeliver;
 
@@ -92,7 +91,7 @@ public class SimLiquefactionPlant extends SimBaseNode{
     }
 
     @Override
-    public ResultPerNode creatResult() {
+    public ResultPerNode createResult() {
         ResultPerNode resultPerNode = new ResultPerNode(this.id, nodeClass,totalProduced,totalDeferred,maxPossibleProduced);
         resultPerNode.setExtra(totalDischarged);
         return resultPerNode;

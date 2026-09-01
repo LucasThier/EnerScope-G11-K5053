@@ -1,6 +1,5 @@
 package org.enerscope.simulator.simNode;
 
-import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.simulator.ResultPerNode;
 import org.enerscope.simulator.ToDeliver;
@@ -73,7 +72,7 @@ public class SimSeaportTerminal extends SimBaseNode{
     }
 
     @Override
-    public ResultPerNode creatResult() {
+    public ResultPerNode createResult() {
         return new ResultPerNode(this.id, SeaportTerminal.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
     }
 }

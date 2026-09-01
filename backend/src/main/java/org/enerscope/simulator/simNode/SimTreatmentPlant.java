@@ -1,6 +1,5 @@
 package org.enerscope.simulator.simNode;
 
-import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.extraction.TreatmentPlant;
 import org.enerscope.simulator.ResultPerNode;
 import org.enerscope.simulator.ToDeliver;
@@ -56,7 +55,7 @@ public class SimTreatmentPlant extends SimBaseNode{
         simGatheringNetworks.add((SimGatheringNetwork) simBaseNode);
     }
     @Override
-    public ResultPerNode creatResult() {
+    public ResultPerNode createResult() {
         ResultPerNode resultPerNode = new ResultPerNode(this.id, TreatmentPlant.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
         resultPerNode.setExtra(totalDischarged);
         return resultPerNode;

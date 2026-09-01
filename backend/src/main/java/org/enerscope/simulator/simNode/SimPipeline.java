@@ -50,7 +50,7 @@ public class SimPipeline extends SimBaseNode{
     }
 
     @Override
-    public ResultPerNode creatResult() {
+    public ResultPerNode createResult() {
         ResultPerNode result = new ResultPerNode(this.id, Pipeline.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
         result.setExtra(totalLost);
         return result;
