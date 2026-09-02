@@ -9,6 +9,7 @@ interface NodeDataPanelProps {
   busy: boolean;
   onUpdateBasics: (nodeId: string, basics: { name?: string; state?: NodeState }) => void;
   onEditData: (nodeId: string) => void;
+  onStartConnect: (nodeId: string) => void;
   onDelete: (nodeId: string) => void;
 }
 
@@ -17,7 +18,14 @@ function fmt(n: number | null | undefined): string {
 }
 
 /** Details of the selected node, with lightweight rename/state edit and delete. */
-export function NodeDataPanel({ node, busy, onUpdateBasics, onEditData, onDelete }: NodeDataPanelProps) {
+export function NodeDataPanel({
+  node,
+  busy,
+  onUpdateBasics,
+  onEditData,
+  onStartConnect,
+  onDelete,
+}: NodeDataPanelProps) {
   const [name, setName] = useState('');
   const [state, setState] = useState<NodeState>('PROPOSED');
 
@@ -103,6 +111,10 @@ export function NodeDataPanel({ node, busy, onUpdateBasics, onEditData, onDelete
           {node.id.slice(0, 8)}…
         </dd>
       </dl>
+
+      <Button variant="secondary" onClick={() => onStartConnect(node.id)}>
+        Connect to another node…
+      </Button>
 
       <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => onDelete(node.id)}>
         Delete node

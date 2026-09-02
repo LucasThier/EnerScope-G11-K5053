@@ -4,6 +4,6 @@ public enum VerticalEnum {
     EXTRACTION,
     TRANSPORTATION,
     LIQUEFACTION,
-    ЕХРОRТ,
+    EXPORT,
     INTERNAL_CONSUMPTION
 }

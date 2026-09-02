@@ -26,8 +26,12 @@ interface DiagramCanvasProps {
   onConnect: (fromNodeId: string, toNodeId: string) => void;
   onDeleteNode: (nodeId: string) => void;
   onDeleteConnection: (connectionId: string) => void;
-  /** Double-click on empty canvas: create a node at this flow position. */
-  onCreateAt: (x: number, y: number) => void;
+  /**
+   * Double-click on empty canvas: create a node. `flowX/flowY` is the diagram
+   * position for the new node; `localX/localY` is where to anchor the floating
+   * menu, relative to the canvas.
+   */
+  onCreateAt: (flowX: number, flowY: number, localX: number, localY: number) => void;
 }
 
 const nodeTypes = { ener: EnerNode };
@@ -118,12 +122,13 @@ export function DiagramCanvas({
   const handleWrapperDoubleClick = useCallback(
     (event: React.MouseEvent) => {
       const target = event.target as HTMLElement;
-      // Only when the empty pane is double-clicked (not a node or an edge).
-      if (!target.classList.contains('react-flow__pane')) return;
+      // Ignore double-clicks on a node or an edge; only empty canvas creates.
+      if (target.closest('.react-flow__node') || target.closest('.react-flow__edge')) return;
       const instance = instanceRef.current;
       if (!instance) return;
-      const pos = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      onCreateAt(pos.x, pos.y);
+      const flow = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const rect = event.currentTarget.getBoundingClientRect();
+      onCreateAt(flow.x, flow.y, event.clientX - rect.left, event.clientY - rect.top);
     },
     [onCreateAt],
   );
@@ -146,6 +151,7 @@ export function DiagramCanvas({
         onEdgeDoubleClick={handleEdgeDoubleClick}
         onEdgesDelete={(deleted) => deleted.forEach((e) => onDeleteConnection(e.id))}
         onPaneClick={() => onSelectNode(null)}
+        zoomOnDoubleClick={false}
         fitView
         proOptions={{ hideAttribution: true }}
       >
