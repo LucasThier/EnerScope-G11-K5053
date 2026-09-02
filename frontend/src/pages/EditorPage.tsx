@@ -264,8 +264,16 @@ export function EditorPage() {
       const w = bodyRef.current?.clientWidth ?? 1000;
       const h = bodyRef.current?.clientHeight ?? 700;
       const left = Math.max(8, Math.min(createAnchor.x, w - PANEL_WIDTH - 8));
-      const top = Math.max(8, Math.min(createAnchor.y, h - 60));
-      return { left, top };
+      const style: CSSProperties = { left };
+      // Anchor from the top when clicking the upper half, from the bottom when
+      // clicking the lower half, so the panel never runs off-screen (its
+      // max-height + internal scroll keep it fully visible either way).
+      if (createAnchor.y <= h / 2) {
+        style.top = Math.max(8, createAnchor.y);
+      } else {
+        style.bottom = Math.max(8, h - createAnchor.y);
+      }
+      return style;
     }
     return { right: 16, top: 16 };
   }
