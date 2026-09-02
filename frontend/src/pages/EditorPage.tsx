@@ -11,7 +11,7 @@ import type { GraphDataInput, NodeBaseValues } from '../components/editor/nodeCa
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
-import type { Project, VersionSummary } from '../types/diagram';
+import type { NodeDetail, Project, VersionSummary } from '../types/diagram';
 
 type Mode = 'diagram' | 'map';
 type Projection = 'mercator' | 'globe';
@@ -70,6 +70,7 @@ export function EditorPage() {
   const [createAnchor, setCreateAnchor] = useState<{ x: number; y: number } | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<NodeDetail | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   const {
@@ -141,6 +142,21 @@ export function EditorPage() {
     },
     [getNodeDetail],
   );
+
+  // Load full detail of the selected node so its data shows immediately.
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedNodeId) {
+      setSelectedDetail(null);
+      return;
+    }
+    void getNodeDetail(selectedNodeId).then((d) => {
+      if (!cancelled) setSelectedDetail(d);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedNodeId, diagram, getNodeDetail]);
 
   // Escape cancels a pending connection.
   useEffect(() => {
@@ -500,6 +516,7 @@ export function EditorPage() {
                 ) : selectedNode ? (
                   <NodeDataPanel
                     node={selectedNode}
+                    detail={selectedDetail}
                     busy={busy}
                     onUpdateBasics={updateNodeBasics}
                     onEditData={handleEditData}

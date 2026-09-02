@@ -91,6 +91,10 @@ export function DiagramCanvas({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const instanceRef = useRef<ReactFlowInstance<Node, Edge> | null>(null);
+  // Track a drag-connection so a drag that doesn't reach another node counts as
+  // a plain click (select), not a failed connection.
+  const connectStartNodeRef = useRef<string | null>(null);
+  const connectionMadeRef = useRef(false);
 
   useEffect(() => {
     setNodes(diagram.nodes.map((n, i) => toRfNode(n, i, n.id === selectedNodeId)));
@@ -103,6 +107,7 @@ export function DiagramCanvas({
   const handleConnect = useCallback(
     (connection: Connection) => {
       if (connection.source && connection.target && connection.source !== connection.target) {
+        connectionMadeRef.current = true;
         onConnect(connection.source, connection.target);
       }
     },
@@ -145,6 +150,18 @@ export function DiagramCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={handleConnect}
+        onConnectStart={(_event, params) => {
+          connectStartNodeRef.current = params.nodeId ?? null;
+          connectionMadeRef.current = false;
+        }}
+        onConnectEnd={() => {
+          // Dragging from the node body but not onto another node = a select.
+          if (!connectionMadeRef.current && connectStartNodeRef.current) {
+            onSelectNode(connectStartNodeRef.current);
+          }
+          connectStartNodeRef.current = null;
+        }}
+        connectionRadius={45}
         onNodeClick={handleNodeClick}
         onNodeDragStop={(_e, node) => onMoveNode(node.id, node.position.x, node.position.y)}
         onNodesDelete={(deleted) => deleted.forEach((n) => onDeleteNode(n.id))}

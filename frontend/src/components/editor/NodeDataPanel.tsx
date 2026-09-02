@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { TextField } from '../ui/TextField';
-import { NODE_STATES, VERTICAL_COLORS } from './nodeCatalog';
-import type { DiagramNode, NodeState } from '../../types/diagram';
+import { NODE_STATES, VERTICAL_COLORS, specForType } from './nodeCatalog';
+import type { DiagramNode, NodeDetail, NodeState } from '../../types/diagram';
 
 interface NodeDataPanelProps {
   node: DiagramNode | null;
+  /** Full detail (type-specific values), loaded on selection. */
+  detail: NodeDetail | null;
   busy: boolean;
   onUpdateBasics: (nodeId: string, basics: { name?: string; state?: NodeState }) => void;
   onEditData: (nodeId: string) => void;
@@ -20,6 +22,7 @@ function fmt(n: number | null | undefined): string {
 /** Details of the selected node, with lightweight rename/state edit and delete. */
 export function NodeDataPanel({
   node,
+  detail,
   busy,
   onUpdateBasics,
   onEditData,
@@ -45,6 +48,8 @@ export function NodeDataPanel({
   const dirty = name !== node.name || state !== node.state;
   const graph = node.graphData?.graphPosition;
   const geo = node.graphData?.geographicalPosition;
+  const spec = specForType(node.type.nodeType);
+  const showDetail = detail && detail.id === node.id;
 
   return (
     <div className="flex flex-col gap-4 p-4">
@@ -111,6 +116,30 @@ export function NodeDataPanel({
           {node.id.slice(0, 8)}…
         </dd>
       </dl>
+
+      {showDetail && (
+        <div className="border-t border-ink-100 pt-3">
+          <span className="text-xs font-semibold uppercase tracking-wide text-ink-400">Data</span>
+          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+            <dt className="text-ink-400">Upkeep cost</dt>
+            <dd className="text-ink-700">{fmt(detail.upkeepCosts)}</dd>
+            <dt className="text-ink-400">Operating cost</dt>
+            <dd className="text-ink-700">{fmt(detail.operatingCosts)}</dd>
+            <dt className="text-ink-400">Lifespan (mo)</dt>
+            <dd className="text-ink-700">{fmt(detail.lifespanInMonths)}</dd>
+            <dt className="text-ink-400">Maint. (days)</dt>
+            <dd className="text-ink-700">{fmt(detail.maintenanceIntervalInDays)}</dd>
+            <dt className="text-ink-400">Waste %</dt>
+            <dd className="text-ink-700">{fmt(detail.wastePercentage)}</dd>
+            {spec?.fields.map((f) => (
+              <Fragment key={f.key}>
+                <dt className="text-ink-400">{f.label}</dt>
+                <dd className="text-ink-700">{fmt(detail.attributes[f.key])}</dd>
+              </Fragment>
+            ))}
+          </dl>
+        </div>
+      )}
 
       <Button variant="secondary" onClick={() => onStartConnect(node.id)}>
         Connect to another node…
