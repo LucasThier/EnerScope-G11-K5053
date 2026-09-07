@@ -40,9 +40,10 @@ public class SimTreatmentPlant extends SimBaseNode{
         toProcess.mix(amountInIntermediateStorage);
 
         if(toProcess.getAmount() >= maxTreatmentCapacity){
-            toDeliver = new ToDeliver(maxTreatmentCapacity,toProcess.getContaminant());
+            float amountToClean = maxTreatmentCapacity - toDeliver.getAmount();
+            toDeliver.mix(new ToDeliver(amountToClean,toProcess.getContaminant()));
             totalDischarged += toDeliver.clean();
-            amountInIntermediateStorage.setAmount(toProcess.getAmount() - maxTreatmentCapacity);
+            amountInIntermediateStorage.setAmount(toProcess.getAmount() - amountToClean);
         } else {
             totalDischarged += toProcess.clean();
             toDeliver = toProcess;

@@ -42,6 +42,24 @@ public class SimWell extends SimBaseNode{
     }
 
     @Override
+    public void simulate(int time){
+        before(time);
+        float producedThisStep = 0;
+        lastSimulatedTime = time;
+        if(active){
+            timeSinceLastMaintenance++;
+            activeAction(time);
+            checkLifeSpan(time);
+            producedThisStep = Math.max(0, getToDeliver().getAmount());
+        } else {
+            inactiveAction(time);
+            producedThisStep = 0;
+        }
+        totalProduced += producedThisStep;
+        totalDeferred += producedThisStep;
+    }
+
+    @Override
     protected void inactiveAction(int time){
         toDeliver =  new ToDeliver(0,0);;
         checkInactivity(time);

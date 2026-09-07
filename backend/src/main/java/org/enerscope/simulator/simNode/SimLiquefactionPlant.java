@@ -1,5 +1,7 @@
 package org.enerscope.simulator.simNode;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.simulator.ResultPerNode;
@@ -8,7 +10,10 @@ import org.enerscope.simulator.ToDeliver;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SimLiquefactionPlant extends SimBaseNode{
+@Getter
+@Setter
+public
+class SimLiquefactionPlant extends SimBaseNode{
     private Float maxProcessingCapacity;
     private Float MTPARatio;
     private Float intermediateStorage;
@@ -42,7 +47,7 @@ public class SimLiquefactionPlant extends SimBaseNode{
     }
 
     @Override
-    protected void activeAction(int time){
+    public void activeAction(int time){
         float amountToTake =  (float) nodesBefore.stream().mapToDouble(simBaseNode ->simBaseNode.getToDeliver().getAmount() ).sum();
         ToDeliver toProcess;
         maxPossibleProduced += maxProcessingCapacity;
@@ -58,19 +63,20 @@ public class SimLiquefactionPlant extends SimBaseNode{
 
         if(toProcess.getAmount() >= maxProcessingCapacity){
             lossCase = maxProcessingCapacity * loss;
-            toDeliver = new ToDeliver(maxProcessingCapacity - lossCase,0);
+            toDeliver = new ToDeliver(maxProcessingCapacity - lossCase,toProcess.getContaminant());
         } else {
             lossCase = toProcess.getAmount() * loss;
-            toDeliver = new ToDeliver(toProcess.getAmount() - lossCase,0);
+            toDeliver = new ToDeliver(toProcess.getAmount() - lossCase,toProcess.getContaminant());
         }
 
-        totalDischarged = toDeliver.clean();
+        totalDischarged += toDeliver.clean() ;
+        totalDischarged += lossCase;
         toDeliver.setAmount(toDeliver.getAmount() * MTPARatio /100);
 
         if((amountInIntermediateStorage.getAmount() + toDeliver.getAmount()) > intermediateStorage){
             amountInIntermediateStorage.setAmount(intermediateStorage);
         } else {
-            amountInIntermediateStorage = toDeliver;
+            amountInIntermediateStorage.mix(toDeliver);
         }
     }
 

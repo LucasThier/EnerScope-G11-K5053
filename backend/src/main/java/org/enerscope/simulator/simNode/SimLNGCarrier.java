@@ -40,7 +40,7 @@ public class SimLNGCarrier extends SimBaseNode{
                 break;
             }
             case OverLifeSpan:{
-                if(lifespanInMonths <= time / (24*30)){
+                if(lifespanInMonths >= time / (24*30)){
                     if(timeOfInactivity >=  timeToDestination + exportFrequency){
                         active = true;
                         amountInTank = 0;
@@ -64,6 +64,8 @@ public class SimLNGCarrier extends SimBaseNode{
                 flagOfInactivity = OverLifeSpan;
                 simSeaportTerminal.restBoat();
                 isInPort = false;
+                active = false;
+                timeStartOfInactivity = time;
             } else {
                 maxPossibleProduced += amountToTake;
                 float amountAvailable = simSeaportTerminal.getToDeliver().getAmount();

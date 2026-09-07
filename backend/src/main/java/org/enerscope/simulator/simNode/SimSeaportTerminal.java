@@ -1,5 +1,7 @@
 package org.enerscope.simulator.simNode;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.simulator.ResultPerNode;
 import org.enerscope.simulator.ToDeliver;
@@ -7,7 +9,10 @@ import org.enerscope.simulator.ToDeliver;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SimSeaportTerminal extends SimBaseNode{
+@Getter
+@Setter
+public
+class SimSeaportTerminal extends SimBaseNode{
     private float intermediateStorage;
     private int shipCapacity;
     private ToDeliver amountInIntermediateStorage;
@@ -31,15 +36,13 @@ public class SimSeaportTerminal extends SimBaseNode{
 
         float capacity = intermediateStorage - amountInIntermediateStorage.getAmount();
 
-        maxPossibleProduced += capacity;
+        maxPossibleProduced += intermediateStorage;
 
         if(amountToTake >= capacity){
             toProcess = takeEqualAmounts(simLiquefactionPlants,capacity);
         } else {
             toProcess = calculateAndTakeAll(simLiquefactionPlants);
         }
-
-        totalProduced += toProcess.getAmount();
 
         amountInIntermediateStorage.setAmount(amountInIntermediateStorage.getAmount() + toProcess.getAmount());
     }

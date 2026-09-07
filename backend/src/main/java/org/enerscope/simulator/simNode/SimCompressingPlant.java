@@ -18,12 +18,15 @@ public class SimCompressingPlant extends SimBaseNode{
 
     private List<SimBaseNode> nodesBefore;
 
+    private float totalLost;
+
     public SimCompressingPlant(CompressingPlant compressingPlant){
         super(compressingPlant);
         this.maxCompressionCapacity = compressingPlant.getMaxCompressionCapacity();
         this.processWaste = compressingPlant.getProcessWaste();
         this.gasConsumption = compressingPlant.getGasConsumption();
         nodesBefore = new ArrayList<>();
+        totalLost = 0;
     }
     @Override
     protected void activeAction(int time){
@@ -38,12 +41,17 @@ public class SimCompressingPlant extends SimBaseNode{
         }
 
         float loss = ( processWaste + gasConsumption ) /100;
+        float lost;
 
         if(toProcess.getAmount() >= maxCompressionCapacity){
-            toDeliver = new ToDeliver(maxCompressionCapacity * (1 - loss),toProcess.getContaminant());
+            lost = maxCompressionCapacity * (loss);
+            toDeliver = new ToDeliver(maxCompressionCapacity  - lost,toProcess.getContaminant());
         } else {
-            toDeliver = new ToDeliver(toProcess.getAmount() * (1 - loss),0);
+            lost = toProcess.getAmount() * (loss);
+            toDeliver = new ToDeliver(toProcess.getAmount()  - lost,toProcess.getContaminant());
         }
+
+        totalLost += lost;
     }
     @Override
     public boolean readyToBeProcessed(int time) {
@@ -57,6 +65,8 @@ public class SimCompressingPlant extends SimBaseNode{
 
     @Override
     public ResultPerNode createResult() {
-        return new ResultPerNode(this.id,CompressingPlant.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
+        ResultPerNode result = new ResultPerNode(this.id, CompressingPlant.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
+        result.setExtra(totalLost);
+        return result;
     }
 }

@@ -14,12 +14,14 @@ public class SimGatheringNetwork extends SimBaseNode{
     private float maxTransportCapacity;
     private float loss;
     private List<SimWell> simWells;
+    private float totalLoss;
 
     public SimGatheringNetwork(GatheringNetwork gatheringNetwork){
         super(gatheringNetwork);
         this.maxTransportCapacity = gatheringNetwork.getMaxTransportCapacity();
         this.loss = gatheringNetwork.getLength() * gatheringNetwork.getLossPerMeter();
         simWells = new ArrayList<>();
+        totalLoss = 0;
     }
 
     @Override
@@ -34,6 +36,11 @@ public class SimGatheringNetwork extends SimBaseNode{
         } else {
             toDeliver.mix(calculateAndTakeAll(simWells));
         }
+
+        float lost = toDeliver.getAmount() * loss /100;
+        totalLoss += lost;
+        toDeliver.setAmount(toDeliver.getAmount() - lost);
+
     }
 
     @Override
@@ -43,6 +50,8 @@ public class SimGatheringNetwork extends SimBaseNode{
 
     @Override
     public ResultPerNode createResult() {
-        return new ResultPerNode(this.id, GatheringNetwork.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
+        ResultPerNode resultPerNode = new ResultPerNode(this.id, GatheringNetwork.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
+        resultPerNode.setExtra(totalLoss);
+        return resultPerNode;
     }
 }

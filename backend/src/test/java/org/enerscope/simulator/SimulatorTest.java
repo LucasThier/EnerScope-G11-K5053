@@ -134,7 +134,7 @@ public class SimulatorTest {
 
         network.simulate(0);
 
-        assertEquals(1000f, network.getToDeliver().getAmount());
+        assertEquals(999f, network.getToDeliver().getAmount());
     }
 
     @Test
