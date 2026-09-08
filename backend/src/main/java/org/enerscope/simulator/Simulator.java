@@ -3,7 +3,6 @@ package org.enerscope.simulator;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.BaseNode;
-import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.extraction.GatheringNetwork;
@@ -14,6 +13,7 @@ import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
 import org.enerscope.simulator.simNode.*;
+import org.enerscope.version.model.Version;
 
 import java.util.*;
 
@@ -29,9 +29,10 @@ public class Simulator {
     private List<SimSeaportTerminal> simSeaportTerminals;
     private List<SimLNGCarrier> simLNGCarriers;
 
+    private Version version;
     private Result result;
 
-    Simulator(List<BaseNode> baseNodes, List<NodeConnection> nodeConnections){
+    Simulator(Version version){
         simWells = new ArrayList<>();
         simGatheringNetworks = new ArrayList<>();
         simTreatmentPlants = new ArrayList<>();
@@ -39,17 +40,18 @@ public class Simulator {
         simLiquefactionPlants = new ArrayList<>();
         simSeaportTerminals = new ArrayList<>();
         simLNGCarriers = new ArrayList<>();
+        this.version = version;
 
         Map<UUID, SimBaseNode> simNodesById = new HashMap<>();
 
-        baseNodes.forEach(baseNode -> {
+        version.getNodeSnapshot().forEach(baseNode -> {
             SimBaseNode simNode = transformNode(baseNode);
             if (simNode != null) {
                 simNodesById.put(baseNode.getId(), simNode);
             }
         });
 
-        nodeConnections.forEach(connection -> {
+        version.getConnectionSnapshot().forEach(connection -> {
             SimBaseNode fromNode = simNodesById.get(connection.getFromNodeId());
             SimBaseNode toNode = simNodesById.get(connection.getToNodeId());
 
@@ -90,6 +92,8 @@ public class Simulator {
             simLNGCarriers.forEach(simLNGCarrier -> simLNGCarrier.simulate(exactTime));
         }
         createResult(time);
+
+        version.addResult(result);
     }
 
     private void createResult(int time) {

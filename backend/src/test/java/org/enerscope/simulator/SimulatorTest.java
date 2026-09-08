@@ -12,6 +12,7 @@ import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
 import org.enerscope.simulator.simNode.*;
+import org.enerscope.version.model.Version;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -20,6 +21,7 @@ import org.mockito.Mockito;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SimulatorTest {
@@ -46,14 +48,14 @@ public class SimulatorTest {
         idSt = UUID.randomUUID();
         idCarrier = UUID.randomUUID();
 
-        mockWell = Mockito.mock(Well.class);
-        mockGatheringNetwork = Mockito.mock(GatheringNetwork.class);
-        mockTreatmentPlant = Mockito.mock(TreatmentPlant.class);
-        mockPipeline = Mockito.mock(Pipeline.class);
-        mockCompressingPlant = Mockito.mock(CompressingPlant.class);
-        mockLiquefactionPlant = Mockito.mock(GroundBasedLiquefactionPlant.class);
-        mockSeaportTerminal = Mockito.mock(SeaportTerminal.class);
-        mockCarrier = Mockito.mock(LNGCarrier.class);
+        mockWell = mock(Well.class);
+        mockGatheringNetwork = mock(GatheringNetwork.class);
+        mockTreatmentPlant = mock(TreatmentPlant.class);
+        mockPipeline = mock(Pipeline.class);
+        mockCompressingPlant = mock(CompressingPlant.class);
+        mockLiquefactionPlant = mock(GroundBasedLiquefactionPlant.class);
+        mockSeaportTerminal = mock(SeaportTerminal.class);
+        mockCarrier = mock(LNGCarrier.class);
 
         configurarBaseNode(mockWell, idWell);
         configurarBaseNode(mockGatheringNetwork, idGn);
@@ -104,7 +106,7 @@ public class SimulatorTest {
     }
 
     private NodeConnection crearConexionMock(UUID from, UUID to) {
-        NodeConnection connection = Mockito.mock(NodeConnection.class);
+        NodeConnection connection = mock(NodeConnection.class);
         when(connection.getFromNodeId()).thenReturn(from);
         when(connection.getToNodeId()).thenReturn(to);
         return connection;
@@ -247,7 +249,11 @@ public class SimulatorTest {
         connections.add(crearConexionMock(idLp, idSt));
         connections.add(crearConexionMock(idSt, idCarrier));
 
-        Simulator simulator = new Simulator(baseNodes, connections);
+        Version mockVersion = mock(Version.class);
+        when(mockVersion.getNodeSnapshot()).thenReturn(baseNodes);
+        when(mockVersion.getConnectionSnapshot()).thenReturn(connections);
+
+        Simulator simulator = new Simulator(mockVersion);
 
         long startTime = System.currentTimeMillis();
 
@@ -263,7 +269,7 @@ public class SimulatorTest {
     }
 
     private Well crearMockWell(UUID id) {
-        Well mock = Mockito.mock(Well.class);
+        Well mock = mock(Well.class);
         configurarBaseNode(mock, id);
         when(mock.getMaxCollectionCapacity()).thenReturn(1000f);
         when(mock.getDeclineCurve()).thenReturn(5f);
@@ -272,7 +278,7 @@ public class SimulatorTest {
     }
 
     private GatheringNetwork crearMockGatheringNetwork(UUID id) {
-        GatheringNetwork mock = Mockito.mock(GatheringNetwork.class);
+        GatheringNetwork mock = mock(GatheringNetwork.class);
         configurarBaseNode(mock, id);
         when(mock.getMaxTransportCapacity()).thenReturn(5000f);
         when(mock.getLength()).thenReturn(10f);
@@ -281,7 +287,7 @@ public class SimulatorTest {
     }
 
     private TreatmentPlant crearMockTreatmentPlant(UUID id) {
-        TreatmentPlant mock = Mockito.mock(TreatmentPlant.class);
+        TreatmentPlant mock = mock(TreatmentPlant.class);
         configurarBaseNode(mock, id);
         when(mock.getMaxTreatmentCapacity()).thenReturn(3000f);
         when(mock.getIntermediateStorage()).thenReturn(500f);
@@ -289,7 +295,7 @@ public class SimulatorTest {
     }
 
     private Pipeline crearMockPipeline(UUID id) {
-        Pipeline mock = Mockito.mock(Pipeline.class);
+        Pipeline mock = mock(Pipeline.class);
         configurarBaseNode(mock, id);
         when(mock.getMaxFlowCapacity()).thenReturn(6000f);
         when(mock.getLength()).thenReturn(100f);
@@ -298,7 +304,7 @@ public class SimulatorTest {
     }
 
     private CompressingPlant crearMockCompressingPlant(UUID id) {
-        CompressingPlant mock = Mockito.mock(CompressingPlant.class);
+        CompressingPlant mock = mock(CompressingPlant.class);
         configurarBaseNode(mock, id);
         when(mock.getMaxCompressionCapacity()).thenReturn(5000f);
         when(mock.getProcessWaste()).thenReturn(2f);
@@ -307,7 +313,7 @@ public class SimulatorTest {
     }
 
     private GroundBasedLiquefactionPlant crearMockLiquefactionPlant(UUID id) {
-        GroundBasedLiquefactionPlant mock = Mockito.mock(GroundBasedLiquefactionPlant.class);
+        GroundBasedLiquefactionPlant mock = mock(GroundBasedLiquefactionPlant.class);
         configurarBaseNode(mock, id);
         when(mock.getMaxProcessingCapacity()).thenReturn(3000f);
         when(mock.getGasConsumption()).thenReturn(10f);
@@ -317,7 +323,7 @@ public class SimulatorTest {
     }
 
     private SeaportTerminal crearMockSeaportTerminal(UUID id) {
-        SeaportTerminal mock = Mockito.mock(SeaportTerminal.class);
+        SeaportTerminal mock = mock(SeaportTerminal.class);
         configurarBaseNode(mock, id);
         when(mock.getIntermediateStorage()).thenReturn(50000f);
         when(mock.getShipCapacity()).thenReturn(2);
@@ -325,7 +331,7 @@ public class SimulatorTest {
     }
 
     private LNGCarrier crearMockCarrier(UUID id) {
-        LNGCarrier mock = Mockito.mock(LNGCarrier.class);
+        LNGCarrier mock = mock(LNGCarrier.class);
         configurarBaseNode(mock, id);
         when(mock.getShipCapacity()).thenReturn(1000f);
         when(mock.getFullLoadTime()).thenReturn(24f);
@@ -393,7 +399,11 @@ public class SimulatorTest {
         }
 
         // 3. Ejecutamos la simulación
-        Simulator simulator = new Simulator(baseNodes, connections);
+        Version mockVersion = mock(Version.class);
+        when(mockVersion.getNodeSnapshot()).thenReturn(baseNodes);
+        when(mockVersion.getConnectionSnapshot()).thenReturn(connections);
+
+        Simulator simulator = new Simulator(mockVersion);
 
         long startTime = System.currentTimeMillis();
         int anosASimular = 10;
@@ -419,56 +429,56 @@ public class SimulatorTest {
         UUID carrierId = UUID.randomUUID();
 
         // 2. Instanciar y configurar Mocks de BaseNode
-        Well mockWell = Mockito.mock(Well.class);
+        Well mockWell = mock(Well.class);
         setupBaseNodeMocks(mockWell, wellId);
         when(mockWell.getMaxCollectionCapacity()).thenReturn(100f);
         when(mockWell.getDeclineCurve()).thenReturn(2f);
         when(mockWell.getGasRichness()).thenReturn(1f);
         when(mockWell.getDTMTime()).thenReturn(24);
 
-        GatheringNetwork mockGathering = Mockito.mock(GatheringNetwork.class);
+        GatheringNetwork mockGathering = mock(GatheringNetwork.class);
         setupBaseNodeMocks(mockGathering, gatheringId);
         when(mockGathering.getMaxTransportCapacity()).thenReturn(150f);
         when(mockGathering.getLength()).thenReturn(5f);
         when(mockGathering.getLossPerMeter()).thenReturn(0.01f);
 
-        TreatmentPlant mockTreatment = Mockito.mock(TreatmentPlant.class);
+        TreatmentPlant mockTreatment = mock(TreatmentPlant.class);
         setupBaseNodeMocks(mockTreatment, treatmentId);
         when(mockTreatment.getMaxTreatmentCapacity()).thenReturn(120f);
         when(mockTreatment.getIntermediateStorage()).thenReturn(500f);
 
-        Pipeline mockPipeline = Mockito.mock(Pipeline.class);
+        Pipeline mockPipeline = mock(Pipeline.class);
         setupBaseNodeMocks(mockPipeline, pipelineId);
         when(mockPipeline.getMaxFlowCapacity()).thenReturn(110f);
         when(mockPipeline.getLength()).thenReturn(12f);
         when(mockPipeline.getLossPerKm()).thenReturn(0.05f);
 
-        CompressingPlant mockCompression = Mockito.mock(CompressingPlant.class);
+        CompressingPlant mockCompression = mock(CompressingPlant.class);
         setupBaseNodeMocks(mockCompression, compressionId);
         when(mockCompression.getMaxCompressionCapacity()).thenReturn(100f);
         when(mockCompression.getProcessWaste()).thenReturn(1f);
         when(mockCompression.getGasConsumption()).thenReturn(2f);
 
-        GroundBasedLiquefactionPlant mockGroundLiquefaction = Mockito.mock(GroundBasedLiquefactionPlant.class);
+        GroundBasedLiquefactionPlant mockGroundLiquefaction = mock(GroundBasedLiquefactionPlant.class);
         setupBaseNodeMocks(mockGroundLiquefaction, groundLiquefactionId);
         when(mockGroundLiquefaction.getMaxProcessingCapacity()).thenReturn(90f);
         when(mockGroundLiquefaction.getMTPARatio()).thenReturn(80f);
         when(mockGroundLiquefaction.getIntermediateStorage()).thenReturn(300f);
         when(mockGroundLiquefaction.getGasConsumption()).thenReturn(1.5f);
 
-        FLNGUnit mockFLNGLiquefaction = Mockito.mock(FLNGUnit.class);
+        FLNGUnit mockFLNGLiquefaction = mock(FLNGUnit.class);
         setupBaseNodeMocks(mockFLNGLiquefaction, flngLiquefactionId);
         when(mockFLNGLiquefaction.getMaxProcessingCapacity()).thenReturn(80f);
         when(mockFLNGLiquefaction.getMTPARatio()).thenReturn(85f);
         when(mockFLNGLiquefaction.getIntermediateStorage()).thenReturn(250f);
         when(mockFLNGLiquefaction.getGasConsumption()).thenReturn(1.2f);
 
-        SeaportTerminal mockTerminal = Mockito.mock(SeaportTerminal.class);
+        SeaportTerminal mockTerminal = mock(SeaportTerminal.class);
         setupBaseNodeMocks(mockTerminal, terminalId);
         when(mockTerminal.getIntermediateStorage()).thenReturn(1000f);
         when(mockTerminal.getShipCapacity()).thenReturn(2);
 
-        LNGCarrier mockCarrier = Mockito.mock(LNGCarrier.class);
+        LNGCarrier mockCarrier = mock(LNGCarrier.class);
         setupBaseNodeMocks(mockCarrier, carrierId);
         when(mockCarrier.getExportFrequency()).thenReturn(7);
         when(mockCarrier.getShipCapacity()).thenReturn(500f);
@@ -495,7 +505,11 @@ public class SimulatorTest {
         );
 
         // 4. Inicializar Simulador y ejecutar 5 años
-        Simulator simulator = new Simulator(nodes, connections);
+        Version mockVersion = mock(Version.class);
+        when(mockVersion.getNodeSnapshot()).thenReturn(nodes);
+        when(mockVersion.getConnectionSnapshot()).thenReturn(connections);
+
+        Simulator simulator = new Simulator(mockVersion);
         simulator.simulate(5);
 
         // 5. Validar Resultados
@@ -542,7 +556,7 @@ public class SimulatorTest {
     }
 
     private NodeConnection createConnection(UUID fromId, UUID toId) {
-        NodeConnection connection = Mockito.mock(NodeConnection.class);
+        NodeConnection connection = mock(NodeConnection.class);
         when(connection.getFromNodeId()).thenReturn(fromId);
         when(connection.getToNodeId()).thenReturn(toId);
         return connection;
@@ -551,7 +565,7 @@ public class SimulatorTest {
     @Test
     public void testSimWellProductionAndDecline() {
         UUID wellId = UUID.randomUUID();
-        Well mockWell = Mockito.mock(Well.class);
+        Well mockWell = mock(Well.class);
         when(mockWell.getId()).thenReturn(wellId);
         when(mockWell.getMaxCollectionCapacity()).thenReturn(100f);
         when(mockWell.getDeclineCurve()).thenReturn(10f); // 10% de declive por año
