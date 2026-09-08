@@ -1,1 +1,50 @@
 @import "tailwindcss";
+
+/*
+ * EnerScope design tokens — derived from the logo (cream background, charcoal
+ * "ES" monogram/wordmark, a bright green node link and a deep forest-green
+ * swoosh). Declaring them under Tailwind v4's `@theme` auto-generates the
+ * matching utilities (e.g. `bg-brand-500`, `text-ink-700`, `bg-cream`), so the
+ * whole app themes from here. Reuse these instead of raw hex or neutral-*.
+ */
+@theme {
+  /* Brand green — primary actions, highlights, the logo nodes. */
+  --color-brand-50: #eef8e7;
+  --color-brand-100: #d6efc6;
+  --color-brand-200: #bce5a2;
+  --color-brand-300: #9fd97b;
+  --color-brand-400: #83cd58;
+  --color-brand-500: #6dbe45; /* primary */
+  --color-brand-600: #55a238;
+  --color-brand-700: #3f8130; /* deep forest-green swoosh */
+  --color-brand-800: #326626;
+  --color-brand-900: #274f1f;
+
+  /* Ink — charcoal used for the monogram, wordmark and body text. */
+  --color-ink-50: #f5f6f7;
+  --color-ink-100: #e6e8ea;
+  --color-ink-200: #c8ccd1;
+  --color-ink-300: #a3a9b1;
+  --color-ink-400: #6f767f;
+  --color-ink-500: #4b515a;
+  --color-ink-600: #363b43;
+  --color-ink-700: #2c2f36; /* wordmark / outlines */
+  --color-ink-800: #23262b;
+  --color-ink-900: #191b1f;
+
+  /* Cream — the logo's warm background surface. */
+  --color-cream: #f5f1e6;
+  --color-cream-dark: #ece6d5;
+}
+
+/* Base page surface. Kept minimal — everything else is Tailwind utilities. */
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-ink-700);
+}

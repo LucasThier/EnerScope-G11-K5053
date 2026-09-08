@@ -1,4 +1,4 @@
-package org.enerscope.user.dto;
+package org.enerscope.organization.dto;
 
 /**
  * A single row from a bulk-registration file that could not be registered,

@@ -3,6 +3,7 @@ package org.enerscope.common;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
@@ -43,6 +44,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnauthorized(UnauthorizedException ex) {
         return Responses.unauthorized(ex.getMessage());
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ApiResponse<Void>> handleForbidden(ForbiddenException ex) {
+        return Responses.forbidden(ex.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -95,9 +101,24 @@ public class GlobalExceptionHandler {
         return Responses.badRequest("Malformed request body");
     }
 
+    @ExceptionHandler(VersionNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleVersionNotFound(VersionNotFoundException ex) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEntityNotFound(EntityNotFoundException ex) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleAny(Exception ex) {
         logger.error("Unhandled internal error", ex);
         return Responses.serverError("Internal error");
     }
+
 }

@@ -164,6 +164,7 @@ CREATE TABLE  well (
     gas_richness               REAL,
     dtm_time                  INTEGER,
     DTMCost                   NUMERIC(19,2)              NOT NULL,
+    surface                     REAL,
 
     PRIMARY KEY (id),
     CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
@@ -174,7 +175,6 @@ CREATE TABLE  treatment_plant (
     id                        UUID                     NOT NULL ,
     -- Specific fields
     max_treatment_capacity    REAL,
-    contaminant_waste         REAL,
     intermediate_storage      REAL,
     treatment_cost             NUMERIC(19,2)              NOT NULL,
 
@@ -236,40 +236,8 @@ CREATE TABLE  node_connection (
     identity_id               UUID                     NOT NULL,
 
     PRIMARY KEY (id),
-    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
+    CONSTRAINT fk_cp_from_node FOREIGN KEY (from_node_id) REFERENCES base_node(id),
+    CONSTRAINT fk_cp_to_node FOREIGN KEY (to_node_id) REFERENCES base_node(id)
 );
 
 
-CREATE TABLE  node_change (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Specific fields for CompressingPlant
-    changeType                VARCHAR(320)             NOT NULL,
-    -- Foreign keys (NOT NULL as per entity mappings)
-    changed_node              UUID                     NOT NULL,
-    result_node               UUID                     NOT NULL,
-    PRIMARY KEY (id),
-    -- Foreign key constraints
-    CONSTRAINT fk_nc_changed_node FOREIGN KEY (changed_node) REFERENCES base_node(id),  
-    CONSTRAINT fk_nc_result_node FOREIGN KEY (result_node) REFERENCES base_node(id) 
-    );
-
-CREATE TABLE  connection_change (
-    id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
-    -- Inherited from BaseEntity
-    active                    BOOLEAN                  NOT NULL    DEFAULT TRUE,
-    created_at                TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_modified             TIMESTAMP WITH TIME ZONE NOT NULL,
-    -- Specific fields for CompressingPlant
-    changeType                VARCHAR(320)             NOT NULL,
-    -- Foreign keys (NOT NULL as per entity mappings)
-    changed_connection              UUID                     NOT NULL,
-    result_connection               UUID                     NOT NULL,
-    PRIMARY KEY (id),
-    -- Foreign key constraints
-    CONSTRAINT fk_cc_changed_connection FOREIGN KEY (changed_connection) REFERENCES node_connection(id),  
-    CONSTRAINT fk_cc_result_connection FOREIGN KEY (result_connection) REFERENCES node_connection(id)
-    );

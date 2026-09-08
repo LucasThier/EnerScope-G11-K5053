@@ -13,6 +13,7 @@ import java.time.Period;
 import org.enerscope.common.BaseEntity;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.enums.NodeStateEnum;
+import org.springframework.context.annotation.Lazy;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -24,6 +25,7 @@ import java.util.UUID;
 @Setter
 @Inheritance(strategy = InheritanceType.JOINED)
 @Entity
+@Lazy
 public abstract class BaseNode extends BaseEntity {
 
     @Column(nullable = false, length = 320)
@@ -135,19 +137,20 @@ public abstract class BaseNode extends BaseEntity {
             System.out.println("Catched error: " + e.getMessage() + "in CalculatedInvestmentCost");
             investment = MoneyAmount.of(0);
         }
-         try {
-             operational = CalculateOperatingCost();
-         } catch (RuntimeException e) {
-             System.out.println("Catched error: " + e.getMessage() + "in CalculatedOperationalCost");
-             operational = MoneyAmount.of(0);
-         }try {
-             upkeep = CalculateUpkeepCost();
-         } catch (RuntimeException e) {
-             System.out.println("Catched error: " + e.getMessage() + "in CalculatedUpkeepCost");
-             upkeep = MoneyAmount.of(0);
-         }
-         return investment.add(operational).add(upkeep); 
-     }
+        try {
+            operational = CalculateOperatingCost();
+        } catch (RuntimeException e) {
+            System.out.println("Catched error: " + e.getMessage() + "in CalculatedOperationalCost");
+            operational = MoneyAmount.of(0);
+        }
+        try {
+            upkeep = CalculateUpkeepCost();
+        } catch (RuntimeException e) {
+            System.out.println("Catched error: " + e.getMessage() + "in CalculatedUpkeepCost");
+            upkeep = MoneyAmount.of(0);
+        }
+        return investment.add(operational).add(upkeep);
+    }
 
     protected BaseNode(String name, NodeStateEnum state, Instant startupDate, int lifespanInMonths, MoneyAmount upkeepCosts,
                        int maintenanceIntervalInDays, MoneyAmount operatingCosts, float wastePercentage, NodeTypeData type,

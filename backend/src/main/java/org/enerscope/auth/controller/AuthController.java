@@ -9,6 +9,7 @@ import org.enerscope.auth.dto.RefreshRequestDTO;
 import org.enerscope.auth.dto.RegisterRequestDTO;
 import org.enerscope.session.model.Session;
 import org.enerscope.session.service.SessionService;
+import org.enerscope.user.dto.UserSummaryDTO;
 import org.enerscope.user.model.User;
 import org.enerscope.user.repository.UserRepository;
 import org.enerscope.user.service.UserService;
@@ -43,28 +44,17 @@ public class AuthController {
     @Operation(summary = "Authenticate with email and password")
     public ResponseEntity<ApiResponse<NewSessionDTO>> login(@Valid @RequestBody LoginRequestDTO body) {
         User user = userService.login(body.mail(), body.password());
-        Session session = sessionService.create(user);
-        String refresh = sessionService.generateRefreshToken(user);
-
-        return Responses.ok("Authenticated", new NewSessionDTO(
-                session.getToken(),
-                refresh,
-                session.getExpiresAt()
-        ));
+        return Responses.ok("Authenticated", newSession(user));
     }
 
     @PostMapping("/register")
-    @Operation(summary = "Create a new account and start a session")
-    public ResponseEntity<ApiResponse<NewSessionDTO>> register(@Valid @RequestBody RegisterRequestDTO body) {
+    @Operation(summary = "Create a new account (platform administrators only)",
+            description = "Registration is not self-service: only an authenticated platform ADMIN "
+                    + "can create accounts. The new user is created but no session is started for "
+                    + "them; they log in afterwards with the credentials the admin shares.")
+    public ResponseEntity<ApiResponse<UserSummaryDTO>> register(@Valid @RequestBody RegisterRequestDTO body) {
         User user = userService.register(body);
-        Session session = sessionService.create(user);
-        String refresh = sessionService.generateRefreshToken(user);
-
-        return Responses.created("Registered", new NewSessionDTO(
-                session.getToken(),
-                refresh,
-                session.getExpiresAt()
-        ));
+        return Responses.created("User registered", UserSummaryDTO.from(user));
     }
 
     @PostMapping("/refresh")
@@ -80,14 +70,7 @@ public class AuthController {
             return ResponseEntity.status(401).body(ApiResponse.error("User not found"));
         }
 
-        Session newSession = sessionService.create(user);
-        String newRefresh = sessionService.generateRefreshToken(user);
-
-        return Responses.ok("Session renewed", new NewSessionDTO(
-                newSession.getToken(),
-                newRefresh,
-                newSession.getExpiresAt()
-        ));
+        return Responses.ok("Session renewed", newSession(user));
     }
 
     @PostMapping("/logout")
@@ -95,5 +78,15 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> logout() {
         // JWT is stateless: the client removes the tokens from LocalStorage.
         return Responses.ok("Session closed");
+    }
+
+    private NewSessionDTO newSession(User user) {
+        Session session = sessionService.create(user);
+        String refresh = sessionService.generateRefreshToken(user);
+        return new NewSessionDTO(
+                session.getToken(),
+                refresh,
+                session.getExpiresAt(),
+                UserSummaryDTO.from(user));
     }
 }

@@ -27,7 +27,7 @@ session management** (JWT based). Domain features are added on top of this base.
 ```
 EnerScope/
 ├─ backend/     Spring Boot API (auth, users, sessions, health)
-├─ frontend/    React + Vite client (minimal shell + API/session layer)
+├─ frontend/    React + Vite client (auth portal: login/panels + API/session layer)
 ├─ docs/        Architecture and technical documentation
 └─ README.md    This file
 ```
@@ -55,7 +55,10 @@ npm run dev
 - Health: http://localhost:8080/api/v1/health
 
 A default administrator is seeded on first boot: `admin@enerscope.org`
-(password configurable via `ADMIN_PASSWORD`, default `admin12345`).
+(password configurable via `ADMIN_PASSWORD`, default `admin12345`). It has the
+platform **`ADMIN`** role — registration is not self-service, so this account is
+the one that creates the first users (see [backend/README.md](backend/README.md)
+→ Roles).
 
 ## Documentation
 

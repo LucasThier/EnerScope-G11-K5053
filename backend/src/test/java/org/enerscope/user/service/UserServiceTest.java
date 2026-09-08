@@ -3,6 +3,7 @@ package org.enerscope.user.service;
 import org.enerscope.auth.dto.RegisterRequestDTO;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.user.model.User;
+import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,7 @@ class UserServiceTest {
 
     @Test
     void registerHashesPasswordAndPersists() {
-        RegisterRequestDTO dto = new RegisterRequestDTO("New@Enerscope.org", "New", "User", "password123");
+        RegisterRequestDTO dto = new RegisterRequestDTO("New@Enerscope.org", "New", "User", "password123", null);
         when(userRepository.existsByMailIgnoreCase("New@Enerscope.org")).thenReturn(false);
         when(encoder.encode("password123")).thenReturn("hashed");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -53,8 +54,32 @@ class UserServiceTest {
     }
 
     @Test
+    void registerDefaultsToUserRoleWhenRoleOmitted() {
+        RegisterRequestDTO dto = new RegisterRequestDTO("new@enerscope.org", "New", "User", "password123", null);
+        when(userRepository.existsByMailIgnoreCase("new@enerscope.org")).thenReturn(false);
+        when(encoder.encode("password123")).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.register(dto);
+
+        assertEquals(PlatformRole.USER, saved.getPlatformRole());
+    }
+
+    @Test
+    void registerHonorsExplicitAdminRole() {
+        RegisterRequestDTO dto = new RegisterRequestDTO("boss@enerscope.org", "Boss", "User", "password123", PlatformRole.ADMIN);
+        when(userRepository.existsByMailIgnoreCase("boss@enerscope.org")).thenReturn(false);
+        when(encoder.encode("password123")).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.register(dto);
+
+        assertEquals(PlatformRole.ADMIN, saved.getPlatformRole());
+    }
+
+    @Test
     void registerRejectsDuplicateMail() {
-        RegisterRequestDTO dto = new RegisterRequestDTO("dup@enerscope.org", "Dup", "User", "password123");
+        RegisterRequestDTO dto = new RegisterRequestDTO("dup@enerscope.org", "Dup", "User", "password123", null);
         when(userRepository.existsByMailIgnoreCase("dup@enerscope.org")).thenReturn(true);
 
         assertThrows(IllegalArgumentException.class, () -> userService.register(dto));
