@@ -134,7 +134,7 @@ export function RegisterForm({
       )}
 
       {allowRoleSelection && !organizationId && (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <label htmlFor={roleSelectId} className="text-sm font-medium text-ink-600">
             Platform role
           </label>
@@ -142,7 +142,7 @@ export function RegisterForm({
             id={roleSelectId}
             value={role}
             onChange={(e) => setRole(e.target.value as PlatformRole)}
-            className="rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+            className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
           >
             <option value="USER">User</option>
             <option value="ADMIN">Admin</option>

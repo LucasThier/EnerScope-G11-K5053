@@ -16,7 +16,7 @@ interface OrganizationPickerProps {
 }
 
 const selectClasses =
-  'rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-800 ' +
+  'rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800 ' +
   'focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
 
 /**
@@ -55,9 +55,9 @@ export function OrganizationPicker({
   }
 
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
+    <div className={`flex flex-col gap-2 ${className}`}>
       <label htmlFor={selectId} className="text-sm font-medium text-ink-600">
-        Organization <span className="font-normal text-ink-400">(optional)</span>
+        Organization <span className="font-normal text-ink-500">(optional)</span>
       </label>
 
       {creating ? (

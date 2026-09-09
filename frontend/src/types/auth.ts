@@ -34,6 +34,8 @@ export interface UserSummary {
   firstName: string;
   lastName: string;
   platformRole: PlatformRole;
+  /** Free-form job title; null for accounts created without one. */
+  jobTitle: string | null;
 }
 
 export interface NewSessionResponse {
@@ -53,6 +55,10 @@ export interface OrganizationMemberSummary {
   id: string;
   userId: string;
   userMail: string;
+  firstName: string;
+  lastName: string;
+  jobTitle: string | null;
+  active: boolean;
   memberType: string;
   permissions: string[];
 }

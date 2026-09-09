@@ -25,21 +25,30 @@ Run everything with `cd backend && mvn test`.
 | Test class | Type | Cases |
 | --- | --- | --- |
 | `ApplicationContextTest` | Integration | 1 |
-| `auth.controller.AuthControllerTest` | Web | 13 |
+| `auth.controller.AuthControllerTest` | Web | 14 |
 | `common.CsvUtilTest` | Unit | 5 |
 | `jwt.JwtServiceTest` | Unit | 5 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 |
 | `money.MoneyAmountTest` | Unit | 6 |
-| `user.service.UserServiceTest` | Unit | 7 |
+| `user.service.UserServiceTest` | Unit | 9 |
 | `user.service.PasswordGeneratorTest` | Unit | 4 |
-| `organization.service.OrganizationServiceTest` | Unit | 13 |
+| `organization.service.OrganizationServiceTest` | Unit | 18 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 12 |
-| `organization.controller.OrganizationControllerTest` | Web | 11 |
-| `project.service.ProjectServiceTest` | Unit | 7 |
-| `project.controller.ProjectControllerTest` | Web | 5 |
+| `organization.controller.OrganizationControllerTest` | Web | 14 |
+| `project.service.ProjectServiceTest` | Unit | 15 |
+| `project.controller.ProjectControllerTest` | Web | 10 |
 | `version.service.VersionServiceTest` | Unit | 5 |
 | `version.controller.VersionControllerTest` | Web | 3 |
-| **Total** | | **98** |
+| **Total** | | **122** |
+
+> **This catalog is known to be incomplete.** `mvn test` currently reports
+> **146** cases. The 24-case gap predates this table's last update and is
+> deliberately not reconciled here: the `node.*` and `strategyCost.*` classes
+> were never catalogued, `version.controller.VersionControllerTest` is listed
+> above but no such class exists, and the recorded counts for
+> `version.service.VersionServiceTest` and `money.MoneyAmountTest` have drifted
+> from the real ones. Reconciling the catalog is its own task — see
+> `docs/considerations.md`.
 
 ## `ApplicationContextTest` — Integration
 
@@ -64,6 +73,7 @@ requires an ADMIN bearer token); `SessionService`, `UserService` and
 | `registerRejectsDuplicateEmailWith400` | For an ADMIN caller, when registration throws (duplicate email) → `400`, `success=false`, and the domain error message. |
 | `registerRejectsInvalidBodyWithValidationError` | For an ADMIN caller, invalid email/too-short name/password → `400` `Validation error` with field details; `UserService.register` is never called. |
 | `loginReturnsSessionForValidCredentials` | `POST /auth/login` with valid credentials → `200` `Authenticated` and tokens. |
+| `loginExposesJobTitleInTheUserSummary` | The login response's `data.user.jobTitle` carries the user's job title, so the client needs no extra call. |
 | `loginRejectsBadCredentialsWith400` | Wrong credentials → `400` `Invalid email or password`. |
 | `loginRejectsBlankFieldsWithValidationError` | Blank mail/password → `400` `Validation error`; `UserService.login` is never called. |
 | `refreshIssuesNewSessionForValidToken` | Valid refresh token for an existing user → `200` `Session renewed` with a new refresh token. |
@@ -123,6 +133,8 @@ Registration, login and password logic.
 | --- | --- |
 | `registerHashesPasswordAndPersists` | Registration normalises the email, hashes the password, and persists the user. |
 | `registerDefaultsToUserRoleWhenRoleOmitted` | Registration with no role creates a `USER` platform role. |
+| `registerPersistsJobTitle` | A `jobTitle` in the request is stored on the created user. |
+| `registerLeavesJobTitleNullWhenOmitted` | Omitting `jobTitle` leaves it null rather than blank. |
 | `registerHonorsExplicitAdminRole` | Registration with `role=ADMIN` creates an `ADMIN` platform role. |
 | `registerRejectsDuplicateMail` | A duplicate email throws and neither saves nor hashes. |
 | `loginReturnsUserWhenPasswordMatches` | Login returns the user when the password matches. |
@@ -179,6 +191,11 @@ Organization creation and member addition (with role/permission derivation).
 | `registerUserInOrganizationAllowsOrganizationOwner` | A caller who is an org member with `MANAGE_ORGANIZATION` can register a new user into that organization. |
 | `registerUserInOrganizationRejectsNonOwnerMemberWith403` | A member without `MANAGE_ORGANIZATION` gets `ForbiddenException`; no user is created or saved. |
 | `registerUserInOrganizationRejectsUnauthenticatedCaller` | No authenticated caller → `UnauthorizedException`; no user is created. |
+| `registerUserInOrganizationPropagatesJobTitle` | The request's `jobTitle` reaches `UserService.register` on the built `RegisterRequestDTO`. |
+| `listMembersReturnsMembersForPlatformAdmin` | A platform ADMIN lists the members of any organization. |
+| `listMembersAllowsAnyMemberOfTheOrganization` | A plain member (no `MANAGE_ORGANIZATION`) can still list the members. |
+| `listMembersRejectsNonMemberWith403` | A caller who is not a member gets `ForbiddenException`; the members are never queried. |
+| `listMembersRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException`; the members are never queried. |
 
 ## `organization.controller.OrganizationControllerTest` — Web
 
@@ -190,6 +207,9 @@ every non-`/auth` route); `OrganizationService` and
 | Case | Verifies |
 | --- | --- |
 | `listOrganizationsReturnsList` | `GET /organizations` → `200` with the list of organizations (`data[0].name`). |
+| `listMembersReturnsMembersWithIdentityFields` | `GET /organizations/{id}/members` → `200` with `firstName`, `lastName`, `jobTitle`, `active` and `memberType` per row. |
+| `listMembersRequiresAuthenticationWith401` | Without a Bearer token → `401`; `OrganizationService.listMembers` is never called. |
+| `listMembersPropagatesForbiddenWith403` | When the service throws `ForbiddenException` (caller is not a member) → `403`, `success=false`. |
 | `createOrganizationReturnsCreatedOrganization` | `POST /organizations` with a valid body → `201` and an envelope with `success=true`, message `Organization created`, and the created organization's name. |
 | `createOrganizationRejectsBlankNameWithValidationError` | Blank `name` → `400` `Validation error`; `OrganizationService.createOrganization` is never called. |
 | `addMemberReturnsCreatedMember` | `POST /organizations/{id}/members` with a valid body → `201` with the member's `memberType` and `userMail`. |
@@ -214,6 +234,14 @@ Project creation and member addition (with role/permission derivation).
 | `addMemberRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException` before the user is looked up or anything is saved. |
 | `addMemberRejectsUnknownUser` | An unknown user id throws `IllegalArgumentException`; nothing is saved. |
 | `addMemberRejectsDuplicateMembership` | Adding a user already in the project throws `IllegalArgumentException`; nothing is saved. |
+| `listForCurrentUserReturnsEveryProjectForAdmin` | A platform `ADMIN` gets the unrestricted summary query; the membership query is never used. |
+| `listForCurrentUserReturnsOnlyMembershipsForRegularUser` | A regular user gets only the projects they are a member of; the unrestricted query is never used. |
+| `listForCurrentUserPassesOrganizationFilterThrough` | An `organizationId` is forwarded verbatim to the repository. |
+| `listForCurrentUserRejectsUnauthenticated` | No security context → `UnauthorizedException`. |
+| `saveVersionReturnsVersionLinkedToProject` | The created version is returned, appended to `Project.versions`, and the project is saved. |
+| `saveVersionRejectsNullProjectId` | A null project id throws `IllegalArgumentException`; `VersionService` is never called. |
+| `saveVersionRejectsNullVersionData` | A null `VersionDTO` throws `IllegalArgumentException`; `VersionService` is never called. |
+| `saveVersionRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException`; no version is created and nothing is saved. |
 
 ## `project.controller.ProjectControllerTest` — Web
 
@@ -223,6 +251,11 @@ non-`/auth` route); `ProjectService` is mocked.
 
 | Case | Verifies |
 | --- | --- |
+| `listProjectsReturnsSummaries` | `GET /projects` → `200` with `name`, `organizationName` and `memberCount` per row. |
+| `listProjectsForwardsOrganizationFilter` | `?organizationId=` reaches `ProjectService.listForCurrentUser` unchanged. |
+| `listProjectsRequiresAuthenticationWith401` | Without a Bearer token → `401`; the service is never called. |
+| `createVersionReturnsCreatedVersion` | `POST /projects/{id}/version` → `200` `Version created successfully` with the version's `name` (previously always `500`). |
+| `createVersionRequiresAuthenticationWith401` | Without a Bearer token → `401`; `ProjectService.saveVersion` is never called. |
 | `createProjectReturnsCreatedProject` | `POST /projects` with a valid body → `201` and an envelope with `success=true`, message `Project created`, and the created project's `name`/`description`. |
 | `createProjectRejectsBlankFieldsWithValidationError` | Blank `name`/`description` → `400` `Validation error`; `ProjectService.createProject` is never called. |
 | `addMemberReturnsCreatedMember` | `POST /projects/{id}/members` with a valid body → `201` with the member's `memberType` and `userMail`. |

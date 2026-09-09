@@ -14,6 +14,7 @@ import org.enerscope.organization.model.OrganizationMember;
 import org.enerscope.organization.model.OrganizationMemberRole;
 import org.enerscope.organization.service.OrganizationBulkRegistrationService;
 import org.enerscope.organization.service.OrganizationService;
+import org.enerscope.user.model.User;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.springframework.http.MediaType;
@@ -66,6 +67,18 @@ public class OrganizationController {
             @Valid @RequestBody CreateOrganizationRequestDTO data) {
         Organization organization = organizationService.createOrganization(data);
         return Responses.created("Organization created", toDTO(organization));
+    }
+
+    @GetMapping("/{organizationId}/members")
+    @Operation(summary = "List the members of an organization",
+            description = "Returns every member with their identity fields. Readable by platform "
+                    + "admins and by any member of the organization.")
+    public ResponseEntity<ApiResponse<List<OrganizationMemberDTO>>> listMembers(
+            @PathVariable UUID organizationId) {
+        List<OrganizationMemberDTO> members = organizationService.listMembers(organizationId).stream()
+                .map(this::toDTO)
+                .toList();
+        return Responses.ok("Organization members", members);
     }
 
     @PostMapping("/{organizationId}/members")
@@ -123,10 +136,15 @@ public class OrganizationController {
 
     private OrganizationMemberDTO toDTO(OrganizationMember member) {
         OrganizationMemberRole role = member.getRoles().iterator().next();
+        User user = member.getUser();
         return new OrganizationMemberDTO(
                 member.getId(),
-                member.getUser().getId(),
-                member.getUser().getMail(),
+                user.getId(),
+                user.getMail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getJobTitle(),
+                user.isActive(),
                 role.getMemberType(),
                 role.getPermissions());
     }

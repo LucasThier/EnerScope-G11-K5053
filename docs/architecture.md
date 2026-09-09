@@ -37,10 +37,19 @@ EnerScope is a two-tier web application kept in a single repository (monorepo).
 ## Frontend
 
 - **React 19 + Vite + TypeScript**, styled exclusively with **Tailwind CSS**
-  (no hand-written CSS files beyond the single Tailwind import).
+  (no hand-written CSS files beyond the single Tailwind import). Brand colours
+  live as `@theme` tokens in `src/index.css` and are the only source of colour.
 - The `src/api` layer wraps Axios: `client.ts` injects the access token and
   transparently refreshes it on `401`; `session.ts` centralises token storage;
   `auth.ts` exposes the auth endpoints.
+- **Shared state is React context, one provider per concern.** `AuthProvider`
+  holds identity and the session; `ActiveProjectProvider` holds the project list
+  and which project the app is scoped to. Each pairs a `use*` hook with the
+  provider so components never touch the context object directly.
+- **The signed-in shell** is `AppLayout`: a full-width top bar (brand, project
+  switcher, user menu) above a collapsible sidebar, with pages rendered through
+  the router `Outlet`. Route guards (`ProtectedRoute`, `RoleRoute`) sit above
+  it, so the shell only ever renders for an authenticated user.
 - The Vite dev server proxies `/api` to the backend on port `8080`.
 
 ## Layers (backend)

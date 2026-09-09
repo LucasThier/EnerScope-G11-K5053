@@ -39,12 +39,22 @@ public class User extends BaseEntity {
     @Column(name = "platform_role", nullable = false, length = 20)
     private PlatformRole platformRole;
 
-    public User(String mail, String firstName, String lastName, String passwordHash, PlatformRole platformRole) {
+    @Column(name = "job_title", length = 120)
+    private String jobTitle;
+
+    public User(String mail, String firstName, String lastName, String passwordHash, PlatformRole platformRole,
+                String jobTitle) {
         this.mail = normalizeMail(mail);
         this.firstName = firstName;
         this.lastName = lastName;
         this.passwordHash = passwordHash;
         this.platformRole = platformRole;
+        this.jobTitle = jobTitle;
+    }
+
+    /** Overload for accounts created without a job title. */
+    public User(String mail, String firstName, String lastName, String passwordHash, PlatformRole platformRole) {
+        this(mail, firstName, lastName, passwordHash, platformRole, null);
     }
 
     /** Convenience constructor for a regular ({@link PlatformRole#USER}) account. */
@@ -73,6 +83,10 @@ public class User extends BaseEntity {
 
     public void updatePlatformRole(PlatformRole newRole) {
         this.platformRole = newRole;
+    }
+
+    public void updateJobTitle(String newJobTitle) {
+        this.jobTitle = newJobTitle;
     }
 
     private static String normalizeMail(String mail) {

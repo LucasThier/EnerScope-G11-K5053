@@ -34,13 +34,13 @@ export function AdminOrganizationsPage() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-ink-700">Organizations</h1>
-        <p className="mt-1 text-sm text-ink-400">Create organizations and review the existing ones.</p>
+        <h1 className="text-2xl font-semibold text-ink-800">Organizations</h1>
+        <p className="mt-1 text-sm text-ink-500">Create organizations and review the existing ones.</p>
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
-          <h2 className="text-lg font-semibold text-ink-700">Create organization</h2>
+          <h2 className="text-lg font-semibold text-ink-800">Create organization</h2>
           <form onSubmit={handleCreate} className="mt-4 flex flex-col gap-4" noValidate>
             {createError && <Alert tone="error">{createError}</Alert>}
             {created && <Alert tone="success">{created}</Alert>}
@@ -58,18 +58,18 @@ export function AdminOrganizationsPage() {
         </Card>
 
         <Card>
-          <h2 className="text-lg font-semibold text-ink-700">Existing organizations</h2>
+          <h2 className="text-lg font-semibold text-ink-800">Existing organizations</h2>
           <div className="mt-4">
             {loading ? (
-              <p className="text-sm text-ink-400">Loading…</p>
+              <p className="text-sm text-ink-500">Loading…</p>
             ) : error ? (
               <Alert tone="error">{error}</Alert>
             ) : organizations.length === 0 ? (
-              <p className="text-sm text-ink-400">No organizations yet.</p>
+              <p className="text-sm text-ink-500">No organizations yet.</p>
             ) : (
               <ul className="divide-y divide-ink-100">
                 {organizations.map((org) => (
-                  <li key={org.id} className="py-2.5 text-sm text-ink-700">
+                  <li key={org.id} className="py-2 text-sm text-ink-700">
                     {org.name}
                   </li>
                 ))}

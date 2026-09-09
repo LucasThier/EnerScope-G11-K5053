@@ -1,10 +1,12 @@
 package org.enerscope.project.service;
 
+import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
+import org.enerscope.project.dto.ProjectSummaryDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
@@ -12,14 +14,19 @@ import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.project.repository.ProjectRepository;
+import org.enerscope.session.model.Session;
 import org.enerscope.user.model.User;
+import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
+import org.enerscope.util.AuthUtil;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.service.VersionService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -59,6 +66,25 @@ public class ProjectService {
                 this.versionService = versionService;
         }
 
+        /**
+         * Projects visible to the current caller: a platform ADMIN sees every
+         * project; anyone else sees the ones they are a member of. Organization
+         * membership alone does not grant visibility — a user has to be on the
+         * project. {@code organizationId} is an optional extra filter.
+         */
+        @Transactional(readOnly = true)
+        public List<ProjectSummaryDTO> listForCurrentUser(UUID organizationId) {
+                Session session = AuthUtil.currentSession();
+                if (session == null) {
+                        throw new UnauthorizedException("Authentication required");
+                }
+                User caller = session.getUser();
+                if (caller.getPlatformRole() == PlatformRole.ADMIN) {
+                        return projectRepository.findSummaries(organizationId);
+                }
+                return projectRepository.findSummariesForMember(caller.getId(), organizationId);
+        }
+
         public Project createProject(CreateProjectRequestDTO data) {
                 Organization organization = organizationRepository.findById(data.organizationId())
                                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
@@ -92,6 +118,13 @@ public class ProjectService {
                 return saved;
         }
 
+        /**
+         * Creates a version through {@link VersionService} and attaches it to the
+         * project. Transactional so the version row and the project link are
+         * written as one unit: without it the version would survive a later
+         * failure as an orphan, unreachable from any project.
+         */
+        @Transactional
         public Version saveVersion(UUID projectId, VersionDTO versionDTO) {
 
                 if (projectId == null || versionDTO == null) {
@@ -106,6 +139,7 @@ public class ProjectService {
                 project.addVersion(version);
                 projectRepository.save(project);
 
-                throw new UnsupportedOperationException("Unimplemented method 'saveVersion'");
+                logger.info("Created version {} in project {}", version.getName(), project.getName());
+                return version;
         }
 }

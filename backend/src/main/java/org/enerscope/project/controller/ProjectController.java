@@ -7,6 +7,7 @@ import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
 import org.enerscope.project.dto.ProjectDTO;
 import org.enerscope.project.dto.ProjectMemberDTO;
+import org.enerscope.project.dto.ProjectSummaryDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
@@ -18,12 +19,15 @@ import org.enerscope.version.service.VersionService;
 import org.enerscope.version.model.Version;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -39,6 +43,15 @@ public class ProjectController {
 
     public ProjectController(ProjectService projectService) {
         this.projectService = projectService;
+    }
+
+    @GetMapping
+    @Operation(summary = "List projects",
+            description = "Platform admins get every project; other users get the ones they are a "
+                    + "member of. Pass organizationId to narrow the result to one organization.")
+    public ResponseEntity<ApiResponse<List<ProjectSummaryDTO>>> listProjects(
+            @RequestParam(required = false) UUID organizationId) {
+        return Responses.ok("Projects", projectService.listForCurrentUser(organizationId));
     }
 
     @PostMapping
