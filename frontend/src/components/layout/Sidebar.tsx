@@ -28,13 +28,13 @@ interface NavItem {
 const COLLAPSED_KEY = 'sidebarCollapsed';
 
 /**
- * The sections from the product design. Everything past the dashboard is still
- * to be built, so those entries are listed but locked: showing the full map of
- * the product is intentional, linking to pages that do not exist is not.
+ * The sections from the product design. The ones still to be built are listed
+ * but locked: showing the full map of the product is intentional, linking to
+ * pages that do not exist is not.
  */
 const NAV_ITEMS: NavItem[] = [
   { label: 'Inicio / Dashboard', icon: <HomeIcon />, to: '/app' },
-  { label: 'Proyectos', icon: <FolderIcon /> },
+  { label: 'Proyectos', icon: <FolderIcon />, to: '/projects' },
   { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon /> },
   { label: 'Simulaciones / Escenarios', icon: <FlaskIcon /> },
   { label: 'Comparar Escenarios', icon: <CompareIcon /> },

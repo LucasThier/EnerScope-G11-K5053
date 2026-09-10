@@ -1,6 +1,6 @@
 import { client } from './client';
 import type { ApiResponse } from '../types/auth';
-import type { ProjectSummary } from '../types/project';
+import type { CreateProjectRequest, Project, ProjectSummary } from '../types/project';
 import type { AxiosResponse } from 'axios';
 
 export const projectsApi = {
@@ -11,4 +11,7 @@ export const projectsApi = {
    */
   list: (organizationId?: string): Promise<AxiosResponse<ApiResponse<ProjectSummary[]>>> =>
     client.get('/projects', organizationId ? { params: { organizationId } } : undefined),
+
+  create: (data: CreateProjectRequest): Promise<AxiosResponse<ApiResponse<Project>>> =>
+    client.post('/projects', data),
 };

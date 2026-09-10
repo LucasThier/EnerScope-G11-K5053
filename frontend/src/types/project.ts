@@ -8,3 +8,16 @@ export interface ProjectSummary {
   memberCount: number;
   lastModified: string;
 }
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  organizationId: string;
+}
+
+export interface CreateProjectRequest {
+  name: string;
+  description: string;
+  organizationId: string;
+}

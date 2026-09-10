@@ -487,3 +487,209 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     authorization gap (the same shape of check `OrganizationService` already
     has in `assertCanManageUsers`/`assertCanViewOrganization`) and is worth its
     own card rather than a patch on this one.
+- 2026-09-09 — SCRUM-160 (frontend half): the **Projects screen** at `/projects`
+  — table (Proyecto · Organización · Descripción · Integrantes · Actualizado ·
+  Acciones), a search box, an organization filter and a "Nuevo proyecto" modal.
+  The sidebar entry for Proyectos is no longer locked.
+  - **The page reads `useActiveProject()`; it does not fetch.** The provider
+    already loads `GET /projects` once inside `AppLayout`, so reusing it keeps a
+    single source of truth and means creating a project refreshes the table and
+    the top bar's `ProjectSwitcher` with one `reload()`. The consequence, taken
+    on purpose: search and the organization filter are **client-side**, and the
+    backend's `?organizationId=` goes unused for now. If the project count ever
+    outgrows a single fetch, that parameter is where server-side filtering
+    starts.
+  - **The filter's options are derived from the loaded projects**, not from
+    `GET /organizations`. Since filtering is client-side, listing an
+    organization with no visible project would offer an option that can only
+    ever produce an empty table. The **modal** does call `useOrganizations()` —
+    there you need the full catalog to pick a leading organization — and it is
+    the only new network call on the screen.
+  - **`Modal` is a new primitive**, controlled (`open`/`onClose`) rather than
+    built on `useDismissable`: that hook owns its own open state and binds a
+    document `mousedown` meant for the top bar's popovers. The modal closes on
+    Escape and on an overlay click, locks body scroll, and moves focus to its
+    first field. Focus is **not** trapped inside it yet — worth a pass when
+    there is a second modal to share the work.
+  - **`TextArea` is a new primitive** too: `TextField` only wraps `<input>` and
+    the description is a textarea. `Card` gained a `padded` prop — the table
+    runs to the card's edges, and passing `p-0` through `className` would have
+    been a Tailwind collision resolved by stylesheet order, not by the order of
+    the classes in the string.
+  - The modal mirrors the backend's validation client-side (name 2–120,
+    description required and ≤ 500, organization required) instead of leaning on
+    the `400`. Note the description is **`@NotBlank`** on `CreateProjectRequestDTO`,
+    so it is a required field on the form, not an optional one.
+  - **Rows are inert** — no navigation. `PROJECT_ROUTE_PATTERN`
+    (`/projects/:projectId/*`) coexists with this listing route but no
+    project-scoped page exists yet to link to. The **Acciones** column shows
+    disabled edit/delete icons, the same "show the shape of the product, do not
+    link to nothing" treatment as the locked sidebar entries, because
+    `PATCH`/`DELETE /projects/{id}` do not exist.
+  - No sorting in the client: `GET /projects` already returns
+    `ORDER BY lastModified DESC`.
+  - Dates are formatted `dd/mm/aaaa` through `src/utils/date.ts` with
+    `Intl.DateTimeFormat('es-AR')` — no date library. It returns an em dash for
+    a missing or unparseable value so a cell never reads "Invalid Date".
+  - Four distinct empty/edge states, which are easy to collapse into one by
+    accident: loading, error, "no projects at all" (with the create button), and
+    "no project matches the search".
+- 2026-09-09 — Sign-in brand panel (`LoginPage`): Spanish copy, a solid surface
+  and a node-network texture.
+  - **Copy migrated to Spanish** (voseo, matching the shell). The **form card on
+    the right is still English** ("Sign in", "Welcome back…") — the auth pages
+    were left as their own card on 2026-09-08 and only the panel was asked for
+    here, so the page is deliberately half-migrated for now.
+  - **The `brand-50 → ink-50` gradient is gone.** Its bottom stop was the same
+    `ink-50` as the page next to it, so the panel dissolved into the background
+    and read as a contrast bug rather than a wash. The panel is now solid
+    **white**, the same surface role the sidebar already has in `AppLayout`.
+    Solid `ink-50` was considered and rejected: the sign-in page *is* `ink-50`,
+    so the panel would have been indistinguishable from it, and turning the
+    right half white would cost the white card its "sheet" reading.
+  - **`NodePattern`** is a tiled SVG texture (nodes and connections, echoing the
+    logo) behind the panel, masked by a vertical gradient so it is absent behind
+    the copy and densest at the bottom — the corner that was empty. Built with
+    `<pattern patternUnits="userSpaceOnUse">` at a fixed 72px tile, **not** a
+    scaled `viewBox`: the first attempt used `preserveAspectRatio="slice"` over
+    a 400×620 viewBox, which magnified the mesh to the height of the panel and
+    ran a heavy lattice straight through the headline. A background texture has
+    to keep its cell size independent of the element it fills.
+  - Verified in the browser at ~1440×950 only. The `resize_window` browser tool
+    reports success but leaves `window.innerWidth/innerHeight` untouched in this
+    setup, so **narrow and short viewports remain unverified** for this page —
+    check `hidden lg:flex` and the short-viewport behaviour by hand.
+- 2026-09-09 — `LoginPage` finished its migration to Spanish and had its
+  vertical rhythm rebalanced.
+  - **The whole page is Spanish now**, form included (`LoginForm` copy only —
+    its logic is untouched). That closes the half-migrated state noted in the
+    entry above. `label="Email"` was kept as "Email" rather than "Correo
+    electrónico": it is what the product's users say, and it keeps a short label
+    over a short field.
+  - The welcome line is **"Hola de nuevo"**, not "Bienvenido de nuevo":
+    "Bienvenido" genders the reader, and the page has no idea who is signing in.
+  - Two calques from the English draft were rewritten: "de punta a punta"
+    (end to end) became "Modelá **toda** la cadena de valor del GNL", and
+    "lado a lado" (side by side) became "en una sola vista". Translating this
+    panel means writing the Spanish sentence, not mapping the English one word
+    by word — worth remembering for the auth and admin pages still to migrate.
+  - **Vertical rhythm.** The panel is now top-anchored (`lg:justify-start`,
+    `pt-[15vh]`) because the node pattern already fills its lower half, while
+    the form column stays vertically centred with an upward bias
+    (`pt-10 pb-24`). Top-anchoring the form column too was tried and rejected —
+    it left a large void under the card, trading dead space at the top for more
+    of it at the bottom.
+  - **The green ring around the sign-in button is the `focus-visible` indicator,
+    not a stray style.** With the button at rest the computed styles are
+    `box-shadow: none`, `outline: none`, `border: 0`, `--tw-ring-shadow: 0 0
+    #0000`; the ring (`brand-400` with a 2px white offset) appears only on
+    `:focus-visible`. It is the WCAG keyboard-focus affordance and must not be
+    removed — if it ever needs to be quieter, change its colour or drop the
+    offset, never the ring.
+- 2026-09-09 — Sign-in brand panel, **direction A ("dark plate")**. Three
+  directions were built as throwaway mockups behind a temporary `/mockups`
+  route and compared in the browser; A was chosen and the scaffolding deleted.
+  - **A (chosen).** The panel is a solid `ink-900` plate. The headline runs at
+    `clamp(2.75rem, 3.4vw, 3rem)` — 44px floor, 48px ceiling — and is anchored
+    to the **bottom**, so the empty space falls above the type instead of below it
+    — that alone supplies the asymmetry, with no compositional trick. The
+    value-chain network (`NodeGraph`) bleeds off the top-right corner at real
+    scale in `ink-700`/`ink-600` with three `brand-500` nodes. The bullet icons
+    are gone: `01/02/03` numerals at 24px do the graphic work the 20px icons
+    were too small to do.
+  - **B (rejected) — "ink spine".** A full-height `ink-900` rail pinned to the
+    panel's left edge, content pushed off-centre against it. It reads well and
+    leaves the light system intact, but the vertical rail is a well-worn device
+    and the rotated wordmark stays small, so the headline ends up carrying the
+    composition alone — a better version of the old panel rather than a new one.
+  - **C (rejected) — "diagram as hero".** Content top-anchored, icons enlarged
+    to 40px as a three-column rail, an `ink-900` band across the base. The
+    oversized icons genuinely worked, but the composition stayed a
+    left-aligned stack and the base band read as a footer rather than an anchor.
+  - **Type scale**: 48px headline → 24px numerals → 20px subhead → 14px body.
+    The subhead was deliberately raised from 14px: at the body size it was
+    indistinguishable from the bullets and the jump straight to 14px made
+    everything below the headline read as a footnote. The headline itself was
+    stepped **down** from an earlier `clamp(…, 4.6vw, 4.25rem)` (~60px), which
+    dominated the composition rather than leading it; 44–48px keeps the tension
+    against the 14px body without the panel turning into a poster.
+  - **The sign-in button stays `brand-800`** — the standard `Button` `primary`
+    variant, no override. Measured rather than assumed, because the plate
+    changes the arithmetic: relative luminances are `ink-900` 0.0106,
+    `brand-700` 0.2051, `brand-800` 0.1548, `brand-900` 0.0834, giving
+    white-on-`brand-700` **4.12:1 (fails)**, white-on-`brand-800` **5.13:1**,
+    white-on-`brand-900` **7.87:1**; and against the plate, `brand-800`
+    **3.38:1** versus `brand-900` **2.20:1 (fails 1.4.11)**. `brand-900` is the
+    safest tone on white and the wrong one here — it sinks into the plate.
+    `brand-800` is the only tone that clears both. (In this layout the button
+    actually sits on the white card, where it is 5.13:1 either way; the plate
+    figures are what make the choice hold if it ever moves.)
+  - **The logo needs a light plinth.** `logo-full.png` is dark artwork on
+    transparency, so on `ink-900` it disappears; it sits on a white chip.
+    Inverting is not an option — the green would go magenta. **A monochrome or
+    light logo asset would remove the chip**, and is worth requesting.
+  - The chip is a **flow child under `lg:justify-between`**, not an absolutely
+    positioned one. The first pass positioned it and the enlarged headline grew
+    straight into it; anchoring both ends of the column removes the collision
+    structurally instead of by tuning numbers.
+  - `NodePattern` (the tiled background texture) was **deleted** — superseded by
+    `NodeGraph`, which is the same idea promoted from decoration to illustration,
+    as the brief asked.
+  - Verified at the browser's own viewport only (~1568×741 captured, 614px
+    reported by the page — the panel does not scroll at either). `resize_window`
+    still has no effect here, so **other viewport sizes remain unverified**.
+- 2026-09-09 — **Light logo artwork**, so the sign-in plate drops the white chip.
+  `logo-mark-inverse.png` and `logo-full-inverse.png` were generated from the
+  originals and `Logo` gained a `tone` prop; the panel now sets the lockup
+  straight on the `ink-900` surface.
+  - `tone` names the **artwork, not the surface**: `dark` (default) is the
+    charcoal original for light backgrounds, `light` is the white cut for dark
+    ones. Every existing call site keeps the default, so nothing else moved.
+  - **How the artwork was cut.** Neither Pillow nor ImageMagick is available on
+    this machine and `sips` cannot recolour per pixel, so the conversion is a
+    stdlib-only script (`zlib` + `struct`: parse IHDR/IDAT, reverse the PNG
+    scanline filters, transform, re-emit). Per opaque pixel it measures
+    "greenness" as `(G - max(R, B)) / 50`, clamped to 0–1, and blends the pixel
+    toward white by the inverse. So brand green survives untouched, the charcoal
+    goes to pure white, and the antialiased boundary between them fades
+    smoothly instead of stair-stepping.
+  - The divisor started at 60 and was **lowered to 50 after measuring**: at 60
+    the dark green `#137a40` scored 0.967 and picked up 3% white, drifting to
+    `#1b7e46`. At 50 it clamps to 1 and is preserved exactly. Verified by
+    colour histogram: `#73c549` ×10293 and `#137a40` ×4448 are byte-identical
+    before and after, while `#263138` ×71790 became `#ffffff`.
+  - **Do not fake this with `filter: invert()`** — inverting the artwork turns
+    the brand green magenta. That is why a second asset exists at all.
+- 2026-09-10 — **The frontend is now fully Spanish.** The half-migrated state
+  noted on 2026-09-08 ("only the shell was migrated, the pages are their own
+  card") is closed: `WorkspacePage`, `AdminUsersPage`, `AdminOrganizationsPage`,
+  `RegisterForm` and `OrganizationPicker` were translated, and every error
+  fallback with them.
+  - **The admin pages were translated even though they are slated for a
+    redesign** (table + modal, like `ProjectsPage`). That is knowingly throwaway
+    work, accepted because the app is being demonstrated and a screen reading
+    "Proyectos" beside one reading "Create a user" is worse than the waste.
+  - `RegisterForm` and `OrganizationPicker` are used **only** by
+    `AdminUsersPage`, so translating them without the page around them would
+    have split one card down the middle — English heading over a Spanish form.
+    They move together or not at all.
+  - **The success message was rebuilt, not translated.** It used to be
+    `` `${mail} was registered ${where}.` `` with `where` swapped between two
+    fragments. Spanish does not take that shape gracefully, so the two cases are
+    now two whole sentences: "Se registró a … en la organización." and "Se creó
+    la cuenta de plataforma de …". Composing a sentence from a translated tail
+    is how UI copy ends up sounding machine-made.
+  - **All twelve error fallbacks are Spanish**, including the shared default in
+    `api/errors.ts` (`'Algo salió mal'`) and the three thrown inside
+    `AuthProvider`/`useOrganizations`. These sit outside any page, which is why
+    a screen-by-screen audit misses them.
+  - **Still pending, its own card: the backend answers in English.**
+    `getErrorMessage` prefers `ApiResponse.message`, so "Organization not
+    found", "User is already a member of this project" and "Validation error"
+    still reach the user verbatim. The Spanish fallbacks only show when the
+    request never got an answer. **Translating the frontend did not finish the
+    language problem** — it made the remaining half visible.
+  - Deliberately **out of this pass** (kept out of the diff on purpose):
+    `RoleBadge` is dead code that renders the raw `ADMIN`/`USER` enum, and the
+    error states use Tailwind's default reds (`red-50/200/400/600/700`) with no
+    `danger` ramp in `@theme`. Both are real, neither is about language.

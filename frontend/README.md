@@ -15,6 +15,10 @@ project switcher, user menu) above a collapsible sidebar. User-facing copy in
 the shell is in **Spanish**; identifiers, file names and route paths stay in
 English.
 
+And the **Projects screen** (`/projects`): the table of the projects you belong
+to, with a client-side search and organization filter, and a "Nuevo proyecto"
+modal.
+
 - React 19 · Vite 7 · TypeScript
 - Tailwind CSS v4 (via `@tailwindcss/vite`)
 - React Router (route guards by auth + platform role)
@@ -57,13 +61,15 @@ frontend/
 │  ├─ vite-env.d.ts        Vite client type references
 │  ├─ assets/
 │  │  ├─ logo-mark.png     Brand artwork: the "ES" monogram alone (transparent)
-│  │  └─ logo-full.png     Brand artwork: monogram + wordmark (transparent)
+│  │  ├─ logo-full.png     Brand artwork: monogram + wordmark (transparent)
+│  │  ├─ logo-mark-inverse.png  The same monogram, ink cut to white (dark surfaces)
+│  │  └─ logo-full-inverse.png  The same lockup, ink cut to white (dark surfaces)
 │  ├─ api/
 │  │  ├─ client.ts         Axios instance + token/refresh interceptors
 │  │  ├─ session.ts        Token + current-user storage helper (LocalStorage)
 │  │  ├─ auth.ts           Auth endpoints (login/register/refresh/logout)
 │  │  ├─ organizations.ts  Organization endpoints (list, create, register user into org)
-│  │  ├─ projects.ts       Project endpoints (list, with optional organization filter)
+│  │  ├─ projects.ts       Project endpoints (list with optional organization filter, create)
 │  │  └─ errors.ts         Extracts the ApiResponse message from a failed request
 │  ├─ hooks/
 │  │  ├─ useAuth.ts        AuthContext + useAuth() hook
@@ -74,12 +80,14 @@ frontend/
 │  │  ├─ useDismissable.ts        Popover open state (outside click / Escape)
 │  │  └─ useOrganizations.ts      Loads/creates organizations for the pickers/pages
 │  ├─ components/
-│  │  ├─ ui/               Brand-styled primitives (Button, TextField, Card, Alert, Logo, Avatar, icons, …)
+│  │  ├─ ui/               Brand-styled primitives (Button, TextField, TextArea, Card, Modal, Alert, Logo, Avatar, icons, NodeGraph, …)
 │  │  ├─ auth/             LoginForm, RegisterForm (single create-user form, optional org)
 │  │  ├─ organizations/    OrganizationPicker (select + inline create)
+│  │  ├─ projects/         ProjectsTable, NewProjectModal
 │  │  └─ layout/           AppLayout (shell), TopBar, Sidebar, ProjectSwitcher, UserMenu
-│  ├─ pages/               LoginPage, AdminUsersPage, AdminOrganizationsPage, WorkspacePage
+│  ├─ pages/               LoginPage, AdminUsersPage, AdminOrganizationsPage, WorkspacePage, ProjectsPage
 │  ├─ routes/              ProtectedRoute, RoleRoute, DashboardRedirect
+│  ├─ utils/               date.ts (dd/mm/aaaa formatting)
 │  └─ types/
 │     ├─ auth.ts           Auth/organization types mirroring the backend DTOs
 │     └─ project.ts        Project types mirroring the backend DTOs
@@ -122,7 +130,10 @@ frontend/
   hard-coded white, so a change to the token reaches every screen.
 - **Brand mark.** `<Logo variant="mark">` is the monogram for tight spots (the
   top bar); `<Logo variant="full">` adds the wordmark, for sign-in. Both are
-  sized by height only (`size="sm" | "lg"`), never by width.
+  sized by height only (`size="sm" | "lg"`), never by width. `tone` names the
+  **artwork**, not the surface: the default `dark` is the charcoal original for
+  light backgrounds, `tone="light"` is the white cut for `ink-900` ones. Never
+  fake either with a CSS filter — inverting turns the brand green magenta.
 - **Contrast.** Every text/background pair meets WCAG AA (4.5:1), including the
   tinted hovers. The practical rules that follow from the ramp:
   - `ink-500` (5.69:1 on white, 5.30:1 on the `ink-50` page) is the **floor for
@@ -140,8 +151,13 @@ frontend/
 - **Spacing.** Stay on the 4px grid: `1 2 3 4 6 8` (4/8/12/16/24/32px). Avoid
   the half steps (`py-2.5`, `gap-1.5`), which land on a 2px grid and drift out
   of rhythm with everything else.
-- **Copy:** user-facing text in Spanish; identifiers, file names, folders and
-  route paths in English.
+- **Copy:** user-facing text in Spanish; identifiers, file names, folders,
+  code comments and route paths in English. That includes the fallback strings
+  passed to `getErrorMessage` and thrown from the providers — every screen is
+  Spanish now, so an English fallback would surface as a language break the
+  moment a request fails. **Caveat:** `getErrorMessage` prefers the backend's
+  `ApiResponse.message`, and the backend still answers in English, so a real
+  API error still reaches the user in English. Fixing that is a backend card.
 - **Auth:** read auth state and actions through `useAuth()`; never touch tokens
   or call the auth endpoints directly from components.
 - **Naming:** all identifiers, files and folders in English. Components in

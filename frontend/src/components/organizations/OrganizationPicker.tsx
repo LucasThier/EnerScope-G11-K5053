@@ -29,7 +29,7 @@ export function OrganizationPicker({
   value,
   onChange,
   onCreate,
-  emptyLabel = 'No organization',
+  emptyLabel = 'Sin organización',
   className = '',
 }: OrganizationPickerProps) {
   const selectId = useId();
@@ -48,7 +48,7 @@ export function OrganizationPicker({
       setName('');
       setCreating(false);
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create the organization'));
+      setError(getErrorMessage(err, 'No se pudo crear la organización'));
     } finally {
       setSubmitting(false);
     }
@@ -57,7 +57,7 @@ export function OrganizationPicker({
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
       <label htmlFor={selectId} className="text-sm font-medium text-ink-600">
-        Organization <span className="font-normal text-ink-500">(optional)</span>
+        Organización <span className="font-normal text-ink-500">(opcional)</span>
       </label>
 
       {creating ? (
@@ -77,11 +77,11 @@ export function OrganizationPicker({
                   void handleCreate();
                 }
               }}
-              placeholder="New organization name"
+              placeholder="Nombre de la nueva organización"
               className={`flex-1 ${selectClasses}`}
             />
             <Button type="button" loading={submitting} onClick={() => void handleCreate()} className="shrink-0">
-              Create
+              Crear
             </Button>
             <Button
               type="button"
@@ -92,7 +92,7 @@ export function OrganizationPicker({
                 setName('');
               }}
             >
-              Cancel
+              Cancelar
             </Button>
           </div>
           {error && <span className="text-xs text-red-600">{error}</span>}
@@ -106,7 +106,7 @@ export function OrganizationPicker({
             onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
             className={`flex-1 ${selectClasses} disabled:opacity-60`}
           >
-            <option value="">{loading ? 'Loading organizations…' : emptyLabel}</option>
+            <option value="">{loading ? 'Cargando organizaciones…' : emptyLabel}</option>
             {organizations.map((org) => (
               <option key={org.id} value={org.id}>
                 {org.name}
@@ -114,7 +114,7 @@ export function OrganizationPicker({
             ))}
           </select>
           <Button type="button" variant="ghost" onClick={() => setCreating(true)} className="shrink-0">
-            + New
+            + Nueva
           </Button>
         </div>
       )}
