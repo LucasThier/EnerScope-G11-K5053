@@ -1,3 +1,4 @@
+--V7: Result tables
 CREATE TABLE result (
                         id                        UUID                     NOT NULL DEFAULT gen_random_uuid(),
     -- Specific fields

@@ -57,7 +57,7 @@ public class Version extends BaseEntity {
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     private List<NodeChange> nodeChanges;
 
-    @JoinColumn(name = "version_id")
+    @JoinColumn(nullable = true)
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Result> results;
 

@@ -57,12 +57,12 @@ public class ResultTest {
 
         ResultPerNode wellResult = simWell.createResult();
 
-        System.out.println("=== RESULTADO POZO ===");
-        System.out.println("Node ID: " + wellResult.getNodeID());
-        System.out.println("Max Possible Produced: " + wellResult.getMaxPossibleProduced());
-        System.out.println("Total Produced: " + wellResult.getTotalProduced());
-        System.out.println("Total Deferred: " + wellResult.getTotalDeferred());
-        System.out.println("Total Extra: " + wellResult.getExtra());
+//        System.out.println("=== RESULTADO POZO ===");
+//        System.out.println("Node ID: " + wellResult.getNodeID());
+//        System.out.println("Max Possible Produced: " + wellResult.getMaxPossibleProduced());
+//        System.out.println("Total Produced: " + wellResult.getTotalProduced());
+//        System.out.println("Total Deferred: " + wellResult.getTotalDeferred());
+//        System.out.println("Total Extra: " + wellResult.getExtra());
 
         assertNotNull(wellResult.getNodeID(), "El Pozo debe tener un ID asignado");
 
@@ -112,12 +112,12 @@ public class ResultTest {
 
         ResultPerNode gatheringNetworkResult = simGatheringNetwork.createResult();
 
-        System.out.println("=== RESULTADO RED ===");
-        System.out.println("Node ID: " + gatheringNetworkResult.getNodeID());
-        System.out.println("Max Possible Produced: " + gatheringNetworkResult.getMaxPossibleProduced());
-        System.out.println("Total Produced: " + gatheringNetworkResult.getTotalProduced());
-        System.out.println("Total Deferred: " + gatheringNetworkResult.getTotalDeferred());
-        System.out.println("Total Extra: " + gatheringNetworkResult.getExtra());
+//        System.out.println("=== RESULTADO RED ===");
+//        System.out.println("Node ID: " + gatheringNetworkResult.getNodeID());
+//        System.out.println("Max Possible Produced: " + gatheringNetworkResult.getMaxPossibleProduced());
+//        System.out.println("Total Produced: " + gatheringNetworkResult.getTotalProduced());
+//        System.out.println("Total Deferred: " + gatheringNetworkResult.getTotalDeferred());
+//        System.out.println("Total Extra: " + gatheringNetworkResult.getExtra());
 
         assertNotNull(gatheringNetworkResult.getNodeID(), "El Pozo debe tener un ID asignado");
 
@@ -166,12 +166,12 @@ public class ResultTest {
 
         ResultPerNode resultTreatmentPlant = simTreatmentPlant.createResult();
 
-        System.out.println("=== RESULTADO PLANTA TRATAMIENTO ===");
-        System.out.println("Node ID: " + resultTreatmentPlant.getNodeID());
-        System.out.println("Max Possible Produced: " + resultTreatmentPlant.getMaxPossibleProduced());
-        System.out.println("Total Produced: " + resultTreatmentPlant.getTotalProduced());
-        System.out.println("Total Deferred: " + resultTreatmentPlant.getTotalDeferred());
-        System.out.println("Total Extra: " + resultTreatmentPlant.getExtra());
+//        System.out.println("=== RESULTADO PLANTA TRATAMIENTO ===");
+//        System.out.println("Node ID: " + resultTreatmentPlant.getNodeID());
+//        System.out.println("Max Possible Produced: " + resultTreatmentPlant.getMaxPossibleProduced());
+//        System.out.println("Total Produced: " + resultTreatmentPlant.getTotalProduced());
+//        System.out.println("Total Deferred: " + resultTreatmentPlant.getTotalDeferred());
+//        System.out.println("Total Extra: " + resultTreatmentPlant.getExtra());
 
         assertNotNull(resultTreatmentPlant.getNodeID(), "El Pozo debe tener un ID asignado");
 
@@ -220,12 +220,12 @@ public class ResultTest {
 
         ResultPerNode resultPipeline = simPipeline.createResult();
 
-        System.out.println("=== RESULTADO PIPELINE ===");
-        System.out.println("Node ID: " + resultPipeline.getNodeID());
-        System.out.println("Max Possible Produced: " + resultPipeline.getMaxPossibleProduced());
-        System.out.println("Total Produced: " + resultPipeline.getTotalProduced());
-        System.out.println("Total Deferred: " + resultPipeline.getTotalDeferred());
-        System.out.println("Total Extra: " + resultPipeline.getExtra());
+//        System.out.println("=== RESULTADO PIPELINE ===");
+//        System.out.println("Node ID: " + resultPipeline.getNodeID());
+//        System.out.println("Max Possible Produced: " + resultPipeline.getMaxPossibleProduced());
+//        System.out.println("Total Produced: " + resultPipeline.getTotalProduced());
+//        System.out.println("Total Deferred: " + resultPipeline.getTotalDeferred());
+//        System.out.println("Total Extra: " + resultPipeline.getExtra());
 
         assertNotNull(resultPipeline.getNodeID(), "El Pozo debe tener un ID asignado");
 
@@ -276,12 +276,12 @@ public class ResultTest {
 
         ResultPerNode resultCompressingPlant = simCompressingPlant.createResult();
 
-        System.out.println("=== RESULTADO CompressingPlant ===");
-        System.out.println("Node ID: " + resultCompressingPlant.getNodeID());
-        System.out.println("Max Possible Produced: " + resultCompressingPlant.getMaxPossibleProduced());
-        System.out.println("Total Produced: " + resultCompressingPlant.getTotalProduced());
-        System.out.println("Total Deferred: " + resultCompressingPlant.getTotalDeferred());
-        System.out.println("Total Extra: " + resultCompressingPlant.getExtra());
+//        System.out.println("=== RESULTADO CompressingPlant ===");
+//        System.out.println("Node ID: " + resultCompressingPlant.getNodeID());
+//        System.out.println("Max Possible Produced: " + resultCompressingPlant.getMaxPossibleProduced());
+//        System.out.println("Total Produced: " + resultCompressingPlant.getTotalProduced());
+//        System.out.println("Total Deferred: " + resultCompressingPlant.getTotalDeferred());
+//        System.out.println("Total Extra: " + resultCompressingPlant.getExtra());
 
         assertNotNull(resultCompressingPlant.getNodeID(), "El Pozo debe tener un ID asignado");
 
@@ -331,12 +331,12 @@ public class ResultTest {
 
         ResultPerNode resultLiquefactionPlant = simLiquefactionPlant.createResult();
 
-        System.out.println("=== RESULTADO LiquefactionPlant ===");
-        System.out.println("Node ID: " + resultLiquefactionPlant.getNodeID());
-        System.out.println("Max Possible Produced: " + resultLiquefactionPlant.getMaxPossibleProduced());
-        System.out.println("Total Produced: " + resultLiquefactionPlant.getTotalProduced());
-        System.out.println("Total Deferred: " + resultLiquefactionPlant.getTotalDeferred());
-        System.out.println("Total Extra: " + resultLiquefactionPlant.getExtra());
+//        System.out.println("=== RESULTADO LiquefactionPlant ===");
+//        System.out.println("Node ID: " + resultLiquefactionPlant.getNodeID());
+//        System.out.println("Max Possible Produced: " + resultLiquefactionPlant.getMaxPossibleProduced());
+//        System.out.println("Total Produced: " + resultLiquefactionPlant.getTotalProduced());
+//        System.out.println("Total Deferred: " + resultLiquefactionPlant.getTotalDeferred());
+//        System.out.println("Total Extra: " + resultLiquefactionPlant.getExtra());
 
         assertNotNull(resultLiquefactionPlant.getNodeID(), "El Pozo debe tener un ID asignado");
 
@@ -386,12 +386,12 @@ public class ResultTest {
 
         ResultPerNode resultSeaportTerminal = simSeaportTerminal.createResult();
 
-        System.out.println("=== RESULTADO SeaportTerminal ===");
-        System.out.println("Node ID: " + resultSeaportTerminal.getNodeID());
-        System.out.println("Max Possible Produced: " + resultSeaportTerminal.getMaxPossibleProduced());
-        System.out.println("Total Produced: " + resultSeaportTerminal.getTotalProduced());
-        System.out.println("Total Deferred: " + resultSeaportTerminal.getTotalDeferred());
-        System.out.println("Total Extra: " + resultSeaportTerminal.getExtra());
+//        System.out.println("=== RESULTADO SeaportTerminal ===");
+//        System.out.println("Node ID: " + resultSeaportTerminal.getNodeID());
+//        System.out.println("Max Possible Produced: " + resultSeaportTerminal.getMaxPossibleProduced());
+//        System.out.println("Total Produced: " + resultSeaportTerminal.getTotalProduced());
+//        System.out.println("Total Deferred: " + resultSeaportTerminal.getTotalDeferred());
+//        System.out.println("Total Extra: " + resultSeaportTerminal.getExtra());
 
         assertNotNull(resultSeaportTerminal.getNodeID(), "El Pozo debe tener un ID asignado");
 
@@ -430,12 +430,12 @@ public class ResultTest {
 
         ResultPerNode resultLNGCarrier = simLNGCarrier.createResult();
 
-        System.out.println("=== RESULTADO LNGCarrier ===");
-        System.out.println("Node ID: " + resultLNGCarrier.getNodeID());
-        System.out.println("Max Possible Produced: " + resultLNGCarrier.getMaxPossibleProduced());
-        System.out.println("Total Produced: " + resultLNGCarrier.getTotalProduced());
-        System.out.println("Total Deferred: " + resultLNGCarrier.getTotalDeferred());
-        System.out.println("Total Extra: " + resultLNGCarrier.getExtra());
+//        System.out.println("=== RESULTADO LNGCarrier ===");
+//        System.out.println("Node ID: " + resultLNGCarrier.getNodeID());
+//        System.out.println("Max Possible Produced: " + resultLNGCarrier.getMaxPossibleProduced());
+//        System.out.println("Total Produced: " + resultLNGCarrier.getTotalProduced());
+//        System.out.println("Total Deferred: " + resultLNGCarrier.getTotalDeferred());
+//        System.out.println("Total Extra: " + resultLNGCarrier.getExtra());
 
         assertNotNull(resultLNGCarrier.getNodeID(), "El Pozo debe tener un ID asignado");
 

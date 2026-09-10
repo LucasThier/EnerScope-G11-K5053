@@ -20,7 +20,7 @@ public class Result {
     @Column(name = "year")
     private int year;
 
-    @OneToMany(mappedBy = "result", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ResultPerNode> resultPerNodes;
 
     public Result() {

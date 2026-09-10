@@ -515,23 +515,23 @@ public class SimulatorTest {
         // 5. Validar Resultados
         Result result = simulator.getResult();
 
-        System.out.println("=== RESULTADO GENERAL ===");
-        System.out.println("Result: " + result);
-        System.out.println("Año de simulación: " + result.getYear());
-        System.out.println("Total de nodos procesados: " + result.getResultPerNodes().size());
-
-        System.out.println("\n=== DETALLE POR NODO ===");
-        List<ResultPerNode> nodeResults = result.getResultPerNodes();
-
-        nodeResults.forEach(nodeResult -> {
-            System.out.println("----------------------------------------");
-            System.out.println("Node ID: " + nodeResult.getNodeID());
-            System.out.println("Node Class: " + nodeResult.getNodeClass());
-            System.out.println("Max Possible Produced: " + nodeResult.getMaxPossibleProduced());
-            System.out.println("Total Produced: " + nodeResult.getTotalProduced());
-            System.out.println("Total Deferred: " + nodeResult.getTotalDeferred());
-            System.out.println("Total extra: " + nodeResult.getExtra());
-        });
+//        System.out.println("=== RESULTADO GENERAL ===");
+//        System.out.println("Result: " + result);
+//        System.out.println("Año de simulación: " + result.getYear());
+//        System.out.println("Total de nodos procesados: " + result.getResultPerNodes().size());
+//
+//        System.out.println("\n=== DETALLE POR NODO ===");
+          List<ResultPerNode> nodeResults = result.getResultPerNodes();
+//
+//        nodeResults.forEach(nodeResult -> {
+//            System.out.println("----------------------------------------");
+//            System.out.println("Node ID: " + nodeResult.getNodeID());
+//            System.out.println("Node Class: " + nodeResult.getNodeClass());
+//            System.out.println("Max Possible Produced: " + nodeResult.getMaxPossibleProduced());
+//            System.out.println("Total Produced: " + nodeResult.getTotalProduced());
+//            System.out.println("Total Deferred: " + nodeResult.getTotalDeferred());
+//            System.out.println("Total extra: " + nodeResult.getExtra());
+//        });
 
 
         assertNotNull(result, "El resultado general no debe ser nulo");
