@@ -41,8 +41,15 @@ import org.enerscope.node.dto.NodeDetailDTO;
 import org.enerscope.node.dto.NodeGraphDataDTO;
 import org.enerscope.node.dto.NodeTypeDataDTO;
 import org.enerscope.node.model.transportation.PipelineConnection;
+import org.enerscope.node.model.GraphPosition;
+import org.enerscope.node.model.GeographicalPosition;
+import org.enerscope.node.model.InvestmentCost;
+import org.enerscope.node.model.InvestmentCostComponent;
 import org.enerscope.money.MoneyAmount;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.enerscope.node.model.GeographicalPosition;
@@ -84,6 +91,7 @@ public class VersionService {
     private final AppLogger logger;
     private final NodeService nodeService;
 
+    @Transactional
     public Version saveVersion(VersionDTO data) {
         if (data == null) {
             throw new IllegalArgumentException("VersionDTO cannot be null");
@@ -98,19 +106,37 @@ public class VersionService {
         }
 
         Version parentVersion = null;
-        // Start from empty (never null) so the in-version node/connection ABM can
-        // append without a NullPointerException on a freshly created version.
+        // A version starts with its own empty snapshots (never null so the
+        // in-version ABM can append).
         List<BaseNode> nodeSnapshot = new ArrayList<>();
         List<NodeConnection> connectionSnapshot = new ArrayList<>();
         if (data.getParentVersion() != null) {
             parentVersion = versionRepository.findById(data.getParentVersion())
                     .orElseThrow(() -> new VersionNotFoundException(data.getParentVersion()));
-            // Create defensive copies to avoid sharing references with parent version
-            if (parentVersion.getConnectionSnapshot() != null) {
-                connectionSnapshot = new ArrayList<>(parentVersion.getConnectionSnapshot());
-            }
+            // Branch (git-style): deep-copy the parent's nodes and connections
+            // into brand-new, independent rows so editing the branch never
+            // touches the parent. Each cloned node keeps its cross-version
+            // identity so branches can be compared later; connections are
+            // remapped to the new node ids.
+            Map<UUID, BaseNode> idMap = new HashMap<>();
             if (parentVersion.getNodeSnapshot() != null) {
-                nodeSnapshot = new ArrayList<>(parentVersion.getNodeSnapshot());
+                for (BaseNode src : parentVersion.getNodeSnapshot()) {
+                    BaseNode saved = nodeRepository.save(cloneNodeForBranch(src));
+                    idMap.put(src.getId(), saved);
+                    nodeSnapshot.add(saved);
+                }
+            }
+            if (parentVersion.getConnectionSnapshot() != null) {
+                for (NodeConnection src : parentVersion.getConnectionSnapshot()) {
+                    BaseNode newFrom = idMap.get(src.getFromNodeId());
+                    BaseNode newTo = idMap.get(src.getToNodeId());
+                    if (newFrom == null || newTo == null) {
+                        continue;
+                    }
+                    NodeConnection saved = connectionRepository.save(
+                            new NodeConnection(src.getIdentityId(), newFrom.getId(), newTo.getId()));
+                    connectionSnapshot.add(saved);
+                }
             }
         }
 
@@ -357,6 +383,64 @@ public class VersionService {
 
     private static Double money(MoneyAmount amount) {
         return amount == null ? 0.0 : amount.value().doubleValue();
+    }
+
+    /**
+     * Deep-clones a node into a new, independent transient entity for a branch:
+     * copies every field except the primary key and audit timestamps, keeps the
+     * cross-version {@code identityId}, and clones the owned one-to-one entities
+     * (graph data, type, investment cost) so they become their own new rows.
+     */
+    private BaseNode cloneNodeForBranch(BaseNode src) {
+        try {
+            BaseNode copy = src.getClass().getDeclaredConstructor().newInstance();
+            for (Class<?> c = src.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                for (Field f : c.getDeclaredFields()) {
+                    int mod = f.getModifiers();
+                    if (Modifier.isStatic(mod) || Modifier.isFinal(mod)) {
+                        continue;
+                    }
+                    String name = f.getName();
+                    if (name.equals("id") || name.equals("createdAt") || name.equals("lastModified")) {
+                        continue;
+                    }
+                    f.setAccessible(true);
+                    Object value = f.get(src);
+                    if (value instanceof NodeGraphData g) {
+                        value = cloneGraphData(g);
+                    } else if (value instanceof NodeTypeData t) {
+                        value = new NodeTypeData(t.getVertical(), t.getRole(), t.getNodeType());
+                    } else if (value instanceof InvestmentCost ic) {
+                        value = cloneInvestmentCost(ic);
+                    }
+                    f.set(copy, value);
+                }
+            }
+            return copy;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Could not clone node for branch", e);
+        }
+    }
+
+    private NodeGraphData cloneGraphData(NodeGraphData g) {
+        GraphPosition gp = (g.getGraphPosition() == null)
+                ? null
+                : new GraphPosition(g.getGraphPosition().getX(), g.getGraphPosition().getY());
+        GeographicalPosition geo = (g.getGeographicalPosition() == null)
+                ? null
+                : new GeographicalPosition(g.getGeographicalPosition().getLongitude(),
+                        g.getGeographicalPosition().getLatitude());
+        return new NodeGraphData(gp, geo);
+    }
+
+    private InvestmentCost cloneInvestmentCost(InvestmentCost ic) {
+        List<InvestmentCostComponent> components = new ArrayList<>();
+        if (ic.getComponents() != null) {
+            for (InvestmentCostComponent c : ic.getComponents()) {
+                components.add(new InvestmentCostComponent(c.getName(), c.getAmount(), c.getCostBasis()));
+            }
+        }
+        return new InvestmentCost(components);
     }
 
     private NodeGraphDataDTO toGraphDataDTO(NodeGraphData g) {

@@ -11,22 +11,31 @@ export interface EnerNodeData {
   [key: string]: unknown;
 }
 
-const STATE_COLORS: Record<NodeState, string> = {
-  RUNNING: '#3f8130',
-  PROPOSED: '#83cd58',
-  PENDING: '#e0a63a',
-  REMOVED: '#b04b4b',
+interface StateStyle {
+  label: string;
+  bg: string;
+  text: string;
+  border: 'solid' | 'dashed';
+}
+
+const STATE_STYLES: Record<NodeState, StateStyle> = {
+  RUNNING: { label: 'Running', bg: '#d6efc6', text: '#326626', border: 'solid' },
+  PROPOSED: { label: 'Proposed', bg: '#eaf6de', text: '#55a238', border: 'dashed' },
+  PENDING: { label: 'Pending', bg: '#fbf0d6', text: '#9a6f1c', border: 'dashed' },
+  REMOVED: { label: 'Removed', bg: '#f3dede', text: '#b04b4b', border: 'solid' },
 };
 
 /** Custom diagram node: type icon, name, and a state dot, accented by vertical. */
 export function EnerNode({ data, selected }: NodeProps) {
   const d = data as EnerNodeData;
   const color = VERTICAL_COLORS[d.vertical] ?? '#6f767f';
+  const st = STATE_STYLES[d.state];
   return (
     <div
       className="flex w-[172px] items-center gap-2 rounded-xl border-2 bg-white px-3 py-2 shadow-sm"
       style={{
         borderColor: color,
+        borderStyle: st.border,
         boxShadow: selected ? `0 0 0 3px ${color}55` : undefined,
         opacity: d.state === 'REMOVED' ? 0.5 : 1,
       }}
@@ -69,13 +78,14 @@ export function EnerNode({ data, selected }: NodeProps) {
         <div className="truncate text-sm font-semibold text-ink-700" title={d.name}>
           {d.name || '(unnamed)'}
         </div>
-        <div className="flex items-center gap-1 text-[10px] text-ink-400">
+        <div className="flex items-center gap-1 text-[10px]">
           <span
-            className="inline-block h-2 w-2 shrink-0 rounded-full"
-            style={{ background: STATE_COLORS[d.state] }}
-            title={d.state}
-          />
-          <span className="truncate">{d.nodeType.replace(/_/g, ' ').toLowerCase()}</span>
+            className="shrink-0 rounded px-1 py-px font-semibold uppercase tracking-wide"
+            style={{ background: st.bg, color: st.text }}
+          >
+            {st.label}
+          </span>
+          <span className="truncate text-ink-400">{d.nodeType.replace(/_/g, ' ').toLowerCase()}</span>
         </div>
       </div>
       <Handle

@@ -143,6 +143,15 @@ export function EditorPage() {
     [getNodeDetail],
   );
 
+  // Reset per-diagram UI state when the open version changes.
+  useEffect(() => {
+    setSelectedNodeId(null);
+    setSelectedDetail(null);
+    setConnectingFrom(null);
+    setEditState(null);
+    setPanelMode('data');
+  }, [versionId]);
+
   // Load full detail of the selected node so its data shows immediately.
   useEffect(() => {
     let cancelled = false;
@@ -280,16 +289,14 @@ export function EditorPage() {
       const w = bodyRef.current?.clientWidth ?? 1000;
       const h = bodyRef.current?.clientHeight ?? 700;
       const left = Math.max(8, Math.min(createAnchor.x, w - PANEL_WIDTH - 8));
-      const style: CSSProperties = { left };
-      // Anchor from the top when clicking the upper half, from the bottom when
-      // clicking the lower half, so the panel never runs off-screen (its
-      // max-height + internal scroll keep it fully visible either way).
-      if (createAnchor.y <= h / 2) {
-        style.top = Math.max(8, createAnchor.y);
-      } else {
-        style.bottom = Math.max(8, h - createAnchor.y);
+      const spaceBelow = h - createAnchor.y - 8;
+      const spaceAbove = createAnchor.y - 8;
+      // Anchor to whichever side has more room and cap the height to it, so the
+      // panel always stays on-screen (it scrolls internally if it needs to).
+      if (spaceBelow >= spaceAbove) {
+        return { left, top: Math.max(8, createAnchor.y), maxHeight: Math.max(120, spaceBelow) };
       }
-      return style;
+      return { left, bottom: Math.max(8, h - createAnchor.y), maxHeight: Math.max(120, spaceAbove) };
     }
     return { right: 16, top: 16 };
   }
@@ -446,6 +453,7 @@ export function EditorPage() {
             <div className="absolute inset-0">
               {mode === 'diagram' ? (
                 <DiagramCanvas
+                  key={versionId}
                   diagram={diagram}
                   selectedNodeId={selectedNodeId}
                   onSelectNode={selectNode}
@@ -457,6 +465,7 @@ export function EditorPage() {
                 />
               ) : (
                 <MapView
+                  key={versionId}
                   diagram={diagram}
                   projection={projection}
                   selectedNodeId={selectedNodeId}
