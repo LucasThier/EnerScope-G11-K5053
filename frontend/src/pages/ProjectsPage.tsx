@@ -4,8 +4,10 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { PlusIcon, SearchIcon } from '../components/ui/icons';
 import { NewProjectModal } from '../components/projects/NewProjectModal';
+import { ProjectMembersModal } from '../components/projects/ProjectMembersModal';
 import { ProjectsTable } from '../components/projects/ProjectsTable';
 import { useActiveProject } from '../hooks/useActiveProject';
+import type { ProjectSummary } from '../types/project';
 
 const ALL_ORGANIZATIONS = 'all';
 
@@ -20,6 +22,7 @@ export function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [organizationId, setOrganizationId] = useState(ALL_ORGANIZATIONS);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewing, setViewing] = useState<ProjectSummary | null>(null);
 
   const organizations = useMemo(() => {
     const byId = new Map<string, string>();
@@ -118,7 +121,7 @@ export function ProjectsPage() {
             Ningún proyecto coincide con la búsqueda.
           </p>
         ) : (
-          <ProjectsTable projects={visibleProjects} />
+          <ProjectsTable projects={visibleProjects} onView={setViewing} />
         )}
       </Card>
 
@@ -127,6 +130,8 @@ export function ProjectsPage() {
         onClose={() => setIsModalOpen(false)}
         onCreated={reload}
       />
+
+      <ProjectMembersModal project={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }

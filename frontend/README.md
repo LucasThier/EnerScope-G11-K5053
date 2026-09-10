@@ -69,7 +69,7 @@ frontend/
 │  │  ├─ session.ts        Token + current-user storage helper (LocalStorage)
 │  │  ├─ auth.ts           Auth endpoints (login/register/refresh/logout)
 │  │  ├─ organizations.ts  Organization endpoints (list, create, register user into org)
-│  │  ├─ projects.ts       Project endpoints (list with optional organization filter, create)
+│  │  ├─ projects.ts       Project endpoints (list with optional organization filter, create, members)
 │  │  └─ errors.ts         Extracts the ApiResponse message from a failed request
 │  ├─ hooks/
 │  │  ├─ useAuth.ts        AuthContext + useAuth() hook
@@ -81,9 +81,10 @@ frontend/
 │  │  └─ useOrganizations.ts      Loads/creates organizations for the pickers/pages
 │  ├─ components/
 │  │  ├─ ui/               Brand-styled primitives (Button, TextField, TextArea, Card, Modal, Alert, Logo, Avatar, icons, NodeGraph, …)
+│  │  │                     `Card` takes `padded`, `Modal` takes `size` — both default to the form-shaped variant
 │  │  ├─ auth/             LoginForm, RegisterForm (single create-user form, optional org)
 │  │  ├─ organizations/    OrganizationPicker (select + inline create)
-│  │  ├─ projects/         ProjectsTable, NewProjectModal
+│  │  ├─ projects/         ProjectsTable, NewProjectModal, ProjectMembersModal
 │  │  └─ layout/           AppLayout (shell), TopBar, Sidebar, ProjectSwitcher, UserMenu
 │  ├─ pages/               LoginPage, AdminUsersPage, AdminOrganizationsPage, WorkspacePage, ProjectsPage
 │  ├─ routes/              ProtectedRoute, RoleRoute, DashboardRedirect

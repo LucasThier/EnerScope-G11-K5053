@@ -693,3 +693,68 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     `RoleBadge` is dead code that renders the raw `ADMIN`/`USER` enum, and the
     error states use Tailwind's default reds (`red-50/200/400/600/700`) with no
     `danger` ramp in `@theme`. Both are real, neither is about language.
+- 2026-09-10 — **`GET /projects/{projectId}/members`** (backend half of the
+  "see who is on a project" card, separate from SCRUM-160). Readable by a
+  platform ADMIN or by any member of the project; `ProjectMemberDTO` gained the
+  identity fields the screen lists.
+  - **A `JOIN FETCH` returning entities, not a constructor projection.** The
+    plan first called for a projection "like `ProjectRepository.findSummaries`",
+    which is wrong: `findSummaries` can project because `memberCount` is a
+    scalar `COUNT`, while a member row carries `ProjectMemberRole.permissions`,
+    an `@ElementCollection` — **JPQL cannot build a collection into a record**.
+    The right precedent was already in the codebase on the organization side
+    (`OrganizationMemberRepository.findByOrganizationIdWithUser`), so
+    `findByProjectIdWithUser` mirrors it: `JOIN FETCH m.user`,
+    `LEFT JOIN FETCH m.roles`, `DISTINCT`, ordered by `createdAt`. Same problem
+    solved (no lazy load per row), different tool.
+  - **`ProjectMemberDTO` was extended, not duplicated**: `firstName`,
+    `lastName`, `jobTitle`, `active`, mirroring `OrganizationMemberDTO`. The
+    change is additive, so `POST /projects/{id}/members` simply answers with
+    more fields — the same call the 2026-09-08 card made for the organization
+    POSTs.
+  - **`assertCanViewProject`** mirrors `assertCanViewOrganization` and is
+    deliberately more permissive than any management check: listing who has
+    access is not a management action. Platform ADMIN passes without a
+    membership lookup at all; everyone else needs a row in `project_member`.
+  - **`SecurityConfig` was checked and needs no entry**: `/projects/**` has no
+    explicit matcher and falls through to `anyRequest().authenticated()`, which
+    is the intended rule for this endpoint.
+  - Seven new tests (`ProjectServiceTest` 17 → 22, `ProjectControllerTest`
+    10 → 12); `mvn test` 148 → 155, all green.
+- 2026-09-10 — **Project members screen** (frontend half of the card whose
+  backend landed the same day). The eye action in the Projects table opens a
+  read-only panel listing who is on the project.
+  - **Only the eye is enabled.** The pencil and the trash stay disabled with
+    their `aria-disabled` treatment, because `PATCH`/`DELETE /projects/{id}`
+    still do not exist. `ProjectsTable` therefore has two action components: a
+    real `<button>` (`RowButton`) for the enabled action and the original
+    `<span aria-disabled>` (`RowAction`) for the blocked ones — a disabled
+    action must not inherit a clickable element's affordances, or the reverse.
+  - **The panel is thin but every block is labelled.** The first cut put the
+    project name in the title and the organization as a bare line under it,
+    which read as an orphan: nothing said whether "Austral LNG" was the
+    organization, a client, or part of the project's name. Both blocks now
+    carry a label — an `ORGANIZACIÓN` field in the app's label/value step, and
+    an `Integrantes` heading with the count over the table, plus `DESCRIPCIÓN`
+    and `ACTUALIZADO` as a labelled `<dl>`. **A thin panel is not the same as an
+    unlabelled one** — the earlier objection to a "project details" modal was
+    that repeating the row *unlabelled and unexplained* added nothing, not that
+    the fields themselves were unwanted. Labelled, in a two-column definition
+    list above the member table, they read as a project record rather than an
+    echo of the row.
+  - **`Modal` gained a `size` prop** (`md` default, `lg` for this panel).
+    A four-column table inside the 512px `max-w-lg` default wrapped a job title
+    across three lines. Same additive shape as `Card.padded`: existing callers
+    keep the old geometry.
+  - A suspended member is marked **next to the name**, not with a fifth column:
+    the table lives inside a modal and cannot afford the width, but a members
+    list that shows no difference between an active and a suspended person is
+    lying about who has access. `active` is the only state available — `INVITED`
+    remains unrepresentable.
+  - Members are fetched **when the panel opens**, keyed on the project id, with
+    a `cancelled` flag so a fast switch between projects cannot paint the wrong
+    list. Nothing is requested for projects nobody opens.
+  - Verified end to end against a restarted backend: a project with a member
+    (name, mail, job title, translated role), and the empty state. Note the
+    projects created before the `createProject` fix show **0 members** — they
+    are pre-fix data, not a defect in the current code.

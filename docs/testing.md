@@ -35,14 +35,14 @@ Run everything with `cd backend && mvn test`.
 | `organization.service.OrganizationServiceTest` | Unit | 18 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 12 |
 | `organization.controller.OrganizationControllerTest` | Web | 14 |
-| `project.service.ProjectServiceTest` | Unit | 17 |
-| `project.controller.ProjectControllerTest` | Web | 10 |
+| `project.service.ProjectServiceTest` | Unit | 22 |
+| `project.controller.ProjectControllerTest` | Web | 12 |
 | `version.service.VersionServiceTest` | Unit | 5 |
 | `version.controller.VersionControllerTest` | Web | 3 |
-| **Total** | | **124** |
+| **Total** | | **131** |
 
 > **This catalog is known to be incomplete.** `mvn test` currently reports
-> **148** cases. The 24-case gap predates this table's last update and is
+> **155** cases. The 24-case gap predates this table's last update and is
 > deliberately not reconciled here: the `node.*` and `strategyCost.*` classes
 > were never catalogued, `version.controller.VersionControllerTest` is listed
 > above but no such class exists, and the recorded counts for
@@ -236,6 +236,11 @@ Project creation and member addition (with role/permission derivation).
 | `addMemberRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException` before the user is looked up or anything is saved. |
 | `addMemberRejectsUnknownUser` | An unknown user id throws `IllegalArgumentException`; nothing is saved. |
 | `addMemberRejectsDuplicateMembership` | Adding a user already in the project throws `IllegalArgumentException`; nothing is saved. |
+| `listMembersReturnsEveryMemberForPlatformAdmin` | A platform ADMIN reads any project's members without a membership check being run. |
+| `listMembersReturnsMembersForProjectMember` | A regular user who is on the project reads its members. |
+| `listMembersRejectsCallerWhoIsNotAMember` | A user outside the project gets `ForbiddenException`; the members are never queried. |
+| `listMembersRejectsUnauthenticated` | No session throws `UnauthorizedException`; the members are never queried. |
+| `listMembersRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException` before any membership work. |
 | `listForCurrentUserReturnsEveryProjectForAdmin` | A platform `ADMIN` gets the unrestricted summary query; the membership query is never used. |
 | `listForCurrentUserReturnsOnlyMembershipsForRegularUser` | A regular user gets only the projects they are a member of; the unrestricted query is never used. |
 | `listForCurrentUserPassesOrganizationFilterThrough` | An `organizationId` is forwarded verbatim to the repository. |
@@ -263,6 +268,8 @@ non-`/auth` route); `ProjectService` is mocked.
 | `addMemberReturnsCreatedMember` | `POST /projects/{id}/members` with a valid body → `201` with the member's `memberType` and `userMail`. |
 | `addMemberRejectsUnknownProjectWith400` | When the service throws for an unknown project → `400` with the domain error message. |
 | `addMemberRejectsInvalidBodyWithValidationError` | Missing `userId`/`memberType` → `400` `Validation error`; the service is never called. |
+| `listMembersReturnsMembers` | `GET /projects/{id}/members` → `200` with the flattened member rows (mail, first/last name, `active`, `memberType`). |
+| `listMembersRequiresAuthenticationWith401` | The same call without a bearer token → `401`; the service is never reached. |
 
 ## `version.service.VersionServiceTest` — Unit
 

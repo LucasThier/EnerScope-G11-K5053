@@ -1,5 +1,6 @@
 package org.enerscope.project.service;
 
+import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
@@ -60,6 +61,14 @@ class ProjectServiceTest {
         private VersionService versionService;
         @Mock
         private AppLogger logger;
+
+        private static final java.util.Map<ProjectMemberType, Set<ProjectMemberPermission>>
+                        DEFAULT_PERMISSIONS_FOR_TEST = java.util.Map.of(
+                                        ProjectMemberType.ADMIN, Set.of(ProjectMemberPermission.MANAGE_PROJECT,
+                                                        ProjectMemberPermission.EDIT_PROJECT,
+                                                        ProjectMemberPermission.VIEW_PROJECT),
+                                        ProjectMemberType.EDITOR, Set.of(ProjectMemberPermission.EDIT_PROJECT,
+                                                        ProjectMemberPermission.VIEW_PROJECT));
 
         private ProjectService projectService;
 
@@ -229,6 +238,66 @@ class ProjectServiceTest {
                 verify(projectMemberRepository, never()).save(any());
         }
 
+        // ---- listMembers ---------------------------------------------------------
+
+        @Test
+        void listMembersReturnsEveryMemberForPlatformAdmin() {
+                UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectMemberRepository.findByProjectIdWithUser(projectId))
+                                .thenReturn(List.of(sampleMember(ProjectMemberType.ADMIN)));
+
+                List<ProjectMember> result = projectService.listMembers(projectId);
+
+                assertEquals(1, result.size());
+                assertEquals("jane@enerscope.org", result.get(0).getUser().getMail());
+                verify(projectMemberRepository, never()).existsByProjectIdAndUserId(any(), any());
+        }
+
+        @Test
+        void listMembersReturnsMembersForProjectMember() {
+                UUID projectId = UUID.randomUUID();
+                User caller = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+                authenticateAs(caller);
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(true);
+                when(projectMemberRepository.findByProjectIdWithUser(projectId))
+                                .thenReturn(List.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                assertEquals(1, projectService.listMembers(projectId).size());
+        }
+
+        @Test
+        void listMembersRejectsCallerWhoIsNotAMember() {
+                UUID projectId = UUID.randomUUID();
+                User caller = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
+                authenticateAs(caller);
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(false);
+
+                assertThrows(ForbiddenException.class, () -> projectService.listMembers(projectId));
+                verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
+        }
+
+        @Test
+        void listMembersRejectsUnauthenticated() {
+                UUID projectId = UUID.randomUUID();
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+
+                assertThrows(UnauthorizedException.class, () -> projectService.listMembers(projectId));
+                verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
+        }
+
+        @Test
+        void listMembersRejectsUnknownProject() {
+                UUID projectId = UUID.randomUUID();
+                when(projectRepository.existsById(projectId)).thenReturn(false);
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.listMembers(projectId));
+                verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
+        }
+
         // ---- listForCurrentUser --------------------------------------------------
 
         @Test
@@ -325,6 +394,15 @@ class ProjectServiceTest {
 
         private User creator() {
                 return new User("owner@enerscope.org", "Owner", "User", "hashed", PlatformRole.USER);
+        }
+
+        private ProjectMember sampleMember(ProjectMemberType memberType) {
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User user = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+                ProjectMember member = new ProjectMember(user, project);
+                member.addRole(new ProjectMemberRole(
+                                memberType.name(), memberType, DEFAULT_PERMISSIONS_FOR_TEST.get(memberType)));
+                return member;
         }
 
         private void authenticateAs(User caller) {

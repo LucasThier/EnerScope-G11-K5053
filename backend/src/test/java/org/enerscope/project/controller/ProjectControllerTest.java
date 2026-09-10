@@ -126,6 +126,37 @@ class ProjectControllerTest {
         verify(projectService, never()).listForCurrentUser(any());
     }
 
+    // ---- listMembers -------------------------------------------------------
+
+    @Test
+    void listMembersReturnsMembers() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        when(projectService.listMembers(projectId)).thenReturn(List.of(
+                sampleMember(ProjectMemberType.EDITOR,
+                        Set.of(ProjectMemberPermission.EDIT_PROJECT, ProjectMemberPermission.VIEW_PROJECT))));
+
+        mockMvc.perform(get("/projects/" + projectId + "/members")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Project members"))
+                .andExpect(jsonPath("$.data[0].userMail").value("jane@enerscope.org"))
+                .andExpect(jsonPath("$.data[0].firstName").value("Jane"))
+                .andExpect(jsonPath("$.data[0].lastName").value("Doe"))
+                .andExpect(jsonPath("$.data[0].active").value(true))
+                .andExpect(jsonPath("$.data[0].memberType").value("EDITOR"));
+    }
+
+    @Test
+    void listMembersRequiresAuthenticationWith401() throws Exception {
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(get("/projects/" + projectId + "/members"))
+                .andExpect(status().isUnauthorized());
+
+        verify(projectService, never()).listMembers(any());
+    }
+
     // ---- createVersion -------------------------------------------------------
 
     @Test

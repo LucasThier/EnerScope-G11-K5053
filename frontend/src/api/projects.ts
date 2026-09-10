@@ -1,6 +1,11 @@
 import { client } from './client';
 import type { ApiResponse } from '../types/auth';
-import type { CreateProjectRequest, Project, ProjectSummary } from '../types/project';
+import type {
+  CreateProjectRequest,
+  Project,
+  ProjectMember,
+  ProjectSummary,
+} from '../types/project';
 import type { AxiosResponse } from 'axios';
 
 export const projectsApi = {
@@ -14,4 +19,8 @@ export const projectsApi = {
 
   create: (data: CreateProjectRequest): Promise<AxiosResponse<ApiResponse<Project>>> =>
     client.post('/projects', data),
+
+  /** Members of a project: readable by platform admins and by members of the project. */
+  members: (projectId: string): Promise<AxiosResponse<ApiResponse<ProjectMember[]>>> =>
+    client.get(`/projects/${projectId}/members`),
 };

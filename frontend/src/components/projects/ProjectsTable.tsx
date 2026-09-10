@@ -1,16 +1,17 @@
 import type { ReactNode } from 'react';
 import type { ProjectSummary } from '../../types/project';
-import { PencilIcon, TrashIcon } from '../ui/icons';
+import { EyeIcon, PencilIcon, TrashIcon } from '../ui/icons';
 import { formatDate } from '../../utils/date';
 
 interface ProjectsTableProps {
   projects: ProjectSummary[];
+  onView: (project: ProjectSummary) => void;
 }
 
 const headerCell = 'px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
 const bodyCell = 'px-4 py-3 text-sm text-ink-700 align-top';
 
-export function ProjectsTable({ projects }: ProjectsTableProps) {
+export function ProjectsTable({ projects, onView }: ProjectsTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[56rem] border-collapse">
@@ -48,6 +49,12 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
               <td className={`${bodyCell} whitespace-nowrap`}>{formatDate(project.lastModified)}</td>
               <td className={`${bodyCell} text-right`}>
                 <div className="flex justify-end gap-1">
+                  <RowButton
+                    label={`Ver integrantes de ${project.name}`}
+                    onClick={() => onView(project)}
+                  >
+                    <EyeIcon className="h-4 w-4" />
+                  </RowButton>
                   <RowAction label={`Editar ${project.name}`}>
                     <PencilIcon className="h-4 w-4" />
                   </RowAction>
@@ -61,6 +68,31 @@ export function ProjectsTable({ projects }: ProjectsTableProps) {
         </tbody>
       </table>
     </div>
+  );
+}
+
+function RowButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={
+        'inline-flex rounded-lg p-1 text-ink-500 transition-colors hover:bg-ink-50 ' +
+        'hover:text-ink-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400'
+      }
+    >
+      {children}
+    </button>
   );
 }
 

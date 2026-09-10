@@ -12,6 +12,7 @@ import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
 import org.enerscope.project.service.ProjectService;
+import org.enerscope.user.model.User;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.enerscope.version.dto.VersionDTO;
@@ -70,6 +71,17 @@ public class ProjectController {
         return Responses.created("Member added", toDTO(member));
     }
 
+    @GetMapping("/{projectId}/members")
+    @Operation(summary = "List the members of a project",
+            description = "Returns every member with their identity fields. Readable by platform "
+                    + "admins and by any member of the project.")
+    public ResponseEntity<ApiResponse<List<ProjectMemberDTO>>> listMembers(@PathVariable UUID projectId) {
+        List<ProjectMemberDTO> members = projectService.listMembers(projectId).stream()
+                .map(this::toDTO)
+                .toList();
+        return Responses.ok("Project members", members);
+    }
+
     @PostMapping(value = "/{projectId}/version", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Create a new version", description = "Create a new Version with all required properties.")
     public ResponseEntity<ApiResponse<Version>> createVersion(
@@ -87,10 +99,15 @@ public class ProjectController {
 
     private ProjectMemberDTO toDTO(ProjectMember member) {
         ProjectMemberRole role = member.getRoles().iterator().next();
+        User user = member.getUser();
         return new ProjectMemberDTO(
                 member.getId(),
-                member.getUser().getId(),
-                member.getUser().getMail(),
+                user.getId(),
+                user.getMail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getJobTitle(),
+                user.isActive(),
                 role.getMemberType(),
                 role.getPermissions());
     }

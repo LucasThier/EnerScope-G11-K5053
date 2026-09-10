@@ -1,5 +1,6 @@
 package org.enerscope.project.service;
 
+import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
@@ -105,6 +106,39 @@ public class ProjectService {
                 logger.info("Created project {} in organization {} with {} as project admin",
                                 saved.getName(), organization.getName(), creator.getMail());
                 return saved;
+        }
+
+        /**
+         * The members of a project, with their user and roles already fetched.
+         * Readable by a platform ADMIN or by any member of the project — listing
+         * who has access is not a management action, mirroring
+         * {@code OrganizationService.assertCanViewOrganization}.
+         */
+        @Transactional(readOnly = true)
+        public List<ProjectMember> listMembers(UUID projectId) {
+                if (!projectRepository.existsById(projectId)) {
+                        throw new IllegalArgumentException("Project not found");
+                }
+                assertCanViewProject(projectId);
+                return projectMemberRepository.findByProjectIdWithUser(projectId);
+        }
+
+        /**
+         * Ensures the current caller may read the given project: a platform ADMIN,
+         * or any of its members regardless of permissions.
+         */
+        public void assertCanViewProject(UUID projectId) {
+                Session session = AuthUtil.currentSession();
+                if (session == null) {
+                        throw new UnauthorizedException("Authentication required");
+                }
+                User caller = session.getUser();
+                if (caller.getPlatformRole() == PlatformRole.ADMIN) {
+                        return;
+                }
+                if (!projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())) {
+                        throw new ForbiddenException("You are not allowed to view this project");
+                }
         }
 
         public ProjectMember addMember(UUID projectId, AddProjectMemberRequestDTO data) {
