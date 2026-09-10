@@ -457,3 +457,33 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     three signed-in pages were not re-checked visually either: they change
     only through the `AppLayout` background and `Card`, both shared, but a
     look at them is worth doing.
+- 2026-09-09 — SCRUM-160 (backend half): **creating a project now adds the
+  creator as a project `ADMIN`.** `ProjectService.createProject` resolves the
+  caller from `AuthUtil.currentSession()` (throwing `UnauthorizedException`
+  when there is none, same as `listForCurrentUser`) and attaches them as a
+  member with `MANAGE_PROJECT` + `EDIT_PROJECT` + `VIEW_PROJECT`.
+  - **Why:** `GET /projects` filters by *project* membership, so before this a
+    creator who is not a platform admin never saw the project they had just
+    created — the Projects screen would answer a successful create with an
+    unchanged, possibly empty table. This is the **opposite** of the decision
+    taken for organizations, where creating one deliberately does not enrol the
+    creator: an organization is an administrative container created *for*
+    someone else, a project is created by the person who is going to work on it.
+  - The creator is re-read through `userRepository.findById` instead of being
+    taken straight off `session.getUser()`: that instance is detached and is
+    about to be referenced by a new `project_member` row.
+  - `createProject` is now `@Transactional`, so the project and its first
+    member are one unit. A half-written create — project saved, membership
+    lost — is precisely the invisible-project state this change exists to fix.
+  - The member-building block (member + default role + `project.addMember` +
+    save) moved to a private `attachMember(Project, User, ProjectMemberType)`
+    shared with `addMember`, which keeps its own validations (project exists,
+    user exists, not already a member) and only delegates the assembly.
+  - Session check runs **before** the organization lookup: an anonymous caller
+    gets `401`, not a `400` about an organization it never got to read.
+  - **Still open, deliberately not fixed here:** `POST /projects` does not check
+    that the creator belongs to the target organization, so any authenticated
+    user can create a project inside any organization. That is a broader
+    authorization gap (the same shape of check `OrganizationService` already
+    has in `assertCanManageUsers`/`assertCanViewOrganization`) and is worth its
+    own card rather than a patch on this one.

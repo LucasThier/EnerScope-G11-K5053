@@ -85,7 +85,15 @@ public class ProjectService {
                 return projectRepository.findSummariesForMember(caller.getId(), organizationId);
         }
 
+        @Transactional
         public Project createProject(CreateProjectRequestDTO data) {
+                Session session = AuthUtil.currentSession();
+                if (session == null) {
+                        throw new UnauthorizedException("Authentication required");
+                }
+                User creator = userRepository.findById(session.getUser().getId())
+                                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
                 Organization organization = organizationRepository.findById(data.organizationId())
                                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
 
@@ -93,7 +101,9 @@ public class ProjectService {
                 organization.addProject(project);
 
                 Project saved = projectRepository.save(project);
-                logger.info("Created project {} in organization {}", saved.getName(), organization.getName());
+                attachMember(saved, creator, ProjectMemberType.ADMIN);
+                logger.info("Created project {} in organization {} with {} as project admin",
+                                saved.getName(), organization.getName(), creator.getMail());
                 return saved;
         }
 
@@ -106,16 +116,18 @@ public class ProjectService {
                         throw new IllegalArgumentException("User is already a member of this project");
                 }
 
-                ProjectMember member = new ProjectMember(user, project);
-                ProjectMemberRole role = new ProjectMemberRole(
-                                data.memberType().name(), data.memberType(),
-                                DEFAULT_PERMISSIONS.get(data.memberType()));
-                member.addRole(role);
-                project.addMember(member);
-
-                ProjectMember saved = projectMemberRepository.save(member);
+                ProjectMember saved = attachMember(project, user, data.memberType());
                 logger.info("Added user {} to project {} as {}", user.getMail(), project.getName(), data.memberType());
                 return saved;
+        }
+
+        private ProjectMember attachMember(Project project, User user, ProjectMemberType memberType) {
+                ProjectMember member = new ProjectMember(user, project);
+                ProjectMemberRole role = new ProjectMemberRole(
+                                memberType.name(), memberType, DEFAULT_PERMISSIONS.get(memberType));
+                member.addRole(role);
+                project.addMember(member);
+                return projectMemberRepository.save(member);
         }
 
         /**

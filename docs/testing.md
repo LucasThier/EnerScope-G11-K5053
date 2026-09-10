@@ -35,14 +35,14 @@ Run everything with `cd backend && mvn test`.
 | `organization.service.OrganizationServiceTest` | Unit | 18 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 12 |
 | `organization.controller.OrganizationControllerTest` | Web | 14 |
-| `project.service.ProjectServiceTest` | Unit | 15 |
+| `project.service.ProjectServiceTest` | Unit | 17 |
 | `project.controller.ProjectControllerTest` | Web | 10 |
 | `version.service.VersionServiceTest` | Unit | 5 |
 | `version.controller.VersionControllerTest` | Web | 3 |
-| **Total** | | **122** |
+| **Total** | | **124** |
 
 > **This catalog is known to be incomplete.** `mvn test` currently reports
-> **146** cases. The 24-case gap predates this table's last update and is
+> **148** cases. The 24-case gap predates this table's last update and is
 > deliberately not reconciled here: the `node.*` and `strategyCost.*` classes
 > were never catalogued, `version.controller.VersionControllerTest` is listed
 > above but no such class exists, and the recorded counts for
@@ -228,6 +228,8 @@ Project creation and member addition (with role/permission derivation).
 | Case | Verifies |
 | --- | --- |
 | `createProjectPersistsAndLinksToOrganization` | Creating a project persists it linked to the organization and appends it to `Organization.projects`. |
+| `createProjectAddsCreatorAsProjectAdmin` | Creating a project puts the caller on it as a member whose role is `ADMIN` with `MANAGE_PROJECT`, `EDIT_PROJECT` and `VIEW_PROJECT` — without it the creator would not see their own project in `GET /projects`. |
+| `createProjectRejectsUnauthenticated` | Creating a project with no session throws `UnauthorizedException`; neither the project nor a membership is saved. |
 | `createProjectRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException`; the project is never saved. |
 | `addMemberGrantsAdminFullPermissions` | Adding a member with `memberType=ADMIN` creates a role with `MANAGE_PROJECT`, `EDIT_PROJECT` and `VIEW_PROJECT`. |
 | `addMemberGrantsEditorEditAndViewPermissions` | Adding a member with `memberType=EDITOR` creates a role with only `EDIT_PROJECT` and `VIEW_PROJECT`. |

@@ -81,8 +81,12 @@ class ProjectServiceTest {
         void createProjectPersistsAndLinksToOrganization() {
                 UUID orgId = UUID.randomUUID();
                 Organization organization = new Organization("Acme");
+                User creator = creator();
+                authenticateAs(creator);
+                when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
                 when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
                 when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
 
                 Project saved = projectService.createProject(
                                 new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid", orgId));
@@ -94,13 +98,51 @@ class ProjectServiceTest {
         }
 
         @Test
+        void createProjectAddsCreatorAsProjectAdmin() {
+                UUID orgId = UUID.randomUUID();
+                Organization organization = new Organization("Acme");
+                User creator = creator();
+                authenticateAs(creator);
+                when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
+                when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
+                when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                Project saved = projectService.createProject(
+                                new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid", orgId));
+
+                assertEquals(1, saved.getMembers().size());
+                ProjectMember member = saved.getMembers().get(0);
+                assertEquals(creator, member.getUser());
+                assertEquals(saved, member.getProject());
+                assertEquals(1, member.getRoles().size());
+                ProjectMemberRole role = member.getRoles().iterator().next();
+                assertEquals(ProjectMemberType.ADMIN, role.getMemberType());
+                assertEquals(Set.of(ProjectMemberPermission.MANAGE_PROJECT, ProjectMemberPermission.EDIT_PROJECT,
+                                ProjectMemberPermission.VIEW_PROJECT), role.getPermissions());
+        }
+
+        @Test
+        void createProjectRejectsUnauthenticated() {
+                assertThrows(UnauthorizedException.class, () -> projectService.createProject(
+                                new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid",
+                                                UUID.randomUUID())));
+                verify(projectRepository, never()).save(any());
+                verify(projectMemberRepository, never()).save(any());
+        }
+
+        @Test
         void createProjectRejectsUnknownOrganization() {
                 UUID orgId = UUID.randomUUID();
+                User creator = creator();
+                authenticateAs(creator);
+                when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
                 when(organizationRepository.findById(orgId)).thenReturn(Optional.empty());
 
                 assertThrows(IllegalArgumentException.class, () -> projectService.createProject(
                                 new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid", orgId)));
                 verify(projectRepository, never()).save(any());
+                verify(projectMemberRepository, never()).save(any());
         }
 
         // ---- addMember -------------------------------------------------------
@@ -279,6 +321,10 @@ class ProjectServiceTest {
 
         private User admin() {
                 return new User("admin@enerscope.org", "Admin", "User", "hashed", PlatformRole.ADMIN);
+        }
+
+        private User creator() {
+                return new User("owner@enerscope.org", "Owner", "User", "hashed", PlatformRole.USER);
         }
 
         private void authenticateAs(User caller) {
