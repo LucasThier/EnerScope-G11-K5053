@@ -79,7 +79,7 @@ class VersionServiceTest {
         UUID versionId = UUID.randomUUID();
         String newName = "New Version Name";
         Version existingVersion = new Version("Old Name", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(existingVersion));
         when(versionRepository.save(any(Version.class))).thenReturn(existingVersion);
@@ -108,7 +108,7 @@ class VersionServiceTest {
         nodeDTO.setState(NodeStateEnum.RUNNING);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         // Create a minimal Well instance for testing
         Well originalNode = new Well(
@@ -179,7 +179,7 @@ class VersionServiceTest {
         nodeDTO.setState(NodeStateEnum.PENDING);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         // Create a minimal Well instance for testing
         Well originalNode = new Well(
@@ -258,7 +258,7 @@ class VersionServiceTest {
         nodeDTO.setState(NodeStateEnum.REMOVED);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         // Create a minimal Well instance for testing
         Well originalNode = new Well(
@@ -364,7 +364,7 @@ class VersionServiceTest {
         WellDTO nodeDTO = new WellDTO();
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
         when(nodeRepository.findById(nodeId)).thenReturn(Optional.empty());
@@ -382,7 +382,7 @@ class VersionServiceTest {
         wellDTO.setState(NodeStateEnum.PROPOSED);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         Well savedWell = new Well(
                 "Test Well",
