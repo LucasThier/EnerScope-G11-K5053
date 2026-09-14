@@ -33,7 +33,7 @@ public class ResultTest {
 
         Well mockWell = Mockito.mock(Well.class);
         setupBaseNodeMocks(mockWell, wellId);
-        when(mockWell.getMaxCollectionCapacity()).thenReturn(1000f);
+        when(mockWell.getMaxCollectionCapacity()).thenReturn(1500f);
         when(mockWell.getDeclineCurve()).thenReturn(2f);
         when(mockWell.getGasRichness()).thenReturn(1f);
         when(mockWell.getDTMTime()).thenReturn(24);
@@ -57,12 +57,12 @@ public class ResultTest {
 
         ResultPerNode wellResult = simWell.createResult();
 
-//        System.out.println("=== RESULTADO POZO ===");
-//        System.out.println("Node ID: " + wellResult.getNodeID());
-//        System.out.println("Max Possible Produced: " + wellResult.getMaxPossibleProduced());
-//        System.out.println("Total Produced: " + wellResult.getTotalProduced());
-//        System.out.println("Total Deferred: " + wellResult.getTotalDeferred());
-//        System.out.println("Total Extra: " + wellResult.getExtra());
+        System.out.println("=== RESULTADO POZO ===");
+        System.out.println("Node ID: " + wellResult.getNodeID());
+        System.out.println("Max Possible Produced: " + wellResult.getMaxPossibleProduced());
+        System.out.println("Total Produced: " + wellResult.getTotalProduced());
+        System.out.println("Total Deferred: " + wellResult.getTotalDeferred());
+        System.out.println("Total Extra: " + wellResult.getExtra());
 
         assertNotNull(wellResult.getNodeID(), "El Pozo debe tener un ID asignado");
 
