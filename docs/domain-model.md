@@ -16,6 +16,7 @@ Persistent entity mapped to the `app_user` table.
 | `lastName` | String | 2–60 chars |
 | `passwordHash` | String | BCrypt hash, never exposed by the API |
 | `platformRole` | PlatformRole | `ADMIN` or `USER`; the user's app-wide role. Stored as a string (`platform_role`) |
+| `jobTitle` | String | Optional, ≤120 chars (`job_title`). Free-form descriptive title (e.g. "Senior Investment Analyst") shown next to the user in the app |
 | `active` | boolean | Soft-activation flag (from `BaseEntity`) |
 | `createdAt` | Instant | Audit timestamp (from `BaseEntity`) |
 | `lastModified` | Instant | Audit timestamp (from `BaseEntity`) |
@@ -27,6 +28,11 @@ audit timestamps to every entity.
 organization/project membership roles below: it governs app-wide capabilities
 (only an `ADMIN` may create arbitrary accounts). `PlatformRole` is carried in the
 access-token `role` claim and mapped to a Spring Security `ROLE_*` authority.
+
+**`jobTitle` is not a role.** It is descriptive text with no bearing on
+authorization, and it is not carried in the token claims: it reaches the client
+through `UserSummaryDTO` on login and refresh, both of which read the user from
+the database. Set it at registration; there is no endpoint to change it yet.
 
 ### Authentication & registration
 

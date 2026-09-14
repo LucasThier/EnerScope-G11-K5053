@@ -1,82 +1,153 @@
 import { NavLink } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { Logo } from '../ui/Logo';
-import type { PlatformRole } from '../../types/auth';
+import { useLocalPreference } from '../../hooks/useLocalPreference';
+import {
+  BuildingIcon,
+  ChevronsLeftIcon,
+  ChevronsRightIcon,
+  CompareIcon,
+  FlaskIcon,
+  FolderIcon,
+  HomeIcon,
+  LockIcon,
+  ReportIcon,
+  SettingsIcon,
+  TeamIcon,
+  UsersIcon,
+  ValueChainIcon,
+} from '../ui/icons';
 
 interface NavItem {
-  to: string;
   label: string;
   icon: ReactNode;
+  /** Absent until the section has a page; the entry renders locked instead of linking nowhere. */
+  to?: string;
 }
 
-// Small inline icons (no icon dependency; brand-neutral, inherit currentColor).
-const icons = {
-  users: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" strokeLinecap="round" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" strokeLinecap="round" />
-    </svg>
-  ),
-  org: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M3 21h18M6 21V7l6-4 6 4v14" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M10 12h4M10 16h4" strokeLinecap="round" />
-    </svg>
-  ),
-  workspace: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <rect x="3" y="3" width="7" height="9" rx="1" />
-      <rect x="14" y="3" width="7" height="5" rx="1" />
-      <rect x="14" y="12" width="7" height="9" rx="1" />
-      <rect x="3" y="16" width="7" height="5" rx="1" />
-    </svg>
-  ),
-};
+const COLLAPSED_KEY = 'sidebarCollapsed';
 
-function navFor(role: PlatformRole): NavItem[] {
-  if (role === 'ADMIN') {
-    return [
-      { to: '/admin/users', label: 'Users', icon: icons.users },
-      { to: '/admin/organizations', label: 'Organizations', icon: icons.org },
-    ];
-  }
-  return [{ to: '/app', label: 'Workspace', icon: icons.workspace }];
-}
+/**
+ * The sections from the product design. The ones still to be built are listed
+ * but locked: showing the full map of the product is intentional, linking to
+ * pages that do not exist is not.
+ */
+const NAV_ITEMS: NavItem[] = [
+  { label: 'Inicio / Dashboard', icon: <HomeIcon />, to: '/app' },
+  { label: 'Proyectos', icon: <FolderIcon />, to: '/projects' },
+  { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon /> },
+  { label: 'Simulaciones / Escenarios', icon: <FlaskIcon /> },
+  { label: 'Comparar Escenarios', icon: <CompareIcon /> },
+  { label: 'Reportes', icon: <ReportIcon /> },
+  { label: 'Organización / Equipo', icon: <TeamIcon /> },
+  { label: 'Configuración', icon: <SettingsIcon /> },
+];
+
+/** Platform administration, kept separate because it is not part of the project workspace. */
+const ADMIN_ITEMS: NavItem[] = [
+  { label: 'Usuarios', icon: <UsersIcon />, to: '/admin/users' },
+  { label: 'Organizaciones', icon: <BuildingIcon />, to: '/admin/organizations' },
+];
+
+/** Shared row geometry. Padding is applied per state so the collapsed rail can
+ * centre its icons without inventing a second set of sizes. */
+const itemBase = 'flex items-center gap-3 rounded-lg py-2 text-sm transition-colors';
+
+const itemPadding = (isCollapsed: boolean) => (isCollapsed ? 'justify-center px-2' : 'px-3');
 
 export function Sidebar() {
   const { user } = useAuth();
-  const items = user ? navFor(user.platformRole) : [];
+  const [isCollapsed, setIsCollapsed] = useLocalPreference(COLLAPSED_KEY, false);
+
+  const showAdmin = user?.platformRole === 'ADMIN';
 
   return (
-    <aside className="flex w-16 shrink-0 flex-col border-r border-ink-100 bg-white md:w-56">
-      <div className="flex h-16 items-center border-b border-ink-100 px-3 md:px-5">
-        {/* Mark only on narrow screens, full wordmark on desktop. */}
-        <span className="md:hidden">
-          <Logo withWordmark={false} />
-        </span>
-        <span className="hidden md:block">
-          <Logo />
-        </span>
-      </div>
-      <nav className="flex flex-1 flex-col gap-1 p-2 md:p-3">
-        {items.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ' +
-              (isActive
-                ? 'bg-brand-50 text-brand-800'
-                : 'text-ink-500 hover:bg-ink-50 hover:text-ink-700')
-            }
-          >
-            <span className="shrink-0">{item.icon}</span>
-            <span className="hidden md:inline">{item.label}</span>
-          </NavLink>
+    <aside
+      className={
+        'flex shrink-0 flex-col border-r border-ink-100 bg-white transition-[width] duration-200 ' +
+        (isCollapsed ? 'w-16' : 'w-72')
+      }
+    >
+      <nav className="flex flex-1 flex-col gap-1 p-3">
+        {NAV_ITEMS.map((item) => (
+          <NavItemLink key={item.label} item={item} isCollapsed={isCollapsed} />
         ))}
+
+        {showAdmin && (
+          <>
+            <hr className="my-3 border-ink-100" />
+            {!isCollapsed && (
+              <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-ink-500">
+                Administración
+              </p>
+            )}
+            {ADMIN_ITEMS.map((item) => (
+              <NavItemLink key={item.label} item={item} isCollapsed={isCollapsed} />
+            ))}
+          </>
+        )}
       </nav>
+
+      <div className="p-3">
+        <button
+          type="button"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+          title={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+          className={
+            `${itemBase} ${itemPadding(isCollapsed)} w-full border border-ink-100 font-medium text-ink-500 ` +
+            'hover:bg-ink-50 hover:text-ink-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400'
+          }
+        >
+          <span className="shrink-0">
+            {isCollapsed ? <ChevronsRightIcon /> : <ChevronsLeftIcon />}
+          </span>
+          {!isCollapsed && <span>Colapsar menú</span>}
+        </button>
+      </div>
     </aside>
+  );
+}
+
+function NavItemLink({ item, isCollapsed }: { item: NavItem; isCollapsed: boolean }) {
+  const label = isCollapsed ? null : <span className="truncate">{item.label}</span>;
+  const padding = itemPadding(isCollapsed);
+
+  /* Locked sections keep full-contrast text (ink-500, 5.69:1) and signal their
+   * state through the padlock and a lighter weight instead — dimming the label
+   * to carry that meaning is what made them unreadable before. */
+  if (!item.to) {
+    return (
+      <span
+        aria-disabled="true"
+        title={`${item.label} — no disponible`}
+        className={`${itemBase} ${padding} cursor-not-allowed font-normal text-ink-500`}
+      >
+        <span className="relative shrink-0">
+          {item.icon}
+          {isCollapsed && (
+            <LockIcon className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-white text-ink-400" />
+          )}
+        </span>
+        {label}
+        {!isCollapsed && <LockIcon className="ml-auto h-3.5 w-3.5 shrink-0 text-ink-400" />}
+      </span>
+    );
+  }
+
+  return (
+    <NavLink
+      to={item.to}
+      title={isCollapsed ? item.label : undefined}
+      className={({ isActive }) =>
+        `${itemBase} ${padding} ` +
+        (isActive
+          ? 'bg-brand-50 font-semibold text-brand-800'
+          : 'font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-700')
+      }
+    >
+      <span className="shrink-0">{item.icon}</span>
+      {label}
+    </NavLink>
   );
 }
