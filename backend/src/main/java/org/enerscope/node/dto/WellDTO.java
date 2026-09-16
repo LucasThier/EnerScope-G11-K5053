@@ -14,7 +14,7 @@ public class WellDTO extends BaseNodeDTO {
 
     // Well-specific fields
     private Float maxCollectionCapacity;
-    private Float declineCurve;
+    private ProbabilisticDistributionDTO declineCurve;
     private Float gasRichness;
     private int DTMTime;
     private Float DTMCost;

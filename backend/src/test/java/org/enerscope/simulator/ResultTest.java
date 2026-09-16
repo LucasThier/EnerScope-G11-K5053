@@ -1,5 +1,6 @@
 package org.enerscope.simulator;
 
+import org.enerscope.node.dto.ProbabilisticDistributionDTO;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.export.SeaportTerminal;
@@ -9,6 +10,7 @@ import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
+import org.enerscope.probabilistic.ConstantValue;
 import org.enerscope.simulator.simNode.*;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -34,7 +36,7 @@ public class ResultTest {
         Well mockWell = Mockito.mock(Well.class);
         setupBaseNodeMocks(mockWell, wellId);
         when(mockWell.getMaxCollectionCapacity()).thenReturn(1000f);
-        when(mockWell.getDeclineCurve()).thenReturn(2f);
+        when(mockWell.getDeclineCurve()).thenReturn(new ConstantValue(2f));
         when(mockWell.getGasRichness()).thenReturn(1f);
         when(mockWell.getDTMTime()).thenReturn(24);
 
@@ -81,7 +83,7 @@ public class ResultTest {
         Well mockWell = Mockito.mock(Well.class);
         setupBaseNodeMocks(mockWell, wellId);
         when(mockWell.getMaxCollectionCapacity()).thenReturn(1000f);
-        when(mockWell.getDeclineCurve()).thenReturn(2f);
+        when(mockWell.getDeclineCurve()).thenReturn(new ConstantValue(2f));
         when(mockWell.getGasRichness()).thenReturn(1f);
         when(mockWell.getDTMTime()).thenReturn(24);
 

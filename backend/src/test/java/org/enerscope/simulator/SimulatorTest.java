@@ -11,6 +11,7 @@ import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
+import org.enerscope.probabilistic.ConstantValue;
 import org.enerscope.simulator.simNode.*;
 import org.enerscope.version.model.Version;
 import org.junit.jupiter.api.BeforeEach;
@@ -67,7 +68,7 @@ public class SimulatorTest {
         configurarBaseNode(mockCarrier, idCarrier);
 
         when(mockWell.getMaxCollectionCapacity()).thenReturn(1000f);
-        when(mockWell.getDeclineCurve()).thenReturn(5f);
+        when(mockWell.getDeclineCurve()).thenReturn(new ConstantValue(5f));
         when(mockWell.getGasRichness()).thenReturn(50f);
 
         when(mockGatheringNetwork.getMaxTransportCapacity()).thenReturn(5000f);
@@ -272,7 +273,7 @@ public class SimulatorTest {
         Well mock = mock(Well.class);
         configurarBaseNode(mock, id);
         when(mock.getMaxCollectionCapacity()).thenReturn(1000f);
-        when(mock.getDeclineCurve()).thenReturn(5f);
+        when(mock.getDeclineCurve()).thenReturn(new ConstantValue(5f));
         when(mock.getGasRichness()).thenReturn(5f);
         return mock;
     }
@@ -432,7 +433,7 @@ public class SimulatorTest {
         Well mockWell = mock(Well.class);
         setupBaseNodeMocks(mockWell, wellId);
         when(mockWell.getMaxCollectionCapacity()).thenReturn(100f);
-        when(mockWell.getDeclineCurve()).thenReturn(2f);
+        when(mockWell.getDeclineCurve()).thenReturn(new ConstantValue(2f));
         when(mockWell.getGasRichness()).thenReturn(1f);
         when(mockWell.getDTMTime()).thenReturn(24);
 
@@ -568,7 +569,7 @@ public class SimulatorTest {
         Well mockWell = mock(Well.class);
         when(mockWell.getId()).thenReturn(wellId);
         when(mockWell.getMaxCollectionCapacity()).thenReturn(100f);
-        when(mockWell.getDeclineCurve()).thenReturn(10f); // 10% de declive por año
+        when(mockWell.getDeclineCurve()).thenReturn(new ConstantValue(10f)); // 10% de declive por año
         when(mockWell.getGasRichness()).thenReturn(100f);
         when(mockWell.getDTMTime()).thenReturn(24);
         when(mockWell.getMaintenanceIntervalInDays()).thenReturn(9999); // Sin mantenimiento para simplicidad
