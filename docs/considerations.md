@@ -899,3 +899,34 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     caller's mail and that an unauthenticated call throws *before* logging,
     since there is no caller to name yet.
   - `mvn test` 237 → 244.
+- 2026-09-16 — **`PATCH /users/me/password`**, the endpoint `UserService.
+  changePassword` never had. The method had existed since the initial scaffold
+  with no controller, no DTO, **no test** and no mention in any doc — the only
+  reference in the repository was its own declaration.
+  - **Exposed rather than deleted, for a reason that already shipped:**
+    `POST /organizations/{id}/users/bulk` hands out generated passwords in a CSV
+    and `POST /auth/register` lets an admin pick a password for someone else.
+    Until now those passwords were permanent — there was no way, by any route,
+    for their owner to replace one.
+  - **First controller in the `user` feature.** `user/` already had `dto`,
+    `model`, `repository` and `service`, so `controller` is the subpackage that
+    was missing; `/users/me` is also where the pending user-ABM card will land.
+    `AuthController` was the alternative and was rejected: it is where
+    credentials are *exchanged*, not where an account is administered.
+  - **The account comes from the session, never from the body.** There is no
+    `userId` field to send, so the endpoint cannot be aimed at another user by
+    construction rather than by a check. An admin resetting someone else's
+    password is a different endpoint with its own authorization, and does not
+    exist yet.
+  - `currentPassword` carries `@NotBlank` but **no `@Size`**: it is verified
+    against the stored hash, and rejecting it for being too short would leak
+    that the stored password is short. `newPassword` keeps the 8-character
+    minimum from `RegisterRequestDTO`.
+  - `SecurityConfig` was checked and needs no entry: `/users/**` falls through
+    to `anyRequest().authenticated()`, which is the intended rule.
+  - **No screen yet, on purpose.** Decided as a separate card, so today the
+    endpoint is only reachable from Swagger or a client. Until that card lands,
+    a bulk-registered user still has no way to change their password *in the
+    app* — the backend half is done, the loop is not closed for the end user.
+  - `mvn test` 244 → 251: `UserServiceTest` 9 → 12 (the method had no coverage
+    at all) and a new `UserControllerTest` (4).

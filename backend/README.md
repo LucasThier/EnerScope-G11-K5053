@@ -120,6 +120,7 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `DELETE` | `/version/{id}` | admin / project editor | Delete a version and every version below it |
 | `POST` `PATCH` `DELETE` | `/version/{id}/node[/{nodeId}]` | admin / project editor | Add, edit or remove a node in a version |
 | `POST` `PATCH` `DELETE` | `/version/{id}/connection[/{connectionId}]` | admin / project editor | Add, edit or remove a connection in a version |
+| `PATCH` | `/users/me/password` | bearer | Change your own password (requires the current one) |
 | `GET` | `/health` | public | Liveness probe |
 
 ### Bulk user registration (`POST /organizations/{id}/users/bulk`)
@@ -167,6 +168,19 @@ added to the organization with the given membership role. The response envelope'
 
 Invalid or duplicate rows do not abort the batch: they are skipped and listed in
 `failures` (with the line number and reason), never carrying a password.
+
+### Your own account (`PATCH /users/me/password`)
+
+- Changes the caller's password, given the current one. The account is taken
+  from the session, **never from the request body**, so the endpoint cannot be
+  pointed at another user; an admin resetting someone else's password would be
+  a separate endpoint with its own authorization.
+- The new password is held to the same minimum as registration (8 characters).
+  A wrong current password answers `400 Current password is incorrect`.
+- This is what closes the loop on admin-created and bulk-registered accounts,
+  which start with a password chosen by somebody else. **There is no screen for
+  it yet** — the frontend card is pending, so for now it is reachable from
+  Swagger or a client.
 
 ### Organizations (`POST /organizations/**`)
 

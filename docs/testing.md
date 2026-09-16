@@ -31,8 +31,9 @@ Run everything with `cd backend && mvn test`.
 | `util.AuthUtilTest` | Unit | 7 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 |
 | `money.MoneyAmountTest` | Unit | 6 |
-| `user.service.UserServiceTest` | Unit | 9 |
+| `user.service.UserServiceTest` | Unit | 12 |
 | `user.service.PasswordGeneratorTest` | Unit | 4 |
+| `user.controller.UserControllerTest` | Web | 4 |
 | `organization.service.OrganizationServiceTest` | Unit | 23 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 12 |
 | `organization.controller.OrganizationControllerTest` | Web | 18 |
@@ -41,15 +42,15 @@ Run everything with `cd backend && mvn test`.
 | `project.controller.ProjectControllerTest` | Web | 17 |
 | `version.service.VersionServiceTest` | Unit | 22 [^p] |
 | `version.controller.VersionControllerTest` | Web | 10 |
-| **Total** | | **207 [^p]** |
+| **Total** | | **214 [^p]** |
 
 [^p]: Two cases in `version.service.VersionServiceTest` are
 `@ParameterizedTest`s running over the eight mutating version entry points,
 so they count as 16 executions rather than 2. Surefire therefore reports
-**221** for the classes catalogued here.
+**228** for the classes catalogued here.
 
-> **This catalog is still incomplete.** `mvn test` currently reports **244**
-> executions against the **221** covered here. The remaining 23-case gap is now
+> **This catalog is still incomplete.** `mvn test` currently reports **251**
+> executions against the **228** covered here. The remaining 23-case gap is now
 > fully accounted for: the `node.*` classes were never catalogued (2 cases), neither
 > were the `strategyCost.*` ones (20), and `money.MoneyAmountTest` really has 7
 > cases, not the 6 recorded here. Cataloguing those is its own task — see
@@ -162,6 +163,9 @@ Registration, login and password logic.
 | `registerRejectsDuplicateMail` | A duplicate email throws and neither saves nor hashes. |
 | `loginReturnsUserWhenPasswordMatches` | Login returns the user when the password matches. |
 | `loginRejectsWrongPassword` | A wrong password throws `IllegalArgumentException`. |
+| `changePasswordReplacesTheStoredHash` | With the correct current password the stored hash is replaced and the user is saved. |
+| `changePasswordRejectsWrongCurrentPasswordAndLeavesTheHashAlone` | A wrong current password throws `IllegalArgumentException`, the hash is untouched, and nothing is encoded or saved. |
+| `changePasswordRejectsUnknownUser` | An unknown user id throws `IllegalArgumentException`; nothing is saved. |
 | `loginRejectsUnknownMail` | An unknown email throws `IllegalArgumentException`. |
 
 ## `user.service.PasswordGeneratorTest` — Unit
@@ -174,6 +178,18 @@ Secure password generation.
 | `meetsComplexityRequirements` | Every password contains a lower-case, upper-case, digit and symbol. |
 | `generatesDistinctPasswords` | 1000 generated passwords are all distinct (randomness sanity check). |
 | `rejectsTooShortLength` | Requesting a length below 8 throws `IllegalArgumentException`. |
+
+## `user.controller.UserControllerTest` — Web
+
+`PATCH /users/me/password`, through the real `SecurityConfig`/`AuthFilter`
+chain; `UserService` is mocked.
+
+| Case | Verifies |
+| --- | --- |
+| `changeOwnPasswordUsesTheCallerFromTheSession` | A valid request answers `200` `Password changed`, and the service is called with **the user id from the token** — the body carries no account, so the endpoint cannot be aimed at someone else. |
+| `changeOwnPasswordRejectsWrongCurrentPasswordWith400` | When the service refuses the current password → `400` with `Current password is incorrect`. |
+| `changeOwnPasswordRejectsShortNewPasswordWithValidationError` | A `newPassword` under 8 characters → `400` `Validation error` with the per-field message; the service is never called. |
+| `changeOwnPasswordRequiresAuthenticationWith401` | The same call without a bearer token → `401`; the service is never reached. |
 
 ## `organization.service.OrganizationBulkRegistrationServiceTest` — Unit
 

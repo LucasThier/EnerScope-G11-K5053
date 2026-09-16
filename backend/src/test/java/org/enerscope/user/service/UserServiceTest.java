@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -135,5 +136,47 @@ class UserServiceTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> userService.login("ghost@enerscope.org", "whatever"));
+    }
+
+    // ---- changePassword ------------------------------------------------------
+
+    @Test
+    void changePasswordReplacesTheStoredHash() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "old-hash");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(encoder.matches("current-password", "old-hash")).thenReturn(true);
+        when(encoder.encode("new-password")).thenReturn("new-hash");
+
+        userService.changePassword(userId, "current-password", "new-password");
+
+        assertEquals("new-hash", user.getPasswordHash());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void changePasswordRejectsWrongCurrentPasswordAndLeavesTheHashAlone() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "old-hash");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(encoder.matches("not-my-password", "old-hash")).thenReturn(false);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.changePassword(userId, "not-my-password", "new-password"));
+
+        assertEquals("old-hash", user.getPasswordHash());
+        verify(encoder, never()).encode(anyString());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void changePasswordRejectsUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.changePassword(userId, "current-password", "new-password"));
+
+        verify(userRepository, never()).save(any());
     }
 }
