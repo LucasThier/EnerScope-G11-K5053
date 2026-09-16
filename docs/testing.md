@@ -38,17 +38,17 @@ Run everything with `cd backend && mvn test`.
 | `project.service.ProjectAccessGuardTest` | Unit | 22 |
 | `project.service.ProjectServiceTest` | Unit | 31 |
 | `project.controller.ProjectControllerTest` | Web | 17 |
-| `version.service.VersionServiceTest` | Unit | 18 [^p] |
+| `version.service.VersionServiceTest` | Unit | 22 [^p] |
 | `version.controller.VersionControllerTest` | Web | 10 |
-| **Total** | | **196 [^p]** |
+| **Total** | | **200 [^p]** |
 
 [^p]: Two cases in `version.service.VersionServiceTest` are
 `@ParameterizedTest`s running over the eight mutating version entry points,
 so they count as 16 executions rather than 2. Surefire therefore reports
-**210** for the classes catalogued here.
+**214** for the classes catalogued here.
 
-> **This catalog is still incomplete.** `mvn test` currently reports **233**
-> executions against the **210** covered here. The remaining 23-case gap is now
+> **This catalog is still incomplete.** `mvn test` currently reports **237**
+> executions against the **214** covered here. The remaining 23-case gap is now
 > fully accounted for: the `node.*` classes were never catalogued (2 cases), neither
 > were the `strategyCost.*` ones (20), and `money.MoneyAmountTest` really has 7
 > cases, not the 6 recorded here. Cataloguing those is its own task — see
@@ -362,6 +362,10 @@ call touches neither the repositories nor `NodeService`.
 | `saveOrphanVersionCreatesTheVersionForAPlatformAdmin` | `POST /version/createtest` creates a detached version for a platform ADMIN, running the platform-level check. |
 | `saveOrphanVersionRejectsNonPlatformAdmin` | A regular user gets `ForbiddenException`; nothing is saved. |
 | `saveOrphanVersionRejectsUnauthenticatedCaller` | No session throws `UnauthorizedException`; nothing is saved. |
+| `saveVersionWithoutParentInitialisesEmptySnapshots` | A version created with no parent has empty, non-null `nodeSnapshot`/`connectionSnapshot`. |
+| `addNodeToVersionWorksOnAFreshlyCreatedRootVersion` | **Regression:** adding the first node to a just-created root version lands it in the snapshot and records an `ADD` change. Before the snapshots were initialised this threw `NullPointerException`. |
+| `saveVersionFromParentWithNullSnapshotsDoesNotPropagateNull` | A parent row created before the fix, still carrying null snapshots, produces a child with empty lists rather than inheriting the nulls. |
+| `versionNoArgsConstructorStartsWithEmptyCollections` | `new Version()` — the path Hibernate and the controller tests use — starts with all four collections non-null. |
 | `saveVersionIsUnguardedBecauseItsCallersAuthorizeInstead` | The internal `saveVersion` deliberately runs no check: `ProjectService.saveVersion` authorizes the owning project and `saveOrphanVersion` requires a platform ADMIN. Adding a third check here would fail this case on purpose. |
 
 ## `version.controller.VersionControllerTest` — Web

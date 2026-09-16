@@ -225,6 +225,10 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   nested under `/projects` for now — this minimal slice has no sub-resource
   of its own to justify promoting it to a top-level `/versions` resource like
   `Project` was.
+- **Snapshots start empty, never null.** A version is created with empty
+  `nodeSnapshot`/`connectionSnapshot` lists, so the create response and a later
+  read answer the same shape (`[]`), and the in-place mutations the service does
+  on those lists cannot hit a null.
 - **`/version/**` is guarded through the owning project.** Every one of those
   endpoints takes nothing but a version UUID, so each resolves the project the
   version hangs off (`ProjectRepository.findIdByVersionId`) and checks the

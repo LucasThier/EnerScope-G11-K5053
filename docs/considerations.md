@@ -841,3 +841,35 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     `VersionControllerTest` (10, a class `docs/testing.md` had been listing for
     a while without it existing). The two `version.*` entries in that catalog
     described cases that were never written and were rewritten from the code.
+- 2026-09-15 — **`Version` snapshots start empty instead of null.** `saveVersion`
+  built a version with `nodeSnapshot`/`connectionSnapshot` set to `null` whenever
+  there was no parent version, and `Version` was the only entity in the codebase
+  whose collections had no field initialiser (`Project` and `Organization` both
+  do `= new ArrayList<>()`).
+  - **What it actually broke, and what it did not.** The visible defect was the
+    payload: `POST /projects/{id}/version` answered `"nodeSnapshot": null` while
+    a later read of the same version answers `[]`, so a client had to handle two
+    shapes for one field. The NPE on `version.getNodeSnapshot().add(...)` was
+    **latent, not live**: `addNodeToVersion` arrives in a separate request and
+    Hibernate never loads a mapped collection as null — it installs an empty
+    persistent collection. The null instance is the freshly constructed one, so
+    the crash only happened inside the same persistence context, and in unit
+    tests, where there is no Hibernate to paper over it. It was a trap set for
+    the next person writing there, which is where the 19 unguarded
+    `getNodeSnapshot()`/`getConnectionSnapshot()` dereferences in `VersionService`
+    become relevant.
+  - **Fixed in the entity, not only in the service.** `@AllArgsConstructor` was
+    replaced by a hand-written constructor with the identical signature that
+    turns a null collection into an empty one, next to field initialisers on all
+    four lists. Lombok's generated constructor was overwriting those
+    initialisers, which is exactly how the nulls got in; fixing only
+    `saveVersion` would have left the door open for the next caller. No call site
+    changed, because the signature did not.
+  - The `@Setter` still accepts null on purpose — that is how
+    `saveVersionFromParentWithNullSnapshotsDoesNotPropagateNull` simulates a row
+    created before this change. `saveVersion` normalises what it copies from a
+    parent, so legacy nulls stop at the parent and are not inherited.
+  - **No migration.** Versions already stored have no rows in `versionXNode` or
+    `versionXConnection`, so Hibernate already returns empty lists for them.
+  - Written test-first: the four cases were red (one with the real
+    `NullPointerException`) before the entity was touched. `mvn test` 233 → 237.

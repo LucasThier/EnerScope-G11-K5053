@@ -591,4 +591,102 @@ class VersionServiceTest {
         // a third rule on a path that has no version id to check yet.
         verifyNoInteractions(accessGuard);
     }
+
+    // ---- snapshot initialisation ---------------------------------------------
+    //
+    // A version used to be created with null snapshots when it had no parent
+    // version, which serialised as "nodeSnapshot": null on the create response
+    // (the same version read back later answers []) and left every
+    // getNodeSnapshot() call in this service one dereference away from an NPE.
+
+    @Test
+    void saveVersionWithoutParentInitialisesEmptySnapshots() {
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Baseline");
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Version saved = versionService.saveVersion(data);
+
+        assertNotNull(saved.getNodeSnapshot());
+        assertNotNull(saved.getConnectionSnapshot());
+        assertTrue(saved.getNodeSnapshot().isEmpty());
+        assertTrue(saved.getConnectionSnapshot().isEmpty());
+    }
+
+    @Test
+    void addNodeToVersionWorksOnAFreshlyCreatedRootVersion() {
+        UUID versionId = UUID.randomUUID();
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Baseline");
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+        Version rootVersion = versionService.saveVersion(data);
+
+        WellDTO wellDTO = new WellDTO();
+        wellDTO.setName("Test Well");
+        wellDTO.setState(NodeStateEnum.PROPOSED);
+        Well savedWell = sampleWell();
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(rootVersion));
+        when(nodeService.saveWell(any(WellDTO.class))).thenReturn(savedWell);
+
+        BaseNode result = versionService.addNodeToVersion(versionId, wellDTO);
+
+        assertSame(savedWell, result);
+        assertTrue(rootVersion.getNodeSnapshot().contains(savedWell));
+        assertEquals(1, rootVersion.getNodeChanges().size());
+        assertEquals(ChangeTypeEnum.ADD, rootVersion.getNodeChanges().get(0).getChangeType());
+    }
+
+    @Test
+    void saveVersionFromParentWithNullSnapshotsDoesNotPropagateNull() {
+        UUID parentId = UUID.randomUUID();
+        Version legacyParent = new Version();
+        legacyParent.setName("Legacy");
+        legacyParent.setNodeSnapshot(null);
+        legacyParent.setConnectionSnapshot(null);
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Child");
+        data.setParentVersion(parentId);
+        when(versionRepository.findById(parentId)).thenReturn(Optional.of(legacyParent));
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Version child = versionService.saveVersion(data);
+
+        assertNotNull(child.getNodeSnapshot());
+        assertNotNull(child.getConnectionSnapshot());
+        assertTrue(child.getNodeSnapshot().isEmpty());
+        assertTrue(child.getConnectionSnapshot().isEmpty());
+    }
+
+    @Test
+    void versionNoArgsConstructorStartsWithEmptyCollections() {
+        Version version = new Version();
+
+        assertNotNull(version.getNodeSnapshot());
+        assertNotNull(version.getConnectionSnapshot());
+        assertNotNull(version.getNodeChanges());
+        assertNotNull(version.getConnectionChanges());
+    }
+
+    /** A fully built Well, matching the fixture the add/edit cases above use. */
+    private Well sampleWell() {
+        return new Well(
+                "Test Well",
+                NodeStateEnum.PROPOSED,
+                Instant.now(),
+                120,
+                MoneyAmount.of(1000000),
+                30,
+                MoneyAmount.of(50000),
+                0.0f,
+                new InvestmentCost(),
+                new NodeGraphData(),
+                UUID.randomUUID(),
+                new NodeTypeData(),
+                100.0f,
+                0.5f,
+                0.8f,
+                10,
+                MoneyAmount.of(5000),
+                500f);
+    }
 }
