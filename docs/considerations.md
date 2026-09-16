@@ -873,3 +873,29 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     `versionXConnection`, so Hibernate already returns empty lists for them.
   - Written test-first: the four cases were red (one with the real
     `NullPointerException`) before the entity was touched. `mvn test` 233 → 237.
+- 2026-09-16 — **The session and platform-ADMIN checks moved to `AuthUtil`.**
+  Closes the duplication noted on 2026-09-15. The `session == null →
+  UnauthorizedException("Authentication required")` block was written out **seven
+  times** across `OrganizationService` (×4), `ProjectService` (×2) and
+  `ProjectAccessGuard` (×1), the `platformRole == ADMIN` comparison five times,
+  and `assertIsPlatformAdmin` twice in full. `AuthUtil` now owns
+  `requireSession()`, `isPlatformAdmin(User)` and
+  `requirePlatformAdmin(AppLogger, String)`.
+  - **The logger is a parameter**, which is the one odd-looking part.
+    `AuthUtil` is a static helper and `AppLogger` is an injected bean, so the
+    alternative was either dropping the `warn` that records every refused
+    platform-admin action, or leaving the two copies in place and only lifting
+    the smaller pieces. Passing it keeps behaviour identical and removes the
+    duplication completely; `util` depending on `logging` is fine, both are flat
+    infrastructure packages.
+  - **`ProjectAccessGuard.assertIsPlatformAdmin` was kept as a one-line
+    delegation** rather than deleted: `VersionService` asks the guard for every
+    other check, and sending it to `AuthUtil` for this one alone would split the
+    guard's surface for no gain.
+  - Pure refactor: no message, status code or behaviour changed, and the 237
+    existing cases already covered the 401/403/allowed paths at every caller.
+    The new `AuthUtilTest` (7) exists because `AuthUtil` had no tests of its own
+    and now concentrates the rule — including that a refusal is logged with the
+    caller's mail and that an unauthenticated call throws *before* logging,
+    since there is no caller to name yet.
+  - `mvn test` 237 → 244.

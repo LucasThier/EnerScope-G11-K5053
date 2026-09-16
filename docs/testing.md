@@ -28,6 +28,7 @@ Run everything with `cd backend && mvn test`.
 | `auth.controller.AuthControllerTest` | Web | 14 |
 | `common.CsvUtilTest` | Unit | 5 |
 | `jwt.JwtServiceTest` | Unit | 5 |
+| `util.AuthUtilTest` | Unit | 7 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 |
 | `money.MoneyAmountTest` | Unit | 6 |
 | `user.service.UserServiceTest` | Unit | 9 |
@@ -40,15 +41,15 @@ Run everything with `cd backend && mvn test`.
 | `project.controller.ProjectControllerTest` | Web | 17 |
 | `version.service.VersionServiceTest` | Unit | 22 [^p] |
 | `version.controller.VersionControllerTest` | Web | 10 |
-| **Total** | | **200 [^p]** |
+| **Total** | | **207 [^p]** |
 
 [^p]: Two cases in `version.service.VersionServiceTest` are
 `@ParameterizedTest`s running over the eight mutating version entry points,
 so they count as 16 executions rather than 2. Surefire therefore reports
-**214** for the classes catalogued here.
+**221** for the classes catalogued here.
 
-> **This catalog is still incomplete.** `mvn test` currently reports **237**
-> executions against the **214** covered here. The remaining 23-case gap is now
+> **This catalog is still incomplete.** `mvn test` currently reports **244**
+> executions against the **221** covered here. The remaining 23-case gap is now
 > fully accounted for: the `node.*` classes were never catalogued (2 cases), neither
 > were the `strategyCost.*` ones (20), and `money.MoneyAmountTest` really has 7
 > cases, not the 6 recorded here. Cataloguing those is its own task — see
@@ -110,6 +111,23 @@ Token issuing and validation.
 | `accessAndRefreshTokensAreNotInterchangeable` | The `typ` claim keeps access and refresh tokens from being accepted in the other's place. |
 | `rejectsGarbageAndBlankTokens` | Non-JWT, empty and `null` tokens are rejected. |
 | `rejectsTokenSignedWithAnotherKey` | A token signed with a different secret fails validation. |
+
+## `util.AuthUtilTest` — Unit
+
+The session lookup and the platform-ADMIN check every service runs. These rules
+were copy-pasted across `OrganizationService`, `ProjectService` and
+`ProjectAccessGuard` before they moved here, so they are now verified once on
+top of the coverage each caller keeps.
+
+| Case | Verifies |
+| --- | --- |
+| `currentSessionReturnsNullWhenThereIsNoAuthentication` | With no security context the lookup answers `null` rather than throwing — this is the raw accessor. |
+| `requireSessionReturnsTheSessionBoundToTheRequest` | The session the auth filter attached is the one returned. |
+| `requireSessionRejectsUnauthenticated` | No session throws `UnauthorizedException` (`Authentication required`). |
+| `isPlatformAdminIsTrueOnlyForAdmins` | The predicate answers `true` for `PlatformRole.ADMIN` and `false` for a regular user. |
+| `requirePlatformAdminAllowsAnAdminWithoutLogging` | A platform ADMIN passes and nothing is logged — refusals are the only interesting event. |
+| `requirePlatformAdminRejectsRegularUserWith403AndLogsTheRefusal` | A regular user gets `ForbiddenException` with the action in the message, and the refusal is logged at `warn` with the caller's mail. |
+| `requirePlatformAdminRejectsUnauthenticatedBeforeLogging` | No session throws `UnauthorizedException` before anything is logged: there is no caller to name yet. |
 
 ## `logging.ConsoleAppLoggerTest` — Unit
 

@@ -1,6 +1,5 @@
 package org.enerscope.project.service;
 
-import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.repository.OrganizationRepository;
@@ -17,7 +16,6 @@ import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.project.repository.ProjectRepository;
 import org.enerscope.session.model.Session;
 import org.enerscope.user.model.User;
-import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
 import org.enerscope.util.AuthUtil;
 import org.enerscope.version.dto.VersionDTO;
@@ -81,12 +79,8 @@ public class ProjectService {
          */
         @Transactional(readOnly = true)
         public List<ProjectSummaryDTO> listForCurrentUser(UUID organizationId) {
-                Session session = AuthUtil.currentSession();
-                if (session == null) {
-                        throw new UnauthorizedException("Authentication required");
-                }
-                User caller = session.getUser();
-                if (caller.getPlatformRole() == PlatformRole.ADMIN) {
+                User caller = AuthUtil.requireSession().getUser();
+                if (AuthUtil.isPlatformAdmin(caller)) {
                         return projectRepository.findSummaries(organizationId);
                 }
                 return projectRepository.findSummariesForMember(caller.getId(), organizationId);
@@ -106,10 +100,7 @@ public class ProjectService {
          */
         @Transactional
         public Project createProject(CreateProjectRequestDTO data) {
-                Session session = AuthUtil.currentSession();
-                if (session == null) {
-                        throw new UnauthorizedException("Authentication required");
-                }
+                Session session = AuthUtil.requireSession();
                 User creator = userRepository.findById(session.getUser().getId())
                                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 

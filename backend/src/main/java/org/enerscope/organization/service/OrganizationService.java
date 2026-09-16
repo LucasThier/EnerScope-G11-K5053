@@ -14,7 +14,6 @@ import org.enerscope.organization.model.enums.OrganizationMemberPermission;
 import org.enerscope.organization.model.enums.OrganizationMemberType;
 import org.enerscope.organization.repository.OrganizationMemberRepository;
 import org.enerscope.organization.repository.OrganizationRepository;
-import org.enerscope.session.model.Session;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
@@ -66,12 +65,8 @@ public class OrganizationService {
      * organization; anyone else sees the organizations they are a member of.
      */
     public List<Organization> listForCurrentUser() {
-        Session session = AuthUtil.currentSession();
-        if (session == null) {
-            throw new UnauthorizedException("Authentication required");
-        }
-        User caller = session.getUser();
-        if (caller.getPlatformRole() == PlatformRole.ADMIN) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
             return organizationRepository.findAll();
         }
         return organizationRepository.findDistinctByMembers_User_Id(caller.getId());
@@ -99,7 +94,7 @@ public class OrganizationService {
      * ADMIN-only route.
      */
     public Organization createOrganization(CreateOrganizationRequestDTO data) {
-        assertIsPlatformAdmin("create organizations");
+        AuthUtil.requirePlatformAdmin(logger, "create organizations");
         Organization organization = new Organization(data.name());
         Organization saved = organizationRepository.save(organization);
         logger.info("Created organization {}", saved.getName());
@@ -173,12 +168,8 @@ public class OrganizationService {
      * {@link ForbiddenException} (403) otherwise.
      */
     public void assertCanManageUsers(UUID organizationId) {
-        Session session = AuthUtil.currentSession();
-        if (session == null) {
-            throw new UnauthorizedException("Authentication required");
-        }
-        User caller = session.getUser();
-        if (caller.getPlatformRole() == PlatformRole.ADMIN) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
             return; // platform admins can manage any organization
         }
         boolean canManage = organizationMemberRepository
@@ -206,33 +197,13 @@ public class OrganizationService {
      * stricter check for administrative actions.
      */
     public void assertIsMemberOf(UUID organizationId, String action) {
-        Session session = AuthUtil.currentSession();
-        if (session == null) {
-            throw new UnauthorizedException("Authentication required");
-        }
-        User caller = session.getUser();
-        if (caller.getPlatformRole() == PlatformRole.ADMIN) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
             return;
         }
         if (!organizationMemberRepository.existsByOrganizationIdAndUserId(organizationId, caller.getId())) {
             logger.warn("User {} is not allowed to {} organization {}", caller.getMail(), action, organizationId);
             throw new ForbiddenException("You are not allowed to " + action + " this organization");
-        }
-    }
-
-    /**
-     * Ensures the current caller is a platform ADMIN, for actions no organization
-     * membership can grant.
-     */
-    private void assertIsPlatformAdmin(String action) {
-        Session session = AuthUtil.currentSession();
-        if (session == null) {
-            throw new UnauthorizedException("Authentication required");
-        }
-        User caller = session.getUser();
-        if (caller.getPlatformRole() != PlatformRole.ADMIN) {
-            logger.warn("User {} is not a platform admin and may not {}", caller.getMail(), action);
-            throw new ForbiddenException("Only platform admins can " + action);
         }
     }
 

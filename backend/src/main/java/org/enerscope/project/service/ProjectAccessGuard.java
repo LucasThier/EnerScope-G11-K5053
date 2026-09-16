@@ -7,9 +7,7 @@ import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.project.repository.ProjectRepository;
-import org.enerscope.session.model.Session;
 import org.enerscope.user.model.User;
-import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.util.AuthUtil;
 import org.springframework.stereotype.Component;
 
@@ -53,8 +51,8 @@ public class ProjectAccessGuard {
      * {@code OrganizationService.assertCanViewOrganization}.
      */
     public void assertCanViewProject(UUID projectId) {
-        User caller = requireSession().getUser();
-        if (isPlatformAdmin(caller)) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
             return;
         }
         if (!projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())) {
@@ -83,8 +81,8 @@ public class ProjectAccessGuard {
 
     /** As {@link #assertCanViewProject}, resolved through the version's owning project. */
     public void assertCanViewVersion(UUID versionId) {
-        User caller = requireSession().getUser();
-        if (isPlatformAdmin(caller)) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
             return;
         }
         assertCanViewProject(owningProjectId(versionId));
@@ -92,8 +90,8 @@ public class ProjectAccessGuard {
 
     /** As {@link #assertCanEditProject}, resolved through the version's owning project. */
     public void assertCanEditVersion(UUID versionId) {
-        User caller = requireSession().getUser();
-        if (isPlatformAdmin(caller)) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
             return;
         }
         assertCanEditProject(owningProjectId(versionId));
@@ -102,19 +100,16 @@ public class ProjectAccessGuard {
     /**
      * Ensures the caller is a platform ADMIN, for actions that no project or
      * organization owns — currently creating a version detached from every
-     * project.
+     * project. Kept on the guard so {@code VersionService} has one place to ask,
+     * even though the rule itself lives in {@link AuthUtil}.
      */
     public void assertIsPlatformAdmin(String action) {
-        User caller = requireSession().getUser();
-        if (!isPlatformAdmin(caller)) {
-            logger.warn("User {} is not a platform admin and may not {}", caller.getMail(), action);
-            throw new ForbiddenException("Only platform admins can " + action);
-        }
+        AuthUtil.requirePlatformAdmin(logger, action);
     }
 
     private void assertHasPermission(UUID projectId, ProjectMemberPermission permission, String action) {
-        User caller = requireSession().getUser();
-        if (isPlatformAdmin(caller)) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
             return;
         }
         boolean allowed = projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())
@@ -136,18 +131,6 @@ public class ProjectAccessGuard {
                     logger.warn("Version {} is not attached to any project; access denied", versionId);
                     return new ForbiddenException("You are not allowed to access this version");
                 });
-    }
-
-    private Session requireSession() {
-        Session session = AuthUtil.currentSession();
-        if (session == null) {
-            throw new UnauthorizedException("Authentication required");
-        }
-        return session;
-    }
-
-    private boolean isPlatformAdmin(User caller) {
-        return caller.getPlatformRole() == PlatformRole.ADMIN;
     }
 
     private boolean hasPermission(ProjectMember member, ProjectMemberPermission permission) {
