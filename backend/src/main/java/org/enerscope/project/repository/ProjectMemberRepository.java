@@ -6,10 +6,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ProjectMemberRepository extends JpaRepository<ProjectMember, UUID> {
     boolean existsByProjectIdAndUserId(UUID projectId, UUID userId);
+
+    /**
+     * The caller's membership row, roles included, for permission checks.
+     * {@code existsByProjectIdAndUserId} answers whether someone is on the
+     * project at all; this one is needed when the answer depends on which
+     * permissions that membership carries.
+     */
+    Optional<ProjectMember> findByProjectIdAndUserId(UUID projectId, UUID userId);
 
     /**
      * Members of a project with their user and roles already fetched, so mapping

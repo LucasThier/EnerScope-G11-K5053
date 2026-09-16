@@ -91,16 +91,33 @@ public class OrganizationService {
         return organizationMemberRepository.findByOrganizationIdWithUser(organizationId);
     }
 
+    /**
+     * Creates an organization. Restricted to platform ADMINs: an organization is
+     * an administrative container created <em>for</em> someone else, which is
+     * also why the creator is deliberately not enrolled in it. This mirrors the
+     * frontend, where {@code /admin/organizations} already sits behind an
+     * ADMIN-only route.
+     */
     public Organization createOrganization(CreateOrganizationRequestDTO data) {
+        assertIsPlatformAdmin("create organizations");
         Organization organization = new Organization(data.name());
         Organization saved = organizationRepository.save(organization);
         logger.info("Created organization {}", saved.getName());
         return saved;
     }
 
+    /**
+     * Adds an existing user to an organization. Restricted to the same callers
+     * as {@link #registerUserInOrganization}: a platform ADMIN or a member
+     * holding {@link OrganizationMemberPermission#MANAGE_ORGANIZATION}. The check
+     * runs after the organization is resolved, so an unknown id keeps answering
+     * {@code IllegalArgumentException} (400), and before the user lookup, so an
+     * unauthorized caller cannot probe which user ids exist.
+     */
     public OrganizationMember addMember(UUID organizationId, AddOrganizationMemberRequestDTO data) {
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
+        assertCanManageUsers(organizationId);
         User user = userRepository.findById(data.userId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         if (organizationMemberRepository.existsByOrganizationIdAndUserId(organizationId, data.userId())) {
@@ -178,6 +195,17 @@ public class OrganizationService {
      * ADMIN, or any of its members regardless of permissions.
      */
     public void assertCanViewOrganization(UUID organizationId) {
+        assertIsMemberOf(organizationId, "view");
+    }
+
+    /**
+     * Ensures the current caller belongs to the organization — a platform ADMIN,
+     * or any of its members regardless of permissions — for an action named by
+     * {@code action}, which is what the caller reads back in the 403 message.
+     * Plain membership is the bar here; {@link #assertCanManageUsers} is the
+     * stricter check for administrative actions.
+     */
+    public void assertIsMemberOf(UUID organizationId, String action) {
         Session session = AuthUtil.currentSession();
         if (session == null) {
             throw new UnauthorizedException("Authentication required");
@@ -187,7 +215,24 @@ public class OrganizationService {
             return;
         }
         if (!organizationMemberRepository.existsByOrganizationIdAndUserId(organizationId, caller.getId())) {
-            throw new ForbiddenException("You are not allowed to view this organization");
+            logger.warn("User {} is not allowed to {} organization {}", caller.getMail(), action, organizationId);
+            throw new ForbiddenException("You are not allowed to " + action + " this organization");
+        }
+    }
+
+    /**
+     * Ensures the current caller is a platform ADMIN, for actions no organization
+     * membership can grant.
+     */
+    private void assertIsPlatformAdmin(String action) {
+        Session session = AuthUtil.currentSession();
+        if (session == null) {
+            throw new UnauthorizedException("Authentication required");
+        }
+        User caller = session.getUser();
+        if (caller.getPlatformRole() != PlatformRole.ADMIN) {
+            logger.warn("User {} is not a platform admin and may not {}", caller.getMail(), action);
+            throw new ForbiddenException("Only platform admins can " + action);
         }
     }
 

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ProjectRepository extends JpaRepository<Project, UUID> {
@@ -46,4 +47,17 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
             """)
     List<ProjectSummaryDTO> findSummariesForMember(@Param("userId") UUID userId,
                                                    @Param("organizationId") UUID organizationId);
+
+    /**
+     * The id of the project a version hangs off, empty when it hangs off none.
+     *
+     * <p>{@code Project.versions} is a unidirectional {@code @OneToMany}: the
+     * foreign key lives on the {@code version} table, but {@code Version} has no
+     * field pointing back, so a version cannot reach its project on its own.
+     * Returning the id rather than the entity keeps the lazy
+     * {@code organization} and {@code members} out of it — callers only need the
+     * id to run an authorization check.</p>
+     */
+    @Query("SELECT p.id FROM Project p JOIN p.versions v WHERE v.id = :versionId")
+    Optional<UUID> findIdByVersionId(@Param("versionId") UUID versionId);
 }

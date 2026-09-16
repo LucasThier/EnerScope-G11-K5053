@@ -105,15 +105,21 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `POST` | `/auth/refresh` | public | Exchange a refresh token for a new session |
 | `POST` | `/auth/logout` | public | No-op server side (client clears tokens) |
 | `GET` | `/organizations` | bearer | List organizations (all for admins; own for other users) |
-| `POST` | `/organizations` | bearer | Create an organization |
+| `POST` | `/organizations` | admin | Create an organization |
 | `GET` | `/organizations/{organizationId}/members` | admin / org member | List the organization's members with their identity fields |
-| `POST` | `/organizations/{organizationId}/members` | bearer | Add an existing user to the organization with a role (`OWNER`/`MEMBER`) |
+| `POST` | `/organizations/{organizationId}/members` | admin / org owner | Add an existing user to the organization with a role (`OWNER`/`MEMBER`) |
 | `POST` | `/organizations/{organizationId}/users` | admin / org owner | Register a **new** user straight into the organization as a `MEMBER` |
 | `POST` | `/organizations/{organizationId}/users/bulk` | admin / org owner | Bulk-register users into the organization from a CSV; returns generated credentials |
 | `GET` | `/projects` | bearer | List projects (all for admins; own memberships for other users). Optional `?organizationId=` filter |
-| `POST` | `/projects` | bearer | Create a project under an organization |
-| `POST` | `/projects/{projectId}/members` | bearer | Add a user to the project with a role (`ADMIN`/`EDITOR`) |
-| `POST` | `/projects/{projectId}/version` | bearer | Create a version of a project, optionally under a parent version |
+| `POST` | `/projects` | admin / org member | Create a project under an organization the caller belongs to |
+| `POST` | `/projects/{projectId}/members` | admin / project admin | Add a user to the project with a role (`ADMIN`/`EDITOR`) |
+| `POST` | `/projects/{projectId}/version` | admin / project editor | Create a version of a project, optionally under a parent version |
+| `POST` | `/version/createtest` | admin | Create a version detached from every project |
+| `GET` | `/version/{id}` | admin / project member | Read a version |
+| `PATCH` | `/version/{id}` | admin / project editor | Rename a version or re-parent it |
+| `DELETE` | `/version/{id}` | admin / project editor | Delete a version and every version below it |
+| `POST` `PATCH` `DELETE` | `/version/{id}/node[/{nodeId}]` | admin / project editor | Add, edit or remove a node in a version |
+| `POST` `PATCH` `DELETE` | `/version/{id}/connection[/{connectionId}]` | admin / project editor | Add, edit or remove a connection in a version |
 | `GET` | `/health` | public | Liveness probe |
 
 ### Bulk user registration (`POST /organizations/{id}/users/bulk`)
@@ -164,7 +170,11 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
 
 ### Organizations (`POST /organizations/**`)
 
-- `POST /organizations` creates an organization from just a `name`.
+- `POST /organizations` creates an organization from just a `name`. **Platform
+  admins only**: an organization is an administrative container created *for*
+  someone else, which is also why the creator is deliberately not enrolled in
+  it. The frontend already gated `/admin/organizations` behind an ADMIN-only
+  route, so this only closes the gap on the API side.
 - `POST /organizations/{organizationId}/members` adds an existing user
   (`userId`) to the organization with a `memberType` (`OWNER` or `MEMBER`).
   The role's permissions are derived server-side from the type — `OWNER` gets
@@ -193,14 +203,17 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   rather than entities, so the lazy `organization`/`members` associations are
   never loaded and the member count is not an N+1.
 - `POST /projects` creates a project (`name` + `description`) under an
-  organization (`organizationId`). Projects are their own top-level resource,
-  not nested under `/organizations`.
+  organization (`organizationId`). The caller has to **belong to that
+  organization** — plain membership, not `MANAGE_ORGANIZATION`, because a
+  project is created by the people who are going to work on it. Projects are
+  their own top-level resource, not nested under `/organizations`.
 - `POST /projects/{projectId}/members` adds an existing user (`userId`) to
   the project with a `memberType` (`ADMIN` or `EDITOR`). The role's
   permissions are derived server-side from the type — `ADMIN` gets
   `MANAGE_PROJECT` + `EDIT_PROJECT` + `VIEW_PROJECT`, `EDITOR` gets
   `EDIT_PROJECT` + `VIEW_PROJECT`. Adding the same user to the same project
-  twice is rejected.
+  twice is rejected. Restricted to callers holding `MANAGE_PROJECT` on that
+  project (its `ADMIN` members) or a platform admin.
 
 ### Versions (`POST /projects/{projectId}/version`)
 
@@ -212,6 +225,16 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   nested under `/projects` for now — this minimal slice has no sub-resource
   of its own to justify promoting it to a top-level `/versions` resource like
   `Project` was.
+- **`/version/**` is guarded through the owning project.** Every one of those
+  endpoints takes nothing but a version UUID, so each resolves the project the
+  version hangs off (`ProjectRepository.findIdByVersionId`) and checks the
+  caller against it: reading needs membership, every mutation needs
+  `EDIT_PROJECT`, and a platform admin passes either way.
+- **`POST /version/createtest` is platform-admin only.** It creates a version
+  attached to no project, and a version with no owning project has no membership
+  that could grant access to it — so only an admin can make one, and by the same
+  rule only an admin can touch it afterwards. Versions that belong to a project
+  are created with `POST /projects/{projectId}/version`.
 - This is a **minimal slice**: node/connection snapshots and the node/
   connection change log from the class diagram (`nodeSnapshot`,
   `connectionSnapshot`, `nodeChanges`, `connectionChanges`) are not modeled.

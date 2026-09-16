@@ -1,9 +1,12 @@
 package org.enerscope.version.service;
 
 import org.enerscope.common.EntityNotFoundException;
+import org.enerscope.common.ForbiddenException;
+import org.enerscope.common.UnauthorizedException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.dto.BaseNodeDTO;
+import org.enerscope.node.dto.ConnectionDTO;
 import org.enerscope.node.dto.WellDTO;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.BaseNode;
@@ -19,6 +22,9 @@ import org.enerscope.version.repository.VersionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -30,6 +36,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -37,8 +45,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,6 +70,16 @@ class VersionServiceTest {
     @Mock
     private org.enerscope.node.service.NodeService nodeService;
 
+    /**
+     * Mocked rather than built over mocked repositories: the rules it carries
+     * are covered case by case in {@code ProjectAccessGuardTest}, and the tests
+     * below are about version mechanics. What matters here is that every entry
+     * point runs it, which the authorization tests at the bottom assert
+     * explicitly.
+     */
+    @Mock
+    private org.enerscope.project.service.ProjectAccessGuard accessGuard;
+
     @InjectMocks
     private VersionService versionService;
 
@@ -70,7 +91,8 @@ class VersionServiceTest {
                 connectionRepository,
                 nodeRepository,
                 logger,
-                nodeService);
+                nodeService,
+                accessGuard);
     }
 
     @Test
@@ -425,4 +447,148 @@ class VersionServiceTest {
         verify(versionRepository, times(1)).save(version);
     }
 
+    // ---- authorization -------------------------------------------------------
+    //
+    // Every entry point of this service is reachable from VersionController with
+    // nothing but a version UUID, so each one has to resolve the owning project
+    // and check the caller against it. The rules themselves live in
+    // ProjectAccessGuard (and are tested there); what these cases pin down is
+    // that no entry point skips the guard, and that a rejected call touches
+    // neither the database nor the node service.
+
+    private static final UUID GUARDED_VERSION_ID = UUID.randomUUID();
+    private static final UUID GUARDED_NODE_ID = UUID.randomUUID();
+    private static final UUID GUARDED_CONNECTION_ID = UUID.randomUUID();
+
+    /** The eight endpoints that change a version, or something inside it. */
+    static Stream<Arguments> mutatingOperations() {
+        WellDTO wellDTO = new WellDTO();
+        wellDTO.setName("Test Well");
+        ConnectionDTO connectionDTO = new ConnectionDTO();
+        org.enerscope.version.dto.VersionDTO versionDTO = new org.enerscope.version.dto.VersionDTO();
+        versionDTO.setName("Renamed");
+        return Stream.of(
+                arguments("deleteVersion",
+                        (Consumer<VersionService>) s -> s.deleteVersion(GUARDED_VERSION_ID)),
+                arguments("modifyVersion",
+                        (Consumer<VersionService>) s -> s.modifyVersion(GUARDED_VERSION_ID, versionDTO)),
+                arguments("addNodeToVersion",
+                        (Consumer<VersionService>) s -> s.addNodeToVersion(GUARDED_VERSION_ID, wellDTO)),
+                arguments("addConnectionToVersion",
+                        (Consumer<VersionService>) s -> s.addConnectionToVersion(GUARDED_VERSION_ID, connectionDTO)),
+                arguments("editNodeInVersion",
+                        (Consumer<VersionService>) s -> s.editNodeInVersion(
+                                GUARDED_VERSION_ID, GUARDED_NODE_ID, wellDTO)),
+                arguments("editConnectionInVersion",
+                        (Consumer<VersionService>) s -> s.editConnectionInVersion(
+                                GUARDED_VERSION_ID, GUARDED_CONNECTION_ID, connectionDTO)),
+                arguments("deleteNodeFromVersion",
+                        (Consumer<VersionService>) s -> s.deleteNodeFromVersion(GUARDED_VERSION_ID, GUARDED_NODE_ID)),
+                arguments("deleteConnectionFromVersion",
+                        (Consumer<VersionService>) s -> s.deleteConnectionFromVersion(
+                                GUARDED_VERSION_ID, GUARDED_CONNECTION_ID)));
+    }
+
+    @ParameterizedTest(name = "{0} is refused without EDIT_PROJECT on the owning project")
+    @MethodSource("mutatingOperations")
+    void mutatingOperationsRejectCallerWithoutEditPermission(String name, Consumer<VersionService> operation) {
+        doThrow(new ForbiddenException("You are not allowed to edit this project"))
+                .when(accessGuard).assertCanEditVersion(GUARDED_VERSION_ID);
+
+        assertThrows(ForbiddenException.class, () -> operation.accept(versionService));
+
+        verifyNoInteractions(versionRepository, nodeRepository, connectionRepository, nodeService);
+    }
+
+    @ParameterizedTest(name = "{0} is refused without a session")
+    @MethodSource("mutatingOperations")
+    void mutatingOperationsRejectUnauthenticatedCaller(String name, Consumer<VersionService> operation) {
+        doThrow(new UnauthorizedException("Authentication required"))
+                .when(accessGuard).assertCanEditVersion(GUARDED_VERSION_ID);
+
+        assertThrows(UnauthorizedException.class, () -> operation.accept(versionService));
+
+        verifyNoInteractions(versionRepository, nodeRepository, connectionRepository, nodeService);
+    }
+
+    @Test
+    void getVersionChecksViewPermissionAndReturnsTheVersion() {
+        Version version = new Version("Baseline", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>());
+        when(versionRepository.findById(GUARDED_VERSION_ID)).thenReturn(Optional.of(version));
+
+        assertSame(version, versionService.getVersion(GUARDED_VERSION_ID));
+
+        verify(accessGuard).assertCanViewVersion(GUARDED_VERSION_ID);
+    }
+
+    @Test
+    void getVersionRejectsCallerOutsideTheOwningProject() {
+        doThrow(new ForbiddenException("You are not allowed to view this project"))
+                .when(accessGuard).assertCanViewVersion(GUARDED_VERSION_ID);
+
+        assertThrows(ForbiddenException.class, () -> versionService.getVersion(GUARDED_VERSION_ID));
+
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void getVersionRejectsUnauthenticatedCaller() {
+        doThrow(new UnauthorizedException("Authentication required"))
+                .when(accessGuard).assertCanViewVersion(GUARDED_VERSION_ID);
+
+        assertThrows(UnauthorizedException.class, () -> versionService.getVersion(GUARDED_VERSION_ID));
+
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void saveOrphanVersionCreatesTheVersionForAPlatformAdmin() {
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Scratch");
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Version saved = versionService.saveOrphanVersion(data);
+
+        assertEquals("Scratch", saved.getName());
+        verify(accessGuard).assertIsPlatformAdmin("create detached versions");
+    }
+
+    @Test
+    void saveOrphanVersionRejectsNonPlatformAdmin() {
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Scratch");
+        doThrow(new ForbiddenException("Only platform admins can create detached versions"))
+                .when(accessGuard).assertIsPlatformAdmin("create detached versions");
+
+        assertThrows(ForbiddenException.class, () -> versionService.saveOrphanVersion(data));
+
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void saveOrphanVersionRejectsUnauthenticatedCaller() {
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Scratch");
+        doThrow(new UnauthorizedException("Authentication required"))
+                .when(accessGuard).assertIsPlatformAdmin("create detached versions");
+
+        assertThrows(UnauthorizedException.class, () -> versionService.saveOrphanVersion(data));
+
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void saveVersionIsUnguardedBecauseItsCallersAuthorizeInstead() {
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Baseline");
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        versionService.saveVersion(data);
+
+        // ProjectService.saveVersion checks EDIT_PROJECT before reaching here, and
+        // saveOrphanVersion requires a platform admin; a check in between would be
+        // a third rule on a path that has no version id to check yet.
+        verifyNoInteractions(accessGuard);
+    }
 }

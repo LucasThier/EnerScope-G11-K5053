@@ -1,10 +1,10 @@
 package org.enerscope.project.service;
 
-import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.repository.OrganizationRepository;
+import org.enerscope.organization.service.OrganizationService;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
 import org.enerscope.project.dto.ProjectSummaryDTO;
@@ -53,18 +53,24 @@ public class ProjectService {
         private final UserRepository userRepository;
         private final AppLogger logger;
         private final VersionService versionService;
+        private final ProjectAccessGuard accessGuard;
+        private final OrganizationService organizationService;
 
         public ProjectService(ProjectRepository projectRepository,
                         ProjectMemberRepository projectMemberRepository,
                         OrganizationRepository organizationRepository,
                         UserRepository userRepository,
-                        AppLogger logger, VersionService versionService) {
+                        AppLogger logger, VersionService versionService,
+                        ProjectAccessGuard accessGuard,
+                        OrganizationService organizationService) {
                 this.projectRepository = projectRepository;
                 this.projectMemberRepository = projectMemberRepository;
                 this.organizationRepository = organizationRepository;
                 this.userRepository = userRepository;
                 this.logger = logger;
                 this.versionService = versionService;
+                this.accessGuard = accessGuard;
+                this.organizationService = organizationService;
         }
 
         /**
@@ -86,6 +92,18 @@ public class ProjectService {
                 return projectRepository.findSummariesForMember(caller.getId(), organizationId);
         }
 
+        /**
+         * Creates a project inside an organization, with the caller as its first
+         * member and project ADMIN.
+         *
+         * <p>The caller has to belong to the target organization: without that
+         * check any authenticated user could plant a project inside any
+         * organization, which is a cross-tenant write. Plain membership is the
+         * bar, not {@code MANAGE_ORGANIZATION} — a project is created by the
+         * people who are going to work on it, unlike the organization itself. The
+         * check runs after the organization is resolved so an unknown id keeps
+         * answering {@code IllegalArgumentException} (400).</p>
+         */
         @Transactional
         public Project createProject(CreateProjectRequestDTO data) {
                 Session session = AuthUtil.currentSession();
@@ -97,6 +115,7 @@ public class ProjectService {
 
                 Organization organization = organizationRepository.findById(data.organizationId())
                                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
+                organizationService.assertIsMemberOf(data.organizationId(), "create projects in");
 
                 Project project = new Project(data.name(), data.description(), organization);
                 organization.addProject(project);
@@ -125,25 +144,30 @@ public class ProjectService {
 
         /**
          * Ensures the current caller may read the given project: a platform ADMIN,
-         * or any of its members regardless of permissions.
+         * or any of its members regardless of permissions. The rule itself lives
+         * in {@link ProjectAccessGuard}, shared with {@code VersionService}; this
+         * stays as the service-level entry point callers already use.
          */
         public void assertCanViewProject(UUID projectId) {
-                Session session = AuthUtil.currentSession();
-                if (session == null) {
-                        throw new UnauthorizedException("Authentication required");
-                }
-                User caller = session.getUser();
-                if (caller.getPlatformRole() == PlatformRole.ADMIN) {
-                        return;
-                }
-                if (!projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())) {
-                        throw new ForbiddenException("You are not allowed to view this project");
-                }
+                accessGuard.assertCanViewProject(projectId);
         }
 
+        /**
+         * Adds a user to a project. Restricted to callers holding
+         * {@code MANAGE_PROJECT} on that project (its ADMIN members) or a platform
+         * ADMIN: without the check, any authenticated user could add themselves to
+         * any project and, since membership is what grants read access, walk
+         * straight into it.
+         *
+         * <p>The permission check runs after the project is resolved, so an
+         * unknown id keeps answering {@code IllegalArgumentException} (400) as it
+         * did before, and before the user lookup, so an unauthorized caller cannot
+         * probe which user ids exist.</p>
+         */
         public ProjectMember addMember(UUID projectId, AddProjectMemberRequestDTO data) {
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                accessGuard.assertCanManageProject(projectId);
                 User user = userRepository.findById(data.userId())
                                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
                 if (projectMemberRepository.existsByProjectIdAndUserId(projectId, data.userId())) {
@@ -176,9 +200,9 @@ public class ProjectService {
                 if (projectId == null || versionDTO == null) {
                         throw new IllegalArgumentException("data cannot be null");
                 }
-
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                accessGuard.assertCanEditProject(projectId);
 
                 Version version = versionService.saveVersion(versionDTO);
 

@@ -183,6 +183,30 @@ class OrganizationControllerTest {
         verify(organizationService, never()).createOrganization(any());
     }
 
+    @Test
+    void createOrganizationPropagatesForbiddenWith403() throws Exception {
+        when(organizationService.createOrganization(any(CreateOrganizationRequestDTO.class)))
+                .thenThrow(new ForbiddenException("Only platform admins can create organizations"));
+
+        mockMvc.perform(post("/organizations")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new CreateOrganizationRequestDTO("Acme"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Only platform admins can create organizations"));
+    }
+
+    @Test
+    void createOrganizationRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(post("/organizations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new CreateOrganizationRequestDTO("Acme"))))
+                .andExpect(status().isUnauthorized());
+
+        verify(organizationService, never()).createOrganization(any());
+    }
+
     // ---- addMember ---------------------------------------------------------
 
     @Test
@@ -322,5 +346,34 @@ class OrganizationControllerTest {
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void addMemberPropagatesForbiddenWith403() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        when(organizationService.addMember(eq(orgId), any(AddOrganizationMemberRequestDTO.class)))
+                .thenThrow(new ForbiddenException("You are not allowed to manage users in this organization"));
+
+        mockMvc.perform(post("/organizations/" + orgId + "/members")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new AddOrganizationMemberRequestDTO(
+                                UUID.randomUUID(), OrganizationMemberType.MEMBER))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value("You are not allowed to manage users in this organization"));
+    }
+
+    @Test
+    void addMemberRequiresAuthenticationWith401() throws Exception {
+        UUID orgId = UUID.randomUUID();
+
+        mockMvc.perform(post("/organizations/" + orgId + "/members")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new AddOrganizationMemberRequestDTO(
+                                UUID.randomUUID(), OrganizationMemberType.MEMBER))))
+                .andExpect(status().isUnauthorized());
+
+        verify(organizationService, never()).addMember(any(), any());
     }
 }

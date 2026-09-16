@@ -758,3 +758,86 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     (name, mail, job title, translated role), and the empty state. Note the
     projects created before the `createProject` fix show **0 members** — they
     are pre-fix data, not a defect in the current code.
+- 2026-09-15 — **Authorization closed on projects, versions and the two create
+  endpoints.** One card covering four holes that let any authenticated user act
+  outside their own tenant. The worst was `POST /projects/{id}/members`, which
+  ran **no check at all**: anyone could add themselves as `ADMIN` to any project
+  by UUID and, since membership is what grants read access, walk straight into
+  it. Now: `addMember` needs `MANAGE_PROJECT`, `createProject` needs membership
+  of the target organization, `createOrganization` and
+  `POST /organizations/{id}/members` are admin / org-owner, and every
+  `/version/**` endpoint is checked through the project that owns the version.
+  - **The rules live in a new `ProjectAccessGuard`, not on `ProjectService`,
+    because the obvious home would have been a dependency cycle.**
+    `ProjectService` already depends on `VersionService`, so having
+    `VersionService` ask the service for a check closes the loop and the context
+    does not start. The guard depends only on repositories, so both sides use
+    it. This is why the project side looks different from the organization side,
+    where `assertCanManageUsers` sits on `OrganizationService`: there,
+    `OrganizationBulkRegistrationService → OrganizationService` is a single
+    arrow and there is nothing to break.
+  - **A version cannot reach its project on its own.** `Project.versions` is a
+    unidirectional `@OneToMany` with `@JoinColumn`: the FK lives on the
+    `version` table but `Version` has no field pointing back. Rather than add a
+    back-reference (a second mapping of the same column, on an entity three
+    other features touch), the guard resolves it with
+    `ProjectRepository.findIdByVersionId` — a JPQL projection returning the
+    **id**, so the lazy `organization`/`members` are never loaded for what is
+    only an authorization check.
+  - **The platform-admin shortcut runs before the owning project is resolved.**
+    Otherwise a version attached to no project is refused for everyone, and the
+    admin who created one through `POST /version/createtest` could not touch it
+    afterwards. Pinned by
+    `assertCanEditVersionAllowsPlatformAdminOnOrphanVersion`.
+  - **`/version/createtest` was kept, not deleted.** The first plan was to
+    remove it (nothing in the frontend calls `/version/**` or `/nodes/**`), but
+    it stays behind a platform-admin check in case something undetected uses it.
+    The check could not go inside `VersionService.saveVersion`, which
+    `ProjectService.saveVersion` calls for the normal flow — that would have
+    stopped regular users from creating versions in their own projects. So the
+    exposed entry point and the internal one were split:
+    `saveOrphanVersion` (public, admin-only) delegates to `saveVersion`
+    (unguarded, with `saveVersionIsUnguardedBecauseItsCallersAuthorizeInstead`
+    recording that the absence is deliberate).
+  - **Every check runs after the entity is resolved and before any further
+    lookup.** After, so an unknown id keeps answering `400` instead of turning
+    into a `403`; before, so an unauthorized caller cannot use the endpoint to
+    probe which user ids exist. The tests assert the second half with
+    `verify(userRepository, never()).findById(any())`.
+  - **`assertCanViewOrganization` was split into `assertIsMemberOf(id,
+    action)`.** Same rule, but the verb is a parameter, so creating a project in
+    an organization you do not belong to answers "You are not allowed to
+    **create projects in** this organization" instead of "...to **view**...".
+    The frontend prints `ApiResponse.message` verbatim, so the wording is the
+    product, not a log detail.
+  - **Deliberate duplication:** `assertIsPlatformAdmin` exists twice — on
+    `ProjectAccessGuard` and privately on `OrganizationService`. Roughly eight
+    lines, accepted so that `OrganizationService` does not depend on a guard
+    belonging to the *projects* feature. The clean fix is to lift the primitive
+    (`requireSession` + `requirePlatformAdmin`) into `util/AuthUtil`, which
+    every service already uses; worth doing next time this area is touched.
+  - **Test wiring is not uniform, on purpose.** `ProjectServiceTest` builds a
+    **real** guard over its mocked repositories, because the `listMembers`
+    cases that already existed assert authorization outcomes and a mocked guard
+    would have reduced them to "the mock was called". `VersionServiceTest` and
+    the `OrganizationService` collaborator in `ProjectServiceTest` are
+    **mocked**, because no existing case there tested authorization and the
+    rules have their own coverage in `ProjectAccessGuardTest`. A mocked guard is
+    also what kept the nine pre-existing `VersionServiceTest` cases from needing
+    a `SecurityContext` each.
+  - **Known limitation, left open:** `deleteVersion` checks the permission on
+    the **root** version's project. `deleteSubVersions` then walks the whole
+    tree, so a child version attached to a *different* project would be deleted
+    without that project being checked. Fixing it properly means reworking the
+    cascade delete, not patching the check. `deleteSubVersions` is now private,
+    so the tree walk is at least unreachable without going through the check.
+  - **Still open after this card:** `POST /nodes/**` (10 endpoints) has no
+    authorization. It creates nodes with no version and no project, so it
+    exposes and modifies nothing of anyone else's — noise in the database rather
+    than a leak — but it is the last unguarded surface. Separately, the platform
+    role comes from the JWT claim, so a demoted user keeps their old role until
+    the token expires; that predates this card and applies to every `assert*`.
+  - `mvn test` 155 → 233, all green. New: `ProjectAccessGuardTest` (22) and
+    `VersionControllerTest` (10, a class `docs/testing.md` had been listing for
+    a while without it existing). The two `version.*` entries in that catalog
+    described cases that were never written and were rewritten from the code.

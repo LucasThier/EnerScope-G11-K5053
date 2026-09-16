@@ -32,23 +32,28 @@ Run everything with `cd backend && mvn test`.
 | `money.MoneyAmountTest` | Unit | 6 |
 | `user.service.UserServiceTest` | Unit | 9 |
 | `user.service.PasswordGeneratorTest` | Unit | 4 |
-| `organization.service.OrganizationServiceTest` | Unit | 18 |
+| `organization.service.OrganizationServiceTest` | Unit | 23 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 12 |
-| `organization.controller.OrganizationControllerTest` | Web | 14 |
-| `project.service.ProjectServiceTest` | Unit | 22 |
-| `project.controller.ProjectControllerTest` | Web | 12 |
-| `version.service.VersionServiceTest` | Unit | 5 |
-| `version.controller.VersionControllerTest` | Web | 3 |
-| **Total** | | **131** |
+| `organization.controller.OrganizationControllerTest` | Web | 18 |
+| `project.service.ProjectAccessGuardTest` | Unit | 22 |
+| `project.service.ProjectServiceTest` | Unit | 31 |
+| `project.controller.ProjectControllerTest` | Web | 17 |
+| `version.service.VersionServiceTest` | Unit | 18 [^p] |
+| `version.controller.VersionControllerTest` | Web | 10 |
+| **Total** | | **196 [^p]** |
 
-> **This catalog is known to be incomplete.** `mvn test` currently reports
-> **155** cases. The 24-case gap predates this table's last update and is
-> deliberately not reconciled here: the `node.*` and `strategyCost.*` classes
-> were never catalogued, `version.controller.VersionControllerTest` is listed
-> above but no such class exists, and the recorded counts for
-> `version.service.VersionServiceTest` and `money.MoneyAmountTest` have drifted
-> from the real ones. Reconciling the catalog is its own task — see
-> `docs/considerations.md`.
+[^p]: Two cases in `version.service.VersionServiceTest` are
+`@ParameterizedTest`s running over the eight mutating version entry points,
+so they count as 16 executions rather than 2. Surefire therefore reports
+**210** for the classes catalogued here.
+
+> **This catalog is still incomplete.** `mvn test` currently reports **233**
+> executions against the **210** covered here. The remaining 23-case gap is now
+> fully accounted for: the `node.*` classes were never catalogued (2 cases), neither
+> were the `strategyCost.*` ones (20), and `money.MoneyAmountTest` really has 7
+> cases, not the 6 recorded here. Cataloguing those is its own task — see
+> `docs/considerations.md`. The two `version.*` entries, which used to describe
+> cases that did not exist, were rewritten from the code on 2026-09-15.
 
 ## `ApplicationContextTest` — Integration
 
@@ -182,6 +187,11 @@ Organization creation and member addition (with role/permission derivation).
 | `listForCurrentUserReturnsAllForAdmin` | A platform ADMIN caller lists every organization (`findAll`). |
 | `listForCurrentUserReturnsMembershipsForRegularUser` | A regular user lists only the organizations they are a member of. |
 | `listForCurrentUserRejectsUnauthenticated` | No authenticated caller → `UnauthorizedException`. |
+| `createOrganizationRejectsRegularUserWith403` | A non-admin caller gets `ForbiddenException`; nothing is saved. |
+| `createOrganizationRejectsUnauthenticated` | No session throws `UnauthorizedException`; nothing is saved. |
+| `addMemberAllowsOrganizationOwner` | A member holding `MANAGE_ORGANIZATION` adds another user; the membership is persisted. |
+| `addMemberRejectsPlainMemberWith403` | A member with only `VIEW_ORGANIZATION` gets `ForbiddenException`; the user is never looked up and nothing is saved. |
+| `addMemberRejectsUnauthenticated` | No session throws `UnauthorizedException` before the user lookup; nothing is saved. |
 | `addMemberGrantsOwnerFullPermissions` | Adding a member with `memberType=OWNER` creates a role with both `MANAGE_ORGANIZATION` and `VIEW_ORGANIZATION`. |
 | `addMemberGrantsMemberViewOnlyPermission` | Adding a member with `memberType=MEMBER` creates a role with only `VIEW_ORGANIZATION`. |
 | `addMemberRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException` before the user is looked up or anything is saved. |
@@ -218,12 +228,52 @@ every non-`/auth` route); `OrganizationService` and
 | `registerUserReturnsCreatedMember` | `POST /organizations/{id}/users` with a valid body → `201` `User registered into organization` with the member's `memberType`. |
 | `registerUserPropagatesForbiddenWith403` | When the service throws `ForbiddenException` → `403`, `success=false`. |
 | `registerUserRejectsInvalidBodyWithValidationError` | Invalid email → `400` `Validation error`; the service is never called. |
+| `createOrganizationPropagatesForbiddenWith403` | When the service refuses a non-admin → `403` with `Only platform admins can create organizations`. |
+| `createOrganizationRequiresAuthenticationWith401` | `POST /organizations` without a bearer token → `401`; the service is never reached. |
+| `addMemberPropagatesForbiddenWith403` | When the service refuses the caller → `403` with the domain message. |
+| `addMemberRequiresAuthenticationWith401` | `POST /organizations/{id}/members` without a token → `401`; the service is never reached. |
 | `bulkRegisterUsersReturnsResultSummary` | `POST /organizations/{id}/users/bulk` with a CSV file → `200` with the result summary (`total`/`created`) and `credentialsCsv`. |
 | `bulkRegisterUsersPropagatesForbiddenWith403` | When the bulk service throws `ForbiddenException` → `403`, `success=false`. |
 
+## `project.service.ProjectAccessGuardTest` — Unit
+
+The single home of the project and version authorization rules, shared by
+`ProjectService` and `VersionService`. Every check is exercised in its three
+states: authorized, authenticated but not allowed (`403`), and no session
+(`401`).
+
+| Case | Verifies |
+| --- | --- |
+| `assertCanViewProjectAllowsAnyMember` | Any member of the project may read it, regardless of permissions. |
+| `assertCanViewProjectAllowsPlatformAdminWithoutMembershipLookup` | A platform ADMIN passes without the membership repository being touched at all. |
+| `assertCanViewProjectRejectsNonMemberWith403` | A user outside the project gets `ForbiddenException`. |
+| `assertCanViewProjectRejectsUnauthenticated` | No session throws `UnauthorizedException` before any lookup. |
+| `assertCanEditProjectAllowsMemberWithEditPermission` | A member holding `EDIT_PROJECT` may change the project's contents. |
+| `assertCanEditProjectAllowsPlatformAdminWithoutMembershipLookup` | A platform ADMIN passes without a membership lookup. |
+| `assertCanEditProjectRejectsMemberWithoutEditPermissionWith403` | A member whose role lacks `EDIT_PROJECT` gets `ForbiddenException` — the guard reads permissions, never the member type label. |
+| `assertCanEditProjectRejectsNonMemberWith403` | A user with no membership row gets `ForbiddenException`. |
+| `assertCanEditProjectRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+| `assertCanManageProjectAllowsProjectAdmin` | A member holding `MANAGE_PROJECT` may administer the project. |
+| `assertCanManageProjectRejectsEditorWith403` | An EDITOR (`EDIT_PROJECT` but no `MANAGE_PROJECT`) gets `ForbiddenException`. |
+| `assertCanManageProjectRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+| `assertCanEditVersionResolvesOwningProjectAndAllowsEditor` | A version id is resolved to its owning project and the edit rule is applied there. |
+| `assertCanEditVersionRejectsCallerOutsideOwningProjectWith403` | A caller with no membership in the owning project gets `ForbiddenException`. |
+| `assertCanEditVersionRejectsVersionWithoutOwningProjectWith403` | A version attached to no project is refused without any membership lookup: no membership could grant access to it. |
+| `assertCanEditVersionAllowsPlatformAdminOnOrphanVersion` | A platform ADMIN may edit a detached version — the admin shortcut runs before the project is resolved, so versions created through `POST /version/createtest` stay reachable by whoever may create them. |
+| `assertCanEditVersionRejectsUnauthenticated` | No session throws `UnauthorizedException` before the project is resolved. |
+| `assertCanViewVersionAllowsAnyMemberOfOwningProject` | Reading a version only requires membership in its owning project. |
+| `assertCanViewVersionRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+| `assertIsPlatformAdminAllowsPlatformAdmin` | A platform ADMIN passes the platform-level check. |
+| `assertIsPlatformAdminRejectsRegularUserWith403` | A regular user gets `ForbiddenException` with the action named in the message. |
+| `assertIsPlatformAdminRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+
 ## `project.service.ProjectServiceTest` — Unit
 
-Project creation and member addition (with role/permission derivation).
+Project creation and member addition (with role/permission derivation), plus
+the authorization each one runs. `ProjectAccessGuard` is wired as a real
+collaborator over the same mocked repositories, so the authorization cases here
+assert real outcomes; `OrganizationService` is mocked, since its rule has its own
+coverage and what matters here is that `createProject` runs it.
 
 | Case | Verifies |
 | --- | --- |
@@ -231,6 +281,13 @@ Project creation and member addition (with role/permission derivation).
 | `createProjectAddsCreatorAsProjectAdmin` | Creating a project puts the caller on it as a member whose role is `ADMIN` with `MANAGE_PROJECT`, `EDIT_PROJECT` and `VIEW_PROJECT` — without it the creator would not see their own project in `GET /projects`. |
 | `createProjectRejectsUnauthenticated` | Creating a project with no session throws `UnauthorizedException`; neither the project nor a membership is saved. |
 | `createProjectRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException`; the project is never saved. |
+| `createProjectChecksCallerBelongsToTargetOrganization` | Creating a project runs the organization membership check with that organization's id and the `create projects in` action. |
+| `createProjectRejectsCallerOutsideOrganizationWith403` | A caller who does not belong to the target organization gets `ForbiddenException`; neither the project nor a membership is saved. |
+| `addMemberAllowsProjectAdmin` | A project ADMIN (`MANAGE_PROJECT`) adds a member and it is persisted. |
+| `addMemberAllowsPlatformAdmin` | A platform ADMIN adds a member without any membership lookup. |
+| `addMemberRejectsProjectEditorWith403` | An EDITOR gets `ForbiddenException`; the user is never looked up and nothing is saved. |
+| `addMemberRejectsCallerWhoIsNotAMemberWith403` | A user outside the project gets `ForbiddenException`; nothing is saved. |
+| `addMemberRejectsUnauthenticated` | No session throws `UnauthorizedException` before the user lookup; nothing is saved. |
 | `addMemberGrantsAdminFullPermissions` | Adding a member with `memberType=ADMIN` creates a role with `MANAGE_PROJECT`, `EDIT_PROJECT` and `VIEW_PROJECT`. |
 | `addMemberGrantsEditorEditAndViewPermissions` | Adding a member with `memberType=EDITOR` creates a role with only `EDIT_PROJECT` and `VIEW_PROJECT`. |
 | `addMemberRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException` before the user is looked up or anything is saved. |
@@ -246,6 +303,8 @@ Project creation and member addition (with role/permission derivation).
 | `listForCurrentUserPassesOrganizationFilterThrough` | An `organizationId` is forwarded verbatim to the repository. |
 | `listForCurrentUserRejectsUnauthenticated` | No security context → `UnauthorizedException`. |
 | `saveVersionReturnsVersionLinkedToProject` | The created version is returned, appended to `Project.versions`, and the project is saved. |
+| `saveVersionRejectsCallerWithoutEditPermissionWith403` | Creating a version in a project the caller cannot edit throws `ForbiddenException`; `VersionService` is never called and the project is not saved. |
+| `saveVersionRejectsUnauthenticated` | No session throws `UnauthorizedException`; nothing is created. |
 | `saveVersionRejectsNullProjectId` | A null project id throws `IllegalArgumentException`; `VersionService` is never called. |
 | `saveVersionRejectsNullVersionData` | A null `VersionDTO` throws `IllegalArgumentException`; `VersionService` is never called. |
 | `saveVersionRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException`; no version is created and nothing is saved. |
@@ -270,27 +329,57 @@ non-`/auth` route); `ProjectService` is mocked.
 | `addMemberRejectsInvalidBodyWithValidationError` | Missing `userId`/`memberType` → `400` `Validation error`; the service is never called. |
 | `listMembersReturnsMembers` | `GET /projects/{id}/members` → `200` with the flattened member rows (mail, first/last name, `active`, `memberType`). |
 | `listMembersRequiresAuthenticationWith401` | The same call without a bearer token → `401`; the service is never reached. |
+| `createProjectPropagatesForbiddenWith403` | When the service refuses a caller outside the organization → `403` with `You are not allowed to create projects in this organization`. |
+| `createProjectRequiresAuthenticationWith401` | `POST /projects` without a token → `401`; the service is never reached. |
+| `createVersionPropagatesForbiddenWith403` | When the service refuses a caller without `EDIT_PROJECT` → `403` with the domain message. |
+| `addMemberPropagatesForbiddenWith403` | When the service refuses the caller → `403` with `You are not allowed to manage this project`. |
+| `addMemberRequiresAuthenticationWith401` | `POST /projects/{id}/members` without a token → `401`; the service is never reached. |
 
 ## `version.service.VersionServiceTest` — Unit
 
-Version creation, including the parent-version-same-project validation.
+Version and node/connection mechanics, plus the authorization every entry point
+runs. `ProjectAccessGuard` is mocked here (unlike in `ProjectServiceTest`): the
+rules themselves are covered case by case in `ProjectAccessGuardTest`, so what
+these cases pin down is that no entry point skips the guard and that a rejected
+call touches neither the repositories nor `NodeService`.
 
 | Case | Verifies |
 | --- | --- |
-| `createVersionPersistsAndLinksToProjectWithoutParent` | Creating a version without a `parentVersionId` persists it linked to the project and appends it to `Project.versions`. |
-| `createVersionPersistsWithValidParentVersion` | Creating a version with a `parentVersionId` that belongs to the same project links the new version to that parent. |
-| `createVersionRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException`; nothing is saved. |
-| `createVersionRejectsUnknownParentVersion` | An unknown `parentVersionId` throws `IllegalArgumentException`; nothing is saved. |
-| `createVersionRejectsParentVersionFromDifferentProject` | A `parentVersionId` belonging to a different project throws `IllegalArgumentException`; nothing is saved. |
+| `modifyVersionShouldUpdateNameWithoutCreatingNodeChange` | Renaming a version updates the name and creates no `NodeChange`/`ConnectionChange`. |
+| `editNodeInVersion_WhenNodeAddedInThisVersion_ShouldEditInPlaceAndCreateEditChange` | Editing a node that was added in this version edits it in place and records an `EDIT` change. |
+| `editNodeInVersion_WhenNodePreviouslyEditedInThisVersion_ShouldEditInPlaceAndCreateAnotherEditChange` | Editing an already-edited node edits in place and records a further `EDIT` change. |
+| `editNodeInVersion_WhenNodeCameFromParent_ShouldUpdateSnapshotAndCreateEditChange` | Editing a node inherited from the parent version replaces it in the snapshot and records an `EDIT` change. |
+| `editNodeInVersion_WhenNodeDTOIsNull_ShouldThrowNullPointerException` | A null node DTO throws `NullPointerException`. |
+| `editNodeInVersion_WhenNodeIdIsNull_ShouldThrowNullPointerException` | A null node id throws `NullPointerException`. |
+| `editNodeInVersion_WhenVersionNotFound_ShouldThrowVersionNotFoundException` | An unknown version id throws `VersionNotFoundException`. |
+| `editNodeInVersion_WhenNodeNotFound_ShouldThrowEntityNotFoundException` | A node absent from the version throws `EntityNotFoundException`. |
+| `addNodeToVersion_WithWellDTO_ShouldAddWellToVersion` | Adding a `WellDTO` saves the well, appends it to the snapshot and records an `ADD` change. |
+| `mutatingOperationsRejectCallerWithoutEditPermission` | **Parameterized over all eight mutating entry points** (`deleteVersion`, `modifyVersion`, `addNodeToVersion`, `addConnectionToVersion`, `editNodeInVersion`, `editConnectionInVersion`, `deleteNodeFromVersion`, `deleteConnectionFromVersion`): each requires `EDIT_PROJECT` on the owning project, and a refused call reads and writes nothing. |
+| `mutatingOperationsRejectUnauthenticatedCaller` | The same eight entry points, with no session: `UnauthorizedException`, and again nothing is read or written. |
+| `getVersionChecksViewPermissionAndReturnsTheVersion` | Reading a version runs the view check and returns it. |
+| `getVersionRejectsCallerOutsideTheOwningProject` | A caller with no claim on the owning project gets `ForbiddenException`; the repository is never touched. |
+| `getVersionRejectsUnauthenticatedCaller` | No session throws `UnauthorizedException`; the repository is never touched. |
+| `saveOrphanVersionCreatesTheVersionForAPlatformAdmin` | `POST /version/createtest` creates a detached version for a platform ADMIN, running the platform-level check. |
+| `saveOrphanVersionRejectsNonPlatformAdmin` | A regular user gets `ForbiddenException`; nothing is saved. |
+| `saveOrphanVersionRejectsUnauthenticatedCaller` | No session throws `UnauthorizedException`; nothing is saved. |
+| `saveVersionIsUnguardedBecauseItsCallersAuthorizeInstead` | The internal `saveVersion` deliberately runs no check: `ProjectService.saveVersion` authorizes the owning project and `saveOrphanVersion` requires a platform ADMIN. Adding a third check here would fail this case on purpose. |
 
 ## `version.controller.VersionControllerTest` — Web
 
 Exercises `VersionController` through the real `SecurityConfig`/`AuthFilter`
-chain (a valid Bearer token is required on every request, like every
-non-`/auth` route); `VersionService` is mocked.
+chain, so a request without a token is refused by the actual filter chain rather
+than by a stub; `VersionService` is mocked. These endpoints take nothing but a
+version UUID, which is what made guarding them necessary.
 
 | Case | Verifies |
 | --- | --- |
-| `createVersionReturnsCreatedVersion` | `POST /projects/{projectId}/versions` with a valid body → `201` and an envelope with `success=true`, message `Version created`, and the created version's `name`. |
-| `createVersionRejectsBlankNameWithValidationError` | Blank `name` → `400` `Validation error`; `VersionService.createVersion` is never called. |
-| `createVersionRejectsUnknownProjectWith400` | When the service throws for an unknown project → `400` with the domain error message. |
+| `getVersionReturnsTheVersion` | `GET /version/{id}` → `200` with the envelope and the version's `name`. |
+| `getVersionPropagatesForbiddenWith403` | When the service refuses the caller → `403` carrying the domain message. |
+| `getVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+| `deleteVersionPropagatesForbiddenWith403` | `DELETE /version/{id}` for a caller without `EDIT_PROJECT` → `403`. |
+| `deleteVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+| `addNodeToVersionPropagatesForbiddenWith403` | `POST /version/{id}/node` for a caller without `EDIT_PROJECT` → `403`. |
+| `addNodeToVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+| `createDetachedVersionReturnsTheVersionForAPlatformAdmin` | `POST /version/createtest` → `200` with the created version. |
+| `createDetachedVersionPropagatesForbiddenWith403` | The same call for a non-admin → `403` with `Only platform admins can create detached versions`. |
+| `createDetachedVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |

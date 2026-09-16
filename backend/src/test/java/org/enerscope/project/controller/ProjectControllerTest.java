@@ -2,6 +2,7 @@ package org.enerscope.project.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.enerscope.auth.filter.AuthFilter;
+import org.enerscope.common.ForbiddenException;
 import org.enerscope.config.SecurityConfig;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
@@ -219,6 +220,45 @@ class ProjectControllerTest {
         verify(projectService, never()).createProject(any());
     }
 
+    @Test
+    void createProjectPropagatesForbiddenWith403() throws Exception {
+        when(projectService.createProject(any(CreateProjectRequestDTO.class)))
+                .thenThrow(new ForbiddenException("You are not allowed to create projects in this organization"));
+
+        mockMvc.perform(post("/projects")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new CreateProjectRequestDTO("Grid Expansion", "Expands it", UUID.randomUUID()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message")
+                        .value("You are not allowed to create projects in this organization"));
+    }
+
+    @Test
+    void createProjectRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(post("/projects")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new CreateProjectRequestDTO("Grid Expansion", "Expands it", UUID.randomUUID()))))
+                .andExpect(status().isUnauthorized());
+
+        verify(projectService, never()).createProject(any());
+    }
+
+    @Test
+    void createVersionPropagatesForbiddenWith403() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        when(projectService.saveVersion(eq(projectId), any(VersionDTO.class)))
+                .thenThrow(new ForbiddenException("You are not allowed to edit this project"));
+
+        mockMvc.perform(post("/projects/" + projectId + "/version")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new VersionDTO("Baseline", null))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You are not allowed to edit this project"));
+    }
+
     // ---- addMember -------------------------------------------------------
 
     @Test
@@ -267,6 +307,34 @@ class ProjectControllerTest {
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation error"));
+
+        verify(projectService, never()).addMember(any(), any());
+    }
+
+    @Test
+    void addMemberPropagatesForbiddenWith403() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(projectService.addMember(eq(projectId), any(AddProjectMemberRequestDTO.class)))
+                .thenThrow(new ForbiddenException("You are not allowed to manage this project"));
+
+        mockMvc.perform(post("/projects/" + projectId + "/members")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new AddProjectMemberRequestDTO(userId, ProjectMemberType.ADMIN))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("You are not allowed to manage this project"));
+    }
+
+    @Test
+    void addMemberRequiresAuthenticationWith401() throws Exception {
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(post("/projects/" + projectId + "/members")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new AddProjectMemberRequestDTO(UUID.randomUUID(), ProjectMemberType.ADMIN))))
+                .andExpect(status().isUnauthorized());
 
         verify(projectService, never()).addMember(any(), any());
     }
