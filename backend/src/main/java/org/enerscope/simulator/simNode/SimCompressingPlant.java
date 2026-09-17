@@ -52,6 +52,8 @@ public class SimCompressingPlant extends SimBaseNode{
         }
 
         totalLost += lost;
+        measuredLosses += lost;
+        stepOutput = toDeliver.getAmount();
     }
     @Override
     public boolean readyToBeProcessed(int time) {

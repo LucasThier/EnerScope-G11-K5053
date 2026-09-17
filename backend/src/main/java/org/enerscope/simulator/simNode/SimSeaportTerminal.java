@@ -45,6 +45,7 @@ class SimSeaportTerminal extends SimBaseNode{
         }
 
         amountInIntermediateStorage.setAmount(amountInIntermediateStorage.getAmount() + toProcess.getAmount());
+        stepOutput = toProcess.getAmount();
     }
 
     @Override

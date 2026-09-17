@@ -21,7 +21,8 @@ public class Result {
     private int year;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ResultPerNode> resultPerNodes;
+    @JoinColumn(name = "result_id", nullable = false)
+    private List<ResultPerNode> resultPerNodes = new ArrayList<>();
 
     public Result() {
 

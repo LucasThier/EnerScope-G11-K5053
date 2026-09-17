@@ -1,0 +1,20 @@
+{
+  "name": "Economic example well",
+  "state": "RUNNING",
+  "lifespanInMonths": 120,
+  "startupDate": "2031-01-01T00:00:00Z",
+  "maxCollectionCapacity": 100,
+  "declineCurve": 0,
+  "gasRichness": 0,
+  "dtmtime": 0,
+  "dtmcost": 0,
+  "surface": 1,
+  "upkeepCosts": 0,
+  "operatingCosts": 0,
+  "maintenanceIntervalInDays": 0,
+  "maintenanceDuration": 0,
+  "wastePercentage": 0,
+  "type": { "vertical": "EXTRACTION", "role": "GENERATOR", "nodeType": "WELL" },
+  "graphData": { "xposition": 0, "yposition": 100, "coordinates": 0 },
+  "investmentCost": { "components": [] }
+}

@@ -80,17 +80,17 @@ public class VersionService {
         }
 
         Version parentVersion = null;
-        List<BaseNode> nodeSnapshot = null; // do we want a new version with new changes? Or not?
-        List<NodeConnection> connectionSnapshot = null;
+        List<BaseNode> nodeSnapshot = new ArrayList<>();
+        List<NodeConnection> connectionSnapshot = new ArrayList<>();
         if (data.getParentVersion() != null) {
             parentVersion = versionRepository.findById(data.getParentVersion())
                     .orElseThrow(() -> new VersionNotFoundException(data.getParentVersion()));
             // Create defensive copies to avoid sharing references with parent version
             connectionSnapshot = parentVersion.getConnectionSnapshot() == null
-                    ? null
+                    ? new ArrayList<>()
                     : new ArrayList<>(parentVersion.getConnectionSnapshot());
             nodeSnapshot = parentVersion.getNodeSnapshot() == null
-                    ? null
+                    ? new ArrayList<>()
                     : new ArrayList<>(parentVersion.getNodeSnapshot());
         }
 

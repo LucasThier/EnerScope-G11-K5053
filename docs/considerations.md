@@ -6,27 +6,13 @@ something non-obvious.** Keep entries concise, dated, and human-readable.
 
 Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 
-## Standing rules
-
-- **The backend is the source of truth when a wireframe and the backend
-  disagree.** Never implement something in the frontend that contradicts a
-  security or design decision already taken in the backend. Adjust the frontend
-  to what the backend actually allows, and record the mismatch as a separate
-  note here so the team can decide whether to reopen that decision — do not
-  reopen it on your own. Example: wireframe `1a` shows a self-service "Crear
-  cuenta" tab, but `SecurityConfig` deliberately keeps `POST /auth/register`
-  behind `hasRole("ADMIN")` because accounts are created by admins and
-  organization owners. The login screen must therefore ship without a
-  self-registration path.
-
 ## Current expectations
 
-- The `User` model carries `mail`, `firstName`, `lastName`, `passwordHash`, a
-  `platformRole` (`ADMIN`/`USER`) and an optional `jobTitle` — plus `BaseEntity`
-  audit fields. There is still **no phone number**. The seeded
-  `admin@enerscope.org` is an `ADMIN`. `platformRole` is the app-wide role;
-  organization/project membership roles are scoped and separate. `jobTitle` is
-  descriptive only and never affects authorization.
+- The `User` model carries `mail`, `firstName`, `lastName`, `passwordHash` and a
+  `platformRole` (`ADMIN`/`USER`) — plus `BaseEntity` audit fields. There is
+  still **no phone number**. The seeded `admin@enerscope.org` is an `ADMIN`.
+  `platformRole` is the app-wide role; organization/project membership roles are
+  scoped and separate.
 - Authentication is **stateless** (JWT). There is no session table; a `Session`
   is rebuilt from the token on each request. Revocation before expiry is not
   supported — keep access-token lifetimes short.
@@ -36,15 +22,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - The frontend now has the **auth portal**: an `AuthProvider`/`useAuth`
   (login/register/logout/refresh + role state), reusable `LoginForm`/
   `RegisterForm`, role-gated routes and admin/user panels. Design tokens live in
-  `src/index.css` under Tailwind v4 `@theme` (brand greens and the ink ramp, from
-  the logo); reuse `bg-brand-*`/`text-ink-*` instead of raw hex. Tailwind only;
-  no hand-written CSS beyond those tokens. **The page surface is white and brand
-  green is an accent, never a surface** — primary buttons, links and the active
-  nav item only. **`ink-500` is the floor for text** (5.69:1 on white); `ink-300`
-  and `ink-400` are for borders, decorative icons and placeholders. White text
-  needs `brand-800` or darker. Type hierarchy comes from size and weight, and
-  spacing stays on the 4px grid — the full rules are in
-  [`frontend/README.md`](../frontend/README.md) → Conventions.
+  `src/index.css` under Tailwind v4 `@theme` (brand greens, ink, cream — from the
+  logo); reuse `bg-brand-*`/`text-ink-*`/`bg-cream` instead of raw hex. Tailwind
+  only; no hand-written CSS beyond those tokens.
 
 ## Log
 
@@ -758,3 +738,21 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     (name, mail, job title, translated role), and the empty state. Note the
     projects created before the `createProject` fix show **0 members** — they
     are pre-fix data, not a defect in the current code.
+
+- 2026-09-16 — Economic evaluations are version-owned typed aggregates with immutable
+  input/output snapshots. See `docs/economic-module.md` for rule semantics, annual
+  365-day operational time, tax-loss expiry and explicit unit conversions. Do not
+  import `BaseNode` legacy costs implicitly, mirror an internal transfer manually,
+  or duplicate an asset purchase as an expense rule. Tax is calculated per entity
+  before consolidation; delayed collections/payments use a separate cash adjustment.
+  Capital working requirements must not duplicate receivable/payable timing.
+- 2026-09-16 — V8/V9 add economic persistence and repair operational schema gaps:
+  result year, result foreign-key mappings, maintenance duration and FLNG gas
+  consumption. V1-V7 remain unchanged. Version creation now initializes empty
+  snapshots, and `ProjectService.saveVersion` returns its saved version instead of
+  throwing the previously unfinished-method exception.
+- 2026-09-16 — The existing Draw.io pages are retained and economic views are added.
+  `docs/tools/build-economic-document.py` regenerates the economic pages and Spanish
+  PDF. The old minimal-Version descriptions are superseded by the actual snapshot
+  model. Run the explicit `PostgreSqlEconomicIT` suite against a disposable database
+  in addition to `mvn test`; it must not target an existing application database.

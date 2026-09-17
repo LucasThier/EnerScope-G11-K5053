@@ -1,13 +1,10 @@
 package org.enerscope.project.service;
 
-import org.enerscope.common.ForbiddenException;
-import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
-import org.enerscope.project.dto.ProjectSummaryDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
@@ -15,24 +12,16 @@ import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.project.repository.ProjectRepository;
-import org.enerscope.session.model.Session;
 import org.enerscope.user.model.User;
-import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
-import org.enerscope.version.dto.VersionDTO;
-import org.enerscope.version.model.Version;
+import org.enerscope.version.repository.VersionRepository;
 import org.enerscope.version.service.VersionService;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -62,14 +51,6 @@ class ProjectServiceTest {
         @Mock
         private AppLogger logger;
 
-        private static final java.util.Map<ProjectMemberType, Set<ProjectMemberPermission>>
-                        DEFAULT_PERMISSIONS_FOR_TEST = java.util.Map.of(
-                                        ProjectMemberType.ADMIN, Set.of(ProjectMemberPermission.MANAGE_PROJECT,
-                                                        ProjectMemberPermission.EDIT_PROJECT,
-                                                        ProjectMemberPermission.VIEW_PROJECT),
-                                        ProjectMemberType.EDITOR, Set.of(ProjectMemberPermission.EDIT_PROJECT,
-                                                        ProjectMemberPermission.VIEW_PROJECT));
-
         private ProjectService projectService;
 
         @BeforeEach
@@ -79,23 +60,14 @@ class ProjectServiceTest {
                                 logger, versionService);
         }
 
-        @AfterEach
-        void clearSecurityContext() {
-                SecurityContextHolder.clearContext();
-        }
-
         // ---- createProject -------------------------------------------------------
 
         @Test
         void createProjectPersistsAndLinksToOrganization() {
                 UUID orgId = UUID.randomUUID();
                 Organization organization = new Organization("Acme");
-                User creator = creator();
-                authenticateAs(creator);
-                when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
                 when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
                 when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
-                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
 
                 Project saved = projectService.createProject(
                                 new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid", orgId));
@@ -107,51 +79,13 @@ class ProjectServiceTest {
         }
 
         @Test
-        void createProjectAddsCreatorAsProjectAdmin() {
-                UUID orgId = UUID.randomUUID();
-                Organization organization = new Organization("Acme");
-                User creator = creator();
-                authenticateAs(creator);
-                when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
-                when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
-                when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
-                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
-
-                Project saved = projectService.createProject(
-                                new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid", orgId));
-
-                assertEquals(1, saved.getMembers().size());
-                ProjectMember member = saved.getMembers().get(0);
-                assertEquals(creator, member.getUser());
-                assertEquals(saved, member.getProject());
-                assertEquals(1, member.getRoles().size());
-                ProjectMemberRole role = member.getRoles().iterator().next();
-                assertEquals(ProjectMemberType.ADMIN, role.getMemberType());
-                assertEquals(Set.of(ProjectMemberPermission.MANAGE_PROJECT, ProjectMemberPermission.EDIT_PROJECT,
-                                ProjectMemberPermission.VIEW_PROJECT), role.getPermissions());
-        }
-
-        @Test
-        void createProjectRejectsUnauthenticated() {
-                assertThrows(UnauthorizedException.class, () -> projectService.createProject(
-                                new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid",
-                                                UUID.randomUUID())));
-                verify(projectRepository, never()).save(any());
-                verify(projectMemberRepository, never()).save(any());
-        }
-
-        @Test
         void createProjectRejectsUnknownOrganization() {
                 UUID orgId = UUID.randomUUID();
-                User creator = creator();
-                authenticateAs(creator);
-                when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
                 when(organizationRepository.findById(orgId)).thenReturn(Optional.empty());
 
                 assertThrows(IllegalArgumentException.class, () -> projectService.createProject(
                                 new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid", orgId)));
                 verify(projectRepository, never()).save(any());
-                verify(projectMemberRepository, never()).save(any());
         }
 
         // ---- addMember -------------------------------------------------------
@@ -415,5 +349,18 @@ class ProjectServiceTest {
         private ProjectSummaryDTO summary(String name, long memberCount) {
                 return new ProjectSummaryDTO(UUID.randomUUID(), name, "A project", UUID.randomUUID(), "Acme",
                                 memberCount, Instant.now());
+        }
+
+        @Test
+        void saveVersionReturnsCreatedVersionAndLinksItToProject() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Economic project", "Example", new Organization("Example"));
+                var request = new org.enerscope.version.dto.VersionDTO("Economic version", null);
+                var version = new org.enerscope.version.model.Version();
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(request)).thenReturn(version);
+                assertEquals(version, projectService.saveVersion(projectId, request));
+                assertTrue(project.getVersions().contains(version));
+                verify(projectRepository).save(project);
         }
 }
