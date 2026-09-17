@@ -69,9 +69,12 @@ class SimLiquefactionPlant extends SimBaseNode{
             toDeliver = new ToDeliver(toProcess.getAmount() - lossCase,toProcess.getContaminant());
         }
 
-        totalDischarged += toDeliver.clean() ;
+        float cleaned = toDeliver.clean();
+        totalDischarged += cleaned;
+        measuredLosses += cleaned + lossCase;
         totalDischarged += lossCase;
         toDeliver.setAmount(toDeliver.getAmount() * MTPARatio /100);
+        stepOutput = toDeliver.getAmount();
 
         if((amountInIntermediateStorage.getAmount() + toDeliver.getAmount()) > intermediateStorage){
             amountInIntermediateStorage.setAmount(intermediateStorage);

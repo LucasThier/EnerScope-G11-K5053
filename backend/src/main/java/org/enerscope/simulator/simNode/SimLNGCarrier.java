@@ -61,6 +61,8 @@ public class SimLNGCarrier extends SimBaseNode{
             }
         } else {
             if (amountInTank >= shipCapacity) {
+                measuredExported += amountInTank;
+                measuredEvents++;
                 flagOfInactivity = OverLifeSpan;
                 simSeaportTerminal.restBoat();
                 isInPort = false;
@@ -71,13 +73,13 @@ public class SimLNGCarrier extends SimBaseNode{
                 float amountAvailable = simSeaportTerminal.getToDeliver().getAmount();
                 float capacity = Math.min(shipCapacity - amountInTank , amountToTake);
                 if (amountAvailable > capacity ){
-                    simSeaportTerminal.deliver(capacity);
-                    amountInTank += amountToTake;
-                    totalProduced += amountToTake;
+                    receive(simSeaportTerminal, capacity);
+                    amountInTank += capacity;
+                    stepOutput = capacity;
                 } else {
-                    simSeaportTerminal.deliver(amountAvailable);
+                    receive(simSeaportTerminal, amountAvailable);
                     amountInTank += amountAvailable;
-                    totalProduced += amountAvailable;
+                    stepOutput = amountAvailable;
                 }
             }
         }

@@ -92,6 +92,7 @@ public class ProjectService {
                 return saved;
         }
 
+        @org.springframework.transaction.annotation.Transactional
         public Version saveVersion(UUID projectId, VersionDTO versionDTO) {
 
                 if (projectId == null || versionDTO == null) {
@@ -106,6 +107,7 @@ public class ProjectService {
                 project.addVersion(version);
                 projectRepository.save(project);
 
-                throw new UnsupportedOperationException("Unimplemented method 'saveVersion'");
+                logger.info("Created version {} in project {}", version.getId(), projectId);
+                return version;
         }
 }

@@ -62,3 +62,19 @@ Passwords are hashed with BCrypt (strength 12) and never returned by the API.
 
 `springdoc-openapi` exposes interactive docs at `/api/v1/swagger-ui.html` with a
 Bearer security scheme, so protected endpoints can be exercised from the UI.
+
+## Economic aggregates and reproducible evaluations
+
+- Configuration uses immutable typed Java records stored as a complete JSON text
+  document per Version. Child objects are not shared across versions. A database
+  uniqueness constraint and optimistic-lock revision protect the configuration row.
+- Evaluations snapshot physical inputs, configuration, operational metrics and all
+  financial outputs in an immutable document. Historical results are not recomputed
+  on read. A schema version permits future snapshot readers to evolve explicitly.
+- The calculation engine is independent of JPA and the simulator. It uses BigDecimal,
+  explicit annual dates, a single currency, external fixed WACC and configured
+  hypothetical fiscal rules. Fiscal entities are distinct from organizations/users.
+- Economic configuration does not automatically import legacy node costs. Explicit
+  conversions and rule creation prevent double counting or guessing physical units.
+- PostgreSQL integration tests complement the H2 wiring test: Hibernate schema
+  validation and actual persistence caught legacy mapping/migration gaps hidden by H2.

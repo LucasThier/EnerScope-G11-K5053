@@ -208,6 +208,23 @@ All responses are wrapped in a standard envelope:
 { "success": true, "message": "...", "data": { }, "timestamp": "..." }
 ```
 
+## Economic API
+
+The economic API evaluates project versions, with persisted configuration and
+immutable NPV history. See [economic documentation and runnable example](../docs/economic-module.md).
+Apply migrations V8/V9 before running this version; existing migration files are unchanged.
+
+Economic routes use `/api/v1/projects/{projectId}/versions/{versionId}/economics`:
+`PUT/GET /configuration`, `POST/GET /evaluations`, and `GET /evaluations/{id}`.
+Read access requires `VIEW_PROJECT`; writes/calculation require `EDIT_PROJECT`.
+Platform administrators also have access. All routes require Bearer authentication.
+
+Run `mvn test` for the standard suite. For real schema/persistence verification,
+set `ECONOMIC_TEST_DATABASE_URL` to a disposable `enerscope_economic_test` PostgreSQL
+database (optionally `ECONOMIC_TEST_DATABASE_USER` and `ECONOMIC_TEST_DATABASE_PASSWORD`),
+then run `mvn -Dtest=PostgreSqlEconomicIT test`. The integration suite runs Flyway
+and Hibernate validation and rolls back its example records.
+
 ## Backend structure
 
 ```

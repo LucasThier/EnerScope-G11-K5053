@@ -233,3 +233,20 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   platform user, a selected org registers the user into it. The signed-in shell
   is now `AppLayout` with a role-aware `Sidebar` (admins: Users + Organizations;
   regular users: Workspace); `PanelLayout`/`AdminPanel`/`UserPanel` were removed.
+- 2026-09-16 — Economic evaluations are version-owned typed aggregates with immutable
+  input/output snapshots. See `docs/economic-module.md` for rule semantics, annual
+  365-day operational time, tax-loss expiry and explicit unit conversions. Do not
+  import `BaseNode` legacy costs implicitly, mirror an internal transfer manually,
+  or duplicate an asset purchase as an expense rule. Tax is calculated per entity
+  before consolidation; delayed collections/payments use a separate cash adjustment.
+  Capital working requirements must not duplicate receivable/payable timing.
+- 2026-09-16 — V8/V9 add economic persistence and repair operational schema gaps:
+  result year, result foreign-key mappings, maintenance duration and FLNG gas
+  consumption. V1-V7 remain unchanged. Version creation now initializes empty
+  snapshots, and `ProjectService.saveVersion` returns its saved version instead of
+  throwing the previously unfinished-method exception.
+- 2026-09-16 — The existing Draw.io pages are retained and economic views are added.
+  `docs/tools/build-economic-document.py` regenerates the economic pages and Spanish
+  PDF. The old minimal-Version descriptions are superseded by the actual snapshot
+  model. Run the explicit `PostgreSqlEconomicIT` suite against a disposable database
+  in addition to `mvn test`; it must not target an existing application database.

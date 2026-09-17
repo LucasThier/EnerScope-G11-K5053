@@ -26,6 +26,11 @@ public abstract class  SimBaseNode {
     protected float totalProduced;
     protected float totalDeferred;
     protected float maxPossibleProduced;
+    protected double measuredInput, measuredOutput, measuredExported, measuredLosses;
+    protected long measuredOperatingHours, measuredEvents;
+    protected float stepOutput;
+    protected boolean calendarControlled;
+    protected int operatingAgeHours = -1;
 
 
     SimBaseNode(BaseNode baseNode){
@@ -43,6 +48,7 @@ public abstract class  SimBaseNode {
     }
 
     protected void checkLifeSpan(int time){
+        if (calendarControlled) return;
         if (time/24 >= lifespanInMonths*30){
             flagOfInactivity = FlagOfInactivity.OverLifeSpan;
             timeStartOfInactivity = time;
@@ -77,24 +83,26 @@ public abstract class  SimBaseNode {
 
     public void simulate(int time){
         before(time);
+        stepOutput = 0;
         float producedThisStep = 0;
         lastSimulatedTime = time;
         if(active){
             timeSinceLastMaintenance++;
-            float amountBefore = getToDeliver().getAmount();
+            measuredOperatingHours++;
             activeAction(time);
             checkLifeSpan(time);
-            producedThisStep = Math.max(0, getToDeliver().getAmount() - amountBefore);
+            producedThisStep = Math.max(0, stepOutput);
         } else {
             inactiveAction(time);
             producedThisStep = 0;
         }
-        totalProduced += producedThisStep;
-        totalDeferred += producedThisStep;
+        measuredOutput += producedThisStep;
+        totalProduced = (float) measuredOutput;
+        totalDeferred = getToDeliver().getAmount();
     }
 
     protected void before(int time){
-        checkMaintenanceNeeded(time);
+        if (maintenanceIntervalInDays > 0) checkMaintenanceNeeded(time);
     }
 
     protected void activeAction(int time){}
@@ -125,7 +133,7 @@ public abstract class  SimBaseNode {
         List<? extends SimBaseNode> withLess = itemsThatProduced.stream().filter(item -> item.getToDeliver().getAmount() < quantityToTake).toList();
 
         if (withLess.isEmpty()) {
-            List<ToDeliver> toDelivers = withMore.stream().map(simBaseNode -> simBaseNode.deliver(quantityToTake)).toList();
+            List<ToDeliver> toDelivers = withMore.stream().map(simBaseNode -> receive(simBaseNode, quantityToTake)).toList();
             ToDeliver toDeliver1 = new ToDeliver(0,0);
             toDeliver1.mix(toDelivers);
             return toDeliver1;
@@ -138,13 +146,19 @@ public abstract class  SimBaseNode {
     }
 
     public ToDeliver calculateAndTakeAll(List<? extends SimBaseNode> items) {
-        List<ToDeliver> toDelivers = items.stream().map(item -> item.deliver(item.getToDeliver().getAmount())).toList();
+        List<ToDeliver> toDelivers = items.stream().map(item -> receive(item, item.getToDeliver().getAmount())).toList();
         ToDeliver toDeliver1 = new ToDeliver(0,0);
         toDeliver1.mix(toDelivers);
         return toDeliver1;
     }
 
     public void addPreviousNode(SimBaseNode simBaseNode){}
+
+    protected ToDeliver receive(SimBaseNode source, float amount) {
+        ToDeliver received = source.deliver(amount);
+        measuredInput += received.getAmount();
+        return received;
+    }
 
     public abstract ResultPerNode createResult();
 }

@@ -171,4 +171,17 @@ class ProjectServiceTest {
                                 projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR)));
                 verify(projectMemberRepository, never()).save(any());
         }
+
+        @Test
+        void saveVersionReturnsCreatedVersionAndLinksItToProject() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Economic project", "Example", new Organization("Example"));
+                var request = new org.enerscope.version.dto.VersionDTO("Economic version", null);
+                var version = new org.enerscope.version.model.Version();
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(request)).thenReturn(version);
+                assertEquals(version, projectService.saveVersion(projectId, request));
+                assertTrue(project.getVersions().contains(version));
+                verify(projectRepository).save(project);
+        }
 }

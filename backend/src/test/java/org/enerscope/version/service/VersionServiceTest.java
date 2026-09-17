@@ -425,4 +425,14 @@ class VersionServiceTest {
         verify(versionRepository, times(1)).save(version);
     }
 
+    @Test
+    void newVersionInitializesMutableEmptySnapshots() {
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+        Version version = versionService.saveVersion(new org.enerscope.version.dto.VersionDTO("Economic example", null));
+        assertNotNull(version.getNodeSnapshot());
+        assertNotNull(version.getConnectionSnapshot());
+        assertTrue(version.getNodeSnapshot().isEmpty());
+        version.getNodeSnapshot().add(new Well());
+        assertEquals(1, version.getNodeSnapshot().size());
+    }
 }

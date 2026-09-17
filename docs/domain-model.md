@@ -1,8 +1,8 @@
 # Domain model
 
-The initial domain covers **users** and their **authentication**, plus
-**organizations** (SCRUM-35), **projects** with their own membership, and a
-minimal **project version** record.
+The domain covers **users** and their **authentication**, **organizations**,
+**projects** with scoped membership, **physical versions**, **simulation** and
+**economic evaluations**.
 
 ## User
 
@@ -163,6 +163,43 @@ two blockers are resolved: `NodeChange`/`ConnectionChange` in `node/model`
 exist as plain classes without `@Entity`/`@Id` (not persistable), and the
 `node/` migrations have a Flyway version collision (`V2__create_all_tables.sql`
 and `V2__create_nodes.sql` share version `2`).
+
+## Economic And Configuration
+
+Persistent entity mapped to the `version` table. **Minimal slice** — only
+`name`, the owning `project` and an optional `parentVersion` self-reference.
+No creation timestamp field of its own; it reuses `createdAt` from
+`BaseEntity` instead of duplicating it.
+
+`EconomicConfigurationEntity` has a unique, required Version reference, a typed
+configuration serialized as JSON text and an optimistic-lock revision.
+`EconomicEvaluation` has a required Version reference and immutable input/output
+snapshot JSON. Both inherit `BaseEntity`. The configuration records below are
+owned values, not separate shared JPA entities:
+
+- `EconomicConfiguration`: investment year, operating horizon, currency, WACC,
+  selected boundary and all rule collections.
+- `TaxEntity`: hypothetical jurisdiction label, rate, loss carry-forward policy,
+  opening losses, expiry, compensation limit and payment lag.
+- `NodeEconomicProfile` / `Ownership`: version-specific node rules and shares.
+- `EconomicRule` / `Occurrence`: concept, income/expense direction, cash/non-cash,
+  driver, tariff, units, dates and optional internal counterparty.
+- `CommercialContract`: delivery node and revenue rule, separate from physical assets.
+- `CapitalAsset`: purchase/payment, cost, residual, service month and useful life;
+  generates capitalizable cash outflow and monthly depreciation/amortization.
+- `TaxTreatment`: classification/deductible fraction for concept, taxpayer and validity.
+- `MetricConversion`: explicit simulator-unit conversion or static driver quantity.
+
+`AnnualNodeMetrics` records raw annual operational counters. `OperationalMetric`
+contains the converted node/year/driver quantity consumed by `EconomicEngine`.
+`EconomicEntry` preserves originating rule, node, contract, entity, counterparty,
+classification, dates and allocated amount. `EconomicResult` contains entries,
+metrics, `PeriodEconomicResult`, `EntityTaxResult`, `PendingBalance` and NPV.
+`EvaluationDTO.Snapshot` also stores physical inputs and a snapshot schema version.
+
+The model separates tax recognition from cash realization, individual taxation from
+consolidation, and CAPEX from depreciation. See [the full example and API](economic-module.md)
+and [the integrated class diagram](../backend/docs/backend-class-diagram.drawio).
 
 ## Session (non-persistent)
 

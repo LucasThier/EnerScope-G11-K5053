@@ -57,11 +57,12 @@ public class Version extends BaseEntity {
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     private List<NodeChange> nodeChanges;
 
-    @JoinColumn(nullable = true)
+    @JoinColumn(name = "version_id", nullable = true)
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Result> results;
 
     public void addResult(Result result){
+        if (this.results == null) this.results = new java.util.ArrayList<>();
         this.results.add(result);
     }
 }
