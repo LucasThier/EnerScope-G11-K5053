@@ -17,7 +17,7 @@ public final class EconomicExample {
     public static final UUID FIRST = UUID.fromString("11111111-1111-1111-1111-111111111111");
     public static final UUID SECOND = UUID.fromString("22222222-2222-2222-2222-222222222222");
     public static EconomicConfiguration configuration() {
-        try { return MAPPER.readValue(Files.readString(Path.of("../backend/src/test/resouces/economic_resouces_examples/economic-configuration.json")), EconomicConfiguration.class); }
+        try { return MAPPER.readValue(Files.readString(Path.of("../backend/src/test/resources/economic-examples/economic-configuration.json")), EconomicConfiguration.class); }
         catch (Exception e) { throw new AssertionError(e); }
     }
     public static List<OperationalMetric> metrics() {
