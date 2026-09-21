@@ -44,385 +44,660 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class VersionServiceTest {
 
-    @Mock
-    private VersionRepository versionRepository;
-
-    @Mock
-    private org.enerscope.node.repository.NodeConnectionRepository connectionRepository;
-
-    @Mock
-    private org.enerscope.node.repository.BaseNodeRepository nodeRepository;
-
-    @Mock
-    private org.enerscope.logging.AppLogger logger;
-
-    @Mock
-    private org.enerscope.node.service.NodeService nodeService;
-
-    @InjectMocks
-    private VersionService versionService;
-
-    @BeforeEach
-    void setUp() {
-        // Using mocks for testing
-        versionService = new VersionService(
-                versionRepository,
-                connectionRepository,
-                nodeRepository,
-                logger,
-                nodeService);
-    }
-
-    @Test
-    void modifyVersionShouldUpdateNameWithoutCreatingNodeChange() {
-        // Given
-        UUID versionId = UUID.randomUUID();
-        String newName = "New Version Name";
-        Version existingVersion = new Version("Old Name", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
-
-        when(versionRepository.findById(versionId)).thenReturn(Optional.of(existingVersion));
-        when(versionRepository.save(any(Version.class))).thenReturn(existingVersion);
-
-        // Create a VersionDTO with just the name change
-        org.enerscope.version.dto.VersionDTO versionDTO = new org.enerscope.version.dto.VersionDTO();
-        versionDTO.setName(newName);
-
-        // When
-        Version result = versionService.modifyVersion(versionId, versionDTO);
-
-        // Then
-        assertEquals(newName, result.getName());
-        assertTrue(result.getNodeChanges().isEmpty()); // No NodeChanges created
-        assertTrue(result.getConnectionChanges().isEmpty());
-        verify(versionRepository).save(existingVersion);
-    }
-
-    @Test
-    void editNodeInVersion_WhenNodeAddedInThisVersion_ShouldEditInPlaceAndCreateEditChange() {
-        // Given
-        UUID versionId = UUID.randomUUID();
-        UUID nodeId = UUID.randomUUID();
-        WellDTO nodeDTO = new WellDTO();
-        nodeDTO.setName("Edited Well");
-        nodeDTO.setState(NodeStateEnum.RUNNING);
-
-        Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
-
-        // Create a minimal Well instance for testing
-        Well originalNode = new Well(
-                "Original Well",
-                NodeStateEnum.PROPOSED,
-                Instant.now(),
-                120, // lifespanInMonths
-                MoneyAmount.of(1000000), // upkeepCosts
-                30, // maintenanceIntervalInDays
-                MoneyAmount.of(50000), // operatingCosts
-                0.0f, // wastePercentage
-                new InvestmentCost(), // investmentCost
-                new NodeGraphData(), // graphData
-                nodeId, // identity
-                new NodeTypeData(), // type
-                100.0f, // maxCollectionCapacity
-                0.5f, // decline_curve
-                0.8f, // gasRichness
-                10, // DTMTime
-                MoneyAmount.of(5000), // DTMCost
-                500f // surface
-        );
-
-        // Add the node to version's snapshot to simulate it being added in this version
-        version.getNodeSnapshot().add(originalNode);
-
-        // Mock repository calls
-        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
-        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(originalNode));
-        when(versionRepository.save(any(Version.class))).thenReturn(version);
-
-        // Mock NodeService to return the same instance (edited in place)
-        when(nodeService.editWell(any(Well.class), any(WellDTO.class))).thenAnswer(invocation -> {
-            Well well = invocation.getArgument(0);
-            WellDTO dto = invocation.getArgument(1);
-            well.setName(dto.getName());
-            well.setState(dto.getState());
-            return well; // Return same instance, modified
-        });
-
-        // When
-        BaseNode result = versionService.editNodeInVersion(versionId, nodeId, nodeDTO);
-
-        // Then
-        assertNotNull(result);
-        assertSame(originalNode, result); // Should return the same instance
-        assertEquals("Edited Well", result.getName());
-        assertEquals(NodeStateEnum.RUNNING, result.getState());
-
-        // Verify that an EDIT change was created
-        assertEquals(1, version.getNodeChanges().size());
-        NodeChange nodeChange = version.getNodeChanges().get(0);
-        assertEquals(ChangeTypeEnum.EDIT, nodeChange.getChangeType());
-        assertSame(nodeChange.getChangedNode(), result);
-        assertSame(nodeChange.getResultNode(), result);
-
-        // Verify that version was saved
-        verify(versionRepository, times(1)).save(version);
-    }
-
-    @Test
-    void editNodeInVersion_WhenNodePreviouslyEditedInThisVersion_ShouldEditInPlaceAndCreateAnotherEditChange() {
-        // Given
-        UUID versionId = UUID.randomUUID();
-        UUID nodeId = UUID.randomUUID();
-        WellDTO nodeDTO = new WellDTO();
-        nodeDTO.setName("Twice Edited Well");
-        nodeDTO.setState(NodeStateEnum.PENDING);
-
-        Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
-
-        // Create a minimal Well instance for testing
-        Well originalNode = new Well(
-                "Original Well",
-                NodeStateEnum.PROPOSED,
-                Instant.now(),
-                120, // lifespanInMonths
-                MoneyAmount.of(1000000), // upkeepCosts
-                30, // maintenanceIntervalInDays
-                MoneyAmount.of(50000), // operatingCosts
-                0.0f, // wastePercentage
-                new InvestmentCost(), // investmentCost
-                new NodeGraphData(), // graphData
-                nodeId, // identity
-                new NodeTypeData(), // type
-                100.0f, // maxCollectionCapacity
-                0.5f, // decline_curve
-                0.8f, // gasRichness
-                10, // DTMTime
-                MoneyAmount.of(5000), // DTMCost
-                500f // surface
-        );
-
-        // Add the node to version's snapshot
-        version.getNodeSnapshot().add(originalNode);
-
-        // Add a previous EDIT change to simulate the node was already edited in this
-        // version
-        NodeChange previousEditChange = new NodeChange();
-        previousEditChange.setChangeType(ChangeTypeEnum.EDIT);
-        previousEditChange.setChangedNode(originalNode);
-        previousEditChange.setResultNode(originalNode);
-        version.getNodeChanges().add(previousEditChange);
-
-        // Mock repository calls
-        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
-        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(originalNode));
-        when(versionRepository.save(any(Version.class))).thenReturn(version);
-
-        // Mock NodeService to return the same instance (edited in place)
-        when(nodeService.editWell(any(Well.class), any(WellDTO.class))).thenAnswer(invocation -> {
-            Well well = invocation.getArgument(0);
-            WellDTO dto = invocation.getArgument(1);
-            well.setName(dto.getName());
-            well.setState(dto.getState());
-            return well; // Return same instance, modified
-        });
-
-        // When
-        BaseNode result = versionService.editNodeInVersion(versionId, nodeId, nodeDTO);
-
-        // Then
-        assertNotNull(result);
-        assertSame(originalNode, result); // Should return the same instance
-        assertEquals("Twice Edited Well", result.getName());
-        assertEquals(NodeStateEnum.PENDING, result.getState());
-
-        // Verify that only one EDIT change was created (total 2 changes)
-        assertEquals(1, version.getNodeChanges().size());
-        NodeChange latestChange = version.getNodeChanges().get(0); // Get the most recent change
-        assertEquals(ChangeTypeEnum.EDIT, latestChange.getChangeType());
-        assertSame(latestChange.getChangedNode(), result);
-        assertSame(latestChange.getResultNode(), result);
-
-        // Verify that version was saved
-        verify(versionRepository, times(1)).save(version);
-    }
-
-    @Test
-    void editNodeInVersion_WhenNodeCameFromParent_ShouldUpdateSnapshotAndCreateEditChange() {
-        // Given
-        UUID versionId = UUID.randomUUID();
-        UUID nodeId = UUID.randomUUID();
-        WellDTO nodeDTO = new WellDTO();
-        nodeDTO.setName("Edited From Parent");
-        nodeDTO.setState(NodeStateEnum.REMOVED);
-
-        Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
-
-        // Create a minimal Well instance for testing
-        Well originalNode = new Well(
-                "Original Well",
-                NodeStateEnum.PROPOSED,
-                Instant.now(),
-                120, // lifespanInMonths
-                MoneyAmount.of(1000000), // upkeepCosts
-                30, // maintenanceIntervalInDays
-                MoneyAmount.of(50000), // operatingCosts
-                0.0f, // wastePercentage
-                new InvestmentCost(), // investmentCost
-                new NodeGraphData(), // graphData
-                nodeId, // identity
-                new NodeTypeData(), // type
-                100.0f, // maxCollectionCapacity
-                0.5f, // decline_curve
-                0.8f, // gasRichness
-                10, // DTMTime
-                MoneyAmount.of(5000), // DTMCost
-                500f // surface
-
-        );
-
-        // Do NOT add the node to version's snapshot to simulate it coming from parent
-        // version.getNodeSnapshot().add(originalNode); // Intentionally left out
-
-        // Mock repository calls
-        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
-        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(originalNode));
-        when(versionRepository.save(any(Version.class))).thenReturn(version);
-
-        // Mock NodeService to return the same instance (edited in place)
-        when(nodeService.editWell(any(Well.class), any(WellDTO.class))).thenAnswer(invocation -> {
-            Well well = invocation.getArgument(0);
-            WellDTO dto = invocation.getArgument(1);
-            well.setName(dto.getName());
-            well.setState(dto.getState());
-            return well; // Return same instance, modified
-        });
-
-        // When
-        BaseNode result = versionService.editNodeInVersion(versionId, nodeId, nodeDTO);
-
-        // Then
-        assertNotNull(result);
-        assertSame(originalNode, result); // Should return the same instance
-        assertEquals("Edited From Parent", result.getName());
-        assertEquals(NodeStateEnum.REMOVED, result.getState());
-
-        // Verify that the snapshot was updated (node removed and re-added)
-        assertTrue(version.getNodeSnapshot().contains(originalNode));
-        assertEquals(1, version.getNodeSnapshot().size());
-
-        // Verify that an EDIT change was created
-        assertEquals(1, version.getNodeChanges().size());
-        NodeChange nodeChange = version.getNodeChanges().get(0);
-        assertEquals(ChangeTypeEnum.EDIT, nodeChange.getChangeType());
-
-        // Verify that version was saved
-        verify(versionRepository, times(1)).save(version);
-    }
-
-    @Test
-    void editNodeInVersion_WhenNodeDTOIsNull_ShouldThrowNullPointerException() {
-        // Given
-        UUID versionId = UUID.randomUUID();
-        UUID nodeId = UUID.randomUUID();
-
-        // When/Then
-        assertThrows(NullPointerException.class, () -> versionService.editNodeInVersion(versionId, nodeId, null));
-    }
-
-    @Test
-    void editNodeInVersion_WhenNodeIdIsNull_ShouldThrowNullPointerException() {
-        // Given
-        UUID versionId = UUID.randomUUID();
-        WellDTO nodeDTO = new WellDTO();
-
-        // When/Then
-        assertThrows(NullPointerException.class, () -> versionService.editNodeInVersion(versionId, null, nodeDTO));
-    }
-
-    @Test
-    void editNodeInVersion_WhenVersionNotFound_ShouldThrowVersionNotFoundException() {
-        // Given
-        UUID versionId = UUID.randomUUID();
-        UUID nodeId = UUID.randomUUID();
-        WellDTO nodeDTO = new WellDTO();
-
-        when(versionRepository.findById(versionId)).thenReturn(Optional.empty());
-
-        // When/Then
-        assertThrows(VersionNotFoundException.class,
-                () -> versionService.editNodeInVersion(versionId, nodeId, nodeDTO));
-    }
-
-    @Test
-    void editNodeInVersion_WhenNodeNotFound_ShouldThrowEntityNotFoundException() {
-        // Given
-        UUID versionId = UUID.randomUUID();
-        UUID nodeId = UUID.randomUUID();
-        WellDTO nodeDTO = new WellDTO();
-
-        Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
-
-        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
-        when(nodeRepository.findById(nodeId)).thenReturn(Optional.empty());
-
-        // When/Then
-        assertThrows(EntityNotFoundException.class, () -> versionService.editNodeInVersion(versionId, nodeId, nodeDTO));
-    }
-
-    @Test
-    void addNodeToVersion_WithWellDTO_ShouldAddWellToVersion() {
-        // Given
-        UUID versionId = UUID.randomUUID();
-        WellDTO wellDTO = new WellDTO();
-        wellDTO.setName("Test Well");
-        wellDTO.setState(NodeStateEnum.PROPOSED);
-
-        Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
-
-        Well savedWell = new Well(
-                "Test Well",
-                NodeStateEnum.PROPOSED,
-                Instant.now(),
-                120, // lifespanInMonths
-                MoneyAmount.of(1000000), // upkeepCosts
-                30, // maintenanceIntervalInDays
-                MoneyAmount.of(50000), // operatingCosts
-                0.0f, // wastePercentage
-                new InvestmentCost(), // investmentCost
-                new NodeGraphData(), // graphData
-                UUID.randomUUID(), // identity
-                new NodeTypeData(), // type
-                100.0f, // maxCollectionCapacity
-                0.5f, // decline_curve
-                0.8f, // gasRichness
-                10, // DTMTime
-                MoneyAmount.of(5000), // DTMCost
-                500f // surface
-        );
-
-        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
-        when(nodeService.saveWell(any(WellDTO.class))).thenReturn(savedWell);
-        when(versionRepository.save(any(Version.class))).thenReturn(version);
-
-        // When
-        BaseNode result = versionService.addNodeToVersion(versionId, wellDTO);
-
-        // Then
-        assertNotNull(result);
-        assertEquals("Test Well", result.getName());
-        assertEquals(NodeStateEnum.PROPOSED, result.getState());
-        assertTrue(version.getNodeSnapshot().contains(savedWell));
-        assertEquals(1, version.getNodeChanges().size());
-
-        NodeChange nodeChange = version.getNodeChanges().get(0);
-        assertEquals(ChangeTypeEnum.ADD, nodeChange.getChangeType());
-
-        verify(versionRepository, times(1)).save(version);
-    }
-
+        @Mock
+        private VersionRepository versionRepository;
+
+        @Mock
+        private org.enerscope.node.repository.NodeConnectionRepository connectionRepository;
+
+        @Mock
+        private org.enerscope.node.repository.BaseNodeRepository nodeRepository;
+
+        @Mock
+        private org.enerscope.logging.AppLogger logger;
+
+        @Mock
+        private org.enerscope.node.service.NodeService nodeService;
+
+        @Mock
+        private VersionConflictService versionConflictService;
+
+        @InjectMocks
+        private VersionService versionService;
+
+        @BeforeEach
+        void setUp() {
+                // Using mocks for testing
+                versionService = new VersionService(
+                                versionRepository,
+                                connectionRepository,
+                                nodeRepository,
+                                logger,
+                                nodeService,
+                                versionConflictService);
+        }
+
+        @Test
+        void modifyVersionShouldUpdateNameWithoutCreatingNodeChange() {
+                // Given
+                UUID versionId = UUID.randomUUID();
+                String newName = "New Version Name";
+                Version existingVersion = new Version("Old Name", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>());
+
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(existingVersion));
+                when(versionRepository.save(any(Version.class))).thenReturn(existingVersion);
+
+                // Create a VersionDTO with just the name change
+                org.enerscope.version.dto.VersionDTO versionDTO = new org.enerscope.version.dto.VersionDTO();
+                versionDTO.setName(newName);
+
+                // When
+                Version result = versionService.modifyVersion(versionId, versionDTO);
+
+                // Then
+                assertEquals(newName, result.getName());
+                assertTrue(result.getNodeChanges().isEmpty()); // No NodeChanges created
+                assertTrue(result.getConnectionChanges().isEmpty());
+                verify(versionRepository).save(existingVersion);
+        }
+
+        @Test
+        void editNodeInVersion_WhenNodeAddedInThisVersion_ShouldEditInPlaceAndCreateEditChange() {
+                // Given
+                UUID versionId = UUID.randomUUID();
+                UUID nodeId = UUID.randomUUID();
+                WellDTO nodeDTO = new WellDTO();
+                nodeDTO.setName("Edited Well");
+                nodeDTO.setState(NodeStateEnum.RUNNING);
+
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>());
+
+                // Create a minimal Well instance for testing
+                Well originalNode = new Well(
+                                "Original Well",
+                                NodeStateEnum.PROPOSED,
+                                Instant.now(),
+                                120, // lifespanInMonths
+                                MoneyAmount.of(1000000), // upkeepCosts
+                                30, // maintenanceIntervalInDays
+                                MoneyAmount.of(50000), // operatingCosts
+                                0.0f, // wastePercentage
+                                new InvestmentCost(), // investmentCost
+                                new NodeGraphData(), // graphData
+                                nodeId, // identity
+                                new NodeTypeData(), // type
+                                100.0f, // maxCollectionCapacity
+                                0.5f, // decline_curve
+                                0.8f, // gasRichness
+                                10, // DTMTime
+                                MoneyAmount.of(5000), // DTMCost
+                                500f // surface
+                );
+
+                // Add the node to version's snapshot to simulate it being added in this version
+                version.getNodeSnapshot().add(originalNode);
+
+                // Mock repository calls
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(originalNode));
+                when(versionRepository.save(any(Version.class))).thenReturn(version);
+
+                // Mock NodeService to return the same instance (edited in place)
+                when(nodeService.editWell(any(Well.class), any(WellDTO.class))).thenAnswer(invocation -> {
+                        Well well = invocation.getArgument(0);
+                        WellDTO dto = invocation.getArgument(1);
+                        well.setName(dto.getName());
+                        well.setState(dto.getState());
+                        return well; // Return same instance, modified
+                });
+
+                // When
+                BaseNode result = versionService.editNodeInVersion(versionId, nodeId, nodeDTO);
+
+                // Then
+                assertNotNull(result);
+                assertSame(originalNode, result); // Should return the same instance
+                assertEquals("Edited Well", result.getName());
+                assertEquals(NodeStateEnum.RUNNING, result.getState());
+
+                // Verify that an EDIT change was created
+                assertEquals(1, version.getNodeChanges().size());
+                NodeChange nodeChange = version.getNodeChanges().get(0);
+                assertEquals(ChangeTypeEnum.EDIT, nodeChange.getChangeType());
+                assertSame(nodeChange.getChangedNode(), result);
+                assertSame(nodeChange.getResultNode(), result);
+
+                // Verify that version was saved
+                verify(versionRepository, times(1)).save(version);
+        }
+
+        @Test
+        void editNodeInVersion_WhenNodePreviouslyEditedInThisVersion_ShouldEditInPlaceAndCreateAnotherEditChange() {
+                // Given
+                UUID versionId = UUID.randomUUID();
+                UUID nodeId = UUID.randomUUID();
+                WellDTO nodeDTO = new WellDTO();
+                nodeDTO.setName("Twice Edited Well");
+                nodeDTO.setState(NodeStateEnum.PENDING);
+
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>());
+
+                // Create a minimal Well instance for testing
+                Well originalNode = new Well(
+                                "Original Well",
+                                NodeStateEnum.PROPOSED,
+                                Instant.now(),
+                                120, // lifespanInMonths
+                                MoneyAmount.of(1000000), // upkeepCosts
+                                30, // maintenanceIntervalInDays
+                                MoneyAmount.of(50000), // operatingCosts
+                                0.0f, // wastePercentage
+                                new InvestmentCost(), // investmentCost
+                                new NodeGraphData(), // graphData
+                                nodeId, // identity
+                                new NodeTypeData(), // type
+                                100.0f, // maxCollectionCapacity
+                                0.5f, // decline_curve
+                                0.8f, // gasRichness
+                                10, // DTMTime
+                                MoneyAmount.of(5000), // DTMCost
+                                500f // surface
+                );
+
+                // Add the node to version's snapshot
+                version.getNodeSnapshot().add(originalNode);
+
+                // Add a previous EDIT change to simulate the node was already edited in this
+                // version
+                NodeChange previousEditChange = new NodeChange();
+                previousEditChange.setChangeType(ChangeTypeEnum.EDIT);
+                previousEditChange.setChangedNode(originalNode);
+                previousEditChange.setResultNode(originalNode);
+                version.getNodeChanges().add(previousEditChange);
+
+                // Mock repository calls
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(originalNode));
+                when(versionRepository.save(any(Version.class))).thenReturn(version);
+
+                // Mock NodeService to return the same instance (edited in place)
+                when(nodeService.editWell(any(Well.class), any(WellDTO.class))).thenAnswer(invocation -> {
+                        Well well = invocation.getArgument(0);
+                        WellDTO dto = invocation.getArgument(1);
+                        well.setName(dto.getName());
+                        well.setState(dto.getState());
+                        return well; // Return same instance, modified
+                });
+
+                // When
+                BaseNode result = versionService.editNodeInVersion(versionId, nodeId, nodeDTO);
+
+                // Then
+                assertNotNull(result);
+                assertSame(originalNode, result); // Should return the same instance
+                assertEquals("Twice Edited Well", result.getName());
+                assertEquals(NodeStateEnum.PENDING, result.getState());
+
+                // Verify that only one EDIT change was created (total 2 changes)
+                assertEquals(1, version.getNodeChanges().size());
+                NodeChange latestChange = version.getNodeChanges().get(0); // Get the most recent change
+                assertEquals(ChangeTypeEnum.EDIT, latestChange.getChangeType());
+                assertSame(latestChange.getChangedNode(), result);
+                assertSame(latestChange.getResultNode(), result);
+
+                // Verify that version was saved
+                verify(versionRepository, times(1)).save(version);
+        }
+
+        @Test
+        void editNodeInVersion_WhenNodeCameFromParent_ShouldUpdateSnapshotAndCreateEditChange() {
+                // Given
+                UUID versionId = UUID.randomUUID();
+                UUID nodeId = UUID.randomUUID();
+                WellDTO nodeDTO = new WellDTO();
+                nodeDTO.setName("Edited From Parent");
+                nodeDTO.setState(NodeStateEnum.REMOVED);
+
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>());
+
+                // Create a minimal Well instance for testing
+                Well originalNode = new Well(
+                                "Original Well",
+                                NodeStateEnum.PROPOSED,
+                                Instant.now(),
+                                120, // lifespanInMonths
+                                MoneyAmount.of(1000000), // upkeepCosts
+                                30, // maintenanceIntervalInDays
+                                MoneyAmount.of(50000), // operatingCosts
+                                0.0f, // wastePercentage
+                                new InvestmentCost(), // investmentCost
+                                new NodeGraphData(), // graphData
+                                nodeId, // identity
+                                new NodeTypeData(), // type
+                                100.0f, // maxCollectionCapacity
+                                0.5f, // decline_curve
+                                0.8f, // gasRichness
+                                10, // DTMTime
+                                MoneyAmount.of(5000), // DTMCost
+                                500f // surface
+
+                );
+
+                // Do NOT add the node to version's snapshot to simulate it coming from parent
+                // version.getNodeSnapshot().add(originalNode); // Intentionally left out
+
+                // Mock repository calls
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(originalNode));
+                when(versionRepository.save(any(Version.class))).thenReturn(version);
+
+                // Mock NodeService to return the same instance (edited in place)
+                when(nodeService.editWell(any(Well.class), any(WellDTO.class))).thenAnswer(invocation -> {
+                        Well well = invocation.getArgument(0);
+                        WellDTO dto = invocation.getArgument(1);
+                        well.setName(dto.getName());
+                        well.setState(dto.getState());
+                        return well; // Return same instance, modified
+                });
+
+                // When
+                BaseNode result = versionService.editNodeInVersion(versionId, nodeId, nodeDTO);
+
+                // Then
+                assertNotNull(result);
+                assertSame(originalNode, result); // Should return the same instance
+                assertEquals("Edited From Parent", result.getName());
+                assertEquals(NodeStateEnum.REMOVED, result.getState());
+
+                // Verify that the snapshot was updated (node removed and re-added)
+                assertTrue(version.getNodeSnapshot().contains(originalNode));
+                assertEquals(1, version.getNodeSnapshot().size());
+
+                // Verify that an EDIT change was created
+                assertEquals(1, version.getNodeChanges().size());
+                NodeChange nodeChange = version.getNodeChanges().get(0);
+                assertEquals(ChangeTypeEnum.EDIT, nodeChange.getChangeType());
+
+                // Verify that version was saved
+                verify(versionRepository, times(1)).save(version);
+        }
+
+        @Test
+        void editNodeInVersion_WhenNodeDTOIsNull_ShouldThrowNullPointerException() {
+                // Given
+                UUID versionId = UUID.randomUUID();
+                UUID nodeId = UUID.randomUUID();
+
+                // When/Then
+                assertThrows(NullPointerException.class,
+                                () -> versionService.editNodeInVersion(versionId, nodeId, null));
+        }
+
+        @Test
+        void editNodeInVersion_WhenNodeIdIsNull_ShouldThrowNullPointerException() {
+                // Given
+                UUID versionId = UUID.randomUUID();
+                WellDTO nodeDTO = new WellDTO();
+
+                // When/Then
+                assertThrows(NullPointerException.class,
+                                () -> versionService.editNodeInVersion(versionId, null, nodeDTO));
+        }
+
+        @Test
+        void editNodeInVersion_WhenVersionNotFound_ShouldThrowVersionNotFoundException() {
+                // Given
+                UUID versionId = UUID.randomUUID();
+                UUID nodeId = UUID.randomUUID();
+                WellDTO nodeDTO = new WellDTO();
+
+                when(versionRepository.findById(versionId)).thenReturn(Optional.empty());
+
+                // When/Then
+                assertThrows(VersionNotFoundException.class,
+                                () -> versionService.editNodeInVersion(versionId, nodeId, nodeDTO));
+        }
+
+        @Test
+        void editNodeInVersion_WhenNodeNotFound_ShouldThrowEntityNotFoundException() {
+                // Given
+                UUID versionId = UUID.randomUUID();
+                UUID nodeId = UUID.randomUUID();
+                WellDTO nodeDTO = new WellDTO();
+
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>());
+
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(nodeRepository.findById(nodeId)).thenReturn(Optional.empty());
+
+                // When/Then
+                assertThrows(EntityNotFoundException.class,
+                                () -> versionService.editNodeInVersion(versionId, nodeId, nodeDTO));
+        }
+
+        @Test
+        void addNodeToVersion_WithWellDTO_ShouldAddWellToVersion() {
+                // Given
+                UUID versionId = UUID.randomUUID();
+                WellDTO wellDTO = new WellDTO();
+                wellDTO.setName("Test Well");
+                wellDTO.setState(NodeStateEnum.PROPOSED);
+
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>());
+
+                Well savedWell = new Well(
+                                "Test Well",
+                                NodeStateEnum.PROPOSED,
+                                Instant.now(),
+                                120, // lifespanInMonths
+                                MoneyAmount.of(1000000), // upkeepCosts
+                                30, // maintenanceIntervalInDays
+                                MoneyAmount.of(50000), // operatingCosts
+                                0.0f, // wastePercentage
+                                new InvestmentCost(), // investmentCost
+                                new NodeGraphData(), // graphData
+                                UUID.randomUUID(), // identity
+                                new NodeTypeData(), // type
+                                100.0f, // maxCollectionCapacity
+                                0.5f, // decline_curve
+                                0.8f, // gasRichness
+                                10, // DTMTime
+                                MoneyAmount.of(5000), // DTMCost
+                                500f // surface
+                );
+
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(nodeService.saveWell(any(WellDTO.class))).thenReturn(savedWell);
+                when(versionRepository.save(any(Version.class))).thenReturn(version);
+
+                // When
+                BaseNode result = versionService.addNodeToVersion(versionId, wellDTO);
+
+                // Then
+                assertNotNull(result);
+                assertEquals("Test Well", result.getName());
+                assertEquals(NodeStateEnum.PROPOSED, result.getState());
+                assertTrue(version.getNodeSnapshot().contains(savedWell));
+                assertEquals(1, version.getNodeChanges().size());
+
+                NodeChange nodeChange = version.getNodeChanges().get(0);
+                assertEquals(ChangeTypeEnum.ADD, nodeChange.getChangeType());
+
+                verify(versionRepository, times(1)).save(version);
+        }
+
+        @Test
+        void mergeSubVersionIntoParent_ShouldReplaceSnapshotsAndMergeChanges() {
+                // Given
+                UUID parentId = UUID.randomUUID();
+                UUID subId = UUID.randomUUID();
+
+                // Create parent version with initial node
+                Well parentWell = new Well(
+                                "Parent Well",
+                                NodeStateEnum.PROPOSED,
+                                Instant.now(),
+                                120,
+                                MoneyAmount.of(1000000),
+                                30,
+                                MoneyAmount.of(50000),
+                                0.0f,
+                                new InvestmentCost(),
+                                new NodeGraphData(),
+                                UUID.randomUUID(),
+                                new NodeTypeData(),
+                                100.0f,
+                                0.5f,
+                                0.8f,
+                                10,
+                                MoneyAmount.of(5000),
+                                500f);
+                org.springframework.test.util.ReflectionTestUtils.setField(parentWell, "id", UUID.randomUUID());
+
+                NodeChange parentAddChange = new NodeChange();
+                parentAddChange.setChangeType(ChangeTypeEnum.EDIT);
+                parentAddChange.setChangedNode(parentWell);
+                parentAddChange.setResultNode(parentWell);
+
+                Version parentVersion = new Version(
+                                "Parent Version",
+                                null,
+                                new ArrayList<>(List.of(parentWell)),
+                                new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>(List.of(parentAddChange)));
+
+                versionRepository.save(parentVersion);
+
+                // Create subversion with modified node (EDIT)
+                Well subWell = new Well(
+                                "Edited Well", // Changed name
+                                NodeStateEnum.RUNNING, // Changed state
+                                Instant.now(),
+                                120,
+                                MoneyAmount.of(1000000),
+                                30,
+                                MoneyAmount.of(50000),
+                                0.0f,
+                                new InvestmentCost(),
+                                new NodeGraphData(),
+                                parentWell.getId(), // Same ID as parent well
+                                new NodeTypeData(),
+                                100.0f,
+                                0.5f,
+                                0.8f,
+                                10,
+                                MoneyAmount.of(5000),
+                                500f);
+
+                NodeChange subEditChange = new NodeChange();
+                subEditChange.setChangeType(ChangeTypeEnum.EDIT);
+                subEditChange.setChangedNode(parentWell); // Original state
+                subEditChange.setResultNode(subWell); // Final state
+                Version subVersion = new Version(
+                                "Sub Version",
+                                parentVersion,
+                                new ArrayList<>(List.of(subWell)), // Updated snapshot
+                                new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>(List.of(subEditChange)));
+
+                // Mock repository calls
+                org.springframework.test.util.ReflectionTestUtils.setField(parentVersion, "id", parentId);
+                when(versionRepository.findById(parentId)).thenReturn(Optional.of(parentVersion));
+                when(versionRepository.findById(subId)).thenReturn(Optional.of(subVersion));
+                when(versionRepository.save(any(Version.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                // When
+                Version result = versionService.mergeSubVersionIntoParent(subId);
+
+                // Then
+                assertEquals("Parent Version", result.getName());
+                assertEquals(1, result.getNodeSnapshot().size());
+                assertTrue(result.getNodeSnapshot().contains(subWell)); // Should have subversion's snapshot
+
+                // Should have merged change: EDIT with parent's changedNode and subversion's
+                // resultNode
+                assertEquals(1, result.getNodeChanges().size());
+                NodeChange mergedChange = result.getNodeChanges().get(0);
+                assertEquals(ChangeTypeEnum.EDIT, mergedChange.getChangeType());
+                assertSame(parentWell, mergedChange.getChangedNode()); // Parent's original state
+                assertSame(subWell, mergedChange.getResultNode()); // Subversion's final state
+
+                // Conflicts with sibling versions are detected automatically as part of the merge
+                verify(versionConflictService).recordMergeConflicts(result, subVersion);
+        }
+
+        @Test
+        void mergeSubVersionIntoParent_AddAndDelete_ShouldCancelOut() {
+                // Given
+                UUID parentId = UUID.randomUUID();
+                UUID subId = UUID.randomUUID();
+
+                Well testWell = new Well(
+                                "Test Well",
+                                NodeStateEnum.PROPOSED,
+                                Instant.now(),
+                                120,
+                                MoneyAmount.of(1000000),
+                                30,
+                                MoneyAmount.of(50000),
+                                0.0f,
+                                new InvestmentCost(),
+                                new NodeGraphData(),
+                                UUID.randomUUID(),
+                                new NodeTypeData(),
+                                100.0f,
+                                0.5f,
+                                0.8f,
+                                10,
+                                MoneyAmount.of(5000),
+                                500f);
+
+                // Parent: ADD the well
+                NodeChange parentAddChange = new NodeChange();
+                parentAddChange.setChangeType(ChangeTypeEnum.ADD);
+                parentAddChange.setChangedNode(testWell);
+                parentAddChange.setResultNode(testWell);
+
+                Version parentVersion = new Version(
+                                "Parent Version",
+                                null,
+                                new ArrayList<>(List.of(testWell)),
+                                new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>(List.of(parentAddChange)));
+
+                versionRepository.save(parentVersion);
+
+                // Subversion: DELETE the same well
+                NodeChange subDeleteChange = new NodeChange();
+                subDeleteChange.setChangeType(ChangeTypeEnum.DELETE);
+                subDeleteChange.setChangedNode(testWell);
+                subDeleteChange.setResultNode(testWell);
+
+                Version subVersion = new Version(
+                                "Sub Version",
+                                parentVersion,
+                                new ArrayList<>(), // Well removed from snapshot
+                                new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>(List.of(subDeleteChange)));
+
+                // Mock repository calls
+                org.springframework.test.util.ReflectionTestUtils.setField(parentVersion, "id", parentId);
+                when(versionRepository.findById(parentId)).thenReturn(Optional.of(parentVersion));
+                when(versionRepository.findById(subId)).thenReturn(Optional.of(subVersion));
+                when(versionRepository.save(any(Version.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                // When
+                Version result = versionService.mergeSubVersionIntoParent(subId);
+
+                // Then
+                assertEquals(0, result.getNodeSnapshot().size()); // Well should be removed
+                assertEquals(0, result.getNodeChanges().size()); // ADD and DELETE should cancel out
+        }
+
+        @Test
+        void mergeSubVersionIntoParent_SingleEdit_ShouldBePreserved() {
+                // Given
+                UUID parentId = UUID.randomUUID();
+                UUID subId = UUID.randomUUID();
+
+                Well originalWell = new Well(
+                                "Original Well",
+                                NodeStateEnum.PROPOSED,
+                                Instant.now(),
+                                120,
+                                MoneyAmount.of(1000000),
+                                30,
+                                MoneyAmount.of(50000),
+                                0.0f,
+                                new InvestmentCost(),
+                                new NodeGraphData(),
+                                UUID.randomUUID(),
+                                new NodeTypeData(),
+                                100.0f,
+                                0.5f,
+                                0.8f,
+                                10,
+                                MoneyAmount.of(5000),
+                                500f);
+                org.springframework.test.util.ReflectionTestUtils.setField(originalWell, "id", UUID.randomUUID());
+
+                Well editedWell = new Well(
+                                "Edited Well",
+                                NodeStateEnum.RUNNING,
+                                Instant.now(),
+                                120,
+                                MoneyAmount.of(1000000),
+                                30,
+                                MoneyAmount.of(50000),
+                                0.0f,
+                                new InvestmentCost(),
+                                new NodeGraphData(),
+                                originalWell.getId(),
+                                new NodeTypeData(),
+                                100.0f,
+                                0.5f,
+                                0.8f,
+                                10,
+                                MoneyAmount.of(5000),
+                                500f);
+
+                // Parent: no changes
+                Version parentVersion = new Version(
+                                "Parent Version",
+                                null,
+                                new ArrayList<>(List.of(originalWell)),
+                                new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>());
+
+                versionRepository.save(parentVersion);
+                // Subversion: EDIT the well
+                NodeChange subEditChange = new NodeChange();
+                subEditChange.setChangeType(ChangeTypeEnum.EDIT);
+                subEditChange.setChangedNode(originalWell);
+                subEditChange.setResultNode(editedWell);
+
+                Version subVersion = new Version(
+                                "Sub Version",
+                                parentVersion,
+                                new ArrayList<>(List.of(editedWell)),
+                                new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>(List.of(subEditChange)));
+
+                // Mock repository calls
+                org.springframework.test.util.ReflectionTestUtils.setField(parentVersion, "id", parentId);
+                when(versionRepository.findById(parentId)).thenReturn(Optional.of(parentVersion));
+                when(versionRepository.findById(subId)).thenReturn(Optional.of(subVersion));
+                when(versionRepository.save(any(Version.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                // When
+                Version result = versionService.mergeSubVersionIntoParent(subId);
+
+                // Then
+                assertEquals(1, result.getNodeSnapshot().size());
+                assertTrue(result.getNodeSnapshot().contains(editedWell));
+
+                assertEquals(1, result.getNodeChanges().size());
+                NodeChange mergedChange = result.getNodeChanges().get(0);
+                assertEquals(ChangeTypeEnum.EDIT, mergedChange.getChangeType());
+                assertSame(originalWell, mergedChange.getChangedNode());
+                assertSame(editedWell, mergedChange.getResultNode());
+        }
 }

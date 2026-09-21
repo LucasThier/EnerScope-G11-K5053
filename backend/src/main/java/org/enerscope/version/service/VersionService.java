@@ -16,15 +16,18 @@ import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.node.service.NodeService;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -65,6 +68,7 @@ public class VersionService {
     private final BaseNodeRepository nodeRepository;
     private final AppLogger logger;
     private final NodeService nodeService;
+    private final VersionConflictService versionConflictService;
 
     public Version saveVersion(VersionDTO data) {
         if (data == null) {
@@ -552,5 +556,260 @@ public class VersionService {
 
         versionRepository.save(version);
         logger.info("Deleted connection {} from version {}", connectionId, version.getName());
+    }
+
+    @Transactional
+    public Version mergeSubVersionIntoParent(UUID subVersionId) {
+        Objects.requireNonNull(subVersionId, "Subversion ID cannot be null");
+
+        Version subVersion = versionRepository.findById(subVersionId)
+                .orElseThrow(() -> new VersionNotFoundException(subVersionId));
+        Version parentVersion = versionRepository.findById(subVersion.getParentVersion().getId())
+                .orElseThrow(() -> new VersionNotFoundException(subVersion.getParentVersion().getId()));
+
+        // Validate that subVersion actually has parentVersion as its parent
+        if (!Objects.equals(subVersion.getParentVersion(), parentVersion)) {
+            throw new IllegalArgumentException("Subversion does not have the specified parent version");
+        }
+
+        // Replace snapshots with deep copies from subversion
+        parentVersion.setNodeSnapshot(deepCopyNodeSnapshot(subVersion.getNodeSnapshot()));
+        parentVersion.setConnectionSnapshot(deepCopyConnectionSnapshot(subVersion.getConnectionSnapshot()));
+
+        // Merge change lists
+        List<NodeChange> nodechanges = new ArrayList<>(parentVersion.getNodeChanges());
+        parentVersion.getNodeChanges().clear();
+        parentVersion.getNodeChanges().addAll(
+                mergeNodeChanges(nodechanges, subVersion.getNodeChanges()));
+
+        List<ConnectionChange> connectionchanges = new ArrayList<>(parentVersion.getConnectionChanges());
+        parentVersion.getConnectionChanges().clear();
+        parentVersion.getConnectionChanges().addAll(
+                mergeConnectionChanges(connectionchanges, subVersion.getConnectionChanges()));
+        Version saved = versionRepository.save(parentVersion);
+        logger.info("Merged subversion {} into parent version {}", subVersion.getName(), parentVersion.getName());
+
+        versionConflictService.recordMergeConflicts(saved, subVersion);
+
+        return saved;
+    }
+
+    /**
+     * Creates a deep copy of a node snapshot list.
+     */
+    private List<BaseNode> deepCopyNodeSnapshot(List<BaseNode> source) {
+        if (source == null) {
+            return null;
+        }
+        return new ArrayList<>(source);
+    }
+
+    /**
+     * Creates a deep copy of a connection snapshot list.
+     */
+    private List<NodeConnection> deepCopyConnectionSnapshot(List<NodeConnection> source) {
+        if (source == null) {
+            return null;
+        }
+        return new ArrayList<>(source);
+    }
+
+    /**
+     * Merges two lists of NodeChanges according to merge rules:
+     * - ADD + DELETE cancels out (both removed)
+     * - EDIT + EDIT produces single EDIT with parent's changedNode and subversion's
+     * resultNode
+     * - Other combinations are preserved
+     */
+    private List<NodeChange> mergeNodeChanges(List<NodeChange> parentChanges, List<NodeChange> subChanges) {
+        List<NodeChange> result = new ArrayList<>();
+
+        if (parentChanges == null)
+            parentChanges = Collections.emptyList();
+        if (subChanges == null)
+            subChanges = Collections.emptyList();
+
+        // Group changes by node ID
+        Map<UUID, List<NodeChange>> parentChangesByNode = groupChangesByNode(parentChanges);
+        Map<UUID, List<NodeChange>> subChangesByNode = groupChangesByNode(subChanges);
+
+        // Get all unique node IDs from both versions
+        Set<UUID> allNodeIds = new HashSet<>();
+        allNodeIds.addAll(parentChangesByNode.keySet());
+        allNodeIds.addAll(subChangesByNode.keySet());
+
+        for (UUID nodeId : allNodeIds) {
+            List<NodeChange> parentNodeChanges = parentChangesByNode.getOrDefault(nodeId, Collections.emptyList());
+            List<NodeChange> subNodeChanges = subChangesByNode.getOrDefault(nodeId, Collections.emptyList());
+
+            List<NodeChange> merged = mergeNodeChangesForNode(parentNodeChanges, subNodeChanges);
+            result.addAll(merged);
+        }
+
+        return result;
+    }
+
+    /**
+     * Groups NodeChanges by the ID of the node they affect.
+     */
+    private Map<UUID, List<NodeChange>> groupChangesByNode(List<NodeChange> changes) {
+        Map<UUID, List<NodeChange>> grouped = new HashMap<>();
+        for (NodeChange change : changes) {
+            UUID nodeId = null;
+            // Try to get node ID from changedNode or resultNode
+            if (change.getChangedNode() != null) {
+                nodeId = change.getChangedNode().getId();
+            } else if (change.getResultNode() != null) {
+                nodeId = change.getResultNode().getId();
+            }
+
+            if (nodeId != null) {
+                grouped.computeIfAbsent(nodeId, k -> new ArrayList<>()).add(change);
+            }
+        }
+        return grouped;
+    }
+
+    /**
+     * Merges NodeChanges affecting a single node according to merge rules.
+     */
+    private List<NodeChange> mergeNodeChangesForNode(List<NodeChange> parentChanges, List<NodeChange> subChanges) {
+        boolean hasParentAdd = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.ADD.equals(c.getChangeType()));
+        boolean hasParentDelete = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.DELETE.equals(c.getChangeType()));
+        boolean hasParentEdit = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()));
+
+        boolean hasSubAdd = subChanges.stream().anyMatch(c -> ChangeTypeEnum.ADD.equals(c.getChangeType()));
+        boolean hasSubDelete = subChanges.stream().anyMatch(c -> ChangeTypeEnum.DELETE.equals(c.getChangeType()));
+        boolean hasSubEdit = subChanges.stream().anyMatch(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()));
+
+        // Case 1: ADD + DELETE cancels out (from either side)
+        if ((hasParentAdd && hasSubDelete) || (hasParentDelete && hasSubAdd)) {
+            return Collections.emptyList(); // No changes remain
+        }
+
+        // Case 2: EDIT + EDIT from both sides
+        if (hasParentEdit && hasSubEdit) {
+            // Find the parent EDIT and subversion EDIT
+            NodeChange parentEdit = parentChanges.stream()
+                    .filter(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()))
+                    .findFirst()
+                    .orElseThrow();
+            NodeChange subEdit = subChanges.stream()
+                    .filter(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()))
+                    .findFirst()
+                    .orElseThrow();
+
+            // edit the sub EDIT with parent's changedNode
+            subEdit.setChangedNode(parentEdit.getChangedNode());
+            return List.of(subEdit);
+        }
+
+        // Case 3: Preserve all other changes (no conflicts)
+        List<NodeChange> result = new ArrayList<>();
+        result.addAll(parentChanges);
+        result.addAll(subChanges);
+        return result;
+    }
+
+    /**
+     * Merges two lists of ConnectionChanges according to merge rules:
+     * - ADD + DELETE cancels out (both removed)
+     * - EDIT + EDIT produces single EDIT with parent's changedConnection and
+     * subversion's resultConnection
+     * - Other combinations are preserved
+     */
+    private List<ConnectionChange> mergeConnectionChanges(List<ConnectionChange> parentChanges,
+            List<ConnectionChange> subChanges) {
+        List<ConnectionChange> result = new ArrayList<>();
+
+        if (parentChanges == null)
+            parentChanges = Collections.emptyList();
+        if (subChanges == null)
+            subChanges = Collections.emptyList();
+
+        // Group changes by connection ID
+        Map<UUID, List<ConnectionChange>> parentChangesByConnection = groupChangesByConnection(parentChanges);
+        Map<UUID, List<ConnectionChange>> subChangesByConnection = groupChangesByConnection(subChanges);
+
+        // Get all unique connection IDs from both versions
+        Set<UUID> allConnectionIds = new HashSet<>();
+        allConnectionIds.addAll(parentChangesByConnection.keySet());
+        allConnectionIds.addAll(subChangesByConnection.keySet());
+
+        for (UUID connectionId : allConnectionIds) {
+            List<ConnectionChange> parentConnChanges = parentChangesByConnection.getOrDefault(connectionId,
+                    Collections.emptyList());
+            List<ConnectionChange> subConnChanges = subChangesByConnection.getOrDefault(connectionId,
+                    Collections.emptyList());
+
+            List<ConnectionChange> merged = mergeConnectionChangesForConnection(parentConnChanges, subConnChanges);
+            result.addAll(merged);
+        }
+
+        return result;
+    }
+
+    /**
+     * Groups ConnectionChanges by the ID of the connection they affect.
+     */
+    private Map<UUID, List<ConnectionChange>> groupChangesByConnection(List<ConnectionChange> changes) {
+        Map<UUID, List<ConnectionChange>> grouped = new HashMap<>();
+        for (ConnectionChange change : changes) {
+            UUID connectionId = null;
+            // Try to get connection ID from changedConnection or resultConnection
+            if (change.getChangedConnection() != null) {
+                connectionId = change.getChangedConnection().getId();
+            } else if (change.getResultConnection() != null) {
+                connectionId = change.getResultConnection().getId();
+            }
+
+            if (connectionId != null) {
+                grouped.computeIfAbsent(connectionId, k -> new ArrayList<>()).add(change);
+            }
+        }
+        return grouped;
+    }
+
+    /**
+     * Merges ConnectionChanges affecting a single connection according to merge
+     * rules.
+     */
+    private List<ConnectionChange> mergeConnectionChangesForConnection(List<ConnectionChange> parentChanges,
+            List<ConnectionChange> subChanges) {
+        boolean hasParentAdd = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.ADD.equals(c.getChangeType()));
+        boolean hasParentDelete = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.DELETE.equals(c.getChangeType()));
+        boolean hasParentEdit = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()));
+
+        boolean hasSubAdd = subChanges.stream().anyMatch(c -> ChangeTypeEnum.ADD.equals(c.getChangeType()));
+        boolean hasSubDelete = subChanges.stream().anyMatch(c -> ChangeTypeEnum.DELETE.equals(c.getChangeType()));
+        boolean hasSubEdit = subChanges.stream().anyMatch(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()));
+
+        // Case 1: ADD + DELETE cancels out (from either side)
+        if ((hasParentAdd && hasSubDelete) || (hasParentDelete && hasSubAdd)) {
+            return Collections.emptyList(); // No changes remain
+        }
+
+        // Case 2: EDIT + EDIT from both sides
+        if (hasParentEdit && hasSubEdit) {
+            // Find the parent EDIT and subversion EDIT
+            ConnectionChange parentEdit = parentChanges.stream()
+                    .filter(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()))
+                    .findFirst()
+                    .orElseThrow();
+            ConnectionChange subEdit = subChanges.stream()
+                    .filter(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()))
+                    .findFirst()
+                    .orElseThrow();
+
+            // Edit EDIT with parent's changedConnection
+            subEdit.setChangedConnection(parentEdit.getChangedConnection()); // Original state from parent
+            return List.of(subEdit);
+        }
+
+        // Case 3: Preserve all other changes (no conflicts)
+        List<ConnectionChange> result = new ArrayList<>();
+        result.addAll(parentChanges);
+        result.addAll(subChanges);
+        return result;
     }
 }

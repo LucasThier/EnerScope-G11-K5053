@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.enerscope.node.dto.BaseNodeDTO;
@@ -13,7 +14,9 @@ import org.enerscope.node.model.NodeConnection;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.enerscope.version.dto.VersionDTO;
+import org.enerscope.version.dto.VersionConflictDTO;
 import org.enerscope.version.model.Version;
+import org.enerscope.version.service.VersionConflictService;
 import org.enerscope.version.service.VersionService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class VersionController {
 
     private final VersionService versionService;
+    private final VersionConflictService versionConflictService;
     /*
      * create a new version.
      */
@@ -51,6 +55,20 @@ public class VersionController {
             @PathVariable UUID id) {
         versionService.deleteVersion(id);
         return Responses.ok("Version deleted successfully");
+    }
+
+    @GetMapping(value = "/{versionId}/conflicts", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "List conflicts of a version", description = "Conflicts recorded automatically when a sibling version was merged into the shared parent")
+    public ResponseEntity<ApiResponse<List<VersionConflictDTO>>> getConflicts(
+            @PathVariable UUID versionId) {
+        return Responses.ok("Conflicts retrieved successfully", versionConflictService.getConflictsForVersion(versionId));
+    }
+
+    @PatchMapping(value = "/conflicts/{conflictId}/resolve")
+    @Operation(summary = "Resolve a conflict", description = "Marks a version conflict as resolved")
+    public ResponseEntity<ApiResponse<VersionConflictDTO>> resolveConflict(
+            @PathVariable UUID conflictId) {
+        return Responses.ok("Conflict resolved successfully", versionConflictService.resolveConflict(conflictId));
     }
 
     @GetMapping(value = "/{id}")
@@ -126,5 +144,13 @@ public class VersionController {
             @PathVariable UUID connectionId) {
         versionService.deleteConnectionFromVersion(versionId, connectionId);
         return Responses.ok("Connection deleted from version successfully");
+    }
+
+    @PatchMapping(value = "/merge/{subId}")
+    @Operation(summary = "Merge subversion into parent version", description = "Merge a subversion into its parent version by replacing snapshots and reconciling changes")
+    public ResponseEntity<ApiResponse<Version>> mergeSubVersionIntoParent(
+            @PathVariable UUID subId) {
+        Version version = versionService.mergeSubVersionIntoParent(subId);
+        return Responses.ok("Subversion merged into parent version successfully", version);
     }
 }

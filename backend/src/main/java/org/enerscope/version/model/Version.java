@@ -1,5 +1,6 @@
 package org.enerscope.version.model;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.enerscope.common.BaseEntity;
