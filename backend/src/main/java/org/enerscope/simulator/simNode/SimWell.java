@@ -98,4 +98,10 @@ public class SimWell extends SimBaseNode{
     public ResultPerNode createResult() {
         return new ResultPerNode(this.id, Well.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
     }
+
+    @Override
+    public void reset() {
+        super.reset();
+        this.acumDecline = 0;
+    }
 }

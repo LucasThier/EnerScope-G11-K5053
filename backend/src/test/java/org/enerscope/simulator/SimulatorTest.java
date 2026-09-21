@@ -17,7 +17,6 @@ import org.enerscope.version.model.Version;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.mockito.Mockito;
 
 import java.util.*;
 
@@ -514,7 +513,7 @@ public class SimulatorTest {
         simulator.simulate(5);
 
         // 5. Validar Resultados
-        Result result = simulator.getResult();
+        ResultPerRound resultPerRound = simulator.getResultsPerRound().get(1);
 
 //        System.out.println("=== RESULTADO GENERAL ===");
 //        System.out.println("Result: " + result);
@@ -522,7 +521,7 @@ public class SimulatorTest {
 //        System.out.println("Total de nodos procesados: " + result.getResultPerNodes().size());
 //
 //        System.out.println("\n=== DETALLE POR NODO ===");
-          List<ResultPerNode> nodeResults = result.getResultPerNodes();
+          List<ResultPerNode> nodeResults = resultPerRound.getResultPerNodes();
 //
 //        nodeResults.forEach(nodeResult -> {
 //            System.out.println("----------------------------------------");
@@ -535,8 +534,8 @@ public class SimulatorTest {
 //        });
 
 
-        assertNotNull(result, "El resultado general no debe ser nulo");
-        assertEquals(5, result.getYear(), "El año configurado debe coincidir");
+        assertNotNull(resultPerRound, "El resultado general no debe ser nulo");
+        assertEquals(5,simulator.getFinalResult().getTime(), "El año configurado debe coincidir");
 
         assertEquals(9, nodeResults.size(), "Debe haber un resultado registrado por cada uno de los 9 nodos");
 

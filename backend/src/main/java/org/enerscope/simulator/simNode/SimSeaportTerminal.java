@@ -78,4 +78,11 @@ class SimSeaportTerminal extends SimBaseNode{
     public ResultPerNode createResult() {
         return new ResultPerNode(this.id, SeaportTerminal.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
     }
+
+    @Override
+    public void reset() {
+        super.reset();
+        this.amountInIntermediateStorage = new ToDeliver(0,0);
+        this.amountOfShip = 0;
+    }
 }

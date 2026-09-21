@@ -20,7 +20,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
 
-public class ResultTest {
+public class ResultPerRoundTest {
     private void setupBaseNodeMocks(BaseNode mockNode, UUID id) {
         when(mockNode.getId()).thenReturn(id);
         when(mockNode.getMaintenanceIntervalInDays()).thenReturn(500);
