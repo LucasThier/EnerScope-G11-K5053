@@ -7,8 +7,8 @@ import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.ConnectionChange;
 import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
-import org.enerscope.project.model.Project;
-import org.enerscope.simulator.Result;
+import org.enerscope.simulator.FinalResult;
+import org.enerscope.simulator.ResultPerRound;
 import org.springframework.context.annotation.Lazy;
 
 import jakarta.persistence.CascadeType;
@@ -59,9 +59,9 @@ public class Version extends BaseEntity {
 
     @JoinColumn(nullable = true)
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Result> results;
+    private List<FinalResult> finalResults;
 
-    public void addResult(Result result){
-        this.results.add(result);
+    public void addResult(FinalResult finalResult){
+        this.finalResults.add(finalResult);
     }
 }

@@ -11,12 +11,12 @@ import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
+import org.enerscope.probabilistic.ConstantValue;
 import org.enerscope.simulator.simNode.*;
 import org.enerscope.version.model.Version;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.mockito.Mockito;
 
 import java.util.*;
 
@@ -67,7 +67,7 @@ public class SimulatorTest {
         configurarBaseNode(mockCarrier, idCarrier);
 
         when(mockWell.getMaxCollectionCapacity()).thenReturn(1000f);
-        when(mockWell.getDeclineCurve()).thenReturn(5f);
+        when(mockWell.getDeclineCurve()).thenReturn(new ConstantValue(5f));
         when(mockWell.getGasRichness()).thenReturn(50f);
 
         when(mockGatheringNetwork.getMaxTransportCapacity()).thenReturn(5000f);
@@ -272,7 +272,7 @@ public class SimulatorTest {
         Well mock = mock(Well.class);
         configurarBaseNode(mock, id);
         when(mock.getMaxCollectionCapacity()).thenReturn(1000f);
-        when(mock.getDeclineCurve()).thenReturn(5f);
+        when(mock.getDeclineCurve()).thenReturn(new ConstantValue(5f));
         when(mock.getGasRichness()).thenReturn(5f);
         return mock;
     }
@@ -432,7 +432,7 @@ public class SimulatorTest {
         Well mockWell = mock(Well.class);
         setupBaseNodeMocks(mockWell, wellId);
         when(mockWell.getMaxCollectionCapacity()).thenReturn(100f);
-        when(mockWell.getDeclineCurve()).thenReturn(2f);
+        when(mockWell.getDeclineCurve()).thenReturn(new ConstantValue(2f));
         when(mockWell.getGasRichness()).thenReturn(1f);
         when(mockWell.getDTMTime()).thenReturn(24);
 
@@ -513,7 +513,7 @@ public class SimulatorTest {
         simulator.simulate(5);
 
         // 5. Validar Resultados
-        Result result = simulator.getResult();
+        ResultPerRound resultPerRound = simulator.getResultsPerRound().get(1);
 
 //        System.out.println("=== RESULTADO GENERAL ===");
 //        System.out.println("Result: " + result);
@@ -521,7 +521,7 @@ public class SimulatorTest {
 //        System.out.println("Total de nodos procesados: " + result.getResultPerNodes().size());
 //
 //        System.out.println("\n=== DETALLE POR NODO ===");
-          List<ResultPerNode> nodeResults = result.getResultPerNodes();
+          List<ResultPerNode> nodeResults = resultPerRound.getResultPerNodes();
 //
 //        nodeResults.forEach(nodeResult -> {
 //            System.out.println("----------------------------------------");
@@ -534,8 +534,8 @@ public class SimulatorTest {
 //        });
 
 
-        assertNotNull(result, "El resultado general no debe ser nulo");
-        assertEquals(5, result.getYear(), "El año configurado debe coincidir");
+        assertNotNull(resultPerRound, "El resultado general no debe ser nulo");
+        assertEquals(5,simulator.getFinalResult().getTime(), "El año configurado debe coincidir");
 
         assertEquals(9, nodeResults.size(), "Debe haber un resultado registrado por cada uno de los 9 nodos");
 
@@ -568,7 +568,7 @@ public class SimulatorTest {
         Well mockWell = mock(Well.class);
         when(mockWell.getId()).thenReturn(wellId);
         when(mockWell.getMaxCollectionCapacity()).thenReturn(100f);
-        when(mockWell.getDeclineCurve()).thenReturn(10f); // 10% de declive por año
+        when(mockWell.getDeclineCurve()).thenReturn(new ConstantValue(10f)); // 10% de declive por año
         when(mockWell.getGasRichness()).thenReturn(100f);
         when(mockWell.getDTMTime()).thenReturn(24);
         when(mockWell.getMaintenanceIntervalInDays()).thenReturn(9999); // Sin mantenimiento para simplicidad

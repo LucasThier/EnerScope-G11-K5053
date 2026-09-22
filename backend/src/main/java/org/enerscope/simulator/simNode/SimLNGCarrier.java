@@ -92,4 +92,10 @@ public class SimLNGCarrier extends SimBaseNode{
     public ResultPerNode createResult() {
         return new ResultPerNode(this.id, LNGCarrier.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
     }
+    @Override
+    public void reset() {
+        super.reset();
+        isInPort = false;
+        amountInTank = 0;
+    }
 }

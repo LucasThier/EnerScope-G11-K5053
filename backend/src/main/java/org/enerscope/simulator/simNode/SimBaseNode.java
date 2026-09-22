@@ -147,4 +147,13 @@ public abstract class  SimBaseNode {
     public void addPreviousNode(SimBaseNode simBaseNode){}
 
     public abstract ResultPerNode createResult();
+    public void reset(){
+        lastSimulatedTime = -1;
+        this.totalDeferred = 0;
+        this.totalProduced = 0;
+        this. maxPossibleProduced = 0;
+        this.active = true;
+        this.timeStartOfInactivity = 0;
+        this.toDeliver = new ToDeliver(0,0);
+    }
 }
