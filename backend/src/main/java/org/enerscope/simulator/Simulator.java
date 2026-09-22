@@ -97,11 +97,22 @@ public class Simulator {
                 simLNGCarriers.forEach(simLNGCarrier -> simLNGCarrier.simulate(exactTime));
             }
             createResultPerRound();
+            resetAll();
         }
         orderResults();
         createFinalResult(time);
 
         version.addResult(finalResult);
+    }
+
+    private void resetAll() {
+        simWells.forEach(node -> node.reset());
+        simGatheringNetworks.forEach(node -> node.reset());
+        simTreatmentPlants.forEach(node -> node.reset());
+        simPipelineAndCompressionPlant.forEach(node -> node.reset());
+        simLiquefactionPlants.forEach(node -> node.reset());
+        simSeaportTerminals.forEach(node -> node.reset());
+        simLNGCarriers.forEach(node -> node.reset());
     }
 
     private void orderResults() {

@@ -3,6 +3,6 @@ CREATE TABLE probabilistic_distribution (
                                             distribution_type   VARCHAR(30) NOT NULL,
     -- Parámetros (todos deben permitir NULL porque varían según el tipo)
                                             val_a        REAL,
-                                            val_b               DOUBLE PRECISION,
+                                            val_b               REAL,
                                             PRIMARY KEY (id)
 );
