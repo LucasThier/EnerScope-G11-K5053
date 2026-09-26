@@ -63,7 +63,7 @@ public class SimWell extends SimBaseNode{
 
     @Override
     protected void inactiveAction(int time){
-        toDeliver =  new ToDeliver(0,0);;
+        toDeliver =  new ToDeliver(0,0);
         checkInactivity(time);
     }
 

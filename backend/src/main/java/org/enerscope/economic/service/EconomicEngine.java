@@ -4,8 +4,14 @@ import java.math.*;
 import java.time.*;
 import java.util.*;
 import org.enerscope.economic.model.*;
-import org.enerscope.economic.model.EconomicConfiguration.*;
-import org.enerscope.economic.model.EconomicResult.*;
+import org.enerscope.economic.model.configuration.EconomicConfiguration;
+import org.enerscope.economic.model.enums.*;
+import org.enerscope.economic.model.configuration.EconomicConfiguration.*;
+import org.enerscope.economic.model.results.EconomicResult;
+import org.enerscope.economic.model.results.EntityTaxResult;
+import org.enerscope.economic.model.results.PendingBalance;
+import org.enerscope.economic.model.results.PeriodEconomicResult;
+import org.enerscope.economic.model.configuration.*;
 import org.springframework.stereotype.Service;
 import static org.enerscope.economic.service.EconomicValidator.require;
 

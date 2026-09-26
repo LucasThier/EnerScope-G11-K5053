@@ -3,8 +3,10 @@ package org.enerscope.economic.service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
-import org.enerscope.economic.model.EconomicConfiguration;
-import org.enerscope.economic.model.EconomicConfiguration.*;
+import org.enerscope.economic.model.configuration.EconomicConfiguration;
+import org.enerscope.economic.model.configuration.EconomicConfiguration.*;
+import org.enerscope.economic.model.configuration.*;
+import org.enerscope.economic.model.enums.*;
 import org.springframework.stereotype.Component;
 
 @Component
