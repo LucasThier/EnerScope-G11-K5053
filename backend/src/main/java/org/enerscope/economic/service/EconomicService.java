@@ -7,6 +7,8 @@ import org.enerscope.common.*;
 import org.enerscope.economic.dto.EvaluationDTO;
 import org.enerscope.economic.dto.EvaluationDTO.Snapshot;
 import org.enerscope.economic.model.*;
+import org.enerscope.economic.model.configuration.EconomicConfiguration;
+import org.enerscope.economic.model.results.EconomicResult;
 import org.enerscope.economic.repository.*;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
@@ -50,6 +52,7 @@ public class EconomicService {
         authorize(projectId, versionId, ProjectMemberPermission.VIEW_PROJECT);
         return configuration(versionId);
     }
+
     public EvaluationDTO evaluate(UUID projectId, UUID versionId) {
         Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
         EconomicConfiguration c = configuration(versionId); validator.validate(c, nodeIds(version));
@@ -62,44 +65,54 @@ public class EconomicService {
         logger.info("Economic evaluation {} completed for version {}", stored.getId(), versionId);
         return new EvaluationDTO(stored.getId(), stored.getCreatedAt(), snapshot);
     }
+
     @Transactional(readOnly = true)
     public List<EvaluationDTO> list(UUID projectId, UUID versionId) {
         authorize(projectId, versionId, ProjectMemberPermission.VIEW_PROJECT);
         return evaluations.findByVersionIdOrderByCreatedAtDesc(versionId).stream().map(this::dto).toList();
     }
+
     @Transactional(readOnly = true)
     public EvaluationDTO getEvaluation(UUID projectId, UUID versionId, UUID evaluationId) {
         authorize(projectId, versionId, ProjectMemberPermission.VIEW_PROJECT);
         return dto(evaluations.findByIdAndVersionId(evaluationId, versionId)
                 .orElseThrow(() -> new EntityNotFoundException("Economic evaluation not found")));
     }
+
     private EconomicConfiguration configuration(UUID versionId) {
         return read(configurations.findByVersionId(versionId)
                 .orElseThrow(() -> new EntityNotFoundException("Economic configuration not found")).getConfigurationJson(), EconomicConfiguration.class);
     }
-    private EvaluationDTO dto(EconomicEvaluation e) { return new EvaluationDTO(e.getId(), e.getCreatedAt(), read(e.getSnapshotJson(), Snapshot.class)); }
+
+    private EvaluationDTO dto(EconomicEvaluation e) {
+        return new EvaluationDTO(e.getId(), e.getCreatedAt(), read(e.getSnapshotJson(), Snapshot.class));
+    }
+
     private Version authorize(UUID projectId, UUID versionId, ProjectMemberPermission permission) {
         var session = AuthUtil.currentSession();
         if (session == null || session.getUser() == null) throw new UnauthorizedException("Authentication required");
         var project = projects.findById(projectId).orElseThrow(() -> new EntityNotFoundException("Project not found"));
         if (session.getUser().getPlatformRole() != PlatformRole.ADMIN) {
             boolean allowed = project.getMembers().stream().filter(m -> m.isActive() && m.getUser().getId().equals(session.getUser().getId()))
-                    .flatMap(m -> m.getRoles().stream()).filter(r -> r.isActive())
+                    .flatMap(m -> m.getRoles().stream()).filter(BaseEntity::isActive)
                     .anyMatch(r -> r.getPermissions().contains(permission));
             if (!allowed) throw new ForbiddenException("Project permission required: " + permission);
         }
         return project.getVersions().stream().filter(v -> v.getId().equals(versionId) && v.isActive()).findFirst()
                 .orElseThrow(() -> new EntityNotFoundException("Version does not belong to project"));
     }
+
     private Set<UUID> nodeIds(Version version) {
         Set<UUID> ids = new HashSet<>();
         if (version.getNodeSnapshot() != null) version.getNodeSnapshot().forEach(n -> ids.add(n.getId()));
         return ids;
     }
+
     private String json(Object value) {
         try { return mapper.writeValueAsString(value); }
         catch (JsonProcessingException e) { throw new IllegalStateException("Cannot serialize economic snapshot", e); }
     }
+
     private <T> T read(String value, Class<T> type) {
         try { return mapper.readValue(value, type); }
         catch (JsonProcessingException e) { throw new IllegalStateException("Cannot read economic snapshot", e); }

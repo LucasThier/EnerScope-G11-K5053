@@ -3,7 +3,7 @@ package org.enerscope.economic.controller;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
 import org.enerscope.economic.dto.EvaluationDTO;
-import org.enerscope.economic.model.EconomicConfiguration;
+import org.enerscope.economic.model.configuration.EconomicConfiguration;
 import org.enerscope.economic.service.EconomicService;
 import org.enerscope.util.*;
 import org.springframework.http.ResponseEntity;

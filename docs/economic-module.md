@@ -11,7 +11,9 @@ automatically or add a frontend screen.
 `EconomicConfiguration` is a typed immutable record aggregate containing tax
 entities, boundary, node profiles/ownership, rules, contracts, assets, tax
 treatments and conversions. Nested records are domain value objects, not shared
-JPA entities. `EconomicConfigurationEntity` stores the complete validated aggregate
+JPA entities. 
+
+`EconomicConfigurationEntity` stores the complete validated aggregate
 as JSON text with a unique Version foreign key and an optimistic-lock revision.
 This portable representation works in PostgreSQL and H2; the Java validator owns
 cross-reference validation. There is no unvalidated arbitrary JSON calculation path.
@@ -23,7 +25,7 @@ Each evaluation gets a new UUID. Editing the configuration never rewrites histor
 Configurations are not automatically inherited by child versions. When explicitly
 copying a configuration, replace its node IDs with the destination version's IDs.
 
-The existing Project -> Version association remains unidirectional. The economic
+The existing Project ⇒ Version association remains unidirectional. The economic
 service resolves the version through its owning project's collection, checks node
 membership, and checks project permissions. No duplicate Scenario hierarchy is added.
 
@@ -31,22 +33,28 @@ membership, and checks project permissions. No duplicate Scenario hierarchy is a
 
 - `startYear` is the investment year (`t=0`); `years` is the number of operating
   years, from 1 through 100. The first simulated year is `startYear + 1`.
+
 - A single ISO currency is required. No exchange rate, inflation, financing,
   automatic terminal value or real-world tax regime is inferred.
+
 - WACC is a nonnegative annual fraction, fixed throughout the evaluation. `0.10`
   means 10%. Ownership, deduction and tax rates are also fractions.
+
 - Monetary calculations use `BigDecimal` and DECIMAL128 intermediates. Entries,
   taxes and published cash amounts use two decimals/HALF_UP. Ownership is applied
   once, with the last owner receiving the rounding remainder. NPV is rounded after
   summing unrounded discounted flows, so rounded displayed present values may differ
   from their total by one cent.
+
 - Each rule occurrence specifies recognition and cash dates explicitly. There is
   no hidden recurrence or formula interpreter. Fixed rule amounts are per occurrence;
   quantity drivers use the full annual quantity of the recognition year. To split
   annual revenue into invoices, split the tariff into corresponding fractions.
+
 - `taxEntityId=null` allocates a node rule/contract/asset to that node's owners.
   An explicit entity assigns the whole amount directly and does not apply ownership
   again. General scenario adjustments require an explicit entity.
+
 - An internal rule names the originating entity and counterparty and generates both
   sides. **Do not enter its mirror manually.** Both entities need a valid treatment
   for the concept. Transactions between two entities in the boundary are eliminated
@@ -149,15 +157,15 @@ Successful saves/evaluations log through `AppLogger` without logging configurati
 
 ## Complete example: NPV USD 169.20
 
-Use [economic-configuration.json](../backend/src/test/resources/economic_resources_examples/economic-configuration.json). The golden
+Use [economic-configuration.json](../backend/src/test/resources/economic-examples/economic-configuration.json). The golden
 test reads this file and asserts independently specified expected amounts.
 
 Two hypothetical tax entities A/B own 60%/40% of both wells. WACC is 10%, tax is 30%,
 losses carry forward without expiration with full offset, and taxes are paid in the
 same year. This is a didactic wellhead sale, not a full LNG-chain investment estimate.
 
-The first well produces 100 raw units/hour from 2031; the second produces 500 from
-2032. Each operates 8,760 hours/year without losses, decline or maintenance. Conversion
+The first well produces 100 raw units/hour from 2031; the second produces 500 from 2032. 
+Each operates 8,760 hours/year without losses, decline or maintenance. Conversion
 factor `0.000114155251` is the explicit rounded reciprocal of 8,760. Monetary rounding
 therefore gives 100 sale units in 2031 and 600 in each later year at USD 1/unit.
 Both wells have a 120-month physical life; the economic horizon ends in 2035.

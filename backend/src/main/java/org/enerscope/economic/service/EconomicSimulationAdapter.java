@@ -3,7 +3,9 @@ package org.enerscope.economic.service;
 import java.math.BigDecimal;
 import java.util.*;
 import org.enerscope.economic.model.*;
-import org.enerscope.economic.model.EconomicConfiguration.*;
+import org.enerscope.economic.model.configuration.EconomicConfiguration;
+import org.enerscope.economic.model.configuration.EconomicConfiguration.*;
+import org.enerscope.economic.model.configuration.MetricConversion;
 import org.enerscope.simulator.*;
 import org.enerscope.version.model.Version;
 import org.springframework.stereotype.Service;
@@ -20,7 +22,7 @@ public class EconomicSimulationAdapter {
                 source.getConnectionSnapshot() == null ? List.of() : List.copyOf(source.getConnectionSnapshot()),
                 new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         Simulator simulator = new Simulator(isolated, c.startYear() + 1);
-        simulator.simulate(c.years());
+        simulator.simulate(c.years()*24*365);
         List<OperationalMetric> converted = new ArrayList<>();
         for (MetricConversion conversion : c.conversions()) {
             for (int t = 0; t <= c.years(); t++) {

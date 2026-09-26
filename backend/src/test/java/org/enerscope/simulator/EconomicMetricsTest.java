@@ -12,7 +12,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class EconomicMetricsTest {
-    @Test void treatmentCountsSmallerNewBatchWithoutSubtractingPreviousBatch() {
+    @Test
+    void treatmentCountsSmallerNewBatchWithoutSubtractingPreviousBatch() {
         var source=new SimGatheringNetwork(node(org.enerscope.node.model.extraction.GatheringNetwork.class));
         var physical=node(org.enerscope.node.model.extraction.TreatmentPlant.class);
         when(physical.getMaxTreatmentCapacity()).thenReturn(200f);
@@ -21,10 +22,13 @@ class EconomicMetricsTest {
         source.setToDeliver(new ToDeliver(50,0));treatment.simulate(1);
         assertEquals(150,treatment.getMeasuredOutput());assertEquals(150,treatment.getMeasuredInput());
     }
+
     private <T extends BaseNode> T node(Class<T> type) {
         T n=mock(type);when(n.getId()).thenReturn(UUID.randomUUID());when(n.getLifespanInMonths()).thenReturn(120);return n;
     }
-    @Test void compressorCountsNewOutputEvenWhenPreviousOutputRemains() {
+
+    @Test
+    void compressorCountsNewOutputEvenWhenPreviousOutputRemains() {
         var source=new SimWell(node(Well.class));var physical=node(CompressingPlant.class);
         when(physical.getMaxCompressionCapacity()).thenReturn(100f);
         var compressor=new SimCompressingPlant(physical);compressor.addPreviousNode(source);
@@ -40,7 +44,9 @@ class EconomicMetricsTest {
         source.setToDeliver(new ToDeliver(60,0));connection.simulate(0);
         assertEquals(40,connection.getMeasuredOutput());assertEquals(20,source.getToDeliver().getAmount());
     }
-    @Test void shipmentCountsDepartureOnceAndDoesNotSellPartialLoading() {
+
+    @Test
+    void shipmentCountsDepartureOnceAndDoesNotSellPartialLoading() {
         var terminalPhysical=node(SeaportTerminal.class);when(terminalPhysical.getShipCapacity()).thenReturn(1);
         var terminal=new SimSeaportTerminal(terminalPhysical);terminal.setAmountInIntermediateStorage(new ToDeliver(1000,0));
         var carrierPhysical=node(LNGCarrier.class);when(carrierPhysical.getShipCapacity()).thenReturn(100f);
@@ -52,13 +58,17 @@ class EconomicMetricsTest {
         assertEquals(100,ship.getMeasuredExported(),.001);assertEquals(1,ship.getMeasuredEvents());
         assertEquals(100,ship.getMeasuredInput(),.001);assertEquals(900,terminal.getToDeliver().getAmount(),.001);
     }
-    @Test void simulatorRejectsRepeatedExecutionInsteadOfAccumulatingResults() {
-        var simulator=new Simulator(EconomicExample.version());simulator.simulate(1);
+
+    @Test
+    void simulatorRejectsRepeatedExecutionInsteadOfAccumulatingResults() {
+        var simulator=new Simulator(EconomicExample.version());simulator.simulate(8760);
         assertThrows(IllegalStateException.class,()->simulator.simulate(1));
         assertEquals(8760,simulator.getAnnualMetrics().getFirst().operatingHours().intValueExact());
     }
-    @Test void simulatorRejectsInvalidHorizons() {
+
+    @Test
+    void simulatorRejectsInvalidHorizons() {
         assertThrows(IllegalArgumentException.class,()->new Simulator(EconomicExample.version()).simulate(0));
-        assertThrows(IllegalArgumentException.class,()->new Simulator(EconomicExample.version()).simulate(101));
+        assertThrows(IllegalArgumentException.class,()->new Simulator(EconomicExample.version()).simulate(876001));
     }
 }

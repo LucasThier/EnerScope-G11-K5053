@@ -31,6 +31,7 @@ public class Simulator {
 
     private Version version;
     private Result result;
+
     private final List<AnnualNodeMetrics> annualMetrics = new ArrayList<>();
     private final Map<UUID, double[]> previousMetrics = new HashMap<>();
     private boolean executed;
@@ -93,9 +94,13 @@ public class Simulator {
 
     private void captureYear(int period) {
         List<SimBaseNode> nodes = new ArrayList<>();
-        nodes.addAll(simWells); nodes.addAll(simGatheringNetworks); nodes.addAll(simTreatmentPlants);
-        nodes.addAll(simPipelineAndCompressionPlant); nodes.addAll(simLiquefactionPlants);
-        nodes.addAll(simSeaportTerminals); nodes.addAll(simLNGCarriers);
+        nodes.addAll(simWells);
+        nodes.addAll(simGatheringNetworks);
+        nodes.addAll(simTreatmentPlants);
+        nodes.addAll(simPipelineAndCompressionPlant);
+        nodes.addAll(simLiquefactionPlants);
+        nodes.addAll(simSeaportTerminals);
+        nodes.addAll(simLNGCarriers);
         for (SimBaseNode n : nodes) {
             double[] current = {n.getMeasuredInput(), n.getMeasuredOutput(), n.getMeasuredExported(),
                     n.getMeasuredLosses(), n.getMeasuredOperatingHours(), n.getMeasuredEvents()};
@@ -113,10 +118,9 @@ public class Simulator {
 
     public void simulate(int time){
         if (executed) throw new IllegalStateException("Create a fresh simulator for each evaluation");
-        if (time <= 0 || time > 100) throw new IllegalArgumentException("Simulation years must be 1 to 100");
+        if (time <= 0 || time > 876000) throw new IllegalArgumentException("Simulation years must be 1 to 100");
         executed = true;
-        int timeInHours = time * 24*365;
-        for (int count = 0; count < timeInHours; count ++){
+        for (int count = 0; count < time; count ++){
             int exactTime = count;
             simWells.forEach(simWell -> step(simWell, exactTime));
             simGatheringNetworks.forEach(simGatheringNetwork -> step(simGatheringNetwork, exactTime));
@@ -155,7 +159,8 @@ public class Simulator {
         result.addAllResultPerNodes(simWells.stream().map(SimWell::createResult).toList());
         result.addAllResultPerNodes(simGatheringNetworks.stream().map(SimGatheringNetwork::createResult).toList());
         result.addAllResultPerNodes(simTreatmentPlants.stream().map(SimTreatmentPlant::createResult).toList());
-        result.addAllResultPerNodes(simPipelineAndCompressionPlant.stream().map(simBaseNode -> simBaseNode.createResult()).toList());
+        //TODO: Porque se llama al metodo del SimBaseNode? Revisar, aparte falta los resultados del nodo de PipelineConnection
+        result.addAllResultPerNodes(simPipelineAndCompressionPlant.stream().map(SimBaseNode::createResult).toList());
         result.addAllResultPerNodes(simLiquefactionPlants.stream().map(SimLiquefactionPlant::createResult).toList());
         result.addAllResultPerNodes(simSeaportTerminals.stream().map(SimSeaportTerminal::createResult).toList());
         result.addAllResultPerNodes(simLNGCarriers.stream().map(SimLNGCarrier::createResult).toList());
