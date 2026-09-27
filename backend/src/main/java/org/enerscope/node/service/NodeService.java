@@ -7,6 +7,8 @@ import org.enerscope.node.model.InvestmentCostComponent;
 import org.enerscope.node.model.NodeGraphData;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.NodeConnection;
+import org.enerscope.node.model.export.IndustrialConsumption;
+import org.enerscope.node.model.export.InternalConsumption;
 import org.enerscope.node.model.transportation.PipelineConnection;
 import org.enerscope.node.model.extraction.GatheringNetwork;
 import org.enerscope.node.model.extraction.TreatmentPlant;
@@ -17,17 +19,7 @@ import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
-import org.enerscope.node.repository.CompressingPlantRepository;
-import org.enerscope.node.repository.FLNGUnitRepository;
-import org.enerscope.node.repository.GatheringNetworkRepository;
-import org.enerscope.node.repository.GroundBasedLiquefactionPlantRepository;
-import org.enerscope.node.repository.LNGCarrierRepository;
-import org.enerscope.node.repository.NodeConnectionRepository;
-import org.enerscope.node.repository.PipelineConnectionRepository;
-import org.enerscope.node.repository.PipelineRepository;
-import org.enerscope.node.repository.SeaportTerminalRepository;
-import org.enerscope.node.repository.TreatmentPlantRepository;
-import org.enerscope.node.repository.WellRepository;
+import org.enerscope.node.repository.*;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -51,6 +43,8 @@ public class NodeService {
    private final CompressingPlantRepository compressingPlantRepository;
    private final PipelineConnectionRepository pipelineConnectionRepository;
    private final NodeConnectionRepository nodeConnectionRepository;
+   private final InternalConsumptionRepository internalConsumptionRepository;
+   private final IndustrialConsumptionRepository industrialConsumptionRepository;
 
    public NodeService(
          WellRepository wellRepository,
@@ -63,7 +57,9 @@ public class NodeService {
          SeaportTerminalRepository seaportTerminalRepository,
          CompressingPlantRepository compressingPlantRepository,
          PipelineConnectionRepository pipelineConnectionRepository,
-         NodeConnectionRepository nodeConnectionRepository) {
+         NodeConnectionRepository nodeConnectionRepository,
+         InternalConsumptionRepository internalConsumptionRepository,
+         IndustrialConsumptionRepository industrialConsumptionRepository) {
       this.wellRepository = wellRepository;
       this.gatheringNetworkRepository = gatheringNetworkRepository;
       this.treatmentPlantRepository = treatmentPlantRepository;
@@ -75,6 +71,8 @@ public class NodeService {
       this.compressingPlantRepository = compressingPlantRepository;
       this.pipelineConnectionRepository = pipelineConnectionRepository;
       this.nodeConnectionRepository = nodeConnectionRepository;
+      this.internalConsumptionRepository = internalConsumptionRepository;
+      this.industrialConsumptionRepository = industrialConsumptionRepository;
    }
 
    private NodeTypeData DTOtoEntity(NodeTypeDataDTO data) {
@@ -253,6 +251,33 @@ public class NodeService {
             data.getFromNodeId(), data.getToNodeId());
 
       NodeConnection saved = nodeConnectionRepository.save(connection);
+
+      return saved;
+   }
+
+   public InternalConsumption saveInternalConsumption(InternalConsumptionDTO data) {
+      InternalConsumption internalConsumption = new InternalConsumption(data.getName(), data.getState(), data.getStartupDate(),
+              data.getLifespanInMonths(),
+              MoneyAmount.of(data.getUpkeepCosts()),
+              data.getMaintenanceIntervalInDays(), MoneyAmount.of(data.getOperatingCosts()), data.getWastePercentage(),
+              this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), data.getIdentity(),
+              this.DTOtoEntity(data.getType()), data.getConsumptionSummer(), data.getConsumptionAutumn(),
+              data.getConsumptionWinter(), data.getConsumptionSpring());
+
+      InternalConsumption saved = internalConsumptionRepository.save(internalConsumption);
+
+      return saved;
+   }
+
+   public IndustrialConsumption saveInternalConsumption(IndustrialConsumptionDTO data) {
+      IndustrialConsumption industrialConsumption = new IndustrialConsumption(data.getName(), data.getState(), data.getStartupDate(),
+              data.getLifespanInMonths(),
+              MoneyAmount.of(data.getUpkeepCosts()),
+              data.getMaintenanceIntervalInDays(), MoneyAmount.of(data.getOperatingCosts()), data.getWastePercentage(),
+              this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), data.getIdentity(),
+              this.DTOtoEntity(data.getType()), data.getConsumption());
+
+      IndustrialConsumption saved = industrialConsumptionRepository.save(industrialConsumption);
 
       return saved;
    }
@@ -603,5 +628,68 @@ public class NodeService {
       connection.setOutputPriority(dto.getOutputPriority());
 
       return connection;
+   }
+
+   public InternalConsumption editInternalConsumption(InternalConsumption internalConsumption, InternalConsumptionDTO dto){
+      internalConsumption.setName(dto.getName());
+      internalConsumption.setState(dto.getState());
+      internalConsumption.setStartupDate(dto.getStartupDate());
+      internalConsumption.setLifespanInMonths(dto.getLifespanInMonths());
+      internalConsumption.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
+      internalConsumption.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
+      internalConsumption.setOperatingCosts(dto.getOperatingCosts() != null ? MoneyAmount.of(dto.getOperatingCosts()) : null);
+      internalConsumption.setWastePercentage(dto.getWastePercentage());
+
+      // Update related entities
+      if (dto.getInvestmentCost() != null) {
+         internalConsumption.setInvestmentCost(DTOtoEntity(dto.getInvestmentCost()));
+      }
+      if (dto.getGraphData() != null) {
+         internalConsumption.setGraphData(DTOtoEntity(dto.getGraphData()));
+      }
+      if (dto.getType() != null) {
+         internalConsumption.setType(DTOtoEntity(dto.getType()));
+      }
+      if (dto.getIdentity() != null) {
+         internalConsumption.setIdentityId(dto.getIdentity());
+      }
+
+      // Update SeaportTerminal-specific fields
+      internalConsumption.setConsumptionAutumn(dto.getConsumptionAutumn());
+      internalConsumption.setConsumptionSummer(dto.getConsumptionSummer());
+      internalConsumption.setConsumptionSpring(dto.getConsumptionSpring());
+      internalConsumption.setConsumptionWinter(dto.getConsumptionWinter());
+
+      return internalConsumption;
+   }
+
+   public IndustrialConsumption editIndustrialConsumption(IndustrialConsumption industrialConsumption, IndustrialConsumptionDTO dto){
+      industrialConsumption.setName(dto.getName());
+      industrialConsumption.setState(dto.getState());
+      industrialConsumption.setStartupDate(dto.getStartupDate());
+      industrialConsumption.setLifespanInMonths(dto.getLifespanInMonths());
+      industrialConsumption.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
+      industrialConsumption.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
+      industrialConsumption.setOperatingCosts(dto.getOperatingCosts() != null ? MoneyAmount.of(dto.getOperatingCosts()) : null);
+      industrialConsumption.setWastePercentage(dto.getWastePercentage());
+
+      // Update related entities
+      if (dto.getInvestmentCost() != null) {
+         industrialConsumption.setInvestmentCost(DTOtoEntity(dto.getInvestmentCost()));
+      }
+      if (dto.getGraphData() != null) {
+         industrialConsumption.setGraphData(DTOtoEntity(dto.getGraphData()));
+      }
+      if (dto.getType() != null) {
+         industrialConsumption.setType(DTOtoEntity(dto.getType()));
+      }
+      if (dto.getIdentity() != null) {
+         industrialConsumption.setIdentityId(dto.getIdentity());
+      }
+
+      // Update SeaportTerminal-specific fields
+      industrialConsumption.setConsumption(dto.getConsumption());
+
+      return industrialConsumption;
    }
 }
