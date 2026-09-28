@@ -1,42 +1,27 @@
-import { Outlet, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { Outlet } from 'react-router-dom';
+import { ActiveProjectProvider } from '../../hooks/ActiveProjectProvider';
 import { Sidebar } from './Sidebar';
-import { RoleBadge } from '../ui/RoleBadge';
-import { Button } from '../ui/Button';
+import { TopBar } from './TopBar';
 
 /**
- * Signed-in shell: a role-aware sidebar for navigation plus a top bar with the
- * current user and logout. Page content renders through the router `Outlet`, so
- * the sidebar persists across navigation.
+ * Signed-in shell: a full-width top bar above a collapsible sidebar and the page
+ * content. The active-project state is provided here rather than at the router
+ * root so the projects are only fetched once past the auth guard.
  */
 export function AppLayout() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-
-  async function handleLogout() {
-    await logout();
-    navigate('/login', { replace: true });
-  }
-
   return (
-    <div className="flex min-h-screen bg-cream">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-end gap-4 border-b border-ink-100 bg-white px-6">
-          {user && (
-            <div className="hidden items-center gap-2 sm:flex">
-              <span className="text-sm text-ink-500">{user.mail}</span>
-              <RoleBadge role={user.platformRole} />
+    <ActiveProjectProvider>
+      <div className="flex min-h-screen flex-col bg-ink-50">
+        <TopBar />
+        <div className="flex min-h-0 flex-1">
+          <Sidebar />
+          <main className="min-w-0 flex-1 px-6 py-8">
+            <div className="mx-auto w-full max-w-5xl">
+              <Outlet />
             </div>
-          )}
-          <Button variant="ghost" onClick={handleLogout}>
-            Log out
-          </Button>
-        </header>
-        <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">
-          <Outlet />
-        </main>
+          </main>
+        </div>
       </div>
-    </div>
+    </ActiveProjectProvider>
   );
 }

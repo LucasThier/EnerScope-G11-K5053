@@ -19,6 +19,7 @@ import org.enerscope.organization.service.OrganizationService;
 import org.enerscope.session.model.Session;
 import org.enerscope.session.service.SessionService;
 import org.enerscope.user.model.User;
+import org.enerscope.user.model.enums.PlatformRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -106,6 +107,51 @@ class OrganizationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].name").value("Acme"));
+    }
+
+    // ---- listMembers -------------------------------------------------------
+
+    @Test
+    void listMembersReturnsMembersWithIdentityFields() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        User user = new User("maria@enerscope.org", "Maria", "Paz", "hashed", PlatformRole.USER,
+                "Senior Investment Analyst");
+        OrganizationMember member = new OrganizationMember(user, organization);
+        member.addRole(new OrganizationMemberRole(
+                OrganizationMemberType.MEMBER.name(), OrganizationMemberType.MEMBER,
+                Set.of(OrganizationMemberPermission.VIEW_ORGANIZATION)));
+        when(organizationService.listMembers(orgId)).thenReturn(List.of(member));
+
+        mockMvc.perform(get("/organizations/" + orgId + "/members")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].firstName").value("Maria"))
+                .andExpect(jsonPath("$.data[0].lastName").value("Paz"))
+                .andExpect(jsonPath("$.data[0].jobTitle").value("Senior Investment Analyst"))
+                .andExpect(jsonPath("$.data[0].active").value(true))
+                .andExpect(jsonPath("$.data[0].memberType").value("MEMBER"));
+    }
+
+    @Test
+    void listMembersRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(get("/organizations/" + UUID.randomUUID() + "/members"))
+                .andExpect(status().isUnauthorized());
+
+        verify(organizationService, never()).listMembers(any());
+    }
+
+    @Test
+    void listMembersPropagatesForbiddenWith403() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        when(organizationService.listMembers(orgId))
+                .thenThrow(new ForbiddenException("You are not allowed to view this organization"));
+
+        mockMvc.perform(get("/organizations/" + orgId + "/members")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
     }
 
     // ---- createOrganization ------------------------------------------------
@@ -202,7 +248,7 @@ class OrganizationControllerTest {
                         .header("Authorization", "Bearer " + ACCESS_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(new RegisterOrganizationUserRequestDTO(
-                                "new@enerscope.org", "New", "User", "password123"))))
+                                "new@enerscope.org", "New", "User", "password123", null))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("User registered into organization"))
@@ -219,7 +265,7 @@ class OrganizationControllerTest {
                         .header("Authorization", "Bearer " + ACCESS_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(new RegisterOrganizationUserRequestDTO(
-                                "new@enerscope.org", "New", "User", "password123"))))
+                                "new@enerscope.org", "New", "User", "password123", null))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false));
     }

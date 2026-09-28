@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -41,7 +42,7 @@ class UserServiceTest {
 
     @Test
     void registerHashesPasswordAndPersists() {
-        RegisterRequestDTO dto = new RegisterRequestDTO("New@Enerscope.org", "New", "User", "password123", null);
+        RegisterRequestDTO dto = new RegisterRequestDTO("New@Enerscope.org", "New", "User", "password123", null, null);
         when(userRepository.existsByMailIgnoreCase("New@Enerscope.org")).thenReturn(false);
         when(encoder.encode("password123")).thenReturn("hashed");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -55,7 +56,7 @@ class UserServiceTest {
 
     @Test
     void registerDefaultsToUserRoleWhenRoleOmitted() {
-        RegisterRequestDTO dto = new RegisterRequestDTO("new@enerscope.org", "New", "User", "password123", null);
+        RegisterRequestDTO dto = new RegisterRequestDTO("new@enerscope.org", "New", "User", "password123", null, null);
         when(userRepository.existsByMailIgnoreCase("new@enerscope.org")).thenReturn(false);
         when(encoder.encode("password123")).thenReturn("hashed");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -66,8 +67,30 @@ class UserServiceTest {
     }
 
     @Test
+    void registerPersistsJobTitle() {
+        RegisterRequestDTO dto = new RegisterRequestDTO(
+                "analyst@enerscope.org", "Maria", "Paz", "password123", null, "Senior Investment Analyst");
+        when(userRepository.existsByMailIgnoreCase("analyst@enerscope.org")).thenReturn(false);
+        when(encoder.encode("password123")).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertEquals("Senior Investment Analyst", userService.register(dto).getJobTitle());
+    }
+
+    @Test
+    void registerLeavesJobTitleNullWhenOmitted() {
+        RegisterRequestDTO dto = new RegisterRequestDTO(
+                "plain@enerscope.org", "Plain", "User", "password123", null, null);
+        when(userRepository.existsByMailIgnoreCase("plain@enerscope.org")).thenReturn(false);
+        when(encoder.encode("password123")).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertNull(userService.register(dto).getJobTitle());
+    }
+
+    @Test
     void registerHonorsExplicitAdminRole() {
-        RegisterRequestDTO dto = new RegisterRequestDTO("boss@enerscope.org", "Boss", "User", "password123", PlatformRole.ADMIN);
+        RegisterRequestDTO dto = new RegisterRequestDTO("boss@enerscope.org", "Boss", "User", "password123", PlatformRole.ADMIN, null);
         when(userRepository.existsByMailIgnoreCase("boss@enerscope.org")).thenReturn(false);
         when(encoder.encode("password123")).thenReturn("hashed");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -79,7 +102,7 @@ class UserServiceTest {
 
     @Test
     void registerRejectsDuplicateMail() {
-        RegisterRequestDTO dto = new RegisterRequestDTO("dup@enerscope.org", "Dup", "User", "password123", null);
+        RegisterRequestDTO dto = new RegisterRequestDTO("dup@enerscope.org", "Dup", "User", "password123", null, null);
         when(userRepository.existsByMailIgnoreCase("dup@enerscope.org")).thenReturn(true);
 
         assertThrows(IllegalArgumentException.class, () -> userService.register(dto));
