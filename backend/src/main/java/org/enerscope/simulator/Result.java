@@ -17,7 +17,7 @@ public class Result {
     @GeneratedValue(strategy = GenerationType.UUID)
     protected UUID id;
 
-    @Column(name = "year")
+    @Column(name = "simulation_year")
     private int year;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)

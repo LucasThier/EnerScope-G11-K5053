@@ -65,4 +65,42 @@ class EconomicControllerTest {
         mvc.perform(put(path+"/configuration").header("Authorization","Bearer test-token").contentType("application/json").content("{}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.success").value(false));
     }
+
+    @Test void allEvaluationEndpointsExposeIndicatorContract() throws Exception {
+        var result = new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator())
+                .calculate(EconomicExample.configuration(), EconomicExample.metrics());
+        var snapshot = new org.enerscope.economic.dto.EvaluationDTO.Snapshot(2, EconomicExample.configuration(), null, null, List.of(), result);
+        var dto = new org.enerscope.economic.dto.EvaluationDTO(UUID.randomUUID(), Instant.now(), snapshot);
+        when(service.evaluate(any(), any())).thenReturn(dto);
+        when(service.getEvaluation(any(), any(), any())).thenReturn(dto);
+        when(service.list(any(), any())).thenReturn(List.of(dto));
+        for (var request : List.of(post(path+"/evaluations"), get(path+"/evaluations/"+dto.id()))) {
+            mvc.perform(request.header("Authorization", "Bearer test-token"))
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.snapshot.schemaVersion").value(2))
+                    .andExpect(jsonPath("$.data.snapshot.result.npv").value(169.20))
+                    .andExpect(jsonPath("$.data.snapshot.result.indicators.irr.rate").value(0.1483447840))
+                    .andExpect(jsonPath("$.data.snapshot.result.indicators.irr.status").value("CALCULATED"))
+                    .andExpect(jsonPath("$.data.snapshot.result.indicators.simplePayback.period").value(4))
+                    .andExpect(jsonPath("$.data.snapshot.result.indicators.discountedPayback.year").value(2035))
+                    .andExpect(jsonPath("$.data.snapshot.result.indicators.origin").value("STORED"));
+        }
+        mvc.perform(get(path+"/evaluations").header("Authorization", "Bearer test-token"))
+                .andExpect(jsonPath("$.data[0].snapshot.result.indicators.calculationVersion").value(1));
+        verify(service, times(1)).evaluate(any(), any());
+    }
+
+    @Test void unavailableIndicatorsExposeNullInsteadOfZero() throws Exception {
+        var result = new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator())
+                .calculate(EconomicExample.configuration(), EconomicExample.metrics())
+                .withIndicators(new EconomicIndicatorsCalculator().insufficientData());
+        var snapshot = new org.enerscope.economic.dto.EvaluationDTO.Snapshot(1, EconomicExample.configuration(), null, null, List.of(), result);
+        when(service.getEvaluation(any(), any(), any())).thenReturn(new org.enerscope.economic.dto.EvaluationDTO(UUID.randomUUID(), Instant.now(), snapshot));
+        mvc.perform(get(path+"/evaluations/"+UUID.randomUUID()).header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.snapshot.result.indicators.irr.status").value("INSUFFICIENT_DATA"))
+                .andExpect(jsonPath("$.data.snapshot.result.indicators.irr.rate").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.snapshot.result.indicators.simplePayback.period").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.snapshot.result.indicators.discountedPayback.year").value(org.hamcrest.Matchers.nullValue()));
+    }
 }

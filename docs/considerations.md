@@ -250,3 +250,24 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   PDF. The old minimal-Version descriptions are superseded by the actual snapshot
   model. Run the explicit `PostgreSqlEconomicIT` suite against a disposable database
   in addition to `mvn test`; it must not target an existing application database.
+- 2026-09-28 — Economic snapshots now store IRR and simple/discounted annual-close
+  Payback (schemaVersion 2, calculationVersion 1). They reuse consolidated after-tax
+  cash flows and do not change physical simulation or hourly time. IRR uses bounded
+  DECIMAL128 bisection in the discount factor for conventional flows only; unsupported
+  or failed results have explicit statuses and null values, never a substitute zero.
+- 2026-09-28 — Historical snapshots without indicators are enriched only in memory,
+  from their saved complete annual series and saved WACC, for both list and detail.
+  This qualifies the earlier "history is not recomputed" convention: existing NPV,
+  taxes and flows are not recalculated, and persisted JSON is never changed. Response
+  schemaVersion continues to identify the stored document; indicator origin/version
+  identify the enrichment. Missing data is not obtained from current configuration.
+- 2026-09-28 — Payback reports the first annual closing balance >= 0, with no
+  interpolation, and flags a later negative cumulative balance within the horizon.
+  Discounted Payback uses unrounded present values, independently of display rounding.
+  No initial negative net cash flow means NOT_APPLICABLE.
+
+- 2026-09-28 - PostgreSQL validation exposed pre-existing Result.year and
+  ResultPerNode.nodeID column mismatches plus a broken HTTP fixture path. With
+  explicit user authorization, the mappings now match existing V8/V7 columns and
+  the fixture path points to existing resources. No migration or physical
+  simulation change was required. All 215 current backend cases pass.
