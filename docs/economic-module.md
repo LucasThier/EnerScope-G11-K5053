@@ -1,4 +1,4 @@
-# Economic module and reproducible NPV example
+# Economic module: NPV, IRR and Payback
 
 The economic module evaluates a **Version of a Project**. It consumes actual annual
 simulator quantities, generates auditable entries, computes income tax separately
@@ -10,8 +10,8 @@ automatically or add a frontend screen.
 
 `EconomicConfiguration` is a typed immutable record aggregate containing tax
 entities, boundary, node profiles/ownership, rules, contracts, assets, tax
-treatments and conversions. Nested records are domain value objects, not shared
-JPA entities. 
+treatments and conversions. The records in `economic/model/configuration` are
+owned domain value objects, not shared JPA entities.
 
 `EconomicConfigurationEntity` stores the complete validated aggregate
 as JSON text with a unique Version foreign key and an optimistic-lock revision.
@@ -20,7 +20,8 @@ cross-reference validation. There is no unvalidated arbitrary JSON calculation p
 
 `EconomicEvaluation` stores an independent immutable JSON snapshot: schema version,
 configuration, physical node/connection parameters, raw annual metrics, converted
-metrics, generated entries, tax ledgers, period results, outstanding balances and NPV.
+metrics, generated entries, tax ledgers, period results, outstanding balances, NPV
+and economic indicators. New evaluations use snapshot schema version 2.
 Each evaluation gets a new UUID. Editing the configuration never rewrites history.
 Configurations are not automatically inherited by child versions. When explicitly
 copying a configuration, replace its node IDs with the destination version's IDs.
@@ -135,6 +136,125 @@ non-deductible/non-taxable cash rules; do not duplicate balances already generat
 by delayed invoice dates. Receivables, payables and taxes due after the horizon are
 reported as `pendingBalances`, without assumed terminal collection.
 
+## Annual IRR and Payback
+
+All indicators use the same consolidated, after-tax `PeriodEconomicResult.cashFlow`
+as NPV, including the initial investment at `t=0` and explicit zero-flow years.
+No future collection or terminal value is inferred. Operational time remains hourly:
+`EconomicSimulationAdapter` converts the operating horizon to `years * 365 * 24`
+hours. Indicators operate on **annual economic periods**, not hourly observations.
+An operating hour is not an economic discount period.
+
+### IRR (TIR)
+
+```text
+0 = sum(cashFlow[t] / (1 + r)^t), t=0..N
+x = 1 / (1 + r), x > 0
+P(x) = cashFlow[0] + cashFlow[1]*x + ... + cashFlow[N]*x^N
+r = 1/x - 1
+```
+
+Version 1 supports conventional flows: initial net investment strictly negative,
+all subsequent flows nonnegative, and at least one positive. On that domain P(x)
+is strictly increasing for positive x, with exactly one positive root. IRR may be
+negative, zero or positive and is independent of WACC. Already discounted flows
+must never be used as IRR input.
+
+`EconomicIndicatorsCalculator` evaluates P with Horner and DECIMAL128 arithmetic.
+The initial interval is [0,1]; its upper bound is doubled at most 256 times until
+P is nonnegative. Bisection runs at most 512 iterations. Both conditions must hold:
+
+- `(upper - lower) / x < 1e-24`;
+- `abs(P(x)) / abs(cashFlow[0]) < 1e-20`.
+
+An exact polynomial zero collapses the bracket and satisfies both conditions.
+An exhausted limit or arithmetic failure yields `NUMERICAL_FAILURE`. These bounded
+limits can reject extreme but otherwise conventional flows; they never select a
+root arbitrarily. Successful `rate` is a fraction rounded to ten decimals with
+HALF_UP (0.10 means 10%). A negative rate close enough to -1 may round to -1 at this
+public precision; calculation itself always uses x > 0 and r > -1.
+
+| `IrrStatus` | Meaning |
+|---|---|
+| `CALCULATED` | `rate` contains the annual IRR, including legitimate zero |
+| `NO_SIGN_CHANGE` | Flows do not contain both a strictly positive and a strictly negative value |
+| `NON_CONVENTIONAL` | Opposite signs exist, but the supported investment pattern is absent; this does not assert multiple roots |
+| `NUMERICAL_FAILURE` | The bounded numerical solver did not converge or arithmetic failed |
+| `INSUFFICIENT_DATA` | Required annual flows or period information are unavailable |
+
+All statuses other than `CALCULATED` have `rate: null`, never a placeholder zero.
+
+### Simple and discounted Payback
+
+```text
+simpleCumulative[t] = sum(cashFlow[k]), k=0..t
+discountedCumulative[t] = sum(cashFlow[k] / (1 + WACC)^k), k=0..t
+```
+
+The recovery period is the **first annual close** with cumulative cash >= 0.
+Its calendar year is the saved period's `year`. No fractional-year interpolation
+is performed. Discounted Payback recalculates present values with DECIMAL128 and
+accumulates them without monetary rounding; it ignores the rounded display field
+`discountedCashFlow`. Both Paybacks coincide when WACC is zero.
+
+If a later cumulative balance falls below zero, `becomesNegativeAgain` is true;
+the first recovery date is retained. This flag only describes the saved horizon.
+
+| `PaybackStatus` | Meaning |
+|---|---|
+| `RECOVERED` | `period` and `year` identify the first recovery close |
+| `NOT_RECOVERED_WITHIN_HORIZON` | No recovery within the observed years |
+| `NOT_APPLICABLE` | Initial cash flow is nonnegative, so there is no initial net investment under this definition |
+| `INSUFFICIENT_DATA` | Required flows are absent; discounted Payback also needs a valid saved WACC |
+| `NUMERICAL_FAILURE` | Discount arithmetic could not be completed |
+
+Uncomputed Paybacks have null `period` and `year`. Their `becomesNegativeAgain`
+value is false because no recovery was established, not a forecast beyond the horizon.
+
+### Classes and execution
+
+| Class / enum | Responsibility |
+|---|---|
+| `EconomicIndicatorsCalculator` | Pure service: `calculate(periods, wacc)` and `insufficientData()`; no persistence or simulator access |
+| `EconomicIndicators` | `irr`, `simplePayback`, `discountedPayback`, `calculationVersion`, `origin`; `withOrigin` returns a new immutable value |
+| `IrrResult` | `status`, nullable `rate` |
+| `PaybackResult` | `status`, nullable `period` and `year`, `becomesNegativeAgain` |
+| `IrrStatus`, `PaybackStatus` | Explicit calculation outcomes, listed above |
+| `IndicatorOrigin` | `STORED` or `DERIVED_FROM_SNAPSHOT` |
+| `EconomicResult` | Existing fields including `npv`, plus `indicators`; `withIndicators` preserves the original financial data |
+
+Result records live in `economic/model/results`, enums in `economic/model/enums`,
+and the calculator in `economic/service`. `EconomicEngine` invokes the calculator
+once after constructing all annual flows. `EconomicService.evaluate` runs exactly
+one simulation, then the engine, then persists one independent evaluation. An
+unavailable indicator never invalidates NPV or prevents saving the evaluation.
+Numerical failures on new evaluations are logged through `AppLogger` as warnings.
+
+The future **Simular** action will call the existing `POST /evaluations` endpoint
+and receive NPV, IRR and both Paybacks in one response. No screens, extra endpoints,
+tables or indicator-specific SQL migrations are introduced.
+
+### Snapshot versions and historical reads
+
+New snapshots have `schemaVersion: 2`; their indicator block has
+`calculationVersion: 1` and `origin: "STORED"`. Indicators already present in a
+snapshot are returned as stored, without recalculation.
+
+When indicators are absent or null, both GET detail and GET list derive them in
+memory from the saved annual periods and **saved** WACC. They never invoke the
+simulator, fetch the current economic configuration, or update the historical JSON.
+`origin` becomes `DERIVED_FROM_SNAPSHOT`; `calculationVersion` identifies the
+algorithm used for that derivation. The original `schemaVersion` remains unchanged:
+it describes the **persisted document**, even when the response is enriched.
+
+The saved configuration must identify the initial year and full horizon. Periods
+must contain numeric period/year/cashFlow fields, cover 0..N in order and have
+consecutive calendar years. Missing, truncated or inconsistent data yields
+`INSUFFICIENT_DATA`; no omitted year is silently filled with zero. Missing WACC
+prevents discounted Payback only, if flows and their horizon remain complete.
+Missing configuration or result makes all three indicators insufficient. Existing
+NPV and all other saved result fields remain untouched.
+
 ## API
 
 All routes use `/api/v1/projects/{projectId}/versions/{versionId}/economics`.
@@ -223,6 +343,69 @@ configuration and evaluates it. It does not modify an existing version.
 For a version already containing the example nodes, replace the two fixture UUIDs in
 the JSON and issue the `PUT /configuration`, then `POST /evaluations` with an empty
 body. `snapshot.result.periods` contains the table; `snapshot.result.npv` is 169.20.
+No extra input field is needed to request IRR or Payback.
+
+The example additionally produces:
+
+| Indicator | Expected result |
+|---|---:|
+| Annual IRR before public rounding | 14.8344784041311...% |
+| API IRR fraction, ten decimals | 0.1483447840 |
+| Simple Payback | Period 4, year 2034 |
+| Discounted Payback | Period 5, year 2035 |
+| Negative again after recovery | false for both |
+
+| Period / year | Simple cumulative cash | Discounted cumulative cash (display only) |
+|---|---:|---:|
+| 0 / 2030 | -1,080 | -1,080.00 |
+| 1 / 2031 | -1,055 | -1,057.27 |
+| 2 / 2032 | -673 | -741.57 |
+| 3 / 2033 | -222 | -402.73 |
+| 4 / 2034 | 169 | -135.67 |
+| 5 / 2035 | 660 | 169.20 |
+
+The new response keeps the `ApiResponse` envelope and existing snapshot fields.
+This is the relevant result fragment (other fields omitted for readability):
+
+```json
+{
+  "schemaVersion": 2,
+  "result": {
+    "npv": 169.20,
+    "indicators": {
+      "irr": { "status": "CALCULATED", "rate": 0.1483447840 },
+      "simplePayback": {
+        "status": "RECOVERED", "period": 4, "year": 2034,
+        "becomesNegativeAgain": false
+      },
+      "discountedPayback": {
+        "status": "RECOVERED", "period": 5, "year": 2035,
+        "becomesNegativeAgain": false
+      },
+      "calculationVersion": 1,
+      "origin": "STORED"
+    }
+  }
+}
+```
+
+An unsupported IRR is instead, for example,
+`{"status":"NON_CONVENTIONAL","rate":null}`. An unrecovered Payback is
+`{"status":"NOT_RECOVERED_WITHIN_HORIZON","period":null,"year":null,"becomesNegativeAgain":false}`.
+A version-1 historical snapshot may return this same indicator shape with
+`schemaVersion: 1` and `origin: "DERIVED_FROM_SNAPSHOT"`.
+
+To inspect all indicators after the existing example has been configured:
+
+```powershell
+$base = "http://localhost:8080/api/v1/projects/$projectId/versions/$versionId/economics"
+$headers = @{ Authorization = "Bearer $token" }
+$evaluation = Invoke-RestMethod -Method Post -Uri "$base/evaluations" -Headers $headers
+$evaluation.data.snapshot.result.indicators
+$id = $evaluation.data.id
+Invoke-RestMethod -Uri "$base/evaluations/$id" -Headers $headers
+Invoke-RestMethod -Uri "$base/evaluations" -Headers $headers
+```
 
 ## Verification and migrations
 
@@ -259,3 +442,17 @@ case creates the version and wells using the same JSON fixture as the PowerShell
 script, then saves and evaluates the configuration and asserts NPV 169.20. The PDF's
 eight pages were rendered and visually inspected. PostgreSQL verification used a
 temporary local PostgreSQL 16 instance, not the application's existing database.
+
+
+Verified on 2026-09-28 for IRR/Payback: **212 default tests and 3 explicit PostgreSQL
+cases**, no failures, errors or skips; `npm run build` successful. PostgreSQL uses
+Flyway and Hibernate schema validation against the disposable test database. The
+HTTP example asserts the IRR; persistence tests verify stored indicators, original
+WACC and historical JSON immutability. No migration was needed for the indicators.
+
+Pre-existing integration blockers were corrected with explicit authorization:
+`Result.year` maps to V8 `simulation_year`, `ResultPerNode.nodeID` maps to V7
+`node_id`, and the PostgreSQL HTTP fixture uses its existing resources path.
+These are persistence/test fixes, with no changes to the simulator's hourly behavior.
+The earlier Draw.io/PDF artifacts predate these indicator classes; the class table
+in this document describes the current indicator implementation.

@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.enerscope.economic.service.EconomicExample.*;
 
 class EconomicEngineTest {
-    private final EconomicEngine engine = new EconomicEngine(new EconomicValidator());
+    private final EconomicEngine engine = new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator());
 
     private EconomicResult run(EconomicConfiguration c) {
         return engine.calculate(c, metrics());

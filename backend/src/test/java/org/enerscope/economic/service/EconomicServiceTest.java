@@ -26,8 +26,9 @@ class EconomicServiceTest {
     final ProjectRepository projects=mock(ProjectRepository.class);
     final EconomicConfigurationRepository configs=mock(EconomicConfigurationRepository.class);
     final EconomicEvaluationRepository evaluations=mock(EconomicEvaluationRepository.class);
-    final EconomicService service=new EconomicService(projects,configs,evaluations,new EconomicValidator(),new EconomicEngine(new EconomicValidator()),
-            new EconomicSimulationAdapter(),MAPPER,mock(AppLogger.class));
+    final EconomicSimulationAdapter simulator=spy(new EconomicSimulationAdapter());
+    final EconomicService service=new EconomicService(projects,configs,evaluations,new EconomicValidator(),new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator()),
+            new EconomicIndicatorsCalculator(), simulator,MAPPER,mock(AppLogger.class));
     final UUID projectId=UUID.randomUUID(); final varHolder holder=new varHolder();
     static class varHolder { final org.enerscope.version.model.Version version=version(); }
     Project project; User user;
@@ -96,5 +97,112 @@ class EconomicServiceTest {
         grant(ProjectMemberPermission.VIEW_PROJECT);UUID evaluation=UUID.randomUUID();
         assertThrows(EntityNotFoundException.class,()->service.getEvaluation(projectId,holder.version.getId(),evaluation));
         verify(evaluations).findByIdAndVersionId(evaluation,holder.version.getId());
+    }
+
+    @Test void newEvaluationStoresVersionTwoAndSimulatesOnce() throws Exception {
+        grant(ProjectMemberPermission.EDIT_PROJECT);
+        when(configs.findByVersionId(holder.version.getId())).thenReturn(Optional.of(
+                new EconomicConfigurationEntity(holder.version, MAPPER.writeValueAsString(configuration()))));
+        when(evaluations.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+        var evaluation = service.evaluate(projectId, holder.version.getId());
+        assertEquals(2, evaluation.snapshot().schemaVersion());
+        assertEquals(new java.math.BigDecimal("0.1483447840"), evaluation.snapshot().result().indicators().irr().rate());
+        verify(simulator, times(1)).simulate(holder.version, configuration());
+        var captor = org.mockito.ArgumentCaptor.forClass(EconomicEvaluation.class);
+        verify(evaluations).saveAndFlush(captor.capture());
+        var stored = MAPPER.readTree(captor.getValue().getSnapshotJson());
+        assertEquals("STORED", stored.at("/result/indicators/origin").asText());
+        assertEquals(2, stored.path("schemaVersion").asInt());
+    }
+
+    private EconomicEvaluation historical(java.util.function.Consumer<com.fasterxml.jackson.databind.node.ObjectNode> change) {
+        var result = new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator()).calculate(configuration(), metrics());
+        var snapshot = new org.enerscope.economic.dto.EvaluationDTO.Snapshot(1, configuration(), null, null, List.of(), result);
+        com.fasterxml.jackson.databind.node.ObjectNode tree = MAPPER.valueToTree(snapshot);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) tree.get("result")).remove("indicators");
+        change.accept(tree);
+        var entity = new EconomicEvaluation(holder.version, tree.toString());
+        when(evaluations.findByIdAndVersionId(entity.getId(), holder.version.getId())).thenReturn(Optional.of(entity));
+        when(evaluations.findByVersionIdOrderByCreatedAtDesc(holder.version.getId())).thenReturn(List.of(entity));
+        return entity;
+    }
+
+    @Test void historyDerivesFromSnapshotWithoutSimulationConfigurationLookupOrWrites() {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        var entity = historical(tree -> {});
+        String original = entity.getSnapshotJson();
+        var single = service.getEvaluation(projectId, holder.version.getId(), entity.getId());
+        var listed = service.list(projectId, holder.version.getId()).getFirst();
+        assertEquals(single.snapshot(), listed.snapshot());
+        assertEquals(1, single.snapshot().schemaVersion());
+        var indicators = single.snapshot().result().indicators();
+        assertEquals(org.enerscope.economic.model.enums.IndicatorOrigin.DERIVED_FROM_SNAPSHOT, indicators.origin());
+        assertEquals(new java.math.BigDecimal("0.1483447840"), indicators.irr().rate());
+        assertEquals(5, indicators.discountedPayback().period());
+        assertEquals(original, entity.getSnapshotJson());
+        verifyNoInteractions(configs, simulator);
+        verify(evaluations).findByIdAndVersionId(entity.getId(), holder.version.getId());
+        verify(evaluations).findByVersionIdOrderByCreatedAtDesc(holder.version.getId());
+        verifyNoMoreInteractions(evaluations);
+    }
+
+    @Test void truncatedHistoryReturnsInsufficientDataWithoutFillingMissingYears() {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        var entity = historical(tree -> ((com.fasterxml.jackson.databind.node.ArrayNode)tree.at("/result/periods")).remove(5));
+        var result = service.getEvaluation(projectId, holder.version.getId(), entity.getId()).snapshot().result();
+        assertEquals(org.enerscope.economic.model.enums.IrrStatus.INSUFFICIENT_DATA, result.indicators().irr().status());
+        assertEquals(5, result.periods().size());
+        assertEquals(0, new java.math.BigDecimal("169.20").compareTo(result.npv()));
+        verifyNoInteractions(configs, simulator);
+    }
+
+    @Test void missingHistoricalResultOrConfigurationReturnsInsufficientData() {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        for (String field : List.of("result", "configuration")) {
+            var entity = historical(tree -> tree.remove(field));
+            var result = service.getEvaluation(projectId, holder.version.getId(), entity.getId()).snapshot().result();
+            assertEquals(org.enerscope.economic.model.enums.IrrStatus.INSUFFICIENT_DATA, result.indicators().irr().status());
+        }
+        verifyNoInteractions(configs, simulator);
+    }
+
+    @Test void storedIndicatorsAreReturnedWithoutRecalculation() {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        var entity = historical(tree -> {
+            var original = new EconomicIndicatorsCalculator().calculate(EconomicIndicatorsCalculatorTest.periods("-100", "200"), java.math.BigDecimal.ZERO);
+            ((com.fasterxml.jackson.databind.node.ObjectNode)tree.get("result")).set("indicators", MAPPER.valueToTree(original));
+        });
+        var result = service.getEvaluation(projectId, holder.version.getId(), entity.getId()).snapshot().result();
+        assertEquals(0, new java.math.BigDecimal("1.0000000000").compareTo(result.indicators().irr().rate()));
+        assertEquals(org.enerscope.economic.model.enums.IndicatorOrigin.STORED, result.indicators().origin());
+        verifyNoInteractions(configs, simulator);
+    }
+
+    @Test void absentHistoricalPeriodFieldsDoNotBecomeDefaultZeroes() {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        for (String field : List.of("period", "year", "cashFlow")) {
+            var entity = historical(tree -> ((com.fasterxml.jackson.databind.node.ObjectNode)tree.at("/result/periods/0")).remove(field));
+            var result = service.getEvaluation(projectId, holder.version.getId(), entity.getId()).snapshot().result();
+            assertEquals(org.enerscope.economic.model.enums.IrrStatus.INSUFFICIENT_DATA, result.indicators().irr().status());
+        }
+    }
+
+    @Test void missingHistoricalWaccDoesNotUseCurrentConfiguration() {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        var entity = historical(tree -> ((com.fasterxml.jackson.databind.node.ObjectNode)tree.path("configuration")).remove("wacc"));
+        var indicators = service.getEvaluation(projectId, holder.version.getId(), entity.getId()).snapshot().result().indicators();
+        assertEquals(org.enerscope.economic.model.enums.IrrStatus.CALCULATED, indicators.irr().status());
+        assertEquals(org.enerscope.economic.model.enums.PaybackStatus.INSUFFICIENT_DATA, indicators.discountedPayback().status());
+        assertEquals(4, indicators.simplePayback().period());
+        verifyNoInteractions(configs, simulator);
+    }
+
+    @Test void absentHistoricalPeriodsAreInsufficientInListAndDetail() {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        var entity = historical(tree -> ((com.fasterxml.jackson.databind.node.ObjectNode)tree.path("result")).remove("periods"));
+        var single = service.getEvaluation(projectId, holder.version.getId(), entity.getId());
+        assertEquals(org.enerscope.economic.model.enums.IrrStatus.INSUFFICIENT_DATA, single.snapshot().result().indicators().irr().status());
+        assertEquals(single.snapshot(), service.list(projectId, holder.version.getId()).getFirst().snapshot());
+        verifyNoInteractions(configs, simulator);
     }
 }

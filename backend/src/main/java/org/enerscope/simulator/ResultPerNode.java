@@ -15,7 +15,7 @@ public class ResultPerNode {
     @GeneratedValue(strategy = GenerationType.UUID)
     protected UUID id;
 
-    @Column(name = "nodeID")
+    @Column(name = "node_id")
     private UUID nodeID;
     @Column(name = "nodeClass", length = 100)
     private String nodeClass;

@@ -16,7 +16,7 @@ class EconomicSimulationAdapterTest {
         assertEquals(0,new BigDecimal("8760").compareTo(raw.operatingHours()));
         var expansion=first.rawMetrics().stream().filter(m->m.nodeId().equals(SECOND)&&m.period()==1).findFirst().orElseThrow();
         assertEquals(0,expansion.output().signum());
-        var result=new EconomicEngine(new EconomicValidator()).calculate(configuration(),first.metrics());
+        var result=new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator()).calculate(configuration(),first.metrics());
         assertEquals(new BigDecimal("169.20"),result.npv());
     }
     @Test void unknownRawUnitsAreRejected() {

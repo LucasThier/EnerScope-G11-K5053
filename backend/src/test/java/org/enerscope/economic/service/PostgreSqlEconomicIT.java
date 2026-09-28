@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
 import jakarta.persistence.EntityManager;
-import org.enerscope.economic.model.EconomicConfiguration;
+import org.enerscope.economic.model.configuration.EconomicConfiguration;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.*;
 import org.enerscope.node.model.extraction.Well;
@@ -55,7 +55,7 @@ class PostgreSqlEconomicIT {
         String versionId=MAPPER.readTree(response.getResponse().getContentAsString()).path("data").path("id").asText();
         String config=MAPPER.writeValueAsString(configuration());
         for(int i=0;i<2;i++) {
-            var node=(com.fasterxml.jackson.databind.node.ObjectNode)MAPPER.readTree(java.nio.file.Files.readString(java.nio.file.Path.of("../backend/src/test/resouces/economic_resources_examples/economic-well.json")));
+            var node=(com.fasterxml.jackson.databind.node.ObjectNode)MAPPER.readTree(java.nio.file.Files.readString(java.nio.file.Path.of("src/test/resources/economic-examples/economic-well.json")));
             node.put("startupDate",i==0 ? "2031-01-01T00:00:00Z" : "2032-01-01T00:00:00Z");
             node.put("maxCollectionCapacity",i==0 ? 100 : 500);
             var created=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/version/"+versionId+"/node")
@@ -71,7 +71,8 @@ class PostgreSqlEconomicIT {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(economic+"/evaluations")
                 .header("Authorization","Bearer "+token))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.snapshot.result.npv").value(169.20));
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.snapshot.result.npv").value(169.20))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.snapshot.result.indicators.irr.rate").value(0.1483447840));
     }
 
     @Test void migrationsValidateAndEconomicSnapshotSurvivesReloadAndConfigurationChanges() throws Exception {
@@ -101,6 +102,10 @@ class PostgreSqlEconomicIT {
         UUID projectId=project.getId(), versionId=version.getId();em.flush();em.clear();
         var loaded=service.getEvaluation(projectId,versionId,evaluation.id());
         assertEquals(new BigDecimal("169.20"),loaded.snapshot().result().npv());
+        assertEquals(2, loaded.snapshot().schemaVersion());
+        assertEquals(evaluation.snapshot().result().indicators(), loaded.snapshot().result().indicators());
+        assertEquals(org.enerscope.economic.model.enums.IndicatorOrigin.STORED, loaded.snapshot().result().indicators().origin());
+        assertEquals(5, loaded.snapshot().result().indicators().discountedPayback().period());
         assertEquals(0,new BigDecimal("0.1").compareTo(loaded.snapshot().configuration().wacc()));
         assertEquals(0,service.get(projectId,versionId).wacc().signum());
         assertEquals(1,service.list(projectId,versionId).size());
@@ -109,5 +114,38 @@ class PostgreSqlEconomicIT {
         result.addAllResultPerNodes(List.of(new org.enerscope.simulator.ResultPerNode(nodes.getFirst().getId(),"Well",1,0,1)));
         stored.addResult(result);em.flush();em.clear();
         assertEquals(1,em.find(Version.class,versionId).getResults().getFirst().getResultPerNodes().size());
+    }
+
+    @Test void historicalIndicatorsAreDerivedWithoutUpdatingPersistedJson() throws Exception {
+        Organization organization = new Organization("Historical indicators"); em.persist(organization);
+        Version version = new Version("Historical indicators", null, List.of(), List.of(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        em.persist(version);
+        Project project = new Project("Historical indicators", "Disposable fixture", organization);
+        project.addVersion(version); em.persist(project);
+        var result = new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator()).calculate(configuration(), metrics());
+        var snapshot = new org.enerscope.economic.dto.EvaluationDTO.Snapshot(1, configuration(), null, null, List.of(), result);
+        com.fasterxml.jackson.databind.node.ObjectNode tree = MAPPER.valueToTree(snapshot);
+        ((com.fasterxml.jackson.databind.node.ObjectNode)tree.path("result")).remove("indicators");
+        String original = tree.toString();
+        var stored = new org.enerscope.economic.model.EconomicEvaluation(version, original); em.persist(stored);
+        // The current configuration deliberately has a different WACC.
+        var current = mutate(c -> c.put("wacc", 0));
+        em.persist(new org.enerscope.economic.model.EconomicConfigurationEntity(version, MAPPER.writeValueAsString(current)));
+        em.flush();
+        UUID projectId = project.getId(), versionId = version.getId(), evaluationId = stored.getId(); em.clear();
+        var caller = User.fromJwtClaims(UUID.randomUUID(), "history@example.com", "History", "Admin", PlatformRole.ADMIN);
+        var auth = new UsernamePasswordAuthenticationToken(caller.getId(), null, List.of());
+        auth.setDetails(new Session("test", caller, Instant.now().plusSeconds(3600)));
+        SecurityContextHolder.getContext().setAuthentication(auth);
+        var single = service.getEvaluation(projectId, versionId, evaluationId);
+        var listed = service.list(projectId, versionId).getFirst();
+        assertEquals(single.snapshot(), listed.snapshot());
+        assertEquals(1, single.snapshot().schemaVersion());
+        assertEquals(org.enerscope.economic.model.enums.IndicatorOrigin.DERIVED_FROM_SNAPSHOT, single.snapshot().result().indicators().origin());
+        assertEquals(5, single.snapshot().result().indicators().discountedPayback().period());
+        assertEquals(new BigDecimal("0.1483447840"), single.snapshot().result().indicators().irr().rate());
+        assertEquals(0, single.snapshot().configuration().wacc().compareTo(new BigDecimal("0.1")));
+        em.flush(); em.clear();
+        assertEquals(original, em.find(org.enerscope.economic.model.EconomicEvaluation.class, evaluationId).getSnapshotJson());
     }
 }

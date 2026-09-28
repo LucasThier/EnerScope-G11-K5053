@@ -21,7 +21,11 @@ public class EconomicEngine {
     private static final BigDecimal ZERO = BigDecimal.ZERO;
     private static final MathContext MC = MathContext.DECIMAL128;
     private final EconomicValidator validator;
-    public EconomicEngine(EconomicValidator validator) { this.validator = validator; }
+    private final EconomicIndicatorsCalculator indicators;
+    public EconomicEngine(EconomicValidator validator, EconomicIndicatorsCalculator indicators) {
+        this.validator = validator;
+        this.indicators = indicators;
+    }
 
     public EconomicResult calculate(EconomicConfiguration c, List<OperationalMetric> metrics) {
         require(c != null && c.nodeProfiles() != null, "Configuration and profiles required");
@@ -89,7 +93,7 @@ public class EconomicEngine {
             pending.add(new PendingBalance(e.id(), e.taxEntityId(), e.direction() == Direction.INCOME ? "RECEIVABLE" : "PAYABLE", e.amount(), e.cashDate()));
         for (EntityTaxResult t : taxes) if (c.boundary().contains(t.taxEntityId()) && t.paymentYear() > end && t.tax().signum() > 0)
             pending.add(new PendingBalance("tax:" + t.year(), t.taxEntityId(), "TAX_PAYABLE", t.tax(), LocalDate.of(t.paymentYear(), 12, 31)));
-        return new EconomicResult(List.copyOf(entries), List.copyOf(metrics), List.copyOf(periods), List.copyOf(taxes), List.copyOf(pending), money(npv));
+        return new EconomicResult(List.copyOf(entries), List.copyOf(metrics), List.copyOf(periods), List.copyOf(taxes), List.copyOf(pending), money(npv), indicators.calculate(periods, c.wacc()));
     }
 
     private void generate(EconomicConfiguration c, EconomicRule r, UUID nodeId, String contract,
