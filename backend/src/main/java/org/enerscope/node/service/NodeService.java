@@ -269,7 +269,7 @@ public class NodeService {
       return saved;
    }
 
-   public IndustrialConsumption saveInternalConsumption(IndustrialConsumptionDTO data) {
+   public IndustrialConsumption saveIndustrialConsumption(IndustrialConsumptionDTO data) {
       IndustrialConsumption industrialConsumption = new IndustrialConsumption(data.getName(), data.getState(), data.getStartupDate(),
               data.getLifespanInMonths(),
               MoneyAmount.of(data.getUpkeepCosts()),
