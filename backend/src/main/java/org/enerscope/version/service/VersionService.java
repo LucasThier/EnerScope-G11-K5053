@@ -106,7 +106,7 @@ public class VersionService {
                 parentVersion,
                 nodeSnapshot,
                 connectionSnapshot,
-                new ArrayList<>(), new ArrayList<>());
+                new ArrayList<>(), new ArrayList<>(),new ArrayList<>());
 
         Version saved = versionRepository.save(version);
 
