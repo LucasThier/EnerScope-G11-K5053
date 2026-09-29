@@ -255,7 +255,7 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   regular users: Workspace); `PanelLayout`/`AdminPanel`/`UserPanel` were removed.
 - 2026-09-08 — Groundwork for the Vistas module (SCRUM-158/159/160). Three
   changes, scoped deliberately narrow:
-  - **`User.jobTitle`** (`V7__add_job_title.sql`, nullable `VARCHAR(120)`).
+  - **`User.jobTitle`** (`V8__add_job_title.sql`, nullable `VARCHAR(120)`).
     Optional on both registration DTOs and surfaced through `UserSummaryDTO`, so
     the top bar renders the user's title from the login/refresh payload with no
     extra call. It is **not** a JWT claim: `POST /auth/refresh` reloads the user
