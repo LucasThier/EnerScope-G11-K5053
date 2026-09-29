@@ -14,7 +14,6 @@ import org.enerscope.node.model.NodeGraphData;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
 import org.enerscope.node.model.enums.NodeStateEnum;
-import org.enerscope.probabilistic.ConstantValue;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -126,7 +125,7 @@ class VersionServiceTest {
                 nodeId, // identity
                 new NodeTypeData(), // type
                 100.0f, // maxCollectionCapacity
-                new ConstantValue(0.5f), // decline_curve
+                0.5f, // decline_curve
                 0.8f, // gasRichness
                 10, // DTMTime
                 MoneyAmount.of(5000), // DTMCost
@@ -197,7 +196,7 @@ class VersionServiceTest {
                 nodeId, // identity
                 new NodeTypeData(), // type
                 100.0f, // maxCollectionCapacity
-                new ConstantValue(0.5f), // decline_curve
+                0.5f, // decline_curve
                 0.8f, // gasRichness
                 10, // DTMTime
                 MoneyAmount.of(5000), // DTMCost
@@ -276,7 +275,7 @@ class VersionServiceTest {
                 nodeId, // identity
                 new NodeTypeData(), // type
                 100.0f, // maxCollectionCapacity
-                new ConstantValue(0.5f), // decline_curve
+                0.5f, // decline_curve
                 0.8f, // gasRichness
                 10, // DTMTime
                 MoneyAmount.of(5000), // DTMCost
@@ -399,7 +398,7 @@ class VersionServiceTest {
                 UUID.randomUUID(), // identity
                 new NodeTypeData(), // type
                 100.0f, // maxCollectionCapacity
-                new ConstantValue(0.5f), // decline_curve
+                0.5f, // decline_curve
                 0.8f, // gasRichness
                 10, // DTMTime
                 MoneyAmount.of(5000), // DTMCost

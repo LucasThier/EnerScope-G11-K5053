@@ -55,10 +55,4 @@ public class SimPipeline extends SimBaseNode{
         result.setExtra(totalLost);
         return result;
     }
-
-    @Override
-    public void reset() {
-        super.reset();
-        totalLost = 0;
-    }
 }
