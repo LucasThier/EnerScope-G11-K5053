@@ -54,10 +54,4 @@ public class SimGatheringNetwork extends SimBaseNode{
         resultPerNode.setExtra(totalLoss);
         return resultPerNode;
     }
-
-    @Override
-    public void reset() {
-        super.reset();
-        totalLoss = 0;
-    }
 }
