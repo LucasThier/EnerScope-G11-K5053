@@ -1,7 +1,7 @@
 package org.enerscope.version.model;
 
 import java.util.List;
-
+    
 import org.enerscope.common.BaseEntity;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.ConnectionChange;
