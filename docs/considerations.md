@@ -758,3 +758,13 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     (name, mail, job title, translated role), and the empty state. Note the
     projects created before the `createProject` fix show **0 members** — they
     are pre-fix data, not a defect in the current code.
+
+- 2026-09-29 — **Duplicate Flyway versions can still reach `master`.** The
+  `migrations` CI job validates the PR merge ref only at the time it runs, so
+  two PRs that each add `V<n>` pass independently and then collide once both
+  merge. Fix on the repo side: the job now also runs on `merge_group` and its
+  glob is case-insensitive (`.SQL` files were skipped). **Needs a repo admin:**
+  in branch protection for `master` enable *Require branches to be up to date
+  before merging* (or a merge queue) and mark `Flyway migrations check` as a
+  required status check. Existing collision: two `V7__*` files (`add_job_title`
+  and `create_results`) must be renumbered before CI can go green.

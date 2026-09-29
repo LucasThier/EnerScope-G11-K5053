@@ -5,6 +5,10 @@ on:
     branches: [master, main]
   pull_request:
     branches: [master, main]
+  # Required for GitHub merge queue: the check must re-run on the exact
+  # result of merging the PR into the latest base, otherwise two PRs that
+  # each pass alone can still collide on the same migration version.
+  merge_group:
 
 jobs:
   migrations:
@@ -14,6 +18,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Deliberately no path filter: this must run on every PR/merge-group
+      # so a migration added later (or on another PR) is always compared.
       - name: Validate migration versions are unique and well-formed
         run: |
           MIG_DIR="backend/src/main/resources/db/migration"
@@ -24,7 +30,7 @@ jobs:
 
           fail=0
           declare -A seen
-          shopt -s nullglob
+          shopt -s nullglob nocaseglob   # also catch V1__x.SQL style names
 
           for f in "$MIG_DIR"/*.sql; do
             base=$(basename "$f")
