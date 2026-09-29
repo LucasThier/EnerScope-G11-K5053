@@ -11,6 +11,7 @@ import org.enerscope.node.model.NodeGraphData;
 import java.util.UUID;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.enums.NodeStateEnum;
+import org.enerscope.probabilistic.ProbabilisticDistribution;
 
 @Entity
 @Getter
@@ -22,8 +23,9 @@ public class Well extends ExtractionNode {
     @Column(name = "max_collection_capacity")
     private float maxCollectionCapacity;
 
-    @Column(name = "decline_curve")
-    private float declineCurve;
+    @ManyToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "decline_curve_id")
+    private ProbabilisticDistribution declineCurve;
 
     @DecimalMin("0.0")
     @DecimalMax("1.0")
@@ -44,7 +46,7 @@ public class Well extends ExtractionNode {
             int maintenanceIntervalInDays, MoneyAmount operatingCosts,
             float wastePercentage, InvestmentCost investmentCost,
             NodeGraphData graphData, UUID identity, NodeTypeData type,
-            float maxCollectionCapacity, float decline_curve, float gasRichness,
+            float maxCollectionCapacity, ProbabilisticDistribution decline_curve, float gasRichness,
             int DTMTime, MoneyAmount DTMCost, float surface) {
         super(name, state, startupDate, lifespanInMonths, upkeepCosts,
                 maintenanceIntervalInDays, operatingCosts, wastePercentage,

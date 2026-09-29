@@ -69,4 +69,10 @@ public class SimCompressingPlant extends SimBaseNode{
         result.setExtra(totalLost);
         return result;
     }
+
+    @Override
+    public void reset() {
+        super.reset();
+        totalLost = 0;
+    }
 }
