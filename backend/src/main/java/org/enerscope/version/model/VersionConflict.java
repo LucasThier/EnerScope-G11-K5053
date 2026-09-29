@@ -1,16 +1,14 @@
 package org.enerscope.version.model;
 
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 
 import org.enerscope.common.BaseEntity;
 
-import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -20,8 +18,10 @@ import lombok.Setter;
 
 /**
  * Records that merging {@code sourceVersion} into {@code mergedVersion} touched
- * entities that a sibling ({@code conflictingVersion}) also changed. The merge
- * moment is {@code createdAt}.
+ * a node/connection (identified by {@code identityId}, stable across edits)
+ * that a sibling ({@code conflictingVersion}) also changed. The merge moment
+ * is {@code createdAt}. One row per conflicting entity, so each can be
+ * accepted or rejected independently.
  */
 @NoArgsConstructor
 @Getter
@@ -42,15 +42,12 @@ public class VersionConflict extends BaseEntity {
     @JoinColumn(name = "conflicting_version_id", nullable = false)
     private Version conflictingVersion;
 
-    @ElementCollection
-    @CollectionTable(name = "version_conflict_node", joinColumns = @JoinColumn(name = "conflict_id"))
-    @Column(name = "node_id")
-    private Set<UUID> conflictingNodeIds = new HashSet<>();
+    @Column(name = "entity_type", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private ConflictEntityType entityType;
 
-    @ElementCollection
-    @CollectionTable(name = "version_conflict_connection", joinColumns = @JoinColumn(name = "conflict_id"))
-    @Column(name = "connection_id")
-    private Set<UUID> conflictingConnectionIds = new HashSet<>();
+    @Column(name = "identity_id", nullable = false)
+    private UUID identityId;
 
     @Column(nullable = false)
     private boolean resolved = false;
@@ -59,12 +56,12 @@ public class VersionConflict extends BaseEntity {
     private Instant resolvedAt;
 
     public VersionConflict(Version mergedVersion, Version sourceVersion, Version conflictingVersion,
-            Set<UUID> conflictingNodeIds, Set<UUID> conflictingConnectionIds) {
+            ConflictEntityType entityType, UUID identityId) {
         this.mergedVersion = mergedVersion;
         this.sourceVersion = sourceVersion;
         this.conflictingVersion = conflictingVersion;
-        this.conflictingNodeIds = new HashSet<>(conflictingNodeIds);
-        this.conflictingConnectionIds = new HashSet<>(conflictingConnectionIds);
+        this.entityType = entityType;
+        this.identityId = identityId;
     }
 
     public void resolve() {

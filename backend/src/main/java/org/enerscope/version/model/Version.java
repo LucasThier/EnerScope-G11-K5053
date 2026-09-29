@@ -1,14 +1,12 @@
 package org.enerscope.version.model;
 
-import java.time.LocalDateTime;
 import java.util.List;
-
+    
 import org.enerscope.common.BaseEntity;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.ConnectionChange;
 import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
-import org.enerscope.project.model.Project;
 import org.springframework.context.annotation.Lazy;
 
 import jakarta.persistence.CascadeType;

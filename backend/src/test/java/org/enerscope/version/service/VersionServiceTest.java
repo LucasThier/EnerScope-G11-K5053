@@ -33,6 +33,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -104,7 +105,7 @@ class VersionServiceTest {
         }
 
         @Test
-        void editNodeInVersion_WhenNodeAddedInThisVersion_ShouldEditInPlaceAndCreateEditChange() {
+        void editNodeInVersion_WhenNodeAddedInThisVersion_ShouldEditInPlaceAndKeepSingleAddChange() {
                 // Given
                 UUID versionId = UUID.randomUUID();
                 UUID nodeId = UUID.randomUUID();
@@ -138,8 +139,14 @@ class VersionServiceTest {
                                 500f // surface
                 );
 
-                // Add the node to version's snapshot to simulate it being added in this version
+                // Simulate the node having been added in this version: it's in the
+                // snapshot, and there's an ADD NodeChange for it (as addNodeToVersion
+                // creates - changedNode stays null, only resultNode is set).
                 version.getNodeSnapshot().add(originalNode);
+                NodeChange addChange = new NodeChange();
+                addChange.setChangeType(ChangeTypeEnum.ADD);
+                addChange.setResultNode(originalNode);
+                version.getNodeChanges().add(addChange);
 
                 // Mock repository calls
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
@@ -158,18 +165,18 @@ class VersionServiceTest {
                 // When
                 BaseNode result = versionService.editNodeInVersion(versionId, nodeId, nodeDTO);
 
-                // Then
+                // Then: this version already owns the node (it added it), so it's safe to
+                // mutate in place - no need to clone, and no new NodeChange is created.
                 assertNotNull(result);
                 assertSame(originalNode, result); // Should return the same instance
                 assertEquals("Edited Well", result.getName());
                 assertEquals(NodeStateEnum.RUNNING, result.getState());
 
-                // Verify that an EDIT change was created
                 assertEquals(1, version.getNodeChanges().size());
                 NodeChange nodeChange = version.getNodeChanges().get(0);
-                assertEquals(ChangeTypeEnum.EDIT, nodeChange.getChangeType());
-                assertSame(nodeChange.getChangedNode(), result);
-                assertSame(nodeChange.getResultNode(), result);
+                assertSame(addChange, nodeChange); // still the original ADD record
+                assertEquals(ChangeTypeEnum.ADD, nodeChange.getChangeType());
+                assertSame(nodeChange.getResultNode(), result); // now reflects the edit
 
                 // Verify that version was saved
                 verify(versionRepository, times(1)).save(version);
@@ -291,15 +298,21 @@ class VersionServiceTest {
 
                 );
 
-                // Do NOT add the node to version's snapshot to simulate it coming from parent
-                // version.getNodeSnapshot().add(originalNode); // Intentionally left out
+                // A child's snapshot starts as a copy of the parent's references, so the
+                // inherited (not-yet-edited) node IS present in this version's own
+                // snapshot - it's just the same shared row as the parent's.
+                version.getNodeSnapshot().add(originalNode);
 
                 // Mock repository calls
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
                 when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(originalNode));
+                when(nodeRepository.save(any(BaseNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
                 when(versionRepository.save(any(Version.class))).thenReturn(version);
 
-                // Mock NodeService to return the same instance (edited in place)
+                // Mock NodeService to return the same instance (edited in place) -
+                // editWell itself still mutates in place; the "don't mutate the shared
+                // parent row" guarantee comes from editNodeInVersion cloning BEFORE
+                // calling editWell, not from editWell itself.
                 when(nodeService.editWell(any(Well.class), any(WellDTO.class))).thenAnswer(invocation -> {
                         Well well = invocation.getArgument(0);
                         WellDTO dto = invocation.getArgument(1);
@@ -311,23 +324,116 @@ class VersionServiceTest {
                 // When
                 BaseNode result = versionService.editNodeInVersion(versionId, nodeId, nodeDTO);
 
-                // Then
+                // Then: the node came from the parent (shared row) - editNodeInVersion must
+                // clone it rather than mutate originalNode, or the parent's/siblings'
+                // snapshots would see the edit too.
                 assertNotNull(result);
-                assertSame(originalNode, result); // Should return the same instance
+                assertNotSame(originalNode, result); // a NEW row, not the parent's shared one
+                assertEquals(nodeId, result.getIdentityId()); // same conceptual entity
                 assertEquals("Edited From Parent", result.getName());
                 assertEquals(NodeStateEnum.REMOVED, result.getState());
 
-                // Verify that the snapshot was updated (node removed and re-added)
-                assertTrue(version.getNodeSnapshot().contains(originalNode));
-                assertEquals(1, version.getNodeSnapshot().size());
+                // The parent's row itself must be untouched.
+                assertEquals("Original Well", originalNode.getName());
+                assertEquals(NodeStateEnum.PROPOSED, originalNode.getState());
 
-                // Verify that an EDIT change was created
+                // Verify that the snapshot now holds the clone, not the original
+                assertEquals(1, version.getNodeSnapshot().size());
+                assertSame(result, version.getNodeSnapshot().get(0));
+
+                // Verify that an EDIT change was created, from the untouched parent node
+                // to the new clone
                 assertEquals(1, version.getNodeChanges().size());
                 NodeChange nodeChange = version.getNodeChanges().get(0);
                 assertEquals(ChangeTypeEnum.EDIT, nodeChange.getChangeType());
+                assertSame(originalNode, nodeChange.getChangedNode());
+                assertSame(result, nodeChange.getResultNode());
 
                 // Verify that version was saved
                 verify(versionRepository, times(1)).save(version);
+        }
+
+        @Test
+        void editNodeInVersion_WhenCallerPassesAStaleIdForTheSameIdentity_EditsTheCurrentRowInsteadOfDuplicatingIt() {
+                // Reproduces the reported bug: the client passes an id that's no longer
+                // this version's current row for that identity (e.g. from before a
+                // merge). editNodeInVersion must resolve the CURRENT row by identity
+                // instead of trusting the id, or it ends up with two rows sharing one
+                // identityId in the snapshot.
+                UUID versionId = UUID.randomUUID();
+                UUID identityId = UUID.randomUUID();
+                UUID staleId = UUID.randomUUID(); // id the caller passes - no longer current
+                WellDTO nodeDTO = new WellDTO();
+                nodeDTO.setName("Edited Again");
+                nodeDTO.setState(NodeStateEnum.RUNNING);
+
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>());
+
+                Well staleNode = new Well(
+                                "Stale Well", NodeStateEnum.PROPOSED, Instant.now(), 120,
+                                MoneyAmount.of(1000000), 30, MoneyAmount.of(50000), 0.0f,
+                                new InvestmentCost(), new NodeGraphData(), identityId, new NodeTypeData(),
+                                100.0f, 0.5f, 0.8f, 10, MoneyAmount.of(5000), 500f);
+
+                Well currentNode = new Well(
+                                "Current Well", NodeStateEnum.PROPOSED, Instant.now(), 120,
+                                MoneyAmount.of(1000000), 30, MoneyAmount.of(50000), 0.0f,
+                                new InvestmentCost(), new NodeGraphData(), identityId, new NodeTypeData(),
+                                100.0f, 0.5f, 0.8f, 10, MoneyAmount.of(5000), 500f);
+
+                // Only currentNode is actually in this version's snapshot; staleNode is
+                // some other row (e.g. what the parent had before) that happens to
+                // share the same identity but is NOT part of this version anymore.
+                version.getNodeSnapshot().add(currentNode);
+
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(nodeRepository.findById(staleId)).thenReturn(Optional.of(staleNode));
+                when(versionRepository.save(any(Version.class))).thenReturn(version);
+                when(nodeService.editWell(any(Well.class), any(WellDTO.class))).thenAnswer(invocation -> {
+                        Well well = invocation.getArgument(0);
+                        WellDTO dto = invocation.getArgument(1);
+                        well.setName(dto.getName());
+                        well.setState(dto.getState());
+                        return well;
+                });
+
+                // When
+                versionService.editNodeInVersion(versionId, staleId, nodeDTO);
+
+                // Then: still exactly one row for this identity, and it's the version's
+                // own current one - not a second one spawned from the stale lookup.
+                assertEquals(1, version.getNodeSnapshot().size());
+                assertEquals("Edited Again", version.getNodeSnapshot().get(0).getName());
+                long rowsForThisIdentity = version.getNodeSnapshot().stream()
+                                .filter(n -> identityId.equals(n.getIdentityId()))
+                                .count();
+                assertEquals(1, rowsForThisIdentity);
+        }
+
+        @Test
+        void editNodeInVersion_WhenIdentityNotInThisVersionsSnapshot_ShouldThrowIllegalArgumentException() {
+                UUID versionId = UUID.randomUUID();
+                UUID nodeId = UUID.randomUUID();
+                WellDTO nodeDTO = new WellDTO();
+
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(),
+                                new ArrayList<>());
+
+                Well node = new Well(
+                                "Well", NodeStateEnum.PROPOSED, Instant.now(), 120,
+                                MoneyAmount.of(1000000), 30, MoneyAmount.of(50000), 0.0f,
+                                new InvestmentCost(), new NodeGraphData(), UUID.randomUUID(), new NodeTypeData(),
+                                100.0f, 0.5f, 0.8f, 10, MoneyAmount.of(5000), 500f);
+                // version's snapshot is empty - this identity was never part of it.
+
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(node));
+
+                assertThrows(IllegalArgumentException.class,
+                                () -> versionService.editNodeInVersion(versionId, nodeId, nodeDTO));
         }
 
         @Test
@@ -493,7 +599,7 @@ class VersionServiceTest {
                                 0.0f,
                                 new InvestmentCost(),
                                 new NodeGraphData(),
-                                parentWell.getId(), // Same ID as parent well
+                                parentWell.getIdentityId(), // Same conceptual entity as parent well
                                 new NodeTypeData(),
                                 100.0f,
                                 0.5f,
@@ -566,10 +672,10 @@ class VersionServiceTest {
                                 MoneyAmount.of(5000),
                                 500f);
 
-                // Parent: ADD the well
+                // Parent: ADD the well (changedNode stays null - see addNodeToVersion;
+                // ADD means nothing existed before this identity).
                 NodeChange parentAddChange = new NodeChange();
                 parentAddChange.setChangeType(ChangeTypeEnum.ADD);
-                parentAddChange.setChangedNode(testWell);
                 parentAddChange.setResultNode(testWell);
 
                 Version parentVersion = new Version(
@@ -586,7 +692,9 @@ class VersionServiceTest {
                 NodeChange subDeleteChange = new NodeChange();
                 subDeleteChange.setChangeType(ChangeTypeEnum.DELETE);
                 subDeleteChange.setChangedNode(testWell);
-                subDeleteChange.setResultNode(testWell);
+                // resultNode intentionally left null - DELETE changes never set it (see
+                // deleteNodeFromVersion), and applyNodeChangesToSnapshot relies on that
+                // to tell "removed" apart from "added/edited".
 
                 Version subVersion = new Version(
                                 "Sub Version",
@@ -648,7 +756,7 @@ class VersionServiceTest {
                                 0.0f,
                                 new InvestmentCost(),
                                 new NodeGraphData(),
-                                originalWell.getId(),
+                                originalWell.getIdentityId(), // Same conceptual entity as originalWell
                                 new NodeTypeData(),
                                 100.0f,
                                 0.5f,

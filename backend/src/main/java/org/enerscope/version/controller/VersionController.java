@@ -14,6 +14,7 @@ import org.enerscope.node.model.NodeConnection;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.enerscope.version.dto.VersionDTO;
+import org.enerscope.version.dto.ConflictResolutionType;
 import org.enerscope.version.dto.VersionConflictDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.service.VersionConflictService;
@@ -64,11 +65,18 @@ public class VersionController {
         return Responses.ok("Conflicts retrieved successfully", versionConflictService.getConflictsForVersion(versionId));
     }
 
-    @PatchMapping(value = "/conflicts/{conflictId}/resolve")
-    @Operation(summary = "Resolve a conflict", description = "Marks a version conflict as resolved")
+    @GetMapping(value = "/conflicts", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "List every conflict", description = "All recorded conflicts across every version, regardless of who they affect. For testing/debugging.")
+    public ResponseEntity<ApiResponse<List<VersionConflictDTO>>> getAllConflicts() {
+        return Responses.ok("Conflicts retrieved successfully", versionConflictService.getAllConflicts());
+    }
+
+    @PatchMapping(value = "/conflicts/{conflictId}/resolve/{decision}")
+    @Operation(summary = "Resolve a conflict", description = "Accepts the merged parent's data into the sibling version, or rejects it and records the sibling's divergence")
     public ResponseEntity<ApiResponse<VersionConflictDTO>> resolveConflict(
-            @PathVariable UUID conflictId) {
-        return Responses.ok("Conflict resolved successfully", versionConflictService.resolveConflict(conflictId));
+            @PathVariable UUID conflictId,
+            @PathVariable ConflictResolutionType decision) {
+        return Responses.ok("Conflict resolved successfully", versionConflictService.resolveConflict(conflictId, decision));
     }
 
     @GetMapping(value = "/{id}")

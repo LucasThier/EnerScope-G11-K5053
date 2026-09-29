@@ -13,6 +13,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.VersionNotFoundException;
+import org.enerscope.node.service.NodeCloner;
 import org.enerscope.node.service.NodeService;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -84,18 +85,21 @@ public class VersionService {
         }
 
         Version parentVersion = null;
-        List<BaseNode> nodeSnapshot = null; // do we want a new version with new changes? Or not?
-        List<NodeConnection> connectionSnapshot = null;
+        // Always start from an empty (never null) list: addNodeToVersion/addConnectionToVersion
+        // call .add() directly on these without a null check, and a null snapshot would NPE
+        // the very first time a node/connection is added to a version that has no parent yet.
+        List<BaseNode> nodeSnapshot = new ArrayList<>();
+        List<NodeConnection> connectionSnapshot = new ArrayList<>();
         if (data.getParentVersion() != null) {
             parentVersion = versionRepository.findById(data.getParentVersion())
                     .orElseThrow(() -> new VersionNotFoundException(data.getParentVersion()));
             // Create defensive copies to avoid sharing references with parent version
-            connectionSnapshot = parentVersion.getConnectionSnapshot() == null
-                    ? null
-                    : new ArrayList<>(parentVersion.getConnectionSnapshot());
-            nodeSnapshot = parentVersion.getNodeSnapshot() == null
-                    ? null
-                    : new ArrayList<>(parentVersion.getNodeSnapshot());
+            if (parentVersion.getConnectionSnapshot() != null) {
+                connectionSnapshot = new ArrayList<>(parentVersion.getConnectionSnapshot());
+            }
+            if (parentVersion.getNodeSnapshot() != null) {
+                nodeSnapshot = new ArrayList<>(parentVersion.getNodeSnapshot());
+            }
         }
 
         Version version = new Version(data.getName(),
@@ -196,6 +200,13 @@ public class VersionService {
                 throw new IllegalArgumentException("Unsupported node type: " + nodeDTO.getClass().getSimpleName());
         };
 
+        // Guard against ending up with two rows for one identity in this version's
+        // own snapshot (e.g. a caller reusing an explicit identity that's already
+        // present) - same invariant enforced everywhere else identity-based.
+        UUID identityId = savedNode.getIdentityId();
+        version.getNodeSnapshot()
+                .removeIf(existing -> existing != null && identityId != null
+                        && identityId.equals(existing.getIdentityId()));
         version.getNodeSnapshot().add(savedNode);
 
         NodeChange nodeChange = new NodeChange();
@@ -226,11 +237,21 @@ public class VersionService {
                         () -> new EntityNotFoundException("Node not found with id: " + connectionDTO.getToNodeId()));
 
         NodeConnection savedConnection = nodeService.saveConnection(connectionDTO);
+
+        // Guard against ending up with two rows for one identity in this version's
+        // own snapshot, same as addNodeToVersion.
+        UUID connectionIdentityId = savedConnection.getIdentityId();
+        version.getConnectionSnapshot()
+                .removeIf(existing -> existing != null && connectionIdentityId != null
+                        && connectionIdentityId.equals(existing.getIdentityId()));
         version.getConnectionSnapshot().add(savedConnection);
 
         ConnectionChange connectionChange = new ConnectionChange();
         connectionChange.setChangeType(ChangeTypeEnum.ADD);
-        connectionChange.setChangedConnection(savedConnection);
+        // resultConnection (not changedConnection) holds the new row for ADD -
+        // matches addNodeToVersion, and is what applyConnectionChangesToSnapshot/
+        // identityOfChange rely on to tell "added" apart from "deleted".
+        connectionChange.setResultConnection(savedConnection);
         version.getConnectionChanges().add(connectionChange);
 
         versionRepository.save(version);
@@ -248,49 +269,48 @@ public class VersionService {
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
 
-        BaseNode originalNode = nodeRepository.findById(nodeId)
+        BaseNode requestedNode = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+        UUID identityId = requestedNode.getIdentityId();
 
-        // Check existing NodeChange records for this node
-        List<NodeChange> nodeAddChanges = version.getNodeChanges().stream()
-                .filter(change -> ChangeTypeEnum.ADD.equals(change.getChangeType())
-                        && originalNode.equals(change.getChangedNode()))
-                .collect(Collectors.toList());
+        // Resolve the node to actually mutate from this version's OWN current
+        // snapshot, by identity - never trust nodeId to already be this version's
+        // current row for that identity. The caller may have passed a stale id
+        // (e.g. from before a merge changed what this version now holds); acting
+        // on nodeId directly would leave the real current row in the snapshot
+        // untouched while adding another one for the same identity, producing two
+        // rows for one identityId.
+        BaseNode currentNode = findNodeByIdentity(version.getNodeSnapshot(), identityId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Node with identity " + identityId + " does not exist in version " + versionId));
 
-        List<NodeChange> nodeEditChanges = version.getNodeChanges().stream()
-                .filter(change -> ChangeTypeEnum.EDIT.equals(change.getChangeType())
-                        && originalNode.equals(change.getChangedNode()))
-                .collect(Collectors.toList());
+        // Does this version already have its own row for this identity (from an
+        // earlier add/edit in this version)? Matched by identityId, not by object
+        // equality: a NodeChange's changedNode/resultNode may not be the same Java
+        // instance as currentNode (different Hibernate session).
+        boolean versionOwnsIdentity = version.getNodeChanges().stream()
+                .anyMatch(change -> matchesIdentity(change.getChangedNode(), identityId)
+                        || matchesIdentity(change.getResultNode(), identityId));
 
         BaseNode editedNode;
-        if (!nodeAddChanges.isEmpty()) {
-            // Node was added in this version
-            editedNode = editNodeByType(originalNode, nodeDTO);
-            // The originalNode is already in the snapshot, and the edit methods modify it
-            // in place.
-
-            // Create and add NodeChange for EDIT
-            NodeChange editChange = new NodeChange();
-            editChange.setChangeType(ChangeTypeEnum.EDIT);
-            editChange.setChangedNode(editedNode);
-            editChange.setResultNode(editedNode);
-            version.getNodeChanges().add(editChange);
-        } else if (!nodeEditChanges.isEmpty()) {
-            // Node was edited in this version (at least once before)
-            editedNode = editNodeByType(originalNode, nodeDTO);
-            // The editNodeByType method already updates the node, so no need to save again.
-
+        if (versionOwnsIdentity) {
+            // This version already owns an exclusive row for this identity (not
+            // shared with its parent or any sibling) - safe to mutate in place.
+            editedNode = editNodeByType(currentNode, nodeDTO);
         } else {
-            // No prior changes - node came from parent, create EDIT change
-            // Remove original node from snapshot and add edited version
-            version.getNodeSnapshot().remove(originalNode);
-            editedNode = editNodeByType(originalNode, nodeDTO);
+            // First time this version touches this identity: currentNode is the
+            // row inherited from (and still shared with) the parent. Never mutate
+            // it in place - clone it first, so the parent's/siblings' snapshots
+            // keep seeing the original, untouched data.
+            version.getNodeSnapshot().remove(currentNode);
+            BaseNode clone = NodeCloner.cloneNode(currentNode);
+            editedNode = editNodeByType(clone, nodeDTO);
+            nodeRepository.save(editedNode);
             version.getNodeSnapshot().add(editedNode);
 
-            // Create and add NodeChange for EDIT
             NodeChange editChange = new NodeChange();
             editChange.setChangeType(ChangeTypeEnum.EDIT);
-            editChange.setChangedNode(originalNode);
+            editChange.setChangedNode(currentNode);
             editChange.setResultNode(editedNode);
             version.getNodeChanges().add(editChange);
         }
@@ -299,6 +319,17 @@ public class VersionService {
         logger.info("Edited node {} in version {}", nodeId, version.getName());
 
         return editedNode;
+    }
+
+    private boolean matchesIdentity(BaseNode node, UUID identityId) {
+        return node != null && identityId != null && identityId.equals(node.getIdentityId());
+    }
+
+    private java.util.Optional<BaseNode> findNodeByIdentity(List<BaseNode> nodes, UUID identityId) {
+        if (nodes == null) {
+            return java.util.Optional.empty();
+        }
+        return nodes.stream().filter(node -> matchesIdentity(node, identityId)).findFirst();
     }
 
     private BaseNode editNodeByType(BaseNode originalNode, BaseNodeDTO nodeDTO) {
@@ -361,81 +392,57 @@ public class VersionService {
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
 
-        NodeConnection originalConnection = connectionRepository.findById(connectionId)
+        NodeConnection requestedConnection = connectionRepository.findById(connectionId)
                 .orElseThrow(() -> new EntityNotFoundException("Connection not found with id: " + connectionId));
+        UUID identityId = requestedConnection.getIdentityId();
 
-        if (!version.getConnectionSnapshot().contains(originalConnection)) {
-            throw new IllegalArgumentException(
-                    "Connection with id " + connectionId + " does not exist in version " + versionId);
-        }
+        // Same principle as editNodeInVersion: resolve the connection to mutate
+        // from this version's OWN current snapshot, by identity, never trusting
+        // connectionId to already be this version's current row - otherwise a
+        // stale id would leave the real current row untouched while adding
+        // another one for the same identity.
+        NodeConnection currentConnection = findConnectionByIdentity(version.getConnectionSnapshot(), identityId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Connection with identity " + identityId + " does not exist in version " + versionId));
 
-        // Check existing ConnectionChange records for this connection
-        List<ConnectionChange> connectionAddChanges = version.getConnectionChanges().stream()
-                .filter(change -> ChangeTypeEnum.ADD.equals(change.getChangeType())
-                        && originalConnection.equals(change.getChangedConnection()))
-                .collect(Collectors.toList());
+        // Same clone-on-write rule as editNodeInVersion: only mutate in place if
+        // this version already owns its own row for this identity.
+        boolean versionOwnsIdentity = version.getConnectionChanges().stream()
+                .anyMatch(change -> matchesIdentity(change.getChangedConnection(), identityId)
+                        || matchesIdentity(change.getResultConnection(), identityId));
 
-        List<ConnectionChange> connectionEditChanges = version.getConnectionChanges().stream()
-                .filter(change -> ChangeTypeEnum.EDIT.equals(change.getChangeType())
-                        && originalConnection.equals(change.getChangedConnection()))
-                .collect(Collectors.toList());
-
-        if (!connectionAddChanges.isEmpty()) {
-            // Connection was added in this version
-            // EDIT
-            NodeConnection editedConnection = nodeService.editConnection(originalConnection, connectionDTO);
-            // The originalConnection is already in the snapshot, and the edit method
-            // modifies it in place.
-            // So the snapshot now reflects the changes.
-
-            ConnectionChange editChange = new ConnectionChange();
-            editChange.setChangeType(ChangeTypeEnum.EDIT);
-            editChange.setChangedConnection(editedConnection);
-            editChange.setResultConnection(editedConnection);
-            version.getConnectionChanges().add(editChange);
-
-            versionRepository.save(version);
-            logger.info("Edited connection {} in version {}", connectionId, version.getName());
-
-            return editedConnection;
-        } else if (!connectionEditChanges.isEmpty()) {
-            // Connection was edited in this version (at least once before)
-
-            // EDIT
-            NodeConnection editedConnection = nodeService.editConnection(originalConnection, connectionDTO);
-            // The editConnection method already updates the connection, so no need to save
-            // again.
-
-            // Create and add ConnectionChange for EDIT
-            ConnectionChange editChange = new ConnectionChange();
-            editChange.setChangeType(ChangeTypeEnum.EDIT);
-            editChange.setChangedConnection(editedConnection);
-            editChange.setResultConnection(editedConnection);
-            version.getConnectionChanges().add(editChange);
-
-            versionRepository.save(version);
-            logger.info("Edited connection {} in version {}", connectionId, version.getName());
-            return editedConnection;
-
+        NodeConnection editedConnection;
+        if (versionOwnsIdentity) {
+            editedConnection = nodeService.editConnection(currentConnection, connectionDTO);
         } else {
-            // No prior changes - connection came from parent, create EDIT change
-            // Remove original connection from snapshot and add edited version
-            version.getConnectionSnapshot().remove(originalConnection);
-            NodeConnection editedConnection = nodeService.editConnection(originalConnection, connectionDTO);
+            version.getConnectionSnapshot().remove(currentConnection);
+            NodeConnection clone = NodeCloner.cloneConnection(currentConnection);
+            editedConnection = nodeService.editConnection(clone, connectionDTO);
+            connectionRepository.save(editedConnection);
             version.getConnectionSnapshot().add(editedConnection);
 
-            // Create and add ConnectionChange for EDIT
             ConnectionChange editChange = new ConnectionChange();
             editChange.setChangeType(ChangeTypeEnum.EDIT);
-            editChange.setChangedConnection(editedConnection);
+            editChange.setChangedConnection(currentConnection);
             editChange.setResultConnection(editedConnection);
             version.getConnectionChanges().add(editChange);
-
-            versionRepository.save(version);
-            logger.info("Edited connection {} in version {}", connectionId, version.getName());
-            return editedConnection;
         }
 
+        versionRepository.save(version);
+        logger.info("Edited connection {} in version {}", connectionId, version.getName());
+        return editedConnection;
+    }
+
+    private boolean matchesIdentity(NodeConnection connection, UUID identityId) {
+        return connection != null && identityId != null && identityId.equals(connection.getIdentityId());
+    }
+
+    private java.util.Optional<NodeConnection> findConnectionByIdentity(List<NodeConnection> connections,
+            UUID identityId) {
+        if (connections == null) {
+            return java.util.Optional.empty();
+        }
+        return connections.stream().filter(connection -> matchesIdentity(connection, identityId)).findFirst();
     }
 
     @Transactional
@@ -572,9 +579,15 @@ public class VersionService {
             throw new IllegalArgumentException("Subversion does not have the specified parent version");
         }
 
-        // Replace snapshots with deep copies from subversion
-        parentVersion.setNodeSnapshot(deepCopyNodeSnapshot(subVersion.getNodeSnapshot()));
-        parentVersion.setConnectionSnapshot(deepCopyConnectionSnapshot(subVersion.getConnectionSnapshot()));
+        // Apply the subversion's own differential changes onto the parent's
+        // CURRENT snapshot, instead of wholesale-replacing it - a wholesale
+        // replace would silently discard anything the parent already had that
+        // this particular subversion never touched (e.g. a node another,
+        // already-merged branch added).
+        parentVersion.setNodeSnapshot(
+                applyNodeChangesToSnapshot(parentVersion.getNodeSnapshot(), subVersion.getNodeChanges()));
+        parentVersion.setConnectionSnapshot(
+                applyConnectionChangesToSnapshot(parentVersion.getConnectionSnapshot(), subVersion.getConnectionChanges()));
 
         // Merge change lists
         List<NodeChange> nodechanges = new ArrayList<>(parentVersion.getNodeChanges());
@@ -595,23 +608,70 @@ public class VersionService {
     }
 
     /**
-     * Creates a deep copy of a node snapshot list.
+     * Applies each of {@code changes} onto a copy of {@code baseSnapshot} as an
+     * upsert-or-remove keyed by identity: a change with a {@code resultNode}
+     * (ADD or EDIT) replaces whatever this snapshot currently has for that
+     * identity with it; a change with no {@code resultNode} (DELETE) removes
+     * that identity. Entities the changes never touch are left exactly as they
+     * were - unlike replacing the whole snapshot, this can never discard
+     * something the base already had that {@code changes} doesn't mention.
      */
-    private List<BaseNode> deepCopyNodeSnapshot(List<BaseNode> source) {
-        if (source == null) {
-            return null;
+    private List<BaseNode> applyNodeChangesToSnapshot(List<BaseNode> baseSnapshot, List<NodeChange> changes) {
+        List<BaseNode> result = new ArrayList<>(baseSnapshot == null ? Collections.emptyList() : baseSnapshot);
+        if (changes == null) {
+            return result;
         }
-        return new ArrayList<>(source);
+        for (NodeChange change : changes) {
+            UUID identityId = identityOfChange(change);
+            if (identityId == null) {
+                continue;
+            }
+            result.removeIf(node -> identityId.equals(node.getIdentityId()));
+            if (change.getResultNode() != null) {
+                result.add(change.getResultNode());
+            }
+        }
+        return result;
     }
 
-    /**
-     * Creates a deep copy of a connection snapshot list.
-     */
-    private List<NodeConnection> deepCopyConnectionSnapshot(List<NodeConnection> source) {
-        if (source == null) {
-            return null;
+    /** Same rule as {@link #applyNodeChangesToSnapshot} but for connections. */
+    private List<NodeConnection> applyConnectionChangesToSnapshot(List<NodeConnection> baseSnapshot,
+            List<ConnectionChange> changes) {
+        List<NodeConnection> result = new ArrayList<>(baseSnapshot == null ? Collections.emptyList() : baseSnapshot);
+        if (changes == null) {
+            return result;
         }
-        return new ArrayList<>(source);
+        for (ConnectionChange change : changes) {
+            UUID identityId = identityOfChange(change);
+            if (identityId == null) {
+                continue;
+            }
+            result.removeIf(connection -> identityId.equals(connection.getIdentityId()));
+            if (change.getResultConnection() != null) {
+                result.add(change.getResultConnection());
+            }
+        }
+        return result;
+    }
+
+    private UUID identityOfChange(NodeChange change) {
+        if (change.getResultNode() != null) {
+            return change.getResultNode().getIdentityId();
+        }
+        if (change.getChangedNode() != null) {
+            return change.getChangedNode().getIdentityId();
+        }
+        return null;
+    }
+
+    private UUID identityOfChange(ConnectionChange change) {
+        if (change.getResultConnection() != null) {
+            return change.getResultConnection().getIdentityId();
+        }
+        if (change.getChangedConnection() != null) {
+            return change.getChangedConnection().getIdentityId();
+        }
+        return null;
     }
 
     /**
@@ -650,65 +710,60 @@ public class VersionService {
     }
 
     /**
-     * Groups NodeChanges by the ID of the node they affect.
+     * Groups NodeChanges by the identity of the node they affect. Grouping by
+     * raw node id would never match across merges: clone-on-write gives every
+     * edit a fresh id, so the same conceptual node has a different id in each
+     * side's changes. Only identityId is stable across edits/merges.
      */
     private Map<UUID, List<NodeChange>> groupChangesByNode(List<NodeChange> changes) {
         Map<UUID, List<NodeChange>> grouped = new HashMap<>();
         for (NodeChange change : changes) {
-            UUID nodeId = null;
-            // Try to get node ID from changedNode or resultNode
-            if (change.getChangedNode() != null) {
-                nodeId = change.getChangedNode().getId();
-            } else if (change.getResultNode() != null) {
-                nodeId = change.getResultNode().getId();
-            }
-
-            if (nodeId != null) {
-                grouped.computeIfAbsent(nodeId, k -> new ArrayList<>()).add(change);
+            UUID identityId = identityOfChange(change);
+            if (identityId != null) {
+                grouped.computeIfAbsent(identityId, k -> new ArrayList<>()).add(change);
             }
         }
         return grouped;
     }
 
     /**
-     * Merges NodeChanges affecting a single node according to merge rules.
+     * Reduces every NodeChange recorded for one identity (the parent's already
+     * -accumulated history, followed by this merge's own new changes, in that
+     * chronological order) to at most one net change: the state right before
+     * this whole history began ({@code origin}, from the very first entry -
+     * null if the identity didn't exist yet) versus the state it nets out to
+     * now ({@code current} - null if the net effect is a deletion). Folding
+     * the whole chain instead of only ever looking at exactly two entries is
+     * what makes this safe to call across any number of merges: without it,
+     * a node changed across three separate merges would end up with three
+     * stale entries (e.g. ADD, EDIT, ADD) instead of collapsing to one, since
+     * every clone-on-write edit gets a fresh id and nothing would ever look
+     * like a "matching pair" again.
      */
     private List<NodeChange> mergeNodeChangesForNode(List<NodeChange> parentChanges, List<NodeChange> subChanges) {
-        boolean hasParentAdd = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.ADD.equals(c.getChangeType()));
-        boolean hasParentDelete = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.DELETE.equals(c.getChangeType()));
-        boolean hasParentEdit = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()));
-
-        boolean hasSubAdd = subChanges.stream().anyMatch(c -> ChangeTypeEnum.ADD.equals(c.getChangeType()));
-        boolean hasSubDelete = subChanges.stream().anyMatch(c -> ChangeTypeEnum.DELETE.equals(c.getChangeType()));
-        boolean hasSubEdit = subChanges.stream().anyMatch(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()));
-
-        // Case 1: ADD + DELETE cancels out (from either side)
-        if ((hasParentAdd && hasSubDelete) || (hasParentDelete && hasSubAdd)) {
-            return Collections.emptyList(); // No changes remain
+        List<NodeChange> combined = new ArrayList<>(parentChanges.size() + subChanges.size());
+        combined.addAll(parentChanges);
+        combined.addAll(subChanges);
+        if (combined.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        // Case 2: EDIT + EDIT from both sides
-        if (hasParentEdit && hasSubEdit) {
-            // Find the parent EDIT and subversion EDIT
-            NodeChange parentEdit = parentChanges.stream()
-                    .filter(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()))
-                    .findFirst()
-                    .orElseThrow();
-            NodeChange subEdit = subChanges.stream()
-                    .filter(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()))
-                    .findFirst()
-                    .orElseThrow();
-
-            // edit the sub EDIT with parent's changedNode
-            subEdit.setChangedNode(parentEdit.getChangedNode());
-            return List.of(subEdit);
+        BaseNode origin = combined.get(0).getChangedNode();
+        BaseNode current = null;
+        for (NodeChange change : combined) {
+            current = ChangeTypeEnum.DELETE.equals(change.getChangeType()) ? null : change.getResultNode();
         }
 
-        // Case 3: Preserve all other changes (no conflicts)
-        List<NodeChange> result = new ArrayList<>();
-        result.addAll(parentChanges);
-        result.addAll(subChanges);
-        return result;
+        if (origin == null && current == null) {
+            return Collections.emptyList(); // Added and deleted within this combined history - nets to nothing.
+        }
+
+        NodeChange net = new NodeChange();
+        net.setChangedNode(origin);
+        net.setResultNode(current);
+        net.setChangeType(current == null ? ChangeTypeEnum.DELETE
+                : origin == null ? ChangeTypeEnum.ADD : ChangeTypeEnum.EDIT);
+        return List.of(net);
     }
 
     /**
@@ -750,66 +805,48 @@ public class VersionService {
     }
 
     /**
-     * Groups ConnectionChanges by the ID of the connection they affect.
+     * Groups ConnectionChanges by the identity of the connection they affect
+     * (see {@link #groupChangesByNode} for why identity, not raw id, is the
+     * correct key).
      */
     private Map<UUID, List<ConnectionChange>> groupChangesByConnection(List<ConnectionChange> changes) {
         Map<UUID, List<ConnectionChange>> grouped = new HashMap<>();
         for (ConnectionChange change : changes) {
-            UUID connectionId = null;
-            // Try to get connection ID from changedConnection or resultConnection
-            if (change.getChangedConnection() != null) {
-                connectionId = change.getChangedConnection().getId();
-            } else if (change.getResultConnection() != null) {
-                connectionId = change.getResultConnection().getId();
-            }
-
-            if (connectionId != null) {
-                grouped.computeIfAbsent(connectionId, k -> new ArrayList<>()).add(change);
+            UUID identityId = identityOfChange(change);
+            if (identityId != null) {
+                grouped.computeIfAbsent(identityId, k -> new ArrayList<>()).add(change);
             }
         }
         return grouped;
     }
 
     /**
-     * Merges ConnectionChanges affecting a single connection according to merge
-     * rules.
+     * Same fold as {@link #mergeNodeChangesForNode}, for connections.
      */
     private List<ConnectionChange> mergeConnectionChangesForConnection(List<ConnectionChange> parentChanges,
             List<ConnectionChange> subChanges) {
-        boolean hasParentAdd = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.ADD.equals(c.getChangeType()));
-        boolean hasParentDelete = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.DELETE.equals(c.getChangeType()));
-        boolean hasParentEdit = parentChanges.stream().anyMatch(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()));
-
-        boolean hasSubAdd = subChanges.stream().anyMatch(c -> ChangeTypeEnum.ADD.equals(c.getChangeType()));
-        boolean hasSubDelete = subChanges.stream().anyMatch(c -> ChangeTypeEnum.DELETE.equals(c.getChangeType()));
-        boolean hasSubEdit = subChanges.stream().anyMatch(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()));
-
-        // Case 1: ADD + DELETE cancels out (from either side)
-        if ((hasParentAdd && hasSubDelete) || (hasParentDelete && hasSubAdd)) {
-            return Collections.emptyList(); // No changes remain
+        List<ConnectionChange> combined = new ArrayList<>(parentChanges.size() + subChanges.size());
+        combined.addAll(parentChanges);
+        combined.addAll(subChanges);
+        if (combined.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        // Case 2: EDIT + EDIT from both sides
-        if (hasParentEdit && hasSubEdit) {
-            // Find the parent EDIT and subversion EDIT
-            ConnectionChange parentEdit = parentChanges.stream()
-                    .filter(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()))
-                    .findFirst()
-                    .orElseThrow();
-            ConnectionChange subEdit = subChanges.stream()
-                    .filter(c -> ChangeTypeEnum.EDIT.equals(c.getChangeType()))
-                    .findFirst()
-                    .orElseThrow();
-
-            // Edit EDIT with parent's changedConnection
-            subEdit.setChangedConnection(parentEdit.getChangedConnection()); // Original state from parent
-            return List.of(subEdit);
+        NodeConnection origin = combined.get(0).getChangedConnection();
+        NodeConnection current = null;
+        for (ConnectionChange change : combined) {
+            current = ChangeTypeEnum.DELETE.equals(change.getChangeType()) ? null : change.getResultConnection();
         }
 
-        // Case 3: Preserve all other changes (no conflicts)
-        List<ConnectionChange> result = new ArrayList<>();
-        result.addAll(parentChanges);
-        result.addAll(subChanges);
-        return result;
+        if (origin == null && current == null) {
+            return Collections.emptyList();
+        }
+
+        ConnectionChange net = new ConnectionChange();
+        net.setChangedConnection(origin);
+        net.setResultConnection(current);
+        net.setChangeType(current == null ? ChangeTypeEnum.DELETE
+                : origin == null ? ChangeTypeEnum.ADD : ChangeTypeEnum.EDIT);
+        return List.of(net);
     }
 }
