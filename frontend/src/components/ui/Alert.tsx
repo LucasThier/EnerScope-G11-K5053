@@ -16,7 +16,7 @@ const tones: Record<Tone, string> = {
 
 export function Alert({ tone = 'info', children, className = '' }: AlertProps) {
   return (
-    <div role="alert" className={`rounded-lg border px-3 py-2.5 text-sm ${tones[tone]} ${className}`}>
+    <div role="alert" className={`rounded-lg border px-3 py-2 text-sm ${tones[tone]} ${className}`}>
       {children}
     </div>
   );

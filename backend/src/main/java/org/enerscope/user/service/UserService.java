@@ -29,7 +29,7 @@ public class UserService {
         }
         PlatformRole role = data.role() != null ? data.role() : PlatformRole.USER;
         String hash = encoder.encode(data.password());
-        User user = new User(data.mail(), data.firstName(), data.lastName(), hash, role);
+        User user = new User(data.mail(), data.firstName(), data.lastName(), hash, role, data.jobTitle());
         User saved = userRepository.save(user);
         logger.info("Registered new user {} with role {}", saved.getMail(), role);
         return saved;

@@ -28,7 +28,7 @@ export function useOrganizations(): UseOrganizations {
       const res = await organizationsApi.list();
       setOrganizations(res.data.data ?? []);
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load organizations'));
+      setError(getErrorMessage(err, 'No se pudieron cargar las organizaciones'));
     } finally {
       setLoading(false);
     }
@@ -42,7 +42,7 @@ export function useOrganizations(): UseOrganizations {
     const res = await organizationsApi.create({ name });
     const created = res.data.data;
     if (!created) {
-      throw new Error(res.data.message || 'Could not create organization');
+      throw new Error(res.data.message || 'No se pudo crear la organización');
     }
     setOrganizations((prev) => [...prev, created]);
     return created;

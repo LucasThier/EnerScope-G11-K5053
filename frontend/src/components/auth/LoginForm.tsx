@@ -31,7 +31,7 @@ export function LoginForm({ onSuccess, className = '' }: LoginFormProps) {
       const user = await login({ mail, password });
       onSuccess?.(user);
     } catch (err) {
-      setError(getErrorMessage(err, 'Invalid email or password'));
+      setError(getErrorMessage(err, 'Email o contraseña incorrectos'));
     } finally {
       setSubmitting(false);
     }
@@ -47,10 +47,10 @@ export function LoginForm({ onSuccess, className = '' }: LoginFormProps) {
         required
         value={mail}
         onChange={(e) => setMail(e.target.value)}
-        placeholder="you@enerscope.org"
+        placeholder="nombre@enerscope.org"
       />
       <TextField
-        label="Password"
+        label="Contraseña"
         type="password"
         autoComplete="current-password"
         required
@@ -59,7 +59,7 @@ export function LoginForm({ onSuccess, className = '' }: LoginFormProps) {
         placeholder="••••••••"
       />
       <Button type="submit" loading={submitting} className="mt-1 w-full">
-        Sign in
+        Iniciar sesión
       </Button>
     </form>
   );

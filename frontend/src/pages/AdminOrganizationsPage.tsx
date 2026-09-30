@@ -22,10 +22,10 @@ export function AdminOrganizationsPage() {
     setCreating(true);
     try {
       const org = await createOrganization(name.trim());
-      setCreated(`${org.name} was created.`);
+      setCreated(`Se creó ${org.name}.`);
       setName('');
     } catch (err) {
-      setCreateError(getErrorMessage(err, 'Could not create the organization'));
+      setCreateError(getErrorMessage(err, 'No se pudo crear la organización'));
     } finally {
       setCreating(false);
     }
@@ -34,42 +34,42 @@ export function AdminOrganizationsPage() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-ink-700">Organizations</h1>
-        <p className="mt-1 text-sm text-ink-400">Create organizations and review the existing ones.</p>
+        <h1 className="text-2xl font-semibold text-ink-800">Organizaciones</h1>
+        <p className="mt-1 text-sm text-ink-500">Creá organizaciones y revisá las que ya existen.</p>
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
-          <h2 className="text-lg font-semibold text-ink-700">Create organization</h2>
+          <h2 className="text-lg font-semibold text-ink-800">Crear organización</h2>
           <form onSubmit={handleCreate} className="mt-4 flex flex-col gap-4" noValidate>
             {createError && <Alert tone="error">{createError}</Alert>}
             {created && <Alert tone="success">{created}</Alert>}
             <TextField
-              label="Name"
+              label="Nombre"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Acme Energy"
             />
             <Button type="submit" loading={creating} className="w-full">
-              Create organization
+              Crear organización
             </Button>
           </form>
         </Card>
 
         <Card>
-          <h2 className="text-lg font-semibold text-ink-700">Existing organizations</h2>
+          <h2 className="text-lg font-semibold text-ink-800">Organizaciones existentes</h2>
           <div className="mt-4">
             {loading ? (
-              <p className="text-sm text-ink-400">Loading…</p>
+              <p className="text-sm text-ink-500">Cargando…</p>
             ) : error ? (
               <Alert tone="error">{error}</Alert>
             ) : organizations.length === 0 ? (
-              <p className="text-sm text-ink-400">No organizations yet.</p>
+              <p className="text-sm text-ink-500">Todavía no hay organizaciones.</p>
             ) : (
               <ul className="divide-y divide-ink-100">
                 {organizations.map((org) => (
-                  <li key={org.id} className="py-2.5 text-sm text-ink-700">
+                  <li key={org.id} className="py-2 text-sm text-ink-700">
                     {org.name}
                   </li>
                 ))}

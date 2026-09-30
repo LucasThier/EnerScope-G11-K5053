@@ -24,5 +24,13 @@ public record RegisterRequestDTO(
          * can reach this endpoint, so allowing ADMIN here lets admins mint other
          * admins.
          */
-        PlatformRole role
+        PlatformRole role,
+
+        /**
+         * Optional free-form job title (e.g. "Senior Investment Analyst"). It is
+         * descriptive only — authorization is driven by {@code role} and by
+         * organization/project membership, never by this field.
+         */
+        @Size(max = 120)
+        String jobTitle
 ) {}
