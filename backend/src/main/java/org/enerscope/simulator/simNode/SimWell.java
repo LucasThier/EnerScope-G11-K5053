@@ -47,6 +47,7 @@ public class SimWell extends SimBaseNode{
         float producedThisStep = 0;
         lastSimulatedTime = time;
         if(active){
+            measuredOperatingHours++;
             timeSinceLastMaintenance++;
             activeAction(time);
             checkLifeSpan(time);
@@ -56,17 +57,18 @@ public class SimWell extends SimBaseNode{
             producedThisStep = 0;
         }
         totalProduced += producedThisStep;
+        measuredOutput += producedThisStep;
         totalDeferred += producedThisStep;
     }
 
     @Override
     protected void inactiveAction(int time){
-        toDeliver =  new ToDeliver(0,0);;
+        toDeliver =  new ToDeliver(0,0);
         checkInactivity(time);
     }
 
     private float calculateTotalDecline(int time){
-        int year = time/(24*365);
+        int year = (operatingAgeHours >= 0 ? operatingAgeHours : time)/(24*365);
         return declineCurve * year;
     }
 

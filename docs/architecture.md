@@ -37,10 +37,19 @@ EnerScope is a two-tier web application kept in a single repository (monorepo).
 ## Frontend
 
 - **React 19 + Vite + TypeScript**, styled exclusively with **Tailwind CSS**
-  (no hand-written CSS files beyond the single Tailwind import).
+  (no hand-written CSS files beyond the single Tailwind import). Brand colours
+  live as `@theme` tokens in `src/index.css` and are the only source of colour.
 - The `src/api` layer wraps Axios: `client.ts` injects the access token and
   transparently refreshes it on `401`; `session.ts` centralises token storage;
   `auth.ts` exposes the auth endpoints.
+- **Shared state is React context, one provider per concern.** `AuthProvider`
+  holds identity and the session; `ActiveProjectProvider` holds the project list
+  and which project the app is scoped to. Each pairs a `use*` hook with the
+  provider so components never touch the context object directly.
+- **The signed-in shell** is `AppLayout`: a full-width top bar (brand, project
+  switcher, user menu) above a collapsible sidebar, with pages rendered through
+  the router `Outlet`. Route guards (`ProtectedRoute`, `RoleRoute`) sit above
+  it, so the shell only ever renders for an authenticated user.
 - The Vite dev server proxies `/api` to the backend on port `8080`.
 
 ## Layers (backend)
@@ -59,3 +68,13 @@ See `AGENTS.md` for the full convention.
 | DTO | `<feature>/dto` | Request/response records for that feature |
 | Filter | `<feature>/filter` | Servlet filters (e.g. `auth/filter/AuthFilter`) |
 | Config | `config` | Security, CORS, crypto, OpenAPI, JPA (flat, cross-cutting) |
+
+### Economic workspace
+
+The scenario list and economic configuration/results/history now use the existing
+Version hierarchy. A read-only version-summary endpoint supports selection.
+The frontend uses React Router's data router for navigation blocking, and a pure
+adapter converts the simple editor to the existing economic aggregate.
+All financial calculations remain in the backend. See [economic frontend](economic-frontend.md).
+
+The economic editor additionally reads/writes version-owned durable drafts through GET/PUT economics/draft. Draft storage never feeds the engine directly; configuration validation remains mandatory for simulation.

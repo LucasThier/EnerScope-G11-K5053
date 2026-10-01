@@ -13,7 +13,7 @@ const styles: Record<PlatformRole, string> = {
 export function RoleBadge({ role, className = '' }: RoleBadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${styles[role]} ${className}`}
+      className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${styles[role]} ${className}`}
     >
       {role}
     </span>

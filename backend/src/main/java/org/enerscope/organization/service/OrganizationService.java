@@ -21,6 +21,7 @@ import org.enerscope.user.repository.UserRepository;
 import org.enerscope.user.service.UserService;
 import org.enerscope.util.AuthUtil;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -76,6 +77,20 @@ public class OrganizationService {
         return organizationRepository.findDistinctByMembers_User_Id(caller.getId());
     }
 
+    /**
+     * Members of an organization, for the team screens. Readable by any member
+     * of that organization — seeing who else has access is not a management
+     * action, unlike {@link #assertCanManageUsers(UUID)}.
+     */
+    @Transactional(readOnly = true)
+    public List<OrganizationMember> listMembers(UUID organizationId) {
+        if (!organizationRepository.existsById(organizationId)) {
+            throw new IllegalArgumentException("Organization not found");
+        }
+        assertCanViewOrganization(organizationId);
+        return organizationMemberRepository.findByOrganizationIdWithUser(organizationId);
+    }
+
     public Organization createOrganization(CreateOrganizationRequestDTO data) {
         Organization organization = new Organization(data.name());
         Organization saved = organizationRepository.save(organization);
@@ -117,7 +132,8 @@ public class OrganizationService {
 
         // Organization-registered accounts are always regular platform users.
         User user = userService.register(new RegisterRequestDTO(
-                data.mail(), data.firstName(), data.lastName(), data.password(), PlatformRole.USER));
+                data.mail(), data.firstName(), data.lastName(), data.password(), PlatformRole.USER,
+                data.jobTitle()));
 
         OrganizationMember member = new OrganizationMember(user, organization);
         OrganizationMemberRole role = new OrganizationMemberRole(
@@ -154,6 +170,24 @@ public class OrganizationService {
                 .orElse(false);
         if (!canManage) {
             throw new ForbiddenException("You are not allowed to manage users in this organization");
+        }
+    }
+
+    /**
+     * Ensures the current caller may read the given organization: a platform
+     * ADMIN, or any of its members regardless of permissions.
+     */
+    public void assertCanViewOrganization(UUID organizationId) {
+        Session session = AuthUtil.currentSession();
+        if (session == null) {
+            throw new UnauthorizedException("Authentication required");
+        }
+        User caller = session.getUser();
+        if (caller.getPlatformRole() == PlatformRole.ADMIN) {
+            return;
+        }
+        if (!organizationMemberRepository.existsByOrganizationIdAndUserId(organizationId, caller.getId())) {
+            throw new ForbiddenException("You are not allowed to view this organization");
         }
     }
 

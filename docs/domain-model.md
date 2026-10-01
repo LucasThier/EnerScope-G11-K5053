@@ -1,8 +1,8 @@
 # Domain model
 
-The initial domain covers **users** and their **authentication**, plus
-**organizations** (SCRUM-35), **projects** with their own membership, and a
-minimal **project version** record.
+The domain covers **users** and their **authentication**, **organizations**,
+**projects** with scoped membership, **physical versions**, **simulation** and
+**economic evaluations**.
 
 ## User
 
@@ -16,6 +16,7 @@ Persistent entity mapped to the `app_user` table.
 | `lastName` | String | 2–60 chars |
 | `passwordHash` | String | BCrypt hash, never exposed by the API |
 | `platformRole` | PlatformRole | `ADMIN` or `USER`; the user's app-wide role. Stored as a string (`platform_role`) |
+| `jobTitle` | String | Optional, ≤120 chars (`job_title`). Free-form descriptive title (e.g. "Senior Investment Analyst") shown next to the user in the app |
 | `active` | boolean | Soft-activation flag (from `BaseEntity`) |
 | `createdAt` | Instant | Audit timestamp (from `BaseEntity`) |
 | `lastModified` | Instant | Audit timestamp (from `BaseEntity`) |
@@ -27,6 +28,11 @@ audit timestamps to every entity.
 organization/project membership roles below: it governs app-wide capabilities
 (only an `ADMIN` may create arbitrary accounts). `PlatformRole` is carried in the
 access-token `role` claim and mapped to a Spring Security `ROLE_*` authority.
+
+**`jobTitle` is not a role.** It is descriptive text with no bearing on
+authorization, and it is not carried in the token claims: it reaches the client
+through `UserSummaryDTO` on login and refresh, both of which read the user from
+the database. Set it at registration; there is no endpoint to change it yet.
 
 ### Authentication & registration
 
@@ -164,6 +170,39 @@ exist as plain classes without `@Entity`/`@Id` (not persistable), and the
 `node/` migrations have a Flyway version collision (`V2__create_all_tables.sql`
 and `V2__create_nodes.sql` share version `2`).
 
+## Economic And Configuration
+
+Persistent entity mapped to the `version` table. **Minimal slice** — only
+`name`, the owning `project` and an optional `parentVersion` self-reference.
+No creation timestamp field of its own; it reuses `createdAt` from
+`BaseEntity` instead of duplicating it.
+
+`EconomicConfigurationEntity` has a unique, required Version reference, a typed
+configuration serialized as JSON text and an optimistic-lock revision.
+`EconomicEvaluation` has a required Version reference and immutable input/output
+snapshot JSON. Both inherit `BaseEntity`. The configuration records below are
+owned values, not separate shared JPA entities:
+
+- `EconomicConfiguration`: investment year, operating horizon, currency, WACC,
+  selected boundary and all rule collections.
+- `TaxEntity`: hypothetical jurisdiction label, rate, loss carry-forward policy,
+  opening losses, expiry, compensation limit and payment lag.
+- `NodeEconomicProfile` / `Ownership`: version-specific node rules and shares.
+- `EconomicRule` / `Occurrence`: concept, income/expense direction, cash/non-cash,
+  driver, tariff, units, dates and optional internal counterparty.
+- `CommercialContract`: delivery node and revenue rule, separate from physical assets.
+- `CapitalAsset`: purchase/payment, cost, residual, service month and useful life;
+  generates capitalizable cash outflow and monthly depreciation/amortization.
+- `TaxTreatment`: classification/deductible fraction for concept, taxpayer and validity.
+- `MetricConversion`: explicit simulator-unit conversion or static driver quantity.
+
+`AnnualNodeMetrics` records raw annual operational counters. `OperationalMetric`
+contains the converted node/year/driver quantity consumed by `EconomicEngine`.
+`EconomicEntry` preserves originating rule, node, contract, entity, counterparty,
+classification, dates and allocated amount. `EconomicResult` contains entries,
+metrics, `PeriodEconomicResult`, `EntityTaxResult`, `PendingBalance` and NPV.
+`EvaluationDTO.Snapshot` also stores physical inputs and a snapshot schema version.
+
 ## Session (non-persistent)
 
 A `Session` is an in-memory object rebuilt from a JWT on every request. It is
@@ -193,3 +232,7 @@ Access tokens carry `sub` (user id), `mail`, `firstName` and `lastName`.
 On startup `AdminSeeder` ensures a default administrator exists
 (`admin@enerscope.org` by default). It is idempotent: it only creates the user
 if the email is not already present.
+
+## EconomicDraftEntity
+
+Version-owned editor draft, unique version_id, schema-versioned draft_json text and optimistic-lock revision. Raw strings preserve partial amounts and dates. V13 adds the table independently of economic_configuration and economic_evaluation.

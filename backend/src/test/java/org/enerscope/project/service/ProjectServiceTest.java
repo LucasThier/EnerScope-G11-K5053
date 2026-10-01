@@ -1,10 +1,23 @@
 package org.enerscope.project.service;
 
+import java.util.List;
+import java.util.Map;
+import java.time.Instant;
+import org.enerscope.common.ForbiddenException;
+import org.enerscope.common.UnauthorizedException;
+import org.enerscope.session.model.Session;
+import org.enerscope.user.model.enums.PlatformRole;
+import org.enerscope.version.dto.VersionDTO;
+import org.enerscope.version.model.Version;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
+import org.enerscope.project.dto.ProjectSummaryDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
@@ -36,6 +49,18 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ProjectServiceTest {
+        private static final Map<ProjectMemberType, Set<ProjectMemberPermission>> DEFAULT_PERMISSIONS_FOR_TEST = Map.of(
+                ProjectMemberType.ADMIN, Set.of(ProjectMemberPermission.MANAGE_PROJECT, ProjectMemberPermission.EDIT_PROJECT, ProjectMemberPermission.VIEW_PROJECT),
+                ProjectMemberType.EDITOR, Set.of(ProjectMemberPermission.EDIT_PROJECT, ProjectMemberPermission.VIEW_PROJECT));
+
+        @AfterEach
+        void clearAuthentication() { SecurityContextHolder.clearContext(); }
+
+        private void prepareCreator() {
+                User caller = creator();
+                authenticateAs(caller);
+                when(userRepository.findById(caller.getId())).thenReturn(Optional.of(caller));
+        }
 
         @Mock
         private ProjectRepository projectRepository;
@@ -64,6 +89,7 @@ class ProjectServiceTest {
 
         @Test
         void createProjectPersistsAndLinksToOrganization() {
+                prepareCreator();
                 UUID orgId = UUID.randomUUID();
                 Organization organization = new Organization("Acme");
                 when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
@@ -80,6 +106,7 @@ class ProjectServiceTest {
 
         @Test
         void createProjectRejectsUnknownOrganization() {
+                prepareCreator();
                 UUID orgId = UUID.randomUUID();
                 when(organizationRepository.findById(orgId)).thenReturn(Optional.empty());
 
@@ -171,4 +198,197 @@ class ProjectServiceTest {
                                 projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR)));
                 verify(projectMemberRepository, never()).save(any());
         }
+
+        // ---- listMembers ---------------------------------------------------------
+
+        @Test
+        void listMembersReturnsEveryMemberForPlatformAdmin() {
+                UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectMemberRepository.findByProjectIdWithUser(projectId))
+                                .thenReturn(List.of(sampleMember(ProjectMemberType.ADMIN)));
+
+                List<ProjectMember> result = projectService.listMembers(projectId);
+
+                assertEquals(1, result.size());
+                assertEquals("jane@enerscope.org", result.getFirst().getUser().getMail());
+                verify(projectMemberRepository, never()).existsByProjectIdAndUserId(any(), any());
+        }
+
+        @Test
+        void listMembersReturnsMembersForProjectMember() {
+                UUID projectId = UUID.randomUUID();
+                User caller = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+                authenticateAs(caller);
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(true);
+                when(projectMemberRepository.findByProjectIdWithUser(projectId))
+                                .thenReturn(List.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                assertEquals(1, projectService.listMembers(projectId).size());
+        }
+
+        @Test
+        void listMembersRejectsCallerWhoIsNotAMember() {
+                UUID projectId = UUID.randomUUID();
+                User caller = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
+                authenticateAs(caller);
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(false);
+
+                assertThrows(ForbiddenException.class, () -> projectService.listMembers(projectId));
+                verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
+        }
+
+        @Test
+        void listMembersRejectsUnauthenticated() {
+                UUID projectId = UUID.randomUUID();
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+
+                assertThrows(UnauthorizedException.class, () -> projectService.listMembers(projectId));
+                verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
+        }
+
+        @Test
+        void listMembersRejectsUnknownProject() {
+                UUID projectId = UUID.randomUUID();
+                when(projectRepository.existsById(projectId)).thenReturn(false);
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.listMembers(projectId));
+                verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
+        }
+
+        // ---- listForCurrentUser --------------------------------------------------
+
+        @Test
+        void listForCurrentUserReturnsEveryProjectForAdmin() {
+                authenticateAs(admin());
+                when(projectRepository.findSummaries(null)).thenReturn(List.of(summary("Grid Expansion", 3)));
+
+                List<ProjectSummaryDTO> result = projectService.listForCurrentUser(null);
+
+                assertEquals(1, result.size());
+                assertEquals("Grid Expansion", result.getFirst().name());
+                verify(projectRepository, never()).findSummariesForMember(any(), any());
+        }
+
+        @Test
+        void listForCurrentUserReturnsOnlyMembershipsForRegularUser() {
+                User user = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+                authenticateAs(user);
+                when(projectRepository.findSummariesForMember(user.getId(), null))
+                                .thenReturn(List.of(summary("Mine", 1)));
+
+                List<ProjectSummaryDTO> result = projectService.listForCurrentUser(null);
+
+                assertEquals(1, result.size());
+                assertEquals("Mine", result.getFirst().name());
+                verify(projectRepository, never()).findSummaries(any());
+        }
+
+        @Test
+        void listForCurrentUserPassesOrganizationFilterThrough() {
+                UUID orgId = UUID.randomUUID();
+                User user = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+                authenticateAs(user);
+                when(projectRepository.findSummariesForMember(user.getId(), orgId)).thenReturn(List.of());
+
+                assertTrue(projectService.listForCurrentUser(orgId).isEmpty());
+                verify(projectRepository).findSummariesForMember(user.getId(), orgId);
+        }
+
+        @Test
+        void listForCurrentUserRejectsUnauthenticated() {
+                assertThrows(UnauthorizedException.class, () -> projectService.listForCurrentUser(null));
+        }
+
+        // ---- saveVersion ---------------------------------------------------------
+
+        @Test
+        void saveVersionReturnsVersionLinkedToProject() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                Version version = new Version();
+                version.setName("Baseline");
+                VersionDTO data = new VersionDTO("Baseline", null);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(data)).thenReturn(version);
+
+                Version saved = projectService.saveVersion(projectId, data);
+
+                assertEquals(version, saved);
+                assertTrue(project.getVersions().contains(version));
+                verify(projectRepository).save(project);
+        }
+
+        @Test
+        void saveVersionRejectsNullProjectId() {
+                assertThrows(IllegalArgumentException.class,
+                                () -> projectService.saveVersion(null, new VersionDTO("Baseline", null)));
+                verify(versionService, never()).saveVersion(any());
+        }
+
+        @Test
+        void saveVersionRejectsNullVersionData() {
+                assertThrows(IllegalArgumentException.class,
+                                () -> projectService.saveVersion(UUID.randomUUID(), null));
+                verify(versionService, never()).saveVersion(any());
+        }
+
+        @Test
+        void saveVersionRejectsUnknownProject() {
+                UUID projectId = UUID.randomUUID();
+                when(projectRepository.findById(projectId)).thenReturn(Optional.empty());
+
+                assertThrows(IllegalArgumentException.class,
+                                () -> projectService.saveVersion(projectId, new VersionDTO("Baseline", null)));
+                verify(versionService, never()).saveVersion(any());
+                verify(projectRepository, never()).save(any());
+        }
+
+        // ---- helpers -------------------------------------------------------------
+
+        private User admin() {
+                return new User("admin@enerscope.org", "Admin", "User", "hashed", PlatformRole.ADMIN);
+        }
+
+        private User creator() {
+                return new User("owner@enerscope.org", "Owner", "User", "hashed", PlatformRole.USER);
+        }
+
+        private ProjectMember sampleMember(ProjectMemberType memberType) {
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User user = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+                ProjectMember member = new ProjectMember(user, project);
+                member.addRole(new ProjectMemberRole(
+                                memberType.name(), memberType, DEFAULT_PERMISSIONS_FOR_TEST.get(memberType)));
+                return member;
+        }
+
+        private void authenticateAs(User caller) {
+                Session session = new Session("token", caller, Instant.now().plusSeconds(3600));
+                var auth = new UsernamePasswordAuthenticationToken(caller, null, List.of());
+                auth.setDetails(session);
+                SecurityContextHolder.getContext().setAuthentication(auth);
+        }
+
+        private ProjectSummaryDTO summary(String name, long memberCount) {
+                return new ProjectSummaryDTO(UUID.randomUUID(), name, "A project", UUID.randomUUID(), "Acme",
+                                memberCount, Instant.now());
+        }
+
+        @Test
+        void saveVersionReturnsCreatedVersionAndLinksItToProject() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Economic project", "Example", new Organization("Example"));
+                var request = new org.enerscope.version.dto.VersionDTO("Economic version", null);
+                var version = new org.enerscope.version.model.Version();
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(request)).thenReturn(version);
+                assertEquals(version, projectService.saveVersion(projectId, request));
+                assertTrue(project.getVersions().contains(version));
+                verify(projectRepository).save(project);
+        }
+
 }

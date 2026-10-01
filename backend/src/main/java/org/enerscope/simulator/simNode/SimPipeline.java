@@ -26,6 +26,7 @@ public class SimPipeline extends SimBaseNode{
 
     @Override
     protected void activeAction(int time){
+        double inputBefore = measuredInput;
         float capacity = maxFlowCapacity - toDeliver.getAmount();
         float toGather = (float) nodesBefore.stream().mapToDouble(simBaseNode -> simBaseNode.getToDeliver().getAmount()).sum();
         maxPossibleProduced += maxFlowCapacity;
@@ -37,6 +38,8 @@ public class SimPipeline extends SimBaseNode{
         }
         float lost = toDeliver.getAmount() * (loss/100);
         totalLost += lost;
+        measuredLosses += lost;
+        stepOutput = Math.max(0, (float)(measuredInput - inputBefore) * (1 - loss / 100));
         toDeliver.setAmount(toDeliver.getAmount() - lost);
     }
     @Override

@@ -12,7 +12,7 @@ public class SimPipelineConnection extends SimBaseNode{
     private float outputPriority;
     private List<SimBaseNode> nodesBefore;
 
-    SimPipelineConnection(PipelineConnection pipelineConnection){
+    public SimPipelineConnection(PipelineConnection pipelineConnection){
         super(pipelineConnection);
         this.transferCapacity = pipelineConnection.getTransferCapacity();
         this.outputPriority = pipelineConnection.getOutputPriority();
@@ -26,7 +26,20 @@ public class SimPipelineConnection extends SimBaseNode{
     }
 
     @Override
+    protected void activeAction(int time) {
+        toDeliver = takeEqualAmounts(nodesBefore, transferCapacity);
+        stepOutput = toDeliver.getAmount();
+        maxPossibleProduced += transferCapacity;
+    }
+
+    @Override
+    public boolean readyToBeProcessed(int time) {
+        return nodesBefore.stream().allMatch(n -> n.getLastSimulatedTime() == time);
+    }
+
+    @Override
     public ResultPerNode createResult() {
-        return new ResultPerNode(this.id, SeaportTerminal.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
+        // TODO: Averiguar donde se utiliza esto (2->PipelineConnection)
+        return new ResultPerNode(this.id, PipelineConnection.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
     }
 }

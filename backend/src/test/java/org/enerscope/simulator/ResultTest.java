@@ -122,7 +122,8 @@ public class ResultTest {
         assertNotNull(gatheringNetworkResult.getNodeID(), "El Pozo debe tener un ID asignado");
 
         assertEquals(10512000f,gatheringNetworkResult.getMaxPossibleProduced(),0.1f);
-        assertEquals(7008340f, gatheringNetworkResult.getTotalProduced(),0.1f);
+        // New material processed: two startup hours, one transition, then steady throughput.
+        assertEquals((float)(950 * 2 + 862.125 + 817 * 8757), gatheringNetworkResult.getTotalProduced(),0.5f);
         assertEquals(340f,gatheringNetworkResult.getTotalDeferred(),0.1f);
         assertEquals(525587.5f,gatheringNetworkResult.getExtra(),0.1f);
     }
@@ -230,7 +231,7 @@ public class ResultTest {
         assertNotNull(resultPipeline.getNodeID(), "El Pozo debe tener un ID asignado");
 
         assertEquals(8760000f,resultPipeline.getMaxPossibleProduced(),0.1f);
-        assertEquals(7008100f, resultPipeline.getTotalProduced(),0.1f);
+        assertEquals(900f + 810f * 8759, resultPipeline.getTotalProduced(),0.1f);
         assertEquals(100f,resultPipeline.getTotalDeferred(),0.1f);
         assertEquals(876000f,resultPipeline.getExtra(),0.1f);
     }
@@ -286,7 +287,7 @@ public class ResultTest {
         assertNotNull(resultCompressingPlant.getNodeID(), "El Pozo debe tener un ID asignado");
 
         assertEquals(8760000f,resultCompressingPlant.getMaxPossibleProduced(),0.1f);
-        assertEquals(7884050f, resultCompressingPlant.getTotalProduced(),0.1f);
+        assertEquals(1000f * 0.95f * 8760, resultCompressingPlant.getTotalProduced(),0.1f);
         assertEquals(50f,resultCompressingPlant.getTotalDeferred(),0.1f);
         assertEquals(438000f,resultCompressingPlant.getExtra(),0.1f);
     }
@@ -341,7 +342,7 @@ public class ResultTest {
         assertNotNull(resultLiquefactionPlant.getNodeID(), "El Pozo debe tener un ID asignado");
 
         assertEquals(8760000f,resultLiquefactionPlant.getMaxPossibleProduced(),0.1f);
-        assertEquals(5258400f, resultLiquefactionPlant.getTotalProduced(),0.1f);
+        assertEquals((float)(1000 * 0.95 * 0.95 * 0.90 * 8760), resultLiquefactionPlant.getTotalProduced(),0.5f);
         assertEquals(2400f,resultLiquefactionPlant.getTotalDeferred(),0.1f);
         assertEquals(854100f,resultLiquefactionPlant.getExtra(),0.1f);
     }
@@ -396,7 +397,8 @@ public class ResultTest {
         assertNotNull(resultSeaportTerminal.getNodeID(), "El Pozo debe tener un ID asignado");
 
         assertEquals(17520000f,resultSeaportTerminal.getMaxPossibleProduced(),0.1f);
-        assertEquals(43999.727f, resultSeaportTerminal.getTotalProduced(),0.1f);
+        // 42 complete cargoes of 1,000 units plus 2,000 units in terminal storage.
+        assertEquals(44000f, resultSeaportTerminal.getTotalProduced(),0.1f);
         assertEquals(2000f,resultSeaportTerminal.getTotalDeferred(),0.1f);
         assertEquals(0f,resultSeaportTerminal.getExtra(),0.1f);
     }
