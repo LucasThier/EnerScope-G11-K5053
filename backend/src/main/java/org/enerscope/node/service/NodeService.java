@@ -2,6 +2,8 @@ package org.enerscope.node.service;
 
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.dto.*;
+import org.enerscope.node.model.GeographicalPosition;
+import org.enerscope.node.model.GraphPosition;
 import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.InvestmentCostComponent;
 import org.enerscope.node.model.NodeGraphData;
@@ -83,8 +85,17 @@ public class NodeService {
    }
 
    private NodeGraphData DTOtoEntity(NodeGraphDataDTO data) {
-      NodeGraphData graphData = new NodeGraphData(data.getXPosition(), data.getYPosition(), data.getCoordinates());
-      return graphData;
+      if (data == null) {
+         return new NodeGraphData(null, null);
+      }
+      GraphPosition graphPosition = (data.getGraphPosition() == null)
+            ? null
+            : new GraphPosition(data.getGraphPosition().getX(), data.getGraphPosition().getY());
+      GeographicalPosition geographicalPosition = (data.getGeographicalPosition() == null)
+            ? null
+            : new GeographicalPosition(data.getGeographicalPosition().getLongitude(),
+                  data.getGeographicalPosition().getLatitude());
+      return new NodeGraphData(graphPosition, geographicalPosition);
    }
 
    private InvestmentCostComponent DTOtoEntity(InvestmentCostComponentDTO data) {

@@ -8,6 +8,10 @@ import java.util.UUID;
 
 import org.enerscope.node.dto.BaseNodeDTO;
 import org.enerscope.node.dto.ConnectionDTO;
+import org.enerscope.node.dto.DiagramDTO;
+import org.enerscope.node.dto.NodeBasicsDTO;
+import org.enerscope.node.dto.NodeDetailDTO;
+import org.enerscope.node.dto.NodeGraphDataDTO;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.util.ApiResponse;
@@ -70,6 +74,43 @@ public class VersionController {
         Version version = versionService.modifyVersion(id, versionDTO);
 
         return Responses.ok("Version modified successfully", version);
+    }
+
+    @GetMapping(value = "/{versionId}/diagram")
+    @Operation(summary = "Get the diagram of a version", description = "Return the nodes and connections the editor renders for a version.")
+    public ResponseEntity<ApiResponse<DiagramDTO>> getDiagram(
+            @PathVariable UUID versionId) {
+        DiagramDTO diagram = versionService.getDiagram(versionId);
+        return Responses.ok("Diagram retrieved successfully", diagram);
+    }
+
+    @GetMapping(value = "/{versionId}/node/{nodeId}")
+    @Operation(summary = "Get a node's full detail", description = "Return a node's common and type-specific fields, for the editor's edit form.")
+    public ResponseEntity<ApiResponse<NodeDetailDTO>> getNodeDetail(
+            @PathVariable UUID versionId,
+            @PathVariable UUID nodeId) {
+        NodeDetailDTO detail = versionService.getNodeDetail(versionId, nodeId);
+        return Responses.ok("Node detail retrieved successfully", detail);
+    }
+
+    @PatchMapping(value = "/{versionId}/node/{nodeId}/position", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Update a node's position", description = "Presentation-only update of a node's diagram (x/y) and/or geographical (lng/lat) position.")
+    public ResponseEntity<ApiResponse<BaseNode>> updateNodePosition(
+            @PathVariable UUID versionId,
+            @PathVariable UUID nodeId,
+            @RequestBody NodeGraphDataDTO positionDTO) {
+        BaseNode result = versionService.updateNodePosition(versionId, nodeId, positionDTO);
+        return Responses.ok("Node position updated successfully", result);
+    }
+
+    @PatchMapping(value = "/{versionId}/node/{nodeId}/basics", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Update a node's basic fields", description = "Update a node's name and/or state without resending its type-specific fields.")
+    public ResponseEntity<ApiResponse<BaseNode>> updateNodeBasics(
+            @PathVariable UUID versionId,
+            @PathVariable UUID nodeId,
+            @RequestBody NodeBasicsDTO basics) {
+        BaseNode result = versionService.updateNodeBasics(versionId, nodeId, basics);
+        return Responses.ok("Node updated successfully", result);
     }
 
     @PostMapping(value = "/{versionId}/node", consumes = MediaType.APPLICATION_JSON_VALUE)

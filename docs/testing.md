@@ -37,17 +37,18 @@ Run everything with `cd backend && mvn test`.
 | `organization.controller.OrganizationControllerTest` | Web | 14 |
 | `project.service.ProjectServiceTest` | Unit | 22 |
 | `project.controller.ProjectControllerTest` | Web | 12 |
-| `version.service.VersionServiceTest` | Unit | 5 |
+| `version.service.VersionServiceTest` | Unit | 14 |
 | `version.controller.VersionControllerTest` | Web | 3 |
-| **Total** | | **131** |
+| `node.service.NodeServiceTest` | Unit | 1 |
+| `node.controller.NodeControllerTest` | Unit | 1 |
+| **Total** | | **142** |
 
 > **This catalog is known to be incomplete.** `mvn test` currently reports
-> **155** cases. The 24-case gap predates this table's last update and is
-> deliberately not reconciled here: the `node.*` and `strategyCost.*` classes
-> were never catalogued, `version.controller.VersionControllerTest` is listed
-> above but no such class exists, and the recorded counts for
-> `version.service.VersionServiceTest` and `money.MoneyAmountTest` have drifted
-> from the real ones. Reconciling the catalog is its own task — see
+> **180** cases. The gap predates this table's last update and is deliberately
+> not reconciled here: the `strategyCost.*` and `simulator.*` classes were never
+> catalogued, `version.controller.VersionControllerTest` is listed above but no
+> such class exists, and the recorded count for `money.MoneyAmountTest` has
+> drifted from the real one. Reconciling the catalog is its own task — see
 > `docs/considerations.md`.
 
 ## `ApplicationContextTest` — Integration
@@ -273,15 +274,25 @@ non-`/auth` route); `ProjectService` is mocked.
 
 ## `version.service.VersionServiceTest` — Unit
 
-Version creation, including the parent-version-same-project validation.
+Version editing plus the in-version node ABM, the diagram read model and the
+position update.
 
 | Case | Verifies |
 | --- | --- |
-| `createVersionPersistsAndLinksToProjectWithoutParent` | Creating a version without a `parentVersionId` persists it linked to the project and appends it to `Project.versions`. |
-| `createVersionPersistsWithValidParentVersion` | Creating a version with a `parentVersionId` that belongs to the same project links the new version to that parent. |
-| `createVersionRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException`; nothing is saved. |
-| `createVersionRejectsUnknownParentVersion` | An unknown `parentVersionId` throws `IllegalArgumentException`; nothing is saved. |
-| `createVersionRejectsParentVersionFromDifferentProject` | A `parentVersionId` belonging to a different project throws `IllegalArgumentException`; nothing is saved. |
+| `modifyVersionShouldUpdateNameWithoutCreatingNodeChange` | Renaming a version updates the name and creates no node/connection change. |
+| `editNodeInVersion_WhenNodeAddedInThisVersion_ShouldEditInPlaceAndCreateEditChange` | Editing a node that was added in this version edits it in place and records an `EDIT` change. |
+| `editNodeInVersion_WhenNodePreviouslyEditedInThisVersion_ShouldEditInPlaceAndCreateAnotherEditChange` | Editing a node already edited in this version edits in place and records another `EDIT` change. |
+| `editNodeInVersion_WhenNodeCameFromParent_ShouldUpdateSnapshotAndCreateEditChange` | Editing a node inherited from the parent swaps it in the snapshot and records an `EDIT` change. |
+| `editNodeInVersion_WhenNodeDTOIsNull_ShouldThrowNullPointerException` | A null node DTO throws `NullPointerException`. |
+| `editNodeInVersion_WhenNodeIdIsNull_ShouldThrowNullPointerException` | A null node id throws `NullPointerException`. |
+| `editNodeInVersion_WhenVersionNotFound_ShouldThrowVersionNotFoundException` | An unknown version id throws `VersionNotFoundException`. |
+| `editNodeInVersion_WhenNodeNotFound_ShouldThrowEntityNotFoundException` | An unknown node id throws `EntityNotFoundException`. |
+| `addNodeToVersion_WithWellDTO_ShouldAddWellToVersion` | Adding a `WellDTO` saves the well, adds it to the snapshot and records an `ADD` change. |
+| `getDiagram_ShouldMapNodesAndConnectionsToDTOs` | `getDiagram` maps the version snapshot to a `DiagramDTO`, including node type, graph and geographical positions, and the connection endpoints. |
+| `updateNodePosition_ShouldUpdateGraphAndGeographicalPosition` | `updateNodePosition` updates both the diagram (x/y) and geographical (lng/lat) positions and persists the node. |
+| `updateNodeBasics_ShouldUpdateNameAndState` | `updateNodeBasics` updates a node's name and state and persists it. |
+| `saveVersion_WithoutParent_InitialisesEmptyNonNullSnapshots` | A version created without a parent gets empty (non-null) node/connection snapshots, so the in-version ABM can append. |
+| `getNodeDetail_ShouldReturnCommonAndTypeSpecificFields` | `getNodeDetail` returns a node's common fields and its type-specific values (keyed by the frontend field names). |
 
 ## `version.controller.VersionControllerTest` — Web
 
@@ -294,3 +305,19 @@ non-`/auth` route); `VersionService` is mocked.
 | `createVersionReturnsCreatedVersion` | `POST /projects/{projectId}/versions` with a valid body → `201` and an envelope with `success=true`, message `Version created`, and the created version's `name`. |
 | `createVersionRejectsBlankNameWithValidationError` | Blank `name` → `400` `Validation error`; `VersionService.createVersion` is never called. |
 | `createVersionRejectsUnknownProjectWith400` | When the service throws for an unknown project → `400` with the domain error message. |
+
+## `node.service.NodeServiceTest` — Unit
+
+Node persistence via the per-type save methods.
+
+| Case | Verifies |
+| --- | --- |
+| `saveWellShouldReturnWell` | Saving a `WellDTO` (with graph + geographical positions) maps and persists a `Well` with its common and Well-specific fields. |
+
+## `node.controller.NodeControllerTest` — Unit
+
+Standalone `MockMvc` over `NodeController` with a mocked `NodeService`.
+
+| Case | Verifies |
+| --- | --- |
+| `createWellShouldReturnOk` | `POST /nodes/well` with a valid body → `200` `Well created successfully`. |

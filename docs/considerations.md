@@ -243,6 +243,44 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   `OrganizationService.assertCanManageUsers`; the member-type→permissions map is
   exposed via `OrganizationService.defaultPermissionsFor`. `PasswordGenerator`
   stays in `user/service` (reused cross-feature, like `UserService`).
+- 2026-09-01 — Visual editor backend (SCRUM — módulo editor de diagrama). Prepares
+  the backend for the canvas/map editor. Decisions:
+  - **Two positions per node.** `NodeGraphData`'s previous single `coordinates`
+    field was replaced by two `@Embeddable` value objects: `GraphPosition`
+    (`graph_x`/`graph_y`, the abstract diagram-canvas position) and
+    `GeographicalPosition` (`longitude`/`latitude`, the real-world position for
+    the MapLibre 2D/globe view). Both nullable and independent. Migration
+    `V10__split_node_graph_position.sql` (adds the 4 columns, migrates the old
+    `x_position`/`y_position`, drops the 3 old columns; the old single
+    `coordinates` value has no meaningful lng/lat mapping and is dropped).
+  - **`id` vs `identityId`.** Confirmed with the class diagram: `id` is the table
+    PK; `identityId` is the cross-version identity (same real node across
+    versions). **Within a version, connections reference nodes by `id`** (that's
+    what `addConnectionToVersion` validates and what the diagram read exposes) —
+    identity-based referencing is reserved for the cross-version diff/merge work.
+  - **Diagram read model.** `GET /version/{versionId}/diagram` returns a flat
+    `DiagramDTO { versionId, nodes[], connections[] }` built from the version
+    snapshot, so the API never serialises lazy JPA associations or the diff
+    history. The canvas renders from this; per-type node detail beyond the common
+    fields is a follow-up.
+  - **Move persistence.** `PATCH /version/{versionId}/node/{nodeId}/position`
+    updates a node's graph and/or geographical position in place **without**
+    recording a `NodeChange` (a drag is presentation, not a structural edit).
+    The full-node `PATCH /version/{versionId}/node/{nodeId}` still exists for
+    structural edits.
+  - **Project → versions navigation.** Added `GET /projects/{projectId}/versions`
+    (`VersionSummaryDTO` list) so the editor can pick a version to open.
+  - **Bug fixed:** `ProjectService.saveVersion` ended with
+    `throw new UnsupportedOperationException(...)` after persisting, so
+    `POST /projects/{projectId}/version` always returned `500`. It now returns the
+    created version.
+  - **Docs were stale:** `domain-model.md` claimed the version node/connection
+    snapshots and `NodeChange`/`ConnectionChange` were "not modeled" and that a
+    Flyway `V2` collision blocked them. Both were already resolved by the merged
+    `version_module`; the docs were corrected in this change.
+  - **Still out of scope (separate versioning module):** snapshot-every-N-versions
+    and the diff engine's merge semantics. The base editor only needs a version to
+    own its nodes/connections, which it does.
 - 2026-08-30 — Added `GET /organizations` (list): a platform ADMIN gets every
   organization (`findAll`), any other user gets the ones they are a member of
   (`findDistinctByMembers_User_Id`). Drives the frontend org picker. `POST
@@ -758,3 +796,57 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     (name, mail, job title, translated role), and the empty state. Note the
     projects created before the `createProject` fix show **0 members** — they
     are pre-fix data, not a defect in the current code.
+- 2026-09-10 — Diagram editor UX pass (frontend only). Decisions:
+  - **Connection rules.** The canvas now only accepts edges that follow the
+    real-world gas value chain. The allowed targets per node type live in
+    `ALLOWED_CONNECTIONS` in `frontend/src/components/editor/nodeCatalog.ts`
+    (`canConnect`/`allowedTargetTypes` helpers): well → gathering → treatment →
+    pipeline/compression (pipelines may chain and reach either liquefaction
+    type) → ground liquefaction → seaport terminal → LNG carrier, and FLNG →
+    LNG carrier. Both connect paths (drag-to-connect and the "Connect to another
+    node…" click flow) funnel through `EditorPage.handleConnect`, which rejects
+    a disallowed pair with a floating warning instead of calling the API. This
+    is **client-side only** for now; if the API needs to be authoritative,
+    enforce the same map in `VersionService.addConnectionToVersion` (with tests).
+  - **`REMOVED` is set on delete, not by hand.** `NODE_STATES` (the manual state
+    dropdown options) no longer includes `REMOVED`. "Delete node" now soft-
+    deletes: `useDiagram.removeNode` PATCHes the node's basics to
+    `state = REMOVED` (via the existing `/basics` endpoint) rather than calling
+    the DELETE endpoint, so the node stays in the version and can be brought back
+    with `restoreNode` ("Restore node", sets `PROPOSED`). The forms still render
+    `REMOVED` when a node already has it, but never offer it as a fresh choice.
+    The hard-delete `deleteNode`/DELETE endpoint is left in place but is no
+    longer wired to any UI control.
+  - **Per-type icons & cursors.** `nodeIcons.tsx` now draws a distinct line icon
+    for every `NodeType` (including the previously icon-less `PIPELINE_CONECTION`
+    and `INTERNAL_CONSUMPTION`). Cursors were made intentful: an unselected node
+    shows a crosshair (its body is a connection source), a selected node shows a
+    grab cursor (drag to move), edges show a pointer (double-click removes), and
+    the pane switches to a crosshair while a click-connection is pending. Edges
+    render as `smoothstep` with a slightly larger arrowhead.
+  - **Node palette.** A left rail (`NodePalette`, shown in diagram mode) lists
+    every node type with its icon. A tile can be **dragged onto the canvas** to
+    place a node at the drop point (`DiagramCanvas` handles `onDrop`/`onDragOver`,
+    the drag carries the type under the `NODE_DRAG_TYPE` key), or **clicked** to
+    add one near the current spread. Either path opens the create form
+    pre-selected to that type (`NodeFormPanel` gained an `initialType`) so the
+    user still names it. The canvas is now a flex sibling of the rail; the
+    floating create/edit panel is positioned against a new `canvasWrapRef`
+    (previously the whole body).
+  - **Double-click to edit.** Double-clicking a node opens its full editable
+    form (`DiagramCanvas.onNodeDoubleClick` → `EditorPage.openEditNode` →
+    `handleEditData`). The data panel's button was renamed from "Edit all data"
+    to just **"Edit"**.
+
+- 2026-10-01 — Editor branch merged onto the new app shell (TopBar + Sidebar +
+  `ActiveProjectProvider`). `GET /projects` is the single listing endpoint
+  (`ProjectSummaryDTO`, optional `organizationId`); the editor's own
+  `listByOrganization` endpoint was dropped in favour of it. The editor lives at
+  `/editor` as a full-bleed page under `AppLayout` (the shell is `h-screen`;
+  regular pages scroll inside `PaddedMain`) and is reached from the sidebar's
+  "Mapa de la Cadena de Valor" entry. The editor still has its own
+  organization/project/version pickers; wiring it to the active project from
+  `ActiveProjectProvider` is a natural follow-up.
+- 2026-10-01 — The node-position migration was renumbered `V7` → `V10` when merging
+  master, which had already taken V7–V9 (`V7__add_job_title`, `V8`/`V9__create_results`).
+  Check `ls db/migration` before picking a number.
