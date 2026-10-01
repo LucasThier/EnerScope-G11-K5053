@@ -186,3 +186,7 @@ Saved results include **Operativos** and **Económicos** tabs. Operational resul
 show annual metrics for a selected node using the saved simulation snapshot.
 Run the optional results browser checks with node tests/results-browser.mjs;
 see the economic frontend guide for fixture screenshots and prerequisites.
+
+Guardar preserves incomplete economic drafts in the database. Guardar y simular 
+requires a complete configuration; the summary lists every pending section and 
+simulation attempts open the first invalid one.

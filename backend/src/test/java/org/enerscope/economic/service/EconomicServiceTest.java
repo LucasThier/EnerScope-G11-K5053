@@ -26,8 +26,9 @@ class EconomicServiceTest {
     final ProjectRepository projects=mock(ProjectRepository.class);
     final EconomicConfigurationRepository configs=mock(EconomicConfigurationRepository.class);
     final EconomicEvaluationRepository evaluations=mock(EconomicEvaluationRepository.class);
+    final EconomicDraftRepository drafts=mock(EconomicDraftRepository.class);
     final EconomicSimulationAdapter simulator=spy(new EconomicSimulationAdapter());
-    final EconomicService service=new EconomicService(projects,configs,evaluations,new EconomicValidator(),new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator()),
+    final EconomicService service=new EconomicService(projects,configs,evaluations,drafts,new EconomicValidator(),new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator()),
             new EconomicIndicatorsCalculator(), simulator,MAPPER,mock(AppLogger.class));
     final UUID projectId=UUID.randomUUID(); final varHolder holder=new varHolder();
     static class varHolder { final org.enerscope.version.model.Version version=version(); }
@@ -204,5 +205,86 @@ class EconomicServiceTest {
         assertEquals(org.enerscope.economic.model.enums.IrrStatus.INSUFFICIENT_DATA, single.snapshot().result().indicators().irr().status());
         assertEquals(single.snapshot(), service.list(projectId, holder.version.getId()).getFirst().snapshot());
         verifyNoInteractions(configs, simulator);
+    }
+
+    //TODO: revisar tests
+    private org.enerscope.economic.model.configuration.EconomicConfiguration exportConfiguration() throws Exception {
+        return MAPPER.readValue(MAPPER.writeValueAsString(configuration()).replace("OUTPUT_VOLUME", "EXPORTED_VOLUME"),
+                org.enerscope.economic.model.configuration.EconomicConfiguration.class);
+    }
+
+    @Test void exportOnWellIsRejectedBeforeSaving() throws Exception {
+        grant(ProjectMemberPermission.EDIT_PROJECT);
+        var configuration = exportConfiguration();
+        var error = assertThrows(IllegalArgumentException.class, () -> service.save(projectId, holder.version.getId(), configuration));
+        assertEquals("El volumen exportado requiere un buque del escenario.", error.getMessage());
+        verifyNoInteractions(configs, simulator, evaluations);
+    }
+
+    @Test void savedInvalidExportCannotRunSimulation() throws Exception {
+        grant(ProjectMemberPermission.EDIT_PROJECT);
+        when(configs.findByVersionId(holder.version.getId())).thenReturn(Optional.of(
+                new EconomicConfigurationEntity(holder.version, MAPPER.writeValueAsString(exportConfiguration()))));
+        assertThrows(IllegalArgumentException.class, () -> service.evaluate(projectId, holder.version.getId()));
+        verifyNoInteractions(simulator, evaluations);
+    }
+
+    @Test void exportOnCarrierCanBeSaved() throws Exception {
+        grant(ProjectMemberPermission.EDIT_PROJECT);
+        var originalNodes = List.copyOf(holder.version.getNodeSnapshot());
+        ReflectionTestUtils.setField(holder.version, "nodeSnapshot", new ArrayList<org.enerscope.node.model.BaseNode>());
+        for (var node : originalNodes) {
+            var carrier = new org.enerscope.node.model.export.LNGCarrier();
+            ReflectionTestUtils.setField(carrier, "id", node.getId());
+            holder.version.getNodeSnapshot().add(carrier);
+        }
+        var configuration = exportConfiguration();
+        assertEquals(configuration, service.save(projectId, holder.version.getId(), configuration));
+        verify(configs).save(any(EconomicConfigurationEntity.class));
+    }
+
+    private org.enerscope.economic.dto.EconomicDraftDTO incompleteDraft() {
+        var json = MAPPER.createObjectNode();
+        for (String field : List.of("startYear", "years", "currency", "wacc", "entityId", "entityName", "taxRate")) json.put(field, "");
+        json.putArray("assets"); json.putArray("rules");
+        return new org.enerscope.economic.dto.EconomicDraftDTO(1, json);
+    }
+
+    @Test void editorSavesIncompleteDraftWithoutChangingConfigurationOrSimulating() {
+        grant(ProjectMemberPermission.EDIT_PROJECT);
+        var draft = incompleteDraft();
+        assertEquals(draft, service.saveDraft(projectId, holder.version.getId(), draft));
+        var captor = org.mockito.ArgumentCaptor.forClass(EconomicDraftEntity.class);
+        verify(drafts).save(captor.capture());
+        assertTrue(captor.getValue().getDraftJson().contains("schemaVersion"));
+        verifyNoInteractions(configs, simulator, evaluations);
+    }
+
+    @Test void viewerReadsDraftButCannotSaveIt() throws Exception {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        var draft = incompleteDraft();
+        when(drafts.findByVersionId(holder.version.getId())).thenReturn(Optional.of(new EconomicDraftEntity(holder.version, MAPPER.writeValueAsString(draft))));
+        assertEquals(draft, service.getDraft(projectId, holder.version.getId()));
+        assertThrows(ForbiddenException.class, () -> service.saveDraft(projectId, holder.version.getId(), draft));
+        verify(drafts, never()).save(any());
+    }
+
+    @Test void draftCannotLeakAcrossProjects() {
+        user.updatePlatformRole(PlatformRole.ADMIN);
+        assertThrows(EntityNotFoundException.class, () -> service.getDraft(projectId, UUID.randomUUID()));
+        verifyNoInteractions(drafts);
+    }
+
+    @Test void invalidDraftStructureIsRejectedBeforePersistence() {
+        grant(ProjectMemberPermission.EDIT_PROJECT);
+        assertThrows(IllegalArgumentException.class, () -> service.saveDraft(projectId, holder.version.getId(),
+                new org.enerscope.economic.dto.EconomicDraftDTO(1, MAPPER.createObjectNode())));
+        verifyNoInteractions(drafts);
+    }
+
+    @Test void validatedConfigurationSaveClearsDraft() {
+        grant(ProjectMemberPermission.EDIT_PROJECT);
+        service.save(projectId, holder.version.getId(), configuration());
+        verify(drafts).deleteByVersionId(holder.version.getId());
     }
 }

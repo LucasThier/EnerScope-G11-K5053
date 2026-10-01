@@ -8,7 +8,7 @@ async function sourceModule(path) {
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
   return import('data:text/javascript;base64,' + Buffer.from(output).toString('base64'));
 }
-const { emptyDraft, toConfiguration, fromConfiguration, validateDraft } = await sourceModule('../src/utils/economicDraft.ts');
+const { emptyDraft, toConfiguration, fromConfiguration, validateDraft, nodesForDriver, changeRuleDriver } = await sourceModule('../src/utils/economicDraft.ts');
 const { irrText, money, percent, paybackText } = await sourceModule('../src/utils/economicFormat.ts');
 const nodes = [{ id: 'node-1', name: 'Well', type: 'WELL' }];
 function draft() {
@@ -96,4 +96,30 @@ test('unsupported drivers remain read only and missing currency is never assumed
   c.conversions[0].metric = 'INPUT_VOLUME';
   assert.equal(fromConfiguration(c), null);
   assert.match(money(100), /moneda no disponible/);
+});
+
+test('export selection includes only scenario carriers and production keeps other nodes', () => {
+  const list = [...nodes, { id: 'ship', name: 'Ship', type: 'LNG_CAMER' }, { id: 'port', name: 'Port', type: 'SEAPORT_TERMINAL' }];
+  assert.deepEqual(nodesForDriver(list, 'EXPORTED_VOLUME').map(n => n.id), ['ship']);
+  assert.equal(nodesForDriver(list, 'OUTPUT_VOLUME').length, 3);
+  assert.deepEqual(nodesForDriver(nodes, 'EXPORTED_VOLUME'), []);
+});
+test('switching to exports clears incompatible node and conversion but preserves eligible carrier', () => {
+  const r = draft().rules[0];
+  const changed = changeRuleDriver(r, 'EXPORTED_VOLUME', nodes);
+  assert.equal(changed.nodeId, ''); assert.equal(changed.unit, ''); assert.equal(changed.factor, '');
+  const ships = [{ ...nodes[0], type: 'LNG_CAMER' }];
+  assert.equal(changeRuleDriver(r, 'EXPORTED_VOLUME', ships).nodeId, r.nodeId);
+});
+test('saved export rules on noncarriers cannot be saved while carrier rules remain valid', () => {
+  const d = draft(); d.rules[0].driver = 'EXPORTED_VOLUME';
+  assert.ok(validateDraft(d, nodes).Ingresos.includes('El volumen exportado requiere un buque del escenario.'));
+  assert.deepEqual(validateDraft(d, [{ ...nodes[0], type: 'LNG_CAMER' }]).Ingresos, []);
+});
+
+test('asset validation identifies purchase range and service date independently', () => {
+  const d = draft(); d.assets[0].purchase = '2029-12-31'; d.assets[0].service = '2029-01-01';
+  const errors = validateDraft(d, nodes).Inversion;
+  assert.ok(errors.some(e => e.includes('Plant: compra y pago') && e.includes('2030 y 2035')));
+  assert.ok(errors.some(e => e.includes('Plant: la puesta en servicio')));
 });

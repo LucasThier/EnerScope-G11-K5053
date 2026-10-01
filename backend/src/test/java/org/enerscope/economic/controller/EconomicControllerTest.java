@@ -103,4 +103,34 @@ class EconomicControllerTest {
                 .andExpect(jsonPath("$.data.snapshot.result.indicators.simplePayback.period").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.data.snapshot.result.indicators.discountedPayback.year").value(org.hamcrest.Matchers.nullValue()));
     }
+
+    @Test void anonymousDraftEndpointsReturn401() throws Exception {
+        mvc.perform(get(path + "/draft")).andExpect(status().isUnauthorized());
+        mvc.perform(put(path + "/draft").contentType("application/json").content("{}"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(service);
+    }
+
+    @Test void draftEndpointsUseEnvelopeAndAllowNoSavedDraft() throws Exception {
+        mvc.perform(get(path + "/draft").header("Authorization", "Bearer test-token"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+        when(service.saveDraft(any(), any(), any())).thenAnswer(c -> c.getArgument(2));
+        mvc.perform(put(path + "/draft").header("Authorization", "Bearer test-token")
+                .contentType("application/json").content("{\"schemaVersion\":1,\"draft\":{\"wacc\":\"\"}}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.draft.wacc").value(""));
+    }
+
+    @Test void draftPermissionDenialReturns403() throws Exception {
+        when(service.saveDraft(any(), any(), any())).thenThrow(new ForbiddenException("Project permission required"));
+        mvc.perform(put(path + "/draft").header("Authorization", "Bearer test-token")
+                .contentType("application/json").content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test void invalidDraftReturns400() throws Exception {
+        when(service.saveDraft(any(), any(), any())).thenThrow(new IllegalArgumentException("Invalid draft structure"));
+        mvc.perform(put(path + "/draft").header("Authorization", "Bearer test-token")
+                .contentType("application/json").content("{}"))
+                .andExpect(status().isBadRequest());
+    }
 }

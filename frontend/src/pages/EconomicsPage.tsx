@@ -68,8 +68,12 @@ function EconomicsWorkspace({ projectId, versionId }: { projectId: string; versi
           // silently open a blank editor.
           if (!isAxiosError(e) || e.response?.status !== 404 || e.response.data?.message !== 'Economic configuration not found') throw e;
         }
+        const savedDraft = await economicsApi.draft(projectId, versionId);
+        if (savedDraft && savedDraft.schemaVersion !== 1) throw new Error('Este borrador utiliza una versión de editor no compatible.');
         if (cancelled) return;
-        const initial = saved ? fromConfiguration(saved) : emptyDraft();
+        const compatible = saved ? fromConfiguration(saved) : emptyDraft();
+        const initial = compatible ? savedDraft?.draft ?? compatible : null;
+        if (initial && savedDraft) setNotice('Borrador recuperado. Podés continuar editando; los resultados guardados conservan su configuración original.');
         setScenario(selected); setConfiguration(saved); setEditable(initial !== null);
         if (initial) { setDraft(initial); setBaseline(JSON.stringify(initial)); }
         setEvaluations(history);
@@ -88,10 +92,16 @@ function EconomicsWorkspace({ projectId, versionId }: { projectId: string; versi
     return () => { cancelled = true; };
   }, [projectId, versionId, evaluationId]);
   async function save(simulate: boolean) {
-    if (inFlight.current || !canEdit || !editable || Object.values(validateDraft(draft, scenario?.nodes ?? [])).some(e => e.length)) return;
+    if (inFlight.current || !canEdit || !editable || (simulate && Object.values(validateDraft(draft, scenario?.nodes ?? [])).some(e => e.length))) return;
     inFlight.current = true; setBusy(true); setError(''); setNotice('');
     let saved = false;
     try {
+      if (!simulate) {
+        await economicsApi.saveDraft(projectId, versionId, draft);
+        setBaseline(JSON.stringify(draft));
+        setNotice('Borrador guardado. Podés cerrar y continuar en otro momento, aunque haya datos pendientes.');
+        return;
+      }
       const response = await economicsApi.save(projectId, versionId, toConfiguration(draft));
       saved = true; setConfiguration(response); setBaseline(JSON.stringify(draft));
       if (simulate) {

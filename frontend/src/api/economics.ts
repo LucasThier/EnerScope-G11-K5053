@@ -1,3 +1,4 @@
+import type { EconomicDraft } from '../utils/economicDraft';
 import { client } from './client';
 import type { ApiResponse } from '../types/auth';
 import type { EconomicConfiguration, Evaluation, Scenario } from '../types/economics';
@@ -8,6 +9,11 @@ function data<T>(response: { data: ApiResponse<T> }): T {
   return response.data.data;
 }
 export const economicsApi = {
+  draft: (p: string, v: string) => client.get<ApiResponse<{ schemaVersion: number; draft: EconomicDraft } | null>>(base(p, v) + '/draft').then(r => {
+    if (!r.data.success) throw new Error(r.data.message || 'No se pudo cargar el borrador.');
+    return r.data.data;
+  }),
+  saveDraft: (p: string, v: string, draft: EconomicDraft) => client.put<ApiResponse<{ schemaVersion: number; draft: EconomicDraft }>>(base(p, v) + '/draft', { schemaVersion: 1, draft }).then(data),
   scenarios: (project: string) => client.get<ApiResponse<Scenario[]>>(`/projects/${project}/versions`).then(data),
   configuration: (p: string, v: string) => client.get<ApiResponse<EconomicConfiguration>>(base(p, v) + '/configuration').then(data),
   save: (p: string, v: string, configuration: EconomicConfiguration) =>

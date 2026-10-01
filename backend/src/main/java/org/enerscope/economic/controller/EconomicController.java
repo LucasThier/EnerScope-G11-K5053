@@ -13,7 +13,17 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RequestMapping("/projects/{projectId}/versions/{versionId}/economics")
 public class EconomicController {
-    private final EconomicService service;
+    private final EconomicService service;@PutMapping("/draft")
+    public ResponseEntity<ApiResponse<org.enerscope.economic.dto.EconomicDraftDTO>> saveDraft(
+            @PathVariable UUID projectId, @PathVariable UUID versionId,
+            @RequestBody org.enerscope.economic.dto.EconomicDraftDTO draft) {
+        return Responses.ok("Economic draft saved", service.saveDraft(projectId, versionId, draft));
+    }
+    @GetMapping("/draft")
+    public ResponseEntity<ApiResponse<org.enerscope.economic.dto.EconomicDraftDTO>> draft(
+            @PathVariable UUID projectId, @PathVariable UUID versionId) {
+        return Responses.ok("Economic draft", service.getDraft(projectId, versionId));
+    }
     @PutMapping("/configuration")
     public ResponseEntity<ApiResponse<EconomicConfiguration>> save(@PathVariable UUID projectId, @PathVariable UUID versionId,
             @RequestBody EconomicConfiguration configuration) {

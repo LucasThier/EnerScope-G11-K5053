@@ -76,3 +76,5 @@ Version hierarchy. A read-only version-summary endpoint supports selection.
 The frontend uses React Router's data router for navigation blocking, and a pure
 adapter converts the simple editor to the existing economic aggregate.
 All financial calculations remain in the backend. See [economic frontend](economic-frontend.md).
+
+The economic editor additionally reads/writes version-owned durable drafts through GET/PUT economics/draft. Draft storage never feeds the engine directly; configuration validation remains mandatory for simulation.

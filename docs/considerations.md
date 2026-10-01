@@ -842,3 +842,7 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   remains economic. No new simulation, backend endpoint or schema is introduced.
 
 - 2026-10-01 — Restored V6 by removing an accidental trailing 's'. Its Flyway checksum is again 1133901940, matching the existing database. Rebuilt the local API without changing schema history or deleting demo data.
+
+- 2026-10-01 — Export-volume rules now select only LNG carriers (existing enum LNG_CAMER). Switching to an incompatible driver clears the node and conversion; invalid saved rules remain visible and block saving. The service validates actual carrier classes before save/evaluation, including contract conversions. Historical reads are unchanged.
+
+- 2026-10-01 — Guardar persists incomplete editor strings in a separate version-owned economic_draft row (V13, schemaVersion 1). It never overwrites engine configuration or evaluates. Save-and-simulate retains strict validation and atomically clears the draft on configuration save. All pending sections explain their errors; simulation attempts open the first invalid section.

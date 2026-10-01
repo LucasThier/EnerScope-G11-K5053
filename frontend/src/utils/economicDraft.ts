@@ -15,6 +15,15 @@ export interface EconomicDraft {
 }
 export const sections = ['General', 'Inversion', 'Ingresos', 'Costos', 'Impuestos'] as const;
 export type Section = typeof sections[number];
+// LNG_CAMER is the existing backend enum name for LNG carriers.
+export function nodesForDriver(nodes: Scenario['nodes'], driver: Driver) {
+  return driver === 'EXPORTED_VOLUME' ? nodes.filter(n => n.type === 'LNG_CAMER') : nodes;
+}
+export function changeRuleDriver(rule: RuleDraft, driver: Driver, nodes: Scenario['nodes']): RuleDraft {
+  const compatible = driver !== 'FIXED' && nodesForDriver(nodes, driver).some(n => n.id === rule.nodeId);
+  return { ...rule, driver, nodeId: compatible ? rule.nodeId : '',
+    unit: compatible ? rule.unit : '', factor: compatible ? rule.factor : '' };
+}
 export function emptyDraft(): EconomicDraft {
   return { startYear: String(new Date().getFullYear()), years: '10', currency: 'USD', wacc: '',
     entityId: crypto.randomUUID(), entityName: '', taxRate: '', rules: [], assets: [] };
@@ -47,9 +56,9 @@ export function validateDraft(d: EconomicDraft, nodes: Scenario['nodes']): Recor
   for (const a of d.assets) {
     register(a.concept, 'Inversion'); register(a.concept + '.depreciation', 'Inversion');
     if (!validNumber(a.cost) || !validNumber(a.residual) || number(a.residual) > number(a.cost)) errors.Inversion.push('Revisá el importe y el residual de ' + a.concept + '.');
-    if (!integer(a.life, 1, 1200)) errors.Inversion.push('La vida útil debe tener entre 1 y 1200 meses.');
-    if (!realDate(a.purchase) || +a.purchase.slice(0, 4) < start || +a.purchase.slice(0, 4) > end ||
-        !realDate(a.service) || a.service < a.purchase) errors.Inversion.push('Revisá las fechas de compra y puesta en servicio.');
+    if (!integer(a.life, 1, 1200)) errors.Inversion.push((a.concept || 'Activo sin concepto') + ': la vida útil debe tener entre 1 y 1200 meses.');
+    if (!realDate(a.purchase) || +a.purchase.slice(0, 4) < start || +a.purchase.slice(0, 4) > end) errors.Inversion.push((a.concept || 'Activo sin concepto') + ': compra y pago deben tener una fecha válida entre ' + start + ' y ' + end + '.');
+    if (!realDate(a.service) || a.service < a.purchase) errors.Inversion.push((a.concept || 'Activo sin concepto') + ': la puesta en servicio debe ser válida e igual o posterior a la compra.');
     if (a.nodeId && !nodeExists(a.nodeId)) errors.Inversion.push('Un activo referencia un nodo que ya no existe.');
   }
   const conversions = new Map<string, string>();
@@ -60,6 +69,7 @@ export function validateDraft(d: EconomicDraft, nodes: Scenario['nodes']): Recor
     if (!integer(r.from, start + 1, end) || !integer(r.to, number(r.from), end)) errors[section].push('Los años de aplicación deben estar dentro del horizonte operativo.');
     if (r.driver !== 'FIXED') {
       if (!nodeExists(r.nodeId)) errors[section].push('Seleccioná un nodo válido.');
+      if (r.driver === 'EXPORTED_VOLUME' && !nodesForDriver(nodes, r.driver).some(n => n.id === r.nodeId)) errors[section].push('El volumen exportado requiere un buque del escenario.');
       if (!label(r.unit) || !validNumber(r.factor) || number(r.factor) <= 0) errors[section].push('Completá la unidad y un factor de conversión mayor que cero.');
       const key = r.nodeId + ':' + r.driver, value = r.unit + ':' + number(r.factor);
       if (conversions.has(key) && conversions.get(key) !== value) errors[section].push('Las reglas del mismo nodo y volumen deben compartir unidad y conversión.');

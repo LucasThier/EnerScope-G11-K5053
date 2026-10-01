@@ -203,10 +203,6 @@ classification, dates and allocated amount. `EconomicResult` contains entries,
 metrics, `PeriodEconomicResult`, `EntityTaxResult`, `PendingBalance` and NPV.
 `EvaluationDTO.Snapshot` also stores physical inputs and a snapshot schema version.
 
-The model separates tax recognition from cash realization, individual taxation from
-consolidation, and CAPEX from depreciation. See [the full example and API](economic-module.md)
-and [the integrated class diagram](../backend/docs/backend-class-diagram.drawio).
-
 ## Session (non-persistent)
 
 A `Session` is an in-memory object rebuilt from a JWT on every request. It is
@@ -236,3 +232,7 @@ Access tokens carry `sub` (user id), `mail`, `firstName` and `lastName`.
 On startup `AdminSeeder` ensures a default administrator exists
 (`admin@enerscope.org` by default). It is idempotent: it only creates the user
 if the email is not already present.
+
+## EconomicDraftEntity
+
+Version-owned editor draft, unique version_id, schema-versioned draft_json text and optimistic-lock revision. Raw strings preserve partial amounts and dates. V13 adds the table independently of economic_configuration and economic_evaluation.

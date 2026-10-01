@@ -322,3 +322,5 @@ GET /api/v1/projects/{projectId}/versions returns active version summaries with
 node identifiers, names and types. Requires VIEW_PROJECT through an active project
 membership/role, or a platform administrator. Responses use ApiResponse.
 See [economic frontend](../docs/economic-frontend.md).
+
+Economic drafts: migration V13 adds economic_draft. GET/PUT /projects/{projectId}/versions/{versionId}/economics/draft reads/stores editor drafts with VIEW_PROJECT/EDIT_PROJECT checks. Drafts are structurally validated separately from simulation-ready configuration.

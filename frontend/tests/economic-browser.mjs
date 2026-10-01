@@ -20,6 +20,7 @@ await context.addInitScript(user => {
 },user);
 const projects = ['p1','p2'].map((id,i) => ({ id, name: 'Proyecto ' + (i + 1), organizationName: 'Organización', organizationId: 'o1', memberCount: 1, lastModified: '2030-01-01T00:00:00Z' }));
 const scenario = { id: 'v1', name: 'Base', lastModified: '2030-01-01T00:00:00Z', nodes: [{ id: 'n1', name: 'Pozo A', type: 'WELL' }] };
+let savedDraft = null;
 let configuration = null, history = [], saves = 0, simulations = 0, rejectSave = false;
 const fixtureDraft = { ...emptyDraft(), startYear: '2030', years: '2', wacc: '10', entityName: 'Entidad de prueba', taxRate: '30' };
 const fixture = toConfiguration(fixtureDraft);
@@ -42,11 +43,18 @@ await page.route('**/api/v1/**', async route => {
   if (path.endsWith('/members')) return ok([]);
   if (path === '/projects/p1/versions') return ok([scenario]);
   if (path === '/projects/p2/versions') return ok([]);
+  if (path.endsWith('/draft')) {
+    if (method === 'PUT') {
+      if (rejectSave) return route.fulfill({ status: 400, json: { success: false, message: 'No se pudo guardar el borrador' } });
+      savedDraft = route.request().postDataJSON();
+    }
+    return ok(savedDraft);
+  }
   if (path.endsWith('/configuration')) {
     if (method === 'PUT') {
       saves++;
       if (rejectSave) return route.fulfill({ status: 400, json: { success: false, message: 'Configuración inválida' } });
-      configuration = route.request().postDataJSON(); return ok(configuration);
+      configuration = route.request().postDataJSON(); savedDraft = null; return ok(configuration);
     }
     return configuration ? ok(configuration) : route.fulfill({ status: 404, json: { success: false, message: 'Economic configuration not found' } });
   }
@@ -105,6 +113,60 @@ try {
   await page.goto(base);
   await page.getByText('Esta configuración utiliza opciones avanzadas.',{exact:false}).waitFor();
   assert.equal(await page.getByRole('button',{name:'Guardar y simular'}).count(),0);
+  configuration = fixture;
+  scenario.nodes.push({ id: 'ship', name: 'Buque de prueba', type: 'LNG_CAMER' });
+  await page.goto(base);
+  await page.getByRole('button', { name: 'Ingresos', exact: true }).click();
+  await page.getByRole('button', { name: 'Agregar ingreso', exact: true }).click();
+  await page.getByRole('combobox', { name: /^Modalidad/ }).selectOption('OUTPUT_VOLUME');
+  await page.getByRole('combobox', { name: /^Nodo/ }).selectOption('n1');
+  await page.getByLabel('Unidad comercial').fill('unidad');
+  await page.getByLabel('Unidades comerciales por unidad del simulador').fill('1');
+  await page.getByRole('combobox', { name: /^Modalidad/ }).selectOption('EXPORTED_VOLUME');
+  assert.equal(await page.getByRole('combobox', { name: /^Nodo/ }).inputValue(), '');
+  assert.equal(await page.getByLabel('Unidad comercial').inputValue(), '');
+  assert.deepEqual(await page.getByRole('combobox', { name: /^Nodo/ }).locator('option').evaluateAll(options => options.map(o => o.value)), ['', 'ship']);
+  await page.getByRole('combobox', { name: /^Nodo/ }).selectOption('ship');
+  scenario.nodes.pop();
+  await page.reload();
+  await page.getByRole('button', { name: 'Ingresos', exact: true }).click();
+  await page.getByRole('button', { name: 'Agregar ingreso', exact: true }).click();
+  await page.getByRole('combobox', { name: /^Modalidad/ }).selectOption('EXPORTED_VOLUME');
+  await page.getByText('Este escenario no tiene buques para calcular ingresos por exportación.', { exact: true }).waitFor();
+  const simulationsBeforeInvalid = simulations;
+  await page.getByRole('button', { name: 'Guardar y simular', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'No se ejecutó la simulación.' }).waitFor();
+  assert.equal(simulations, simulationsBeforeInvalid);
+  // An incomplete draft survives errors, reload and a later valid simulation.
+  configuration = fixture; savedDraft = null;
+  await page.goto(base);
+  await page.getByRole('button', { name: 'Inversion', exact: true }).click();
+  await page.getByRole('button', { name: 'Agregar activo', exact: true }).click();
+  await page.getByLabel('Concepto', { exact: true }).fill('Activo pendiente');
+  await page.getByRole('button', { name: 'Impuestos', exact: true }).click();
+  await page.getByText('Activo pendiente: la vida útil debe tener entre 1 y 1200 meses.', { exact: true }).waitFor();
+  rejectSave = true;
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await page.getByText('No se pudo guardar el borrador', { exact: true }).waitFor();
+  assert.equal(savedDraft, null);
+  rejectSave = false;
+  const simulationsBeforeDraft = simulations;
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await page.getByText('Borrador guardado.', { exact: false }).waitFor();
+  assert.equal(savedDraft.draft.assets[0].concept, 'Activo pendiente');
+  assert.equal(configuration.assets.length, 0);
+  await page.reload();
+  await page.getByText('Borrador recuperado.', { exact: false }).waitFor();
+  await page.getByRole('button', { name: 'Guardar y simular', exact: true }).click();
+  await page.getByRole('alert').filter({ hasText: 'No se ejecutó la simulación.' }).waitFor();
+  assert.equal(await page.getByLabel('Concepto', { exact: true }).inputValue(), 'Activo pendiente');
+  assert.equal(simulations, simulationsBeforeDraft);
+  await page.getByLabel('Importe (USD)', { exact: true }).fill('1000');
+  await page.getByLabel('Vida útil (meses)', { exact: true }).fill('24');
+  await page.getByRole('button', { name: 'Guardar y simular', exact: true }).evaluate(b => { b.click(); b.click(); });
+  await page.getByRole('heading', { name: 'VAN', exact: true }).waitFor();
+  assert.equal(simulations, simulationsBeforeDraft + 1);
+  assert.equal(savedDraft, null);
   user.platformRole = 'USER'; configuration = fixture;
   await page.goto(base);
   await page.getByText('Tenés acceso de consulta.',{exact:false}).waitFor();

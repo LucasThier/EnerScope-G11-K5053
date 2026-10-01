@@ -27,6 +27,7 @@ public class EconomicService {
     private final ProjectRepository projects;
     private final EconomicConfigurationRepository configurations;
     private final EconomicEvaluationRepository evaluations;
+    private final EconomicDraftRepository drafts;
     private final EconomicValidator validator;
     private final EconomicEngine engine;
     private final EconomicIndicatorsCalculator indicators;
@@ -37,6 +38,7 @@ public class EconomicService {
     public EconomicConfiguration save(UUID projectId, UUID versionId, EconomicConfiguration configuration) {
         Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
         validator.validate(configuration, nodeIds(version));
+        validateExportNodes(configuration, version);
         // Validate fiscal coverage/classification before accepting a configuration, with zero observed quantities.
         List<OperationalMetric> validationMetrics = new ArrayList<>();
         for (var m : configuration.conversions()) for (int t = 0; t <= configuration.years(); t++)
@@ -44,8 +46,27 @@ public class EconomicService {
         engine.calculate(configuration, validationMetrics);
         var entity = configurations.findByVersionId(versionId).orElseGet(() -> new EconomicConfigurationEntity(version, ""));
         entity.replace(json(configuration)); configurations.save(entity);
+        drafts.deleteByVersionId(versionId);
         logger.info("Economic configuration saved for version {}", versionId);
         return configuration;
+    }
+
+    public org.enerscope.economic.dto.EconomicDraftDTO saveDraft(UUID projectId, UUID versionId,
+            org.enerscope.economic.dto.EconomicDraftDTO draft) {
+        Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        EconomicValidator.require(draft != null, "Draft is required");
+        draft.validateStructure();
+        var entity = drafts.findByVersionId(versionId).orElseGet(() -> new EconomicDraftEntity(version, ""));
+        entity.replace(json(draft)); drafts.save(entity);
+        logger.info("Economic draft saved for version {}", versionId);
+        return draft;
+    }
+
+    @Transactional(readOnly = true)
+    public org.enerscope.economic.dto.EconomicDraftDTO getDraft(UUID projectId, UUID versionId) {
+        authorize(projectId, versionId, ProjectMemberPermission.VIEW_PROJECT);
+        return drafts.findByVersionId(versionId).map(e -> read(e.getDraftJson(),
+                org.enerscope.economic.dto.EconomicDraftDTO.class)).orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -57,6 +78,7 @@ public class EconomicService {
     public EvaluationDTO evaluate(UUID projectId, UUID versionId) {
         Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
         EconomicConfiguration c = configuration(versionId); validator.validate(c, nodeIds(version));
+        validateExportNodes(c, version);
         var operational = simulator.simulate(version, c);
         EconomicResult result = engine.calculate(c, operational.metrics());
         if (result.indicators().irr().status() == org.enerscope.economic.model.enums.IrrStatus.NUMERICAL_FAILURE
@@ -132,6 +154,20 @@ public class EconomicService {
         }
         return project.getVersions().stream().filter(v -> v.getId().equals(versionId) && v.isActive()).findFirst()
                 .orElseThrow(() -> new EntityNotFoundException("Version does not belong to project"));
+    }
+
+    // Structural validation already requires a conversion for every variable rule,
+    // including contract revenue. Check actual node classes, not editable type labels.
+    private void validateExportNodes(EconomicConfiguration configuration, Version version) {
+        Set<UUID> carriers = new HashSet<>();
+        if (version.getNodeSnapshot() != null) version.getNodeSnapshot().stream()
+                .filter(n -> n instanceof org.enerscope.node.model.export.LNGCarrier)
+                .forEach(n -> carriers.add(n.getId()));
+        for (var conversion : configuration.conversions()) {
+            EconomicValidator.require(conversion.metric() != org.enerscope.economic.model.enums.Driver.EXPORTED_VOLUME
+                    || carriers.contains(conversion.nodeId()),
+                    "El volumen exportado requiere un buque del escenario.");
+        }
     }
 
     private Set<UUID> nodeIds(Version version) {

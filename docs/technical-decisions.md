@@ -78,3 +78,7 @@ Bearer security scheme, so protected endpoints can be exercised from the UI.
   conversions and rule creation prevent double counting or guessing physical units.
 - PostgreSQL integration tests complement the H2 wiring test: Hibernate schema
   validation and actual persistence caught legacy mapping/migration gaps hidden by H2.
+
+## Durable economic editor drafts
+
+Incomplete editor strings are persisted separately from the validated engine aggregate. Draft save validates structure and size only. GET/PUT economics/draft reuse VIEW_PROJECT/EDIT_PROJECT authorization. The simulation path publishes a fully validated configuration and clears the draft in the same transaction; historical results remain immutable.
