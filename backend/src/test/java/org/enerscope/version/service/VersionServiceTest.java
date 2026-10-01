@@ -89,7 +89,7 @@ class VersionServiceTest {
         UUID versionId = UUID.randomUUID();
         String newName = "New Version Name";
         Version existingVersion = new Version("Old Name", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(existingVersion));
         when(versionRepository.save(any(Version.class))).thenReturn(existingVersion);
@@ -118,7 +118,7 @@ class VersionServiceTest {
         nodeDTO.setState(NodeStateEnum.RUNNING);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         // Create a minimal Well instance for testing
         Well originalNode = new Well(
@@ -189,7 +189,7 @@ class VersionServiceTest {
         nodeDTO.setState(NodeStateEnum.PENDING);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         // Create a minimal Well instance for testing
         Well originalNode = new Well(
@@ -268,7 +268,7 @@ class VersionServiceTest {
         nodeDTO.setState(NodeStateEnum.REMOVED);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         // Create a minimal Well instance for testing
         Well originalNode = new Well(
@@ -374,7 +374,7 @@ class VersionServiceTest {
         WellDTO nodeDTO = new WellDTO();
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
         when(nodeRepository.findById(nodeId)).thenReturn(Optional.empty());
@@ -392,7 +392,7 @@ class VersionServiceTest {
         wellDTO.setState(NodeStateEnum.PROPOSED);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(),new ArrayList<>());
 
         Well savedWell = new Well(
                 "Test Well",
@@ -443,7 +443,7 @@ class VersionServiceTest {
         UUID toId = UUID.randomUUID();
 
         Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(), new ArrayList<>());
 
         NodeGraphData graphData = new NodeGraphData(
                 new GraphPosition(10.0, 20.0),
@@ -483,7 +483,7 @@ class VersionServiceTest {
         UUID nodeId = UUID.randomUUID();
 
         Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(), new ArrayList<>());
         Well node = new Well(
                 "Well A", NodeStateEnum.RUNNING, Instant.now(), 12,
                 MoneyAmount.of(1), 30, MoneyAmount.of(1), 0.0f,
@@ -517,7 +517,7 @@ class VersionServiceTest {
         UUID versionId = UUID.randomUUID();
         UUID nodeId = UUID.randomUUID();
         Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(), new ArrayList<>());
         Well node = new Well(
                 "W", NodeStateEnum.RUNNING, Instant.now(), 24,
                 MoneyAmount.of(100), 30, MoneyAmount.of(50), 0.0f,
@@ -564,7 +564,7 @@ class VersionServiceTest {
         UUID nodeId = UUID.randomUUID();
 
         Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>());
+                new ArrayList<>(), new ArrayList<>());
         Well node = new Well(
                 "Old Name", NodeStateEnum.PROPOSED, Instant.now(), 12,
                 MoneyAmount.of(1), 30, MoneyAmount.of(1), 0.0f,

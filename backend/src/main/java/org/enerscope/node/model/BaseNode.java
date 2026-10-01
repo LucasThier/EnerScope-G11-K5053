@@ -7,12 +7,16 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
+import java.time.Period;
+
 import org.enerscope.common.BaseEntity;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.enums.NodeStateEnum;
 import org.springframework.context.annotation.Lazy;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @NoArgsConstructor
@@ -43,6 +47,9 @@ public abstract class BaseNode extends BaseEntity {
 
     @Column(name = "maintenance_interval_in_days")
     protected int maintenanceIntervalInDays;
+
+    @Column(name = "maintenanceDuration")
+    protected int maintenanceDuration;
 
     @Embedded
     @AttributeOverride(name = "value", column = @Column(name = "operatingCosts"))
@@ -87,38 +94,40 @@ public abstract class BaseNode extends BaseEntity {
             return 0.0;
         }
 
-        long monthsElapsed = java.time.temporal.ChronoUnit.MONTHS.between(
-                startupDate, Instant.now());
+        LocalDate start = startupDate.atZone(ZoneOffset.UTC).toLocalDate();
+        LocalDate now = LocalDate.now(ZoneOffset.UTC);
+
+        Period period = Period.between(start, now);
+        long monthsElapsed = period.toTotalMonths();
         double remainingMonths = lifespanInMonths - Math.max(0, monthsElapsed);
-        return Math.max(0, Math.min(100, (remainingMonths / lifespanInMonths) * 100));
+
+        return Math.max(0.0, Math.min(100.0, (remainingMonths / lifespanInMonths) * 100.0));
     }
 
-    public MoneyAmount CalculateInvestmentCost() {
-        if (investmentCost != null) {
+    public MoneyAmount CalculateInvestmentCost(){
+        if(investmentCost != null){
             return investmentCost.CalculateCost(this);
         } else {
             throw new RuntimeException("Investment Cost is empty");
         }
     }
 
-    public MoneyAmount CalculateOperatingCost() {
-        if (operatingCosts != null && (Integer) lifespanInMonths != null) {
+    public MoneyAmount CalculateOperatingCost(){
+        if (operatingCosts != null && (Integer) lifespanInMonths != null){
             return operatingCosts.multiply(lifespanInMonths);
         } else {
             throw new RuntimeException("Base Node missing arguments");
         }
     }
-
-    public MoneyAmount CalculateUpkeepCost() {
-        if ((Integer) maintenanceIntervalInDays != null && (Integer) lifespanInMonths != null && upkeepCosts != null) {
+    public MoneyAmount CalculateUpkeepCost(){
+        if ((Integer)maintenanceIntervalInDays != null && (Integer) lifespanInMonths != null && upkeepCosts != null){
             int totalMaintenance = lifespanInMonths / (maintenanceIntervalInDays / 30);
             return upkeepCosts.multiply(totalMaintenance);
         } else {
             throw new RuntimeException("Base Node missing arguments");
         }
     }
-
-    public MoneyAmount CalculateTotalCost() {
+     public MoneyAmount CalculateTotalCost(){
         MoneyAmount investment;
         MoneyAmount operational;
         MoneyAmount upkeep;
@@ -141,5 +150,22 @@ public abstract class BaseNode extends BaseEntity {
             upkeep = MoneyAmount.of(0);
         }
         return investment.add(operational).add(upkeep);
+    }
+
+    protected BaseNode(String name, NodeStateEnum state, Instant startupDate, int lifespanInMonths, MoneyAmount upkeepCosts,
+                       int maintenanceIntervalInDays, MoneyAmount operatingCosts, float wastePercentage, NodeTypeData type,
+                       InvestmentCost investmentCost, NodeGraphData graphData, UUID identityId) {
+        this.name = name;
+        this.state = state;
+        this.startupDate = startupDate;
+        this.lifespanInMonths = lifespanInMonths;
+        this.upkeepCosts = upkeepCosts;
+        this.maintenanceIntervalInDays = maintenanceIntervalInDays;
+        this.operatingCosts = operatingCosts;
+        this.wastePercentage = wastePercentage;
+        this.type = type;
+        this.investmentCost = investmentCost;
+        this.graphData = graphData;
+        this.identityId = identityId;
     }
 }

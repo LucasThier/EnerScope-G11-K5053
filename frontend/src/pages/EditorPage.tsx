@@ -17,7 +17,8 @@ import {
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
-import type { NodeDetail, NodeType, Project, VersionSummary } from '../types/diagram';
+import type { NodeDetail, NodeType, VersionSummary } from '../types/diagram';
+import type { ProjectSummary } from '../types/project';
 
 type Mode = 'diagram' | 'map';
 type Projection = 'mercator' | 'globe';
@@ -82,7 +83,7 @@ function FloatingPanel({ style, children }: { style: CSSProperties; children: Re
 export function EditorPage() {
   const { organizations, createOrganization } = useOrganizations();
   const [orgId, setOrgId] = useState('');
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [projectId, setProjectId] = useState('');
   const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [versionId, setVersionId] = useState('');
@@ -267,7 +268,7 @@ export function EditorPage() {
       if (!orgId) return;
       setSelectorError(null);
       projectsApi
-        .listByOrganization(orgId)
+        .list(orgId)
         .then((res) => {
           const list = res.data.data ?? [];
           setProjects(list);

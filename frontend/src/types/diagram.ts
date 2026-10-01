@@ -97,10 +97,3 @@ export interface VersionSummary {
   parentVersionId: string | null;
   createdAt: string;
 }
-
-export interface Project {
-  id: string;
-  name: string;
-  description: string;
-  organizationId: string;
-}

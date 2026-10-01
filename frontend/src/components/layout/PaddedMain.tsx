@@ -6,8 +6,10 @@ import { Outlet } from 'react-router-dom';
  */
 export function PaddedMain() {
   return (
-    <main className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto px-6 py-8">
-      <Outlet />
+    <main className="min-w-0 flex-1 overflow-y-auto px-6 py-8">
+      <div className="mx-auto w-full max-w-5xl">
+        <Outlet />
+      </div>
     </main>
   );
 }
