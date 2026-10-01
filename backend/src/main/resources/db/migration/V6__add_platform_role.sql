@@ -9,4 +9,3 @@ ALTER TABLE app_user
 UPDATE app_user
     SET platform_role = 'ADMIN'
     WHERE LOWER(mail) = LOWER('admin@enerscope.org');
-s

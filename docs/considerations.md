@@ -834,3 +834,11 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   explicit user authorization, the mappings now match existing V8/V7 columns and
   the fixture path points to existing resources. No migration or physical
   simulation change was required. All 215 current backend cases pass.
+
+- 2026-10-01 — Added operational/economic result tabs for the same immutable
+  evaluation. Operational volumes remain in simulator units and are shown per
+  saved node, avoiding chain double-counting. Physical names and years use saved
+  snapshots only; legacy/missing metrics are never replaced with zero. Cash flow
+  remains economic. No new simulation, backend endpoint or schema is introduced.
+
+- 2026-10-01 — Restored V6 by removing an accidental trailing 's'. Its Flyway checksum is again 1133901940, matching the existing database. Rebuilt the local API without changing schema history or deleting demo data.

@@ -1,4 +1,4 @@
-import { money, percent, dateTime, irrText, paybackText } from '../../utils/economicFormat';
+import { money, percent, irrText, paybackText } from '../../utils/economicFormat';
 import { useState } from 'react';
 import type { EconomicConfiguration, EconomicPeriod, Evaluation } from '../../types/economics';
 import { Alert } from '../ui/Alert';
@@ -53,7 +53,7 @@ export function EconomicResults({ evaluation }: { evaluation: Evaluation }) {
     ['cashTimingAdjustment','Ajuste de caja'], ['cashFlow','Flujo de caja'], ['discountedCashFlow','Flujo descontado'],
   ] : [['taxableIncome','Ingresos gravados'], ['deductibleExpenses','Costos deducibles'], ['taxes','Impuestos'], ['cashFlow','Flujo de caja'], ['discountedCashFlow','Descontado']];
   return <div className="space-y-5">
-    <p className="text-sm text-ink-500">Evaluación: {dateTime(evaluation.createdAt)} · Moneda: {configuration?.currency ?? 'No disponible'} · WACC: {percent(configuration?.wacc)}</p>
+    <p className="text-sm text-ink-500">Moneda: {configuration?.currency ?? 'No disponible'} · WACC: {percent(configuration?.wacc)}</p>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[
       ['VAN', money(result?.npv, currency)], ['TIR anual', irrText(indicators?.irr)],
       ['Recupero simple', paybackText(indicators?.simplePayback)], ['Recupero descontado', paybackText(indicators?.discountedPayback)],

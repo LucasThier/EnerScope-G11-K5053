@@ -10,7 +10,8 @@ import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { EconomicEditor } from '../components/economics/EconomicEditor';
-import { ConfigurationSummary, EconomicResults } from '../components/economics/EconomicResults';
+import { ConfigurationSummary } from '../components/economics/EconomicResults';
+import { ScenarioResults } from '../components/economics/ScenarioResults';
 import { emptyDraft, fromConfiguration, toConfiguration, validateDraft } from '../utils/economicDraft';
 import type { EconomicDraft } from '../utils/economicDraft';
 import type { EconomicConfiguration, Evaluation, Scenario } from '../types/economics';
@@ -108,8 +109,8 @@ function EconomicsWorkspace({ projectId, versionId }: { projectId: string; versi
   const selectedEvaluation = evaluationId ? detail?.id === evaluationId ? detail : null : evaluations[0];
   return <div className="space-y-5">
     <Link className="text-sm font-medium text-brand-800 underline" to={`/projects/${projectId}/versions`}>← Escenarios / {scenario.name}</Link>
-    <header className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold text-ink-800">Evaluación económica</h1><span role="status" className="text-sm text-ink-500">{busy ? 'Guardando / simulando…' : dirty ? 'Cambios sin guardar' : 'Sin cambios pendientes'}</span></header>
-    <nav aria-label="Evaluación económica" className="flex flex-wrap gap-4 border-b border-ink-200">{[['configuration','Configuración'],['results','Resultados'],['history','Historial']].map(([key,label]) => <Link key={key} to={base + (key === 'configuration' ? '' : '/' + key)} aria-current={tab === key ? 'page' : undefined} className={'px-2 py-3 text-sm ' + (tab === key ? 'border-b-2 border-brand-800 font-semibold text-brand-800' : 'text-ink-600')}>{label}</Link>)}</nav>
+    <header className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold text-ink-800">Evaluación del escenario</h1><span role="status" className="text-sm text-ink-500">{busy ? 'Guardando / simulando…' : dirty ? 'Cambios sin guardar' : 'Sin cambios pendientes'}</span></header>
+    <nav aria-label="Evaluación del escenario" className="flex flex-wrap gap-4 border-b border-ink-200">{[['configuration','Configuración'],['results','Resultados'],['history','Historial']].map(([key,label]) => <Link key={key} to={base + (key === 'configuration' ? '' : '/' + key)} aria-current={tab === key ? 'page' : undefined} className={'px-2 py-3 text-sm ' + (tab === key ? 'border-b-2 border-brand-800 font-semibold text-brand-800' : 'text-ink-600')}>{label}</Link>)}</nav>
     {blocker.state === 'blocked' && <Alert>{busy ? 'Esperá a que termine la operación antes de salir.' : 'Tenés cambios sin guardar. ¿Querés salir y descartarlos?'} <Button variant="ghost" onClick={() => blocker.reset()}>Quedarme</Button>{!busy && <Button variant="secondary" onClick={() => blocker.proceed()}>Salir y descartar</Button>}</Alert>}
     {error && <Alert tone="error">{error}</Alert>}{notice && <Alert>{notice}</Alert>}
     {!canEdit && <Alert>Tenés acceso de consulta. No podés modificar la configuración ni ejecutar simulaciones.</Alert>}
@@ -119,7 +120,7 @@ function EconomicsWorkspace({ projectId, versionId }: { projectId: string; versi
         {!evaluations.length ? <p>Todavía no hay evaluaciones guardadas.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Fecha y hora','Moneda','WACC','VAN','TIR','Acción'].map(h => <th key={h} className="p-3">{h}</th>)}</tr></thead><tbody>{evaluations.map(e => <tr className="border-t border-ink-100" key={e.id}><td className="whitespace-nowrap p-3">{dateTime(e.createdAt)}</td><td className="p-3">{e.snapshot.configuration?.currency ?? '—'}</td><td className="p-3">{percent(e.snapshot.configuration?.wacc)}</td><td className="whitespace-nowrap p-3">{money(e.snapshot.result?.npv,e.snapshot.configuration?.currency)}</td><td className="p-3">{irrText(e.snapshot.result?.indicators?.irr)}</td><td className="p-3"><Link className="text-brand-800 underline" to={base + '/results/' + e.id} onClick={() => { setDetail(null); setDetailError(''); }}>Ver evaluación →</Link></td></tr>)}</tbody></table></div>}
       </Card> : tab === 'results' ? <>
         <Alert>Resultados guardados{evaluationId ? ' de la evaluación seleccionada' : ' de la evaluación más reciente'}. Los cambios actuales no modifican esta evaluación.</Alert>
-        {evaluationId && detailError ? <Alert tone="error">{detailError}</Alert> : selectedEvaluation ? <EconomicResults key={selectedEvaluation.id} evaluation={selectedEvaluation} /> : <Card>{evaluationId ? 'Cargando evaluación…' : 'Todavía no hay resultados. Completá la configuración y ejecutá Guardar y simular.'}</Card>}
+        {evaluationId && detailError ? <Alert tone="error">{detailError}</Alert> : selectedEvaluation ? <ScenarioResults key={selectedEvaluation.id} evaluation={selectedEvaluation} /> : <Card>{evaluationId ? 'Cargando evaluación…' : 'Todavía no hay resultados. Completá la configuración y ejecutá Guardar y simular.'}</Card>}
       </> : <Alert>Sección no disponible.</Alert>}
   </div>;
 }

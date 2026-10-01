@@ -181,3 +181,8 @@ permissions and historical compatibility.
 Run `npm test` for the dependency-free Node test runner covering the economic
 configuration adapter and indicator display. The optional browser fixture check
 is documented in the economic frontend guide.
+
+Saved results include **Operativos** and **Económicos** tabs. Operational results
+show annual metrics for a selected node using the saved simulation snapshot.
+Run the optional results browser checks with node tests/results-browser.mjs;
+see the economic frontend guide for fixture screenshots and prerequisites.

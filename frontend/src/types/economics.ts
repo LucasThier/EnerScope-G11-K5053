@@ -43,9 +43,15 @@ export interface EconomicPeriod {
   nonTaxableIncome: number; nonTaxableExpenses: number; nonCashAdjustments: number;
   cashTimingAdjustment: number; cashFlow: number; discountedCashFlow: number;
 }
+export interface AnnualNodeMetrics {
+  nodeId: string; period: number;
+  input: number | null; output: number | null; exported: number | null;
+  losses: number | null; operatingHours: number | null; events: number | null;
+}
+export interface PhysicalNodeSnapshot { id: string; name?: string | null }
 export interface Evaluation {
   id: string; createdAt: string;
-  snapshot: { schemaVersion: number; configuration: EconomicConfiguration | null;
+  snapshot: { schemaVersion: number; rawMetrics?: AnnualNodeMetrics[] | null; physicalNodes?: PhysicalNodeSnapshot[] | null; configuration: EconomicConfiguration | null;
     result: { npv: number | null; indicators: Indicators | null; periods: EconomicPeriod[] | null;
       pendingBalances: unknown[] | null } | null };
 }
