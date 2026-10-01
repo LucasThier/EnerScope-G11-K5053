@@ -250,7 +250,7 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     (`graph_x`/`graph_y`, the abstract diagram-canvas position) and
     `GeographicalPosition` (`longitude`/`latitude`, the real-world position for
     the MapLibre 2D/globe view). Both nullable and independent. Migration
-    `V7__split_node_graph_position.sql` (adds the 4 columns, migrates the old
+    `V10__split_node_graph_position.sql` (adds the 4 columns, migrates the old
     `x_position`/`y_position`, drops the 3 old columns; the old single
     `coordinates` value has no meaningful lng/lat mapping and is dropped).
   - **`id` vs `identityId`.** Confirmed with the class diagram: `id` is the table
@@ -847,3 +847,6 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   "Mapa de la Cadena de Valor" entry. The editor still has its own
   organization/project/version pickers; wiring it to the active project from
   `ActiveProjectProvider` is a natural follow-up.
+- 2026-10-01 — The node-position migration was renumbered `V7` → `V10` when merging
+  master, which had already taken V7–V9 (`V7__add_job_title`, `V8`/`V9__create_results`).
+  Check `ls db/migration` before picking a number.
