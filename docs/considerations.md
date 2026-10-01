@@ -796,3 +796,41 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   removed/explicit integration classes are not part of that invocation.
 
 - 2026-10-01 — Pinned frontend Axios to 1.20.0 and refreshed the npm lockfile for upstream security fixes. Keep HTTP requests and token refresh in the existing src/api client; no API contract changes are required.
+- 2026-09-16 — Economic evaluations are version-owned typed aggregates with immutable
+  input/output snapshots. See `docs/economic-module.md` for rule semantics, annual
+  365-day operational time, tax-loss expiry and explicit unit conversions. Do not
+  import `BaseNode` legacy costs implicitly, mirror an internal transfer manually,
+  or duplicate an asset purchase as an expense rule. Tax is calculated per entity
+  before consolidation; delayed collections/payments use a separate cash adjustment.
+  Capital working requirements must not duplicate receivable/payable timing.
+- 2026-09-16 — V8/V9 add economic persistence and repair operational schema gaps:
+  result year, result foreign-key mappings, maintenance duration and FLNG gas
+  consumption. V1-V7 remain unchanged. Version creation now initializes empty
+  snapshots, and `ProjectService.saveVersion` returns its saved version instead of
+  throwing the previously unfinished-method exception.
+- 2026-09-16 — The existing Draw.io pages are retained and economic views are added.
+  `docs/tools/build-economic-document.py` regenerates the economic pages and Spanish
+  PDF. The old minimal-Version descriptions are superseded by the actual snapshot
+  model. Run the explicit `PostgreSqlEconomicIT` suite against a disposable database
+  in addition to `mvn test`; it must not target an existing application database.
+- 2026-09-28 — Economic snapshots now store IRR and simple/discounted annual-close
+  Payback (schemaVersion 2, calculationVersion 1). They reuse consolidated after-tax
+  cash flows and do not change physical simulation or hourly time. IRR uses bounded
+  DECIMAL128 bisection in the discount factor for conventional flows only; unsupported
+  or failed results have explicit statuses and null values, never a substitute zero.
+- 2026-09-28 — Historical snapshots without indicators are enriched only in memory,
+  from their saved complete annual series and saved WACC, for both list and detail.
+  This qualifies the earlier "history is not recomputed" convention: existing NPV,
+  taxes and flows are not recalculated, and persisted JSON is never changed. Response
+  schemaVersion continues to identify the stored document; indicator origin/version
+  identify the enrichment. Missing data is not obtained from current configuration.
+- 2026-09-28 — Payback reports the first annual closing balance >= 0, with no
+  interpolation, and flags a later negative cumulative balance within the horizon.
+  Discounted Payback uses unrounded present values, independently of display rounding.
+  No initial negative net cash flow means NOT_APPLICABLE.
+
+- 2026-09-28 - PostgreSQL validation exposed pre-existing Result.year and
+  ResultPerNode.nodeID column mismatches plus a broken HTTP fixture path. With
+  explicit user authorization, the mappings now match existing V8/V7 columns and
+  the fixture path points to existing resources. No migration or physical
+  simulation change was required. All 215 current backend cases pass.
