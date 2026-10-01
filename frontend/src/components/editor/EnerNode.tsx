@@ -38,6 +38,8 @@ export function EnerNode({ data, selected }: NodeProps) {
         borderStyle: st.border,
         boxShadow: selected ? `0 0 0 3px ${color}55` : undefined,
         opacity: d.state === 'REMOVED' ? 0.5 : 1,
+        // Selected → drag to move; otherwise the body is a connection source.
+        cursor: selected ? 'grab' : 'crosshair',
       }}
     >
       <Handle

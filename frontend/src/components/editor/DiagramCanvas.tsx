@@ -14,8 +14,9 @@ import {
   type EdgeMouseHandler,
   type ReactFlowInstance,
 } from '@xyflow/react';
-import type { Diagram, DiagramNode } from '../../types/diagram';
+import type { Diagram, DiagramNode, NodeType } from '../../types/diagram';
 import { VERTICAL_COLORS } from './nodeCatalog';
+import { NODE_DRAG_TYPE } from './NodePalette';
 import { EnerNode, type EnerNodeData } from './EnerNode';
 
 interface DiagramCanvasProps {
@@ -32,6 +33,18 @@ interface DiagramCanvasProps {
    * menu, relative to the canvas.
    */
   onCreateAt: (flowX: number, flowY: number, localX: number, localY: number) => void;
+  /** A node type was dropped from the palette at the given canvas position. */
+  onDropNode: (
+    type: NodeType,
+    flowX: number,
+    flowY: number,
+    localX: number,
+    localY: number,
+  ) => void;
+  /** Double-click a node: open its editable form. */
+  onEditNode: (nodeId: string) => void;
+  /** A connection is being drawn (click-to-connect); shows a crosshair cursor. */
+  connecting?: boolean;
 }
 
 const nodeTypes = { ener: EnerNode };
@@ -67,8 +80,10 @@ function toRfEdge(fromNodeId: string, toNodeId: string, id: string): Edge {
     id,
     source: fromNodeId,
     target: toNodeId,
-    markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18, color: '#4b515a' },
-    style: { stroke: '#4b515a', strokeWidth: 1.5 },
+    type: 'smoothstep',
+    markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20, color: '#4b515a' },
+    // `cursor: pointer` signals the edge is clickable (double-click removes it).
+    style: { stroke: '#4b515a', strokeWidth: 1.75, cursor: 'pointer' },
   };
 }
 
@@ -87,6 +102,9 @@ export function DiagramCanvas({
   onDeleteNode,
   onDeleteConnection,
   onCreateAt,
+  onDropNode,
+  onEditNode,
+  connecting = false,
 }: DiagramCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -119,6 +137,30 @@ export function DiagramCanvas({
     [onSelectNode],
   );
 
+  const handleNodeDoubleClick: NodeMouseHandler<Node> = useCallback(
+    (_event, node) => onEditNode(node.id),
+    [onEditNode],
+  );
+
+  const handleDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      const type = event.dataTransfer.getData(NODE_DRAG_TYPE) as NodeType;
+      if (!type) return;
+      const instance = instanceRef.current;
+      if (!instance) return;
+      const flow = instance.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const rect = event.currentTarget.getBoundingClientRect();
+      onDropNode(type, flow.x, flow.y, event.clientX - rect.left, event.clientY - rect.top);
+    },
+    [onDropNode],
+  );
+
   const handleEdgeDoubleClick: EdgeMouseHandler<Edge> = useCallback(
     (_event, edge) => onDeleteConnection(edge.id),
     [onDeleteConnection],
@@ -139,7 +181,15 @@ export function DiagramCanvas({
   );
 
   return (
-    <div className="h-full w-full" onDoubleClick={handleWrapperDoubleClick}>
+    <div
+      className={
+        'h-full w-full ' +
+        (connecting ? '[&_.react-flow__pane]:!cursor-crosshair' : '')
+      }
+      onDoubleClick={handleWrapperDoubleClick}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -163,6 +213,7 @@ export function DiagramCanvas({
         }}
         connectionRadius={45}
         onNodeClick={handleNodeClick}
+        onNodeDoubleClick={handleNodeDoubleClick}
         onNodeDragStop={(_e, node) => onMoveNode(node.id, node.position.x, node.position.y)}
         onNodesDelete={(deleted) => deleted.forEach((n) => onDeleteNode(n.id))}
         onEdgeDoubleClick={handleEdgeDoubleClick}

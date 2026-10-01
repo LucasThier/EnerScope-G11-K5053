@@ -147,7 +147,40 @@ export const VERTICAL_COLORS: Record<Vertical, string> = {
   INTERNAL_CONSUMPTION: '#6f767f',
 };
 
-export const NODE_STATES: NodeState[] = ['PROPOSED', 'PENDING', 'RUNNING', 'REMOVED'];
+/**
+ * States a user may pick manually. `REMOVED` is intentionally absent: a node
+ * only becomes `REMOVED` as the result of deleting it, never as a manual choice
+ * (see {@link ../../hooks/useDiagram removeNode}).
+ */
+export const NODE_STATES: NodeState[] = ['PROPOSED', 'PENDING', 'RUNNING'];
+
+/**
+ * Allowed connection targets per node type. Encodes the real-world gas value
+ * chain so the diagram only accepts physically meaningful edges, in order:
+ * well → gathering → treatment → pipeline/compression → liquefaction (ground or
+ * FLNG) → export (seaport terminal → carrier, or FLNG straight to carrier).
+ */
+export const ALLOWED_CONNECTIONS: Partial<Record<NodeType, NodeType[]>> = {
+  WELL: ['GATHERING_NETWORK'],
+  GATHERING_NETWORK: ['TREATMENT_PLANT'],
+  TREATMENT_PLANT: ['PIPELINE', 'COMPRESSING_PLANT'],
+  PIPELINE: ['PIPELINE', 'COMPRESSING_PLANT', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT'],
+  COMPRESSING_PLANT: ['PIPELINE', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT'],
+  GROUND_LIQUEFACTION_PLANT: ['SEAPORT_TERMINAL'],
+  FLNG_UNIT: ['LNG_CAMER'],
+  SEAPORT_TERMINAL: ['LNG_CAMER'],
+  LNG_CAMER: [],
+};
+
+/** The node types a node of `from` type may connect to. */
+export function allowedTargetTypes(from: NodeType): NodeType[] {
+  return ALLOWED_CONNECTIONS[from] ?? [];
+}
+
+/** Whether a connection from a `from`-type node to a `to`-type node is allowed. */
+export function canConnect(from: NodeType, to: NodeType): boolean {
+  return allowedTargetTypes(from).includes(to);
+}
 
 /** Base fields every node create/edit payload carries. */
 export interface NodeBaseValues {

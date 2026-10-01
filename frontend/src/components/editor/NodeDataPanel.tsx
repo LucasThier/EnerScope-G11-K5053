@@ -12,6 +12,7 @@ interface NodeDataPanelProps {
   onUpdateBasics: (nodeId: string, basics: { name?: string; state?: NodeState }) => void;
   onEditData: (nodeId: string) => void;
   onStartConnect: (nodeId: string) => void;
+  onRestore: (nodeId: string) => void;
   onDelete: (nodeId: string) => void;
 }
 
@@ -27,6 +28,7 @@ export function NodeDataPanel({
   onUpdateBasics,
   onEditData,
   onStartConnect,
+  onRestore,
   onDelete,
 }: NodeDataPanelProps) {
   const [name, setName] = useState('');
@@ -46,6 +48,10 @@ export function NodeDataPanel({
   }
 
   const dirty = name !== node.name || state !== node.state;
+  const removed = node.state === 'REMOVED';
+  // REMOVED is not a manual choice, so it only appears while the node is removed
+  // (so the current value renders) and never as a fresh option to pick.
+  const stateOptions: NodeState[] = removed ? ['REMOVED', ...NODE_STATES] : NODE_STATES;
   const graph = node.graphData?.graphPosition;
   const geo = node.graphData?.geographicalPosition;
   const spec = specForType(node.type.nodeType);
@@ -73,7 +79,7 @@ export function NodeDataPanel({
           onChange={(e) => setState(e.target.value as NodeState)}
           className="rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
         >
-          {NODE_STATES.map((s) => (
+          {stateOptions.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
@@ -92,7 +98,7 @@ export function NodeDataPanel({
           Save
         </Button>
         <Button variant="secondary" onClick={() => onEditData(node.id)} className="flex-1">
-          Edit all data
+          Edit
         </Button>
       </div>
 
@@ -145,9 +151,23 @@ export function NodeDataPanel({
         Connect to another node…
       </Button>
 
-      <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => onDelete(node.id)}>
-        Delete node
-      </Button>
+      {removed ? (
+        <Button
+          variant="secondary"
+          onClick={() => onRestore(node.id)}
+          className="border-brand-300 text-brand-700 hover:bg-brand-50"
+        >
+          Restore node
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          className="text-red-600 hover:bg-red-50"
+          onClick={() => onDelete(node.id)}
+        >
+          Delete node
+        </Button>
+      )}
     </div>
   );
 }

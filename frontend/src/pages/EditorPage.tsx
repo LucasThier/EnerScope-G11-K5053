@@ -7,11 +7,17 @@ import { DiagramCanvas } from '../components/editor/DiagramCanvas';
 import { MapView } from '../components/editor/MapView';
 import { NodeDataPanel } from '../components/editor/NodeDataPanel';
 import { NodeFormPanel, type NodeFormInitial } from '../components/editor/NodeFormPanel';
-import type { GraphDataInput, NodeBaseValues } from '../components/editor/nodeCatalog';
+import { NodePalette } from '../components/editor/NodePalette';
+import {
+  canConnect,
+  specForType,
+  type GraphDataInput,
+  type NodeBaseValues,
+} from '../components/editor/nodeCatalog';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
-import type { NodeDetail, Project, VersionSummary } from '../types/diagram';
+import type { NodeDetail, NodeType, Project, VersionSummary } from '../types/diagram';
 
 type Mode = 'diagram' | 'map';
 type Projection = 'mercator' | 'globe';
@@ -21,7 +27,27 @@ interface EditState {
   nodeId: string;
   identity: string;
   graphData: GraphDataInput;
-  initial: NodeFormInitial;
+  /** `null` while the full detail is still loading (panel shows a spinner). */
+  initial: NodeFormInitial | null;
+}
+
+/** Builds the edit form's initial values from a loaded node detail. */
+function editStateFromDetail(detail: NodeDetail): EditState {
+  const base: NodeBaseValues = {
+    name: detail.name,
+    state: detail.state,
+    upkeepCosts: detail.upkeepCosts,
+    operatingCosts: detail.operatingCosts,
+    lifespanInMonths: detail.lifespanInMonths,
+    maintenanceIntervalInDays: detail.maintenanceIntervalInDays,
+    wastePercentage: detail.wastePercentage,
+  };
+  return {
+    nodeId: detail.id,
+    identity: detail.identity,
+    graphData: detail.graphData ?? {},
+    initial: { type: detail.type.nodeType, base, typeFields: detail.attributes },
+  };
 }
 
 const PANEL_WIDTH = 320;
@@ -68,10 +94,12 @@ export function EditorPage() {
   const [panelMode, setPanelMode] = useState<PanelMode>('data');
   const [createPos, setCreatePos] = useState<{ x: number; y: number }>({ x: 120, y: 120 });
   const [createAnchor, setCreateAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [createType, setCreateType] = useState<NodeType | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<NodeDetail | null>(null);
-  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const canvasWrapRef = useRef<HTMLDivElement | null>(null);
 
   const {
     diagram,
@@ -79,7 +107,8 @@ export function EditorPage() {
     error,
     busy,
     addNode,
-    deleteNode,
+    removeNode,
+    restoreNode,
     updateNodeBasics,
     getNodeDetail,
     editNodeData,
@@ -89,9 +118,29 @@ export function EditorPage() {
     moveNodeGeo,
   } = useDiagram(versionId || null);
 
+  // Guards a new connection against the value-chain rules before creating it,
+  // surfacing a clear message when the two node types cannot be linked.
+  const handleConnect = useCallback(
+    (fromNodeId: string, toNodeId: string) => {
+      const from = diagram?.nodes.find((n) => n.id === fromNodeId);
+      const to = diagram?.nodes.find((n) => n.id === toNodeId);
+      if (!from || !to) return;
+      if (!canConnect(from.type.nodeType, to.type.nodeType)) {
+        const fromLabel = specForType(from.type.nodeType)?.label ?? from.type.nodeType;
+        const toLabel = specForType(to.type.nodeType)?.label ?? to.type.nodeType;
+        setConnectError(`A ${fromLabel} cannot connect to a ${toLabel}.`);
+        return;
+      }
+      setConnectError(null);
+      void addConnection(fromNodeId, toNodeId);
+    },
+    [diagram, addConnection],
+  );
+
   const closePanel = useCallback(() => {
     setPanelMode('data');
     setCreateAnchor(null);
+    setCreateType(null);
     setEditState(null);
   }, []);
 
@@ -104,50 +153,78 @@ export function EditorPage() {
         return;
       }
       if (connectingFrom && id !== connectingFrom) {
-        void addConnection(connectingFrom, id);
+        handleConnect(connectingFrom, id);
         setConnectingFrom(null);
       }
       setSelectedNodeId(id);
       setPanelMode('data');
     },
-    [connectingFrom, addConnection],
+    [connectingFrom, handleConnect],
   );
 
-  const openCreateAt = useCallback((flowX: number, flowY: number, localX: number, localY: number) => {
-    setCreatePos({ x: flowX, y: flowY });
-    setCreateAnchor({ x: localX, y: localY });
-    setPanelMode('create');
-  }, []);
+  const openCreateAt = useCallback(
+    (flowX: number, flowY: number, localX: number, localY: number, type?: NodeType | null) => {
+      setCreatePos({ x: flowX, y: flowY });
+      setCreateAnchor({ x: localX, y: localY });
+      setCreateType(type ?? null);
+      setPanelMode('create');
+    },
+    [],
+  );
+
+  // Dropping a palette tile onto the canvas opens the create form at the drop
+  // point, pre-selected to the dropped node type (the user still names it).
+  const handleDropNode = useCallback(
+    (type: NodeType, flowX: number, flowY: number, localX: number, localY: number) => {
+      openCreateAt(flowX, flowY, localX, localY, type);
+    },
+    [openCreateAt],
+  );
 
   const handleEditData = useCallback(
     async (nodeId: string) => {
-      const detail = await getNodeDetail(nodeId);
-      if (!detail) return;
-      const base: NodeBaseValues = {
-        name: detail.name,
-        state: detail.state,
-        upkeepCosts: detail.upkeepCosts,
-        operatingCosts: detail.operatingCosts,
-        lifespanInMonths: detail.lifespanInMonths,
-        maintenanceIntervalInDays: detail.maintenanceIntervalInDays,
-        wastePercentage: detail.wastePercentage,
-      };
-      setEditState({
-        nodeId,
-        identity: detail.identity,
-        graphData: detail.graphData ?? {},
-        initial: { type: detail.type.nodeType, base, typeFields: detail.attributes },
-      });
+      // Open the edit panel immediately so there is no perceived delay. If the
+      // node's full detail is already loaded (it was selected first), use it
+      // straight away; otherwise show a spinner and fill in once it arrives.
       setPanelMode('edit');
+      const cached =
+        selectedDetail && selectedDetail.id === nodeId ? selectedDetail : null;
+      if (cached) {
+        setEditState(editStateFromDetail(cached));
+        return;
+      }
+      setEditState({ nodeId, identity: '', graphData: {}, initial: null });
+      const detail = await getNodeDetail(nodeId);
+      if (!detail) {
+        closePanel();
+        return;
+      }
+      setEditState(editStateFromDetail(detail));
     },
-    [getNodeDetail],
+    [selectedDetail, getNodeDetail, closePanel],
   );
+
+  // Double-clicking a node (or the panel's Edit button) selects it and opens
+  // its full editable form.
+  const openEditNode = useCallback(
+    (nodeId: string) => {
+      setSelectedNodeId(nodeId);
+      void handleEditData(nodeId);
+    },
+    [handleEditData],
+  );
+
+  const startConnect = useCallback((nodeId: string) => {
+    setConnectError(null);
+    setConnectingFrom(nodeId);
+  }, []);
 
   // Reset per-diagram UI state when the open version changes.
   useEffect(() => {
     setSelectedNodeId(null);
     setSelectedDetail(null);
     setConnectingFrom(null);
+    setConnectError(null);
     setEditState(null);
     setPanelMode('data');
   }, [versionId]);
@@ -171,7 +248,10 @@ export function EditorPage() {
   useEffect(() => {
     if (!connectingFrom) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setConnectingFrom(null);
+      if (e.key === 'Escape') {
+        setConnectingFrom(null);
+        setConnectError(null);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -284,10 +364,21 @@ export function EditorPage() {
     return { x: 120 + (count % 6) * 40, y: 120 + (count % 6) * 40 };
   }, [diagram?.nodes.length]);
 
+  // Clicking a palette tile adds that node type near the current spread.
+  const handlePickFromPalette = useCallback(
+    (type: NodeType) => {
+      setCreatePos(nextNodePosition);
+      setCreateAnchor(null);
+      setCreateType(type);
+      setPanelMode('create');
+    },
+    [nextNodePosition],
+  );
+
   function panelStyle(): CSSProperties {
     if (panelMode === 'create' && createAnchor) {
-      const w = bodyRef.current?.clientWidth ?? 1000;
-      const h = bodyRef.current?.clientHeight ?? 700;
+      const w = canvasWrapRef.current?.clientWidth ?? 1000;
+      const h = canvasWrapRef.current?.clientHeight ?? 700;
       const left = Math.max(8, Math.min(createAnchor.x, w - PANEL_WIDTH - 8));
       const spaceBelow = h - createAnchor.y - 8;
       const spaceAbove = createAnchor.y - 8;
@@ -420,6 +511,7 @@ export function EditorPage() {
               } else {
                 setCreatePos(nextNodePosition);
                 setCreateAnchor(null);
+                setCreateType(null);
                 setPanelMode('create');
               }
             }}
@@ -437,8 +529,8 @@ export function EditorPage() {
         </div>
       )}
 
-      {/* Editor body — canvas/map with floating menus on top */}
-      <div ref={bodyRef} className="relative flex min-h-0 flex-1">
+      {/* Editor body — palette rail + canvas/map with floating menus on top */}
+      <div className="relative flex min-h-0 flex-1">
         {!versionId ? (
           <div className="flex h-full w-full items-center justify-center p-8 text-center text-sm text-ink-400">
             Pick an organization, project and version to start — or create a version to begin a new
@@ -450,6 +542,10 @@ export function EditorPage() {
           </div>
         ) : (
           <>
+            {mode === 'diagram' && (
+              <NodePalette onPick={handlePickFromPalette} disabled={busy} />
+            )}
+            <div ref={canvasWrapRef} className="relative min-h-0 flex-1">
             <div className="absolute inset-0">
               {mode === 'diagram' ? (
                 <DiagramCanvas
@@ -458,10 +554,13 @@ export function EditorPage() {
                   selectedNodeId={selectedNodeId}
                   onSelectNode={selectNode}
                   onMoveNode={moveNodeGraph}
-                  onConnect={addConnection}
-                  onDeleteNode={deleteNode}
+                  onConnect={handleConnect}
+                  onDeleteNode={removeNode}
                   onDeleteConnection={deleteConnection}
                   onCreateAt={openCreateAt}
+                  onDropNode={handleDropNode}
+                  onEditNode={openEditNode}
+                  connecting={!!connectingFrom}
                 />
               ) : (
                 <MapView
@@ -474,6 +573,21 @@ export function EditorPage() {
                 />
               )}
             </div>
+
+            {/* Rejected-connection warning */}
+            {connectError && (
+              <div className="absolute left-1/2 top-4 z-30 -translate-x-1/2">
+                <div className="flex items-center gap-3 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 shadow-md">
+                  <span>{connectError}</span>
+                  <button
+                    onClick={() => setConnectError(null)}
+                    className="rounded-full px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Connect-mode hint */}
             {connectingFrom && (
@@ -500,28 +614,35 @@ export function EditorPage() {
                   <NodeFormPanel
                     mode="create"
                     busy={busy}
+                    initialType={createType ?? undefined}
                     onClose={closePanel}
                     onSubmit={(spec, base, typeFields) =>
                       addNode(spec, base, typeFields, createPos.x, createPos.y)
                     }
                   />
                 ) : panelMode === 'edit' && editState ? (
-                  <NodeFormPanel
-                    mode="edit"
-                    busy={busy}
-                    initial={editState.initial}
-                    onClose={closePanel}
-                    onSubmit={(spec, base, typeFields) =>
-                      editNodeData(
-                        editState.nodeId,
-                        spec,
-                        base,
-                        typeFields,
-                        editState.graphData,
-                        editState.identity,
-                      )
-                    }
-                  />
+                  editState.initial ? (
+                    <NodeFormPanel
+                      mode="edit"
+                      busy={busy}
+                      initial={editState.initial}
+                      onClose={closePanel}
+                      onSubmit={(spec, base, typeFields) =>
+                        editNodeData(
+                          editState.nodeId,
+                          spec,
+                          base,
+                          typeFields,
+                          editState.graphData,
+                          editState.identity,
+                        )
+                      }
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center p-8">
+                      <Spinner className="h-6 w-6 text-brand-600" />
+                    </div>
+                  )
                 ) : selectedNode ? (
                   <NodeDataPanel
                     node={selectedNode}
@@ -529,9 +650,12 @@ export function EditorPage() {
                     busy={busy}
                     onUpdateBasics={updateNodeBasics}
                     onEditData={handleEditData}
-                    onStartConnect={setConnectingFrom}
+                    onStartConnect={startConnect}
+                    onRestore={(id) => {
+                      void restoreNode(id);
+                    }}
                     onDelete={(id) => {
-                      void deleteNode(id);
+                      void removeNode(id);
                       setSelectedNodeId(null);
                       closePanel();
                     }}
@@ -543,6 +667,7 @@ export function EditorPage() {
                 )}
               </FloatingPanel>
             )}
+            </div>
           </>
         )}
       </div>

@@ -23,6 +23,8 @@ interface NodeFormPanelProps {
   mode: 'create' | 'edit';
   busy: boolean;
   initial?: NodeFormInitial;
+  /** Pre-selects the type on create (e.g. dropped/clicked from the palette). */
+  initialType?: NodeType;
   onSubmit: (
     spec: NodeTypeSpec,
     base: NodeBaseValues,
@@ -35,13 +37,24 @@ const selectClass =
   'rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
 
 /** Create or edit a node. On edit the type is fixed; on create it is chosen. */
-export function NodeFormPanel({ mode, busy, initial, onSubmit, onClose }: NodeFormPanelProps) {
-  const [type, setType] = useState<NodeType>(initial?.type ?? 'WELL');
+export function NodeFormPanel({
+  mode,
+  busy,
+  initial,
+  initialType,
+  onSubmit,
+  onClose,
+}: NodeFormPanelProps) {
+  const [type, setType] = useState<NodeType>(initial?.type ?? initialType ?? 'WELL');
   const [base, setBase] = useState<NodeBaseValues>(initial?.base ?? { ...defaultBaseValues() });
   const [typeFields, setTypeFields] = useState<Record<string, number>>(initial?.typeFields ?? {});
 
   const spec = useMemo(() => specForType(type), [type]);
   const color = spec ? VERTICAL_COLORS[spec.vertical] : '#6f767f';
+  // REMOVED is set by deleting a node, not chosen here; only expose it so an
+  // already-removed node's state still renders while editing.
+  const stateOptions: NodeState[] =
+    base.state === 'REMOVED' ? ['REMOVED', ...NODE_STATES] : NODE_STATES;
 
   function num(v: string): number {
     const n = Number(v);
@@ -110,7 +123,7 @@ export function NodeFormPanel({ mode, busy, initial, onSubmit, onClose }: NodeFo
           onChange={(e) => setBase((b) => ({ ...b, state: e.target.value as NodeState }))}
           className={selectClass}
         >
-          {NODE_STATES.map((s) => (
+          {stateOptions.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>

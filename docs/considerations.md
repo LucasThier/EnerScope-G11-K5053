@@ -271,3 +271,44 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   platform user, a selected org registers the user into it. The signed-in shell
   is now `AppLayout` with a role-aware `Sidebar` (admins: Users + Organizations;
   regular users: Workspace); `PanelLayout`/`AdminPanel`/`UserPanel` were removed.
+- 2026-09-10 — Diagram editor UX pass (frontend only). Decisions:
+  - **Connection rules.** The canvas now only accepts edges that follow the
+    real-world gas value chain. The allowed targets per node type live in
+    `ALLOWED_CONNECTIONS` in `frontend/src/components/editor/nodeCatalog.ts`
+    (`canConnect`/`allowedTargetTypes` helpers): well → gathering → treatment →
+    pipeline/compression (pipelines may chain and reach either liquefaction
+    type) → ground liquefaction → seaport terminal → LNG carrier, and FLNG →
+    LNG carrier. Both connect paths (drag-to-connect and the "Connect to another
+    node…" click flow) funnel through `EditorPage.handleConnect`, which rejects
+    a disallowed pair with a floating warning instead of calling the API. This
+    is **client-side only** for now; if the API needs to be authoritative,
+    enforce the same map in `VersionService.addConnectionToVersion` (with tests).
+  - **`REMOVED` is set on delete, not by hand.** `NODE_STATES` (the manual state
+    dropdown options) no longer includes `REMOVED`. "Delete node" now soft-
+    deletes: `useDiagram.removeNode` PATCHes the node's basics to
+    `state = REMOVED` (via the existing `/basics` endpoint) rather than calling
+    the DELETE endpoint, so the node stays in the version and can be brought back
+    with `restoreNode` ("Restore node", sets `PROPOSED`). The forms still render
+    `REMOVED` when a node already has it, but never offer it as a fresh choice.
+    The hard-delete `deleteNode`/DELETE endpoint is left in place but is no
+    longer wired to any UI control.
+  - **Per-type icons & cursors.** `nodeIcons.tsx` now draws a distinct line icon
+    for every `NodeType` (including the previously icon-less `PIPELINE_CONECTION`
+    and `INTERNAL_CONSUMPTION`). Cursors were made intentful: an unselected node
+    shows a crosshair (its body is a connection source), a selected node shows a
+    grab cursor (drag to move), edges show a pointer (double-click removes), and
+    the pane switches to a crosshair while a click-connection is pending. Edges
+    render as `smoothstep` with a slightly larger arrowhead.
+  - **Node palette.** A left rail (`NodePalette`, shown in diagram mode) lists
+    every node type with its icon. A tile can be **dragged onto the canvas** to
+    place a node at the drop point (`DiagramCanvas` handles `onDrop`/`onDragOver`,
+    the drag carries the type under the `NODE_DRAG_TYPE` key), or **clicked** to
+    add one near the current spread. Either path opens the create form
+    pre-selected to that type (`NodeFormPanel` gained an `initialType`) so the
+    user still names it. The canvas is now a flex sibling of the rail; the
+    floating create/edit panel is positioned against a new `canvasWrapRef`
+    (previously the whole body).
+  - **Double-click to edit.** Double-clicking a node opens its full editable
+    form (`DiagramCanvas.onNodeDoubleClick` → `EditorPage.openEditNode` →
+    `handleEditData`). The data panel's button was renamed from "Edit all data"
+    to just **"Edit"**.

@@ -24,6 +24,10 @@ interface UseDiagram {
     y: number,
   ) => Promise<void>;
   deleteNode: (nodeId: string) => Promise<void>;
+  /** Soft-delete: marks the node `REMOVED` (state set on delete, never by hand). */
+  removeNode: (nodeId: string) => Promise<void>;
+  /** Brings a `REMOVED` node back into the plan as `PROPOSED`. */
+  restoreNode: (nodeId: string) => Promise<void>;
   updateNodeBasics: (nodeId: string, basics: { name?: string; state?: NodeState }) => Promise<void>;
   getNodeDetail: (nodeId: string) => Promise<NodeDetail | null>;
   editNodeData: (
@@ -122,6 +126,37 @@ export function useDiagram(versionId: string | null): UseDiagram {
       }
     },
     [versionId, diagram, reload],
+  );
+
+  const setNodeState = useCallback(
+    async (nodeId: string, state: NodeState, failure: string) => {
+      if (!versionId) return;
+      setBusy(true);
+      setError(null);
+      try {
+        await diagramApi.updateBasics(versionId, nodeId, { state });
+        await reload();
+      } catch (err) {
+        setError(getErrorMessage(err, failure));
+        throw err;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [versionId, reload],
+  );
+
+  // "Deleting" a node marks it REMOVED rather than dropping it: the REMOVED
+  // state is only ever set as the consequence of a delete, and the node stays in
+  // the version's history so it can be restored.
+  const removeNode = useCallback(
+    (nodeId: string) => setNodeState(nodeId, 'REMOVED', 'Could not remove the node'),
+    [setNodeState],
+  );
+
+  const restoreNode = useCallback(
+    (nodeId: string) => setNodeState(nodeId, 'PROPOSED', 'Could not restore the node'),
+    [setNodeState],
   );
 
   const updateNodeBasics = useCallback(
@@ -278,6 +313,8 @@ export function useDiagram(versionId: string | null): UseDiagram {
     reload,
     addNode,
     deleteNode,
+    removeNode,
+    restoreNode,
     updateNodeBasics,
     getNodeDetail,
     editNodeData,
