@@ -1,10 +1,23 @@
 package org.enerscope.project.service;
 
+import java.util.List;
+import java.util.Map;
+import java.time.Instant;
+import org.enerscope.common.ForbiddenException;
+import org.enerscope.common.UnauthorizedException;
+import org.enerscope.session.model.Session;
+import org.enerscope.user.model.enums.PlatformRole;
+import org.enerscope.version.dto.VersionDTO;
+import org.enerscope.version.model.Version;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
+import org.enerscope.project.dto.ProjectSummaryDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
@@ -36,6 +49,18 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ProjectServiceTest {
+        private static final Map<ProjectMemberType, Set<ProjectMemberPermission>> DEFAULT_PERMISSIONS_FOR_TEST = Map.of(
+                ProjectMemberType.ADMIN, Set.of(ProjectMemberPermission.MANAGE_PROJECT, ProjectMemberPermission.EDIT_PROJECT, ProjectMemberPermission.VIEW_PROJECT),
+                ProjectMemberType.EDITOR, Set.of(ProjectMemberPermission.EDIT_PROJECT, ProjectMemberPermission.VIEW_PROJECT));
+
+        @AfterEach
+        void clearAuthentication() { SecurityContextHolder.clearContext(); }
+
+        private void prepareCreator() {
+                User caller = creator();
+                authenticateAs(caller);
+                when(userRepository.findById(caller.getId())).thenReturn(Optional.of(caller));
+        }
 
         @Mock
         private ProjectRepository projectRepository;
@@ -64,6 +89,7 @@ class ProjectServiceTest {
 
         @Test
         void createProjectPersistsAndLinksToOrganization() {
+                prepareCreator();
                 UUID orgId = UUID.randomUUID();
                 Organization organization = new Organization("Acme");
                 when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
@@ -80,6 +106,7 @@ class ProjectServiceTest {
 
         @Test
         void createProjectRejectsUnknownOrganization() {
+                prepareCreator();
                 UUID orgId = UUID.randomUUID();
                 when(organizationRepository.findById(orgId)).thenReturn(Optional.empty());
 
@@ -185,7 +212,7 @@ class ProjectServiceTest {
                 List<ProjectMember> result = projectService.listMembers(projectId);
 
                 assertEquals(1, result.size());
-                assertEquals("jane@enerscope.org", result.get(0).getUser().getMail());
+                assertEquals("jane@enerscope.org", result.getFirst().getUser().getMail());
                 verify(projectMemberRepository, never()).existsByProjectIdAndUserId(any(), any());
         }
 
@@ -242,7 +269,7 @@ class ProjectServiceTest {
                 List<ProjectSummaryDTO> result = projectService.listForCurrentUser(null);
 
                 assertEquals(1, result.size());
-                assertEquals("Grid Expansion", result.get(0).name());
+                assertEquals("Grid Expansion", result.getFirst().name());
                 verify(projectRepository, never()).findSummariesForMember(any(), any());
         }
 
@@ -256,7 +283,7 @@ class ProjectServiceTest {
                 List<ProjectSummaryDTO> result = projectService.listForCurrentUser(null);
 
                 assertEquals(1, result.size());
-                assertEquals("Mine", result.get(0).name());
+                assertEquals("Mine", result.getFirst().name());
                 verify(projectRepository, never()).findSummaries(any());
         }
 

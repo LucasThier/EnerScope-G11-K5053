@@ -777,3 +777,22 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   explicit user authorization, the mappings now match existing V8/V7 columns and
   the fixture path points to existing resources. No migration or physical
   simulation change was required. All 215 current backend cases pass.
+
+- 2026-09-29 — Added the scenario economic frontend and a permission-checked active
+  version-summary GET endpoint. Simple editing covers one hypothetical entity,
+  fixed/volume rules, assets and annual same-year cash. WACC/tax are entered as
+  percentages; no legacy costs or physical unit factors are inferred.
+- 2026-09-29 — Existing configurations are editable only when a complete round-trip
+  through the simple adapter preserves all fields. Otherwise they remain read-only.
+  Historical evaluations always display their own snapshot, including explicit
+  unavailable indicator statuses. See economic-frontend.md.
+- 2026-09-29 — RouterProvider enables unsaved-change blocking; economic tabs retain
+  drafts, switching project returns to its scenario list, and invalid project URLs
+  no longer select another project silently. Narrow screens collapse the sidebar.
+- 2026-09-29 — Full Maven verification exposed pre-existing missing imports,
+  permission fixtures and creator authentication in ProjectServiceTest. Repaired
+  test setup without changing project production behavior or deleting test cases.
+  The full default Maven suite now passes 256 tests; stale target reports from
+  removed/explicit integration classes are not part of that invocation.
+
+- 2026-10-01 — Pinned frontend Axios to 1.20.0 and refreshed the npm lockfile for upstream security fixes. Keep HTTP requests and token refresh in the existing src/api client; no API contract changes are required.

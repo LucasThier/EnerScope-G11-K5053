@@ -56,7 +56,7 @@ export function ActiveProjectProvider({ children }: { children: ReactNode }) {
       return null;
     }
     const byId = (id: string | null) => projects.find((project) => project.id === id) ?? null;
-    return byId(routeProjectId) ?? byId(lastProjectId) ?? projects[0];
+    return routeProjectId ? byId(routeProjectId) : byId(lastProjectId) ?? projects[0];
   }, [projects, routeProjectId, lastProjectId]);
 
   useEffect(() => {
@@ -69,7 +69,8 @@ export function ActiveProjectProvider({ children }: { children: ReactNode }) {
     (projectId: string) => {
       setLastProjectId(projectId);
       if (routeMatch) {
-        const rest = routeMatch.params['*'] ?? '';
+        const previous = routeMatch.params['*'] ?? '';
+        const rest = previous.startsWith('versions') ? 'versions' : previous;
         navigate(`/projects/${projectId}${rest ? `/${rest}` : ''}`);
       }
     },

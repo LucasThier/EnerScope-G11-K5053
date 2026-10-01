@@ -68,3 +68,11 @@ See `AGENTS.md` for the full convention.
 | DTO | `<feature>/dto` | Request/response records for that feature |
 | Filter | `<feature>/filter` | Servlet filters (e.g. `auth/filter/AuthFilter`) |
 | Config | `config` | Security, CORS, crypto, OpenAPI, JPA (flat, cross-cutting) |
+
+### Economic workspace
+
+The scenario list and economic configuration/results/history now use the existing
+Version hierarchy. A read-only version-summary endpoint supports selection.
+The frontend uses React Router's data router for navigation blocking, and a pure
+adapter converts the simple editor to the existing economic aggregate.
+All financial calculations remain in the backend. See [economic frontend](economic-frontend.md).

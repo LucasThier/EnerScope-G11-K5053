@@ -315,3 +315,10 @@ Verbosity is controlled from the environment: `LOG_LEVEL_APP` sets the
 application logger level and `LOG_LEVEL_ROOT` the framework level
 (`TRACE < DEBUG < INFO < WARN < ERROR < OFF`). For example, set
 `LOG_LEVEL_APP=DEBUG` in `.env` to see debug output locally.
+
+## Scenario selection
+
+GET /api/v1/projects/{projectId}/versions returns active version summaries with
+node identifiers, names and types. Requires VIEW_PROJECT through an active project
+membership/role, or a platform administrator. Responses use ApiResponse.
+See [economic frontend](../docs/economic-frontend.md).

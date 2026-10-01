@@ -4,7 +4,7 @@ The economic module evaluates a **Version of a Project**. It consumes actual ann
 simulator quantities, generates auditable entries, computes income tax separately
 for each tax entity, consolidates the selected boundary, reconciles accrual with
 cash and discounts the resulting cash flows. It does not import legacy node costs
-automatically or add a frontend screen.
+automatically. The simple frontend is documented in [economic frontend](economic-frontend.md).
 
 ## Integration and persistence
 
@@ -230,7 +230,7 @@ one simulation, then the engine, then persists one independent evaluation. An
 unavailable indicator never invalidates NPV or prevents saving the evaluation.
 Numerical failures on new evaluations are logged through `AppLogger` as warnings.
 
-The future **Simular** action will call the existing `POST /evaluations` endpoint
+The **Guardar y simular** action calls the existing `POST /evaluations` endpoint
 and receive NPV, IRR and both Paybacks in one response. No screens, extra endpoints,
 tables or indicator-specific SQL migrations are introduced.
 

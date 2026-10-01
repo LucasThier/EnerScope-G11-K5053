@@ -38,11 +38,11 @@ export function ProjectSwitcher() {
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className={
-          'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-ink-800 ' +
+          'flex max-w-40 items-center gap-2 rounded-lg sm:max-w-none px-3 py-2 text-sm font-semibold text-ink-800 ' +
           'transition-colors hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400'
         }
       >
-        {activeProject.name}
+        <span className="truncate">{activeProject.name}</span>
         <ChevronDownIcon
           className={`h-4 w-4 text-ink-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
         />

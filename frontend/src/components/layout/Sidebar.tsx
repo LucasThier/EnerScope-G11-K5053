@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
-import type { ReactNode } from 'react';
+import { useSyncExternalStore, type ReactNode } from 'react';
+import { useActiveProject } from '../../hooks/useActiveProject';
 import { useAuth } from '../../hooks/useAuth';
 import { useLocalPreference } from '../../hooks/useLocalPreference';
 import {
@@ -55,9 +56,18 @@ const itemBase = 'flex items-center gap-3 rounded-lg py-2 text-sm transition-col
 
 const itemPadding = (isCollapsed: boolean) => (isCollapsed ? 'justify-center px-2' : 'px-3');
 
+function subscribeViewport(notify: () => void) {
+  const media = window.matchMedia('(max-width: 767px)');
+  media.addEventListener('change', notify);
+  return () => media.removeEventListener('change', notify);
+}
+
 export function Sidebar() {
   const { user } = useAuth();
-  const [isCollapsed, setIsCollapsed] = useLocalPreference(COLLAPSED_KEY, false);
+  const { activeProject } = useActiveProject();
+  const [preferredCollapsed, setIsCollapsed] = useLocalPreference(COLLAPSED_KEY, false);
+  const narrow = useSyncExternalStore(subscribeViewport, () => window.matchMedia('(max-width: 767px)').matches);
+  const isCollapsed = narrow || preferredCollapsed;
 
   const showAdmin = user?.platformRole === 'ADMIN';
 
@@ -70,7 +80,7 @@ export function Sidebar() {
     >
       <nav className="flex flex-1 flex-col gap-1 p-3">
         {NAV_ITEMS.map((item) => (
-          <NavItemLink key={item.label} item={item} isCollapsed={isCollapsed} />
+          <NavItemLink key={item.label} item={item.label === 'Simulaciones / Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item} isCollapsed={isCollapsed} />
         ))}
 
         {showAdmin && (
@@ -82,13 +92,13 @@ export function Sidebar() {
               </p>
             )}
             {ADMIN_ITEMS.map((item) => (
-              <NavItemLink key={item.label} item={item} isCollapsed={isCollapsed} />
+              <NavItemLink key={item.label} item={item.label === 'Simulaciones / Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item} isCollapsed={isCollapsed} />
             ))}
           </>
         )}
       </nav>
 
-      <div className="p-3">
+      <div className="hidden p-3 md:block">
         <button
           type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
@@ -138,6 +148,7 @@ function NavItemLink({ item, isCollapsed }: { item: NavItem; isCollapsed: boolea
   return (
     <NavLink
       to={item.to}
+      end={item.to === '/projects'}
       title={isCollapsed ? item.label : undefined}
       className={({ isActive }) =>
         `${itemBase} ${padding} ` +

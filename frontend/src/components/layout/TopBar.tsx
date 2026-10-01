@@ -13,7 +13,7 @@ import { UserMenu } from './UserMenu';
  */
 export function TopBar() {
   return (
-    <header className="flex h-16 shrink-0 items-center gap-4 border-b border-ink-100 bg-white px-6">
+    <header className="flex min-h-16 shrink-0 flex-wrap items-center gap-2 py-2 sm:gap-4 border-b border-ink-100 bg-white px-3 sm:px-6">
       <Logo variant="mark" />
       <div className="flex-1" />
       <ProjectSwitcher />

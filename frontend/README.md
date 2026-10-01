@@ -170,3 +170,14 @@ frontend/
 - **Types:** keep `src/types/*` in sync with the backend DTOs.
 - **Tests:** there is no test harness yet, so the bar is `npm run build`
   (type-check) plus `npm run lint`. Both must pass.
+
+## Scenario economics
+
+Open **Simulaciones / Escenarios** with an active project to select an existing
+scenario, configure a simplified economic evaluation and inspect saved results.
+See [economic frontend](../docs/economic-frontend.md) for routes, assumptions,
+permissions and historical compatibility.
+
+Run `npm test` for the dependency-free Node test runner covering the economic
+configuration adapter and indicator display. The optional browser fixture check
+is documented in the economic frontend guide.
