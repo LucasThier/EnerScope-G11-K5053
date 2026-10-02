@@ -12,7 +12,32 @@ interface ModalProps {
 
 const SIZES = { md: 'max-w-lg', lg: 'max-w-2xl' };
 
-const FOCUSABLE = 'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])';
+/**
+ * Focus-trap candidates. Disabled controls are excluded on purpose:
+ * `NewProjectModal` renders its organization `<select>` disabled while the
+ * options load, and the browser refuses focus on a disabled element — leaving
+ * it in the list would stall Tab on a stop it can never reach.
+ */
+const FOCUSABLE = [
+  'a[href]',
+  'button:not(:disabled)',
+  'input:not(:disabled)',
+  'select:not(:disabled)',
+  'textarea:not(:disabled)',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
+/**
+ * The focusable elements inside the panel, in document order, queried fresh on
+ * every call rather than captured when the modal opened. Both modals rebuild
+ * their contents after mounting — one while its organizations load, the other
+ * while it fetches members — so a captured list would go stale.
+ */
+function focusablesIn(panel: HTMLElement): HTMLElement[] {
+  return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    (element) => element.getClientRects().length > 0,
+  );
+}
 
 export function Modal({ open, onClose, title, size = 'md', children }: ModalProps) {
   const titleId = useId();
@@ -36,12 +61,68 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
     };
   }, [open, onClose]);
 
+  // Focus management: remember what had focus, move into the panel, keep Tab
+  // inside it, and hand focus back on close.
+  //
+  // Kept separate from the Escape effect above, and depending on `open` alone.
+  // Nothing here may come to depend on `onClose`: it is an inline arrow at both
+  // call sites, so a new identity on every parent render would re-run this
+  // cleanup and throw focus back to the page while the modal is still open.
   useEffect(() => {
     if (!open) {
       return;
     }
-    const first = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
-    (first ?? panelRef.current)?.focus();
+    const panel = panelRef.current;
+    const opener = document.activeElement as HTMLElement | null;
+
+    const first = panel ? focusablesIn(panel)[0] : null;
+    (first ?? panel)?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Tab' || !panel) {
+        return;
+      }
+      const focusables = focusablesIn(panel);
+      if (focusables.length === 0) {
+        // Unreachable while the close button renders, but a panel with nothing
+        // to focus still must not leak Tab to the page behind it.
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const firstFocusable = focusables[0];
+      const lastFocusable = focusables[focusables.length - 1];
+      const active = document.activeElement;
+
+      // Focus escaped the panel — through the browser chrome, or a programmatic
+      // focus() elsewhere. Pull it back to the edge Tab was heading for.
+      if (!panel.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? lastFocusable : firstFocusable).focus();
+        return;
+      }
+
+      // Only the two edges are handled. Inside the panel the browser's own tab
+      // order is left alone, because it reads the live DOM better than a
+      // hand-kept index would.
+      if (event.shiftKey && active === firstFocusable) {
+        event.preventDefault();
+        lastFocusable.focus();
+      } else if (!event.shiftKey && active === lastFocusable) {
+        event.preventDefault();
+        firstFocusable.focus();
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      // The opener can be gone by now — a table row removed while the modal was
+      // open — and focusing a detached node silently does nothing.
+      if (opener?.isConnected) {
+        opener.focus();
+      }
+    };
   }, [open]);
 
   if (!open) {

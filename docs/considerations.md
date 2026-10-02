@@ -930,3 +930,64 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     app* — the backend half is done, the loop is not closed for the end user.
   - `mvn test` 244 → 251: `UserServiceTest` 9 → 12 (the method had no coverage
     at all) and a new `UserControllerTest` (4).
+- 2026-10-01 — **`Modal` now traps Tab and gives focus back on close.** The
+  component already handled Escape, the scroll lock, `role="dialog"`,
+  `aria-modal`, `aria-labelledby` and moving focus into the panel on open; what
+  was missing was keeping Tab inside the panel and restoring focus afterwards.
+  The fix lives entirely in `components/ui/Modal.tsx`, so `NewProjectModal` and
+  `ProjectMembersModal` — the only two consumers — were not touched.
+  - **No library.** `focus-trap-react` and Headless UI both solve this, but the
+    frontend has four runtime dependencies and this is ~30 lines. There is
+    precedent for hand-rolling it in `hooks/useDismissable.ts`.
+  - **The focusable list is queried on every Tab, not captured on open.** This
+    is the one decision the consumers force: `NewProjectModal` renders its
+    organization `<select>` with `disabled={loadingOrganizations}`, and
+    `ProjectMembersModal` replaces its whole body when `projectsApi.members()`
+    resolves. A list captured at open time would be stale in both.
+  - **`:disabled` was missing from the old selector**, which was a latent bug:
+    `input, select, textarea, button, …` would have put the disabled `<select>`
+    in the cycle, stalling Tab on a stop the browser refuses to focus. The
+    selector now excludes disabled controls and filters out anything with no
+    client rects.
+  - **Only the two edges are intercepted.** In the middle of the panel the
+    event is left alone, because the browser's own tab order reads the live DOM
+    better than a hand-kept index. Verified: Tab on a middle element comes back
+    with `defaultPrevented === false`.
+  - **A document-level `keydown`, not a handler on the panel.** If focus ever
+    leaves the panel — browser chrome, a programmatic `focus()` — a
+    panel-scoped handler stops receiving events and the trap dies. The document
+    listener detects that case and pulls focus back to the edge Tab was heading
+    for.
+  - **The focus-management effect depends on `open` alone, and must keep doing
+    so.** `onClose` is an inline arrow at both call sites
+    (`ProjectsPage.tsx:128` and `:134`), so a new identity on every parent
+    render would re-run the cleanup and throw focus back to the page while the
+    modal is still open. This is why it is a second effect rather than being
+    merged into the Escape one, which does depend on `onClose`.
+    `react-hooks/exhaustive-deps` is satisfied today because the effect body
+    never reads `onClose`; keep it that way.
+  - **The opener is restored only if `isConnected`.** It can be gone by the
+    time the modal closes — a `ProjectsTable` row removed while the dialog was
+    open — and focusing a detached node does nothing.
+  - **Known, pre-existing, not changed here: the initial focus lands on the
+    close button, not on the first field.** The header precedes the body in the
+    panel, so the "Cerrar" button is the first focusable in document order —
+    measured as
+    `[button[aria-label="Cerrar"], input#name, select#org, textarea#desc, button#submit]`.
+    The old `querySelector(FOCUSABLE)` picked it too, so this is not a
+    regression, but it does mean a form modal opens with focus on dismiss
+    rather than on the first input. Fixing it is a deliberate choice (focus the
+    first field in the body, or the panel itself) and belongs in its own card.
+  - **Verified without a frontend test setup, which is the real gap here.**
+    There is still no vitest/jest in `frontend/`, so per `AGENTS.md` this
+    shipped on `npm run build` + `npm run lint`. The behaviour was checked by
+    rendering the real `Modal` under jsdom in a throwaway harness outside the
+    repo, dispatching actual `Tab`/`Shift+Tab` events and asserting
+    `document.activeElement`: 18 checks over the six scenarios above, all
+    passing. **Note for whoever adds the test setup:** jsdom has no layout
+    engine, so `getClientRects()` returns an empty list even for visible
+    elements, which makes `focusablesIn` see nothing. The harness stubbed
+    `Element.prototype.getClientRects`; a real suite will need the same stub or
+    `happy-dom`. A focus trap is exactly the kind of thing that breaks silently
+    in a later refactor, so this is a strong candidate for the first frontend
+    test card.
