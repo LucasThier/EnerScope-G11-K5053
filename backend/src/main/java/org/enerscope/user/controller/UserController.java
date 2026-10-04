@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import org.enerscope.session.model.Session;
 import org.enerscope.user.dto.ChangePasswordRequestDTO;
 import org.enerscope.user.dto.UpdateProfileRequestDTO;
+import org.enerscope.user.dto.UpdateRoleRequestDTO;
 import org.enerscope.user.dto.UserSummaryDTO;
 import org.enerscope.user.model.User;
 import org.enerscope.user.service.UserService;
@@ -13,10 +14,14 @@ import org.enerscope.util.ApiResponse;
 import org.enerscope.util.AuthUtil;
 import org.enerscope.util.Responses;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 /**
  * Operations a user performs on their own account. Not under {@code /auth/**},
@@ -33,6 +38,29 @@ public class UserController {
 
     public UserController(UserService userService) {
         this.userService = userService;
+    }
+
+    @PatchMapping("/{userId}/role")
+    @Operation(summary = "Change a user's platform role",
+            description = "Platform administrators only. Promoting grants the platform-admin "
+                    + "bypass that every authorization check in the system honours. A demotion is "
+                    + "refused when it would leave the platform with no active administrator.")
+    public ResponseEntity<ApiResponse<UserSummaryDTO>> updateRole(
+            @PathVariable UUID userId,
+            @Valid @RequestBody UpdateRoleRequestDTO data) {
+        User user = userService.updateRole(userId, data.platformRole());
+        return Responses.ok("Platform role updated", UserSummaryDTO.from(user));
+    }
+
+    @DeleteMapping("/{userId}")
+    @Operation(summary = "Deactivate a user",
+            description = "Platform administrators only. The account is deactivated, not deleted: "
+                    + "it stops signing in and its organization and project memberships are kept, "
+                    + "where it shows as suspended. Refused when it would leave the platform with "
+                    + "no active administrator.")
+    public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable UUID userId) {
+        userService.deactivateUser(userId);
+        return Responses.ok("User deleted");
     }
 
     @PatchMapping("/me")

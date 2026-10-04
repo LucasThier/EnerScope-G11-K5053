@@ -14,6 +14,8 @@ import org.enerscope.organization.model.enums.OrganizationMemberPermission;
 import org.enerscope.organization.model.enums.OrganizationMemberType;
 import org.enerscope.organization.repository.OrganizationMemberRepository;
 import org.enerscope.organization.repository.OrganizationRepository;
+import org.enerscope.project.model.ProjectMember;
+import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
@@ -46,17 +48,20 @@ public class OrganizationService {
     private final OrganizationMemberRepository organizationMemberRepository;
     private final UserRepository userRepository;
     private final UserService userService;
+    private final ProjectMemberRepository projectMemberRepository;
     private final AppLogger logger;
 
     public OrganizationService(OrganizationRepository organizationRepository,
                                 OrganizationMemberRepository organizationMemberRepository,
                                 UserRepository userRepository,
                                 UserService userService,
+                                ProjectMemberRepository projectMemberRepository,
                                 AppLogger logger) {
         this.organizationRepository = organizationRepository;
         this.organizationMemberRepository = organizationMemberRepository;
         this.userRepository = userRepository;
         this.userService = userService;
+        this.projectMemberRepository = projectMemberRepository;
         this.logger = logger;
     }
 
@@ -158,6 +163,30 @@ public class OrganizationService {
         OrganizationMember saved = organizationMemberRepository.save(member);
         logger.info("Registered user {} into organization {}", user.getMail(), organization.getName());
         return saved;
+    }
+
+    @Transactional
+    public void removeMember(UUID organizationId, UUID memberId) {
+        Organization organization = organizationRepository.findById(organizationId)
+                .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
+        assertCanManageUsers(organizationId);
+
+        OrganizationMember member = organizationMemberRepository
+                .findByIdAndOrganizationId(memberId, organizationId)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+
+        User user = member.getUser();
+        List<ProjectMember> projectMemberships =
+                projectMemberRepository.findByUserInOrganization(user.getId(), organizationId);
+        if (!projectMemberships.isEmpty()) {
+            projectMemberRepository.deleteAll(projectMemberships);
+        }
+
+        organization.removeMember(member);
+        organizationMemberRepository.delete(member);
+
+        logger.info("Removed user {} from organization {} along with {} project memberships",
+                user.getMail(), organization.getName(), projectMemberships.size());
     }
 
     /**

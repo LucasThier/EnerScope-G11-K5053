@@ -14,6 +14,9 @@ import org.enerscope.organization.model.enums.OrganizationMemberPermission;
 import org.enerscope.organization.model.enums.OrganizationMemberType;
 import org.enerscope.organization.repository.OrganizationMemberRepository;
 import org.enerscope.organization.repository.OrganizationRepository;
+import org.enerscope.project.model.Project;
+import org.enerscope.project.model.ProjectMember;
+import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.session.model.Session;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
@@ -36,6 +39,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -55,6 +59,8 @@ class OrganizationServiceTest {
     @Mock
     private UserService userService;
     @Mock
+    private ProjectMemberRepository projectMemberRepository;
+    @Mock
     private AppLogger logger;
 
     private OrganizationService organizationService;
@@ -62,7 +68,8 @@ class OrganizationServiceTest {
     @BeforeEach
     void setUp() {
         organizationService = new OrganizationService(
-                organizationRepository, organizationMemberRepository, userRepository, userService, logger);
+                organizationRepository, organizationMemberRepository, userRepository, userService,
+                projectMemberRepository, logger);
     }
 
     @AfterEach
@@ -406,6 +413,171 @@ class OrganizationServiceTest {
         return new User("admin@enerscope.org", "Admin", "User", "hashed", PlatformRole.ADMIN);
     }
 
+    @Test
+    void removeMemberDeletesTheMembership() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember member = memberOf(organization, OrganizationMemberType.MEMBER);
+        organization.addMember(member);
+        authenticateAs(admin());
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId)).thenReturn(Optional.of(member));
+        when(projectMemberRepository.findByUserInOrganization(member.getUser().getId(), organizationId))
+                .thenReturn(List.of());
+
+        organizationService.removeMember(organizationId, memberId);
+
+        verify(organizationMemberRepository).delete(member);
+        assertFalse(organization.getMembers().contains(member));
+    }
+
+    @Test
+    void removeMemberAlsoRemovesTheirProjectMembershipsInThatOrganization() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember member = memberOf(organization, OrganizationMemberType.MEMBER);
+        Project project = new Project("Grid Expansion", "Expands the grid", organization);
+        ProjectMember projectMembership = new ProjectMember(member.getUser(), project);
+        authenticateAs(admin());
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId)).thenReturn(Optional.of(member));
+        when(projectMemberRepository.findByUserInOrganization(member.getUser().getId(), organizationId))
+                .thenReturn(List.of(projectMembership));
+
+        organizationService.removeMember(organizationId, memberId);
+
+        verify(projectMemberRepository).deleteAll(List.of(projectMembership));
+        verify(organizationMemberRepository).delete(member);
+    }
+
+    @Test
+    void removeMemberTouchesNoProjectMembershipWhenTheUserIsInNone() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember member = memberOf(organization, OrganizationMemberType.MEMBER);
+        authenticateAs(admin());
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId)).thenReturn(Optional.of(member));
+        when(projectMemberRepository.findByUserInOrganization(member.getUser().getId(), organizationId))
+                .thenReturn(List.of());
+
+        organizationService.removeMember(organizationId, memberId);
+
+        verify(projectMemberRepository, never()).deleteAll(any());
+    }
+
+    @Test
+    void removeMemberAllowsAnOwnerToRemoveThemselves() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        User caller = new User("owner@enerscope.org", "Owner", "User", "hashed", PlatformRole.USER);
+        authenticateAs(caller);
+        Organization organization = new Organization("Acme");
+        OrganizationMember own = ownerMembership(caller, organization);
+        organization.addMember(own);
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, caller.getId()))
+                .thenReturn(Optional.of(own));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId)).thenReturn(Optional.of(own));
+        when(projectMemberRepository.findByUserInOrganization(caller.getId(), organizationId))
+                .thenReturn(List.of());
+
+        organizationService.removeMember(organizationId, memberId);
+
+        verify(organizationMemberRepository).delete(own);
+    }
+
+    @Test
+    void removeMemberAllowsPlatformAdmin() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember member = memberOf(organization, OrganizationMemberType.MEMBER);
+        authenticateAs(admin());
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId)).thenReturn(Optional.of(member));
+        when(projectMemberRepository.findByUserInOrganization(member.getUser().getId(), organizationId))
+                .thenReturn(List.of());
+
+        organizationService.removeMember(organizationId, memberId);
+
+        verify(organizationMemberRepository, never()).findByOrganizationIdAndUserId(any(), any());
+        verify(organizationMemberRepository).delete(member);
+    }
+
+    @Test
+    void removeMemberRejectsAPlainMemberWith403() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        User caller = new User("member@enerscope.org", "Plain", "Member", "hashed", PlatformRole.USER);
+        authenticateAs(caller);
+        Organization organization = new Organization("Acme");
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, caller.getId()))
+                .thenReturn(Optional.of(memberOf(organization, OrganizationMemberType.MEMBER)));
+
+        assertThrows(ForbiddenException.class,
+                () -> organizationService.removeMember(organizationId, memberId));
+        verify(organizationMemberRepository, never()).delete(any());
+        verify(projectMemberRepository, never()).deleteAll(any());
+    }
+
+    @Test
+    void removeMemberRejectsUnauthenticated() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        when(organizationRepository.findById(organizationId))
+                .thenReturn(Optional.of(new Organization("Acme")));
+
+        assertThrows(UnauthorizedException.class,
+                () -> organizationService.removeMember(organizationId, memberId));
+        verify(organizationMemberRepository, never()).delete(any());
+    }
+
+    @Test
+    void removeMemberRejectsUnknownOrganization() {
+        UUID organizationId = UUID.randomUUID();
+        when(organizationRepository.findById(organizationId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> organizationService.removeMember(organizationId, UUID.randomUUID()));
+        verify(organizationMemberRepository, never()).delete(any());
+    }
+
+    @Test
+    void removeMemberRejectsUnknownMember() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        authenticateAs(admin());
+        when(organizationRepository.findById(organizationId))
+                .thenReturn(Optional.of(new Organization("Acme")));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> organizationService.removeMember(organizationId, memberId));
+        verify(organizationMemberRepository, never()).delete(any());
+        verify(projectMemberRepository, never()).deleteAll(any());
+    }
+
+    @Test
+    void removeMemberRejectsAMemberOfAnotherOrganization() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        authenticateAs(admin());
+        when(organizationRepository.findById(organizationId))
+                .thenReturn(Optional.of(new Organization("Acme")));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId))
+                .thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> organizationService.removeMember(organizationId, memberId));
+        verify(organizationMemberRepository, never()).delete(any());
+        verify(projectMemberRepository, never()).deleteAll(any());
+    }
+
     private void authenticateAs(User caller) {
         Session session = new Session("token", caller, Instant.now().plusSeconds(3600));
         var auth = new UsernamePasswordAuthenticationToken(caller, null, List.of());
@@ -420,6 +592,13 @@ class OrganizationServiceTest {
                 EnumSet.of(OrganizationMemberPermission.MANAGE_ORGANIZATION,
                         OrganizationMemberPermission.VIEW_ORGANIZATION)));
         return member;
+    }
+
+    private OrganizationMember memberOf(Organization organization, OrganizationMemberType type) {
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hashed", PlatformRole.USER);
+        return type == OrganizationMemberType.OWNER
+                ? ownerMembership(user, organization)
+                : viewOnlyMembership(user, organization);
     }
 
     private OrganizationMember viewOnlyMembership(User user, Organization organization) {

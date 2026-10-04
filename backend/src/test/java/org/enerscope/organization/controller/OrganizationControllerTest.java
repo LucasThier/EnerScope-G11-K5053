@@ -39,9 +39,11 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -346,6 +348,57 @@ class OrganizationControllerTest {
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void removeMemberReturnsOk() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/organizations/" + orgId + "/members/" + memberId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Member removed"));
+
+        verify(organizationService).removeMember(orgId, memberId);
+    }
+
+    @Test
+    void removeMemberRejectsUnknownMemberWith400() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        doThrow(new IllegalArgumentException("Member not found"))
+                .when(organizationService).removeMember(orgId, memberId);
+
+        mockMvc.perform(delete("/organizations/" + orgId + "/members/" + memberId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Member not found"));
+    }
+
+    @Test
+    void removeMemberPropagatesForbiddenWith403() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        doThrow(new ForbiddenException("You are not allowed to manage users in this organization"))
+                .when(organizationService).removeMember(orgId, memberId);
+
+        mockMvc.perform(delete("/organizations/" + orgId + "/members/" + memberId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value("You are not allowed to manage users in this organization"));
+    }
+
+    @Test
+    void removeMemberRequiresAuthenticationWith401() throws Exception {
+        UUID orgId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/organizations/" + orgId + "/members/" + UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+
+        verify(organizationService, never()).removeMember(any(), any());
     }
 
     @Test

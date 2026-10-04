@@ -4,6 +4,7 @@ import org.enerscope.auth.dto.RegisterRequestDTO;
 import org.enerscope.common.ForbiddenException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.user.dto.UpdateProfileRequestDTO;
+import org.enerscope.util.AuthUtil;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
@@ -69,6 +70,55 @@ public class UserService {
         User saved = userRepository.save(user);
         logger.info("Profile updated for user {}", saved.getMail());
         return saved;
+    }
+
+    public User updateRole(UUID userId, PlatformRole newRole) {
+        AuthUtil.requirePlatformAdmin(logger, "change platform roles");
+        if (newRole == null) {
+            throw new IllegalArgumentException("platformRole cannot be null");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        if (user.getPlatformRole() == newRole) {
+            return user;
+        }
+        if (newRole == PlatformRole.USER) {
+            assertWouldLeaveAnActiveAdmin(user, "demote");
+        }
+
+        user.updatePlatformRole(newRole);
+        User saved = userRepository.save(user);
+        logger.info("Changed the platform role of {} to {}", saved.getMail(), newRole);
+        return saved;
+    }
+
+    public void deactivateUser(UUID userId) {
+        AuthUtil.requirePlatformAdmin(logger, "deactivate users");
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        if (!user.isActive()) {
+            logger.debug("User {} is already inactive", user.getMail());
+            return;
+        }
+        assertWouldLeaveAnActiveAdmin(user, "deactivate");
+
+        user.deactivate();
+        userRepository.save(user);
+        logger.info("Deactivated user {}", user.getMail());
+    }
+
+    private void assertWouldLeaveAnActiveAdmin(User user, String action) {
+        if (user.getPlatformRole() != PlatformRole.ADMIN || !user.isActive()) {
+            return;
+        }
+        if (userRepository.countByPlatformRoleAndActiveTrue(PlatformRole.ADMIN) > 1) {
+            return;
+        }
+        logger.warn("Refused to {} {}: the platform would be left with no active administrator",
+                action, user.getMail());
+        throw new IllegalArgumentException("The platform would be left without an active administrator");
     }
 
     public void changePassword(UUID userId, String currentPassword, String newPassword) {

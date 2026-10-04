@@ -36,6 +36,10 @@ public class Organization extends BaseEntity {
         members.add(member);
     }
 
+    public void removeMember(OrganizationMember member) {
+        members.remove(member);
+    }
+
     public void addProject(Project project) {
         projects.add(project);
     }

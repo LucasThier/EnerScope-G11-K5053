@@ -14,6 +14,8 @@ public interface OrganizationMemberRepository extends JpaRepository<Organization
 
     Optional<OrganizationMember> findByOrganizationIdAndUserId(UUID organizationId, UUID userId);
 
+    Optional<OrganizationMember> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
     /**
      * Members of an organization with their user and roles already fetched, so
      * mapping to a DTO never triggers a lazy load per row.

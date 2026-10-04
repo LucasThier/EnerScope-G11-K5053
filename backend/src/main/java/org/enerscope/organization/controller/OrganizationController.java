@@ -19,6 +19,7 @@ import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -89,6 +90,19 @@ public class OrganizationController {
             @Valid @RequestBody AddOrganizationMemberRequestDTO data) {
         OrganizationMember member = organizationService.addMember(organizationId, data);
         return Responses.created("Member added", toDTO(member));
+    }
+
+    @DeleteMapping("/{organizationId}/members/{memberId}")
+    @Operation(summary = "Remove a member from an organization",
+            description = "Removes the membership and, with it, the user's memberships in that "
+                    + "organization's projects. The platform account itself is untouched: the user "
+                    + "keeps signing in and keeps any other organization. Allowed for platform "
+                    + "admins and organization owners.")
+    public ResponseEntity<ApiResponse<Void>> removeMember(
+            @PathVariable UUID organizationId,
+            @PathVariable UUID memberId) {
+        organizationService.removeMember(organizationId, memberId);
+        return Responses.ok("Member removed");
     }
 
     @PostMapping("/{organizationId}/users")

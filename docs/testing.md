@@ -35,16 +35,18 @@ Run everything with `cd backend && mvn test`.
 | `util.AuthUtilTest` | Unit | 7 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 |
 | `money.MoneyAmountTest` | Unit | 7 |
-| `user.service.UserServiceTest` | Unit | 22 |
+| `user.service.UserServiceTest` | Unit | 38 |
 | `user.service.PasswordGeneratorTest` | Unit | 4 |
-| `user.controller.UserControllerTest` | Web | 9 |
-| `organization.service.OrganizationServiceTest` | Unit | 23 |
+| `user.controller.UserControllerTest` | Web | 17 |
+| `user.repository.UserRepositoryTest` | Data | 4 |
+| `organization.service.OrganizationServiceTest` | Unit | 33 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 12 |
-| `organization.controller.OrganizationControllerTest` | Web | 18 |
+| `organization.controller.OrganizationControllerTest` | Web | 22 |
 | `project.service.ProjectAccessGuardTest` | Unit | 22 |
 | `project.service.ProjectServiceTest` | Unit | 48 |
 | `project.controller.ProjectControllerTest` | Web | 27 |
 | `project.repository.ProjectRepositoryTest` | Data | 11 |
+| `project.repository.ProjectMemberRepositoryTest` | Data | 5 |
 | `version.service.VersionServiceTest` | Unit | 22 [^p] |
 | `version.controller.VersionControllerTest` | Web | 10 |
 | `node.service.NodeServiceTest` | Unit | 1 |
@@ -52,14 +54,14 @@ Run everything with `cd backend && mvn test`.
 | `strategyCost.CostTest` | Unit | 8 |
 | `strategyCost.InvestmentCostTest` | Unit | 2 |
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| **Total** | | **292 [^p]** |
+| **Total** | | **339 [^p]** |
 
 [^p]: Two cases in `version.service.VersionServiceTest` are
 `@ParameterizedTest`s running over the eight mutating version entry points,
 so they count as 16 executions rather than 2. Surefire therefore reports
-**306** for the 292 cases catalogued here.
+**353** for the 339 cases catalogued here.
 
-> **The catalog matches the code.** `mvn test` reports **306** executions,
+> **The catalog matches the code.** `mvn test` reports **353** executions,
 > which is what the table above adds up to. The `node.*` and `strategyCost.*`
 > classes, never catalogued before, were added on 2026-10-01 along with the
 > seventh `money.MoneyAmountTest` case the table had been missing. The two
@@ -189,6 +191,22 @@ Registration, login and password logic.
 | `updateProfileRejectsANullBody` | A null DTO throws `IllegalArgumentException` before any repository call. |
 | `updateProfileRejectsUnknownUser` | An unknown user id throws `IllegalArgumentException`; nothing is saved. |
 | `updateProfileNeverTouchesMailRoleOrPassword` | `mail`, `platformRole` and `passwordHash` come out unchanged: the DTO has no field that could carry them. |
+| `updateRolePromotesAUserToAdminWithoutCountingAdmins` | A promotion applies and never runs the admin count, which only guards demotions. |
+| `updateRoleDemotesAnAdminWhenAnotherActiveAdminRemains` | With two active ADMINs, demoting one is allowed. |
+| `updateRoleRefusesToDemoteTheLastActiveAdmin` | With one active ADMIN, the demotion throws and the in-memory role is unchanged. |
+| `updateRoleDemotesAnInactiveAdminWithoutCountingAdmins` | An already inactive ADMIN is demoted without consulting the count — it was never part of it. |
+| `updateRoleIsANoOpWhenTheRoleIsUnchanged` | Setting the role a user already has saves nothing and counts nothing. |
+| `updateRoleRejectsANullRole` | A null role throws before the user is looked up. |
+| `updateRoleRejectsUnknownUser` | An unknown id throws; nothing is saved. |
+| `updateRoleRejectsANonAdminCallerWith403` | A regular user is refused by `requirePlatformAdmin` before any lookup. |
+| `updateRoleRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+| `deactivateUserDeactivatesARegularAccountWithoutCountingAdmins` | A `USER` is deactivated and the admin count is never consulted. |
+| `deactivateUserDeactivatesAnAdminWhenAnotherActiveAdminRemains` | With two active ADMINs, deactivating one is allowed. |
+| `deactivateUserRefusesToDeactivateTheLastActiveAdmin` | With one active ADMIN, the deactivation throws and the account stays active. |
+| `deactivateUserIsIdempotent` | Deactivating an already inactive account saves nothing. |
+| `deactivateUserRejectsUnknownUser` | An unknown id throws; nothing is saved. |
+| `deactivateUserRejectsANonAdminCallerWith403` | A regular user is refused before any lookup. |
+| `deactivateUserRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
 
 ## `user.service.PasswordGeneratorTest` — Unit
 
@@ -200,6 +218,26 @@ Secure password generation.
 | `meetsComplexityRequirements` | Every password contains a lower-case, upper-case, digit and symbol. |
 | `generatesDistinctPasswords` | 1000 generated passwords are all distinct (randomness sanity check). |
 | `rejectsTooShortLength` | Requesting a length below 8 throws `IllegalArgumentException`. |
+
+## `user.repository.UserRepositoryTest` — Data
+
+`countByPlatformRoleAndActiveTrue`, the query the last-admin invariant rests on.
+It combines two filters, so a mocked test could only ever prove the mock was
+called; each filter was mutation-checked here.
+
+**Test emails must not collide with `app.admin.mail`.** The `test` profile points
+at `jdbc:h2:mem:enerscope;DB_CLOSE_DELAY=-1`, a *named* in-memory database that
+outlives each context and is shared with the `@SpringBootTest` one, where
+`AdminSeeder` **commits** `admin@enerscope.org`. `app_user.mail` is `UNIQUE`, so a
+case persisting that address hangs on a lock rather than failing cleanly. Every
+address here is prefixed `count-` for that reason.
+
+| Case | Verifies |
+| --- | --- |
+| `countsTheActiveAdmins` | Two active ADMINs count as two. |
+| `excludesInactiveAdmins` | A deactivated ADMIN is not counted, which is what makes the invariant about *active* administrators. |
+| `excludesRegularUsers` | `USER` rows are not counted, however many there are. |
+| `countsZeroWhenEveryAdminIsInactive` | With every ADMIN deactivated the count is zero, the state the invariant exists to prevent. |
 
 ## `user.controller.UserControllerTest` — Web
 
@@ -217,6 +255,14 @@ chain; `UserService` is mocked.
 | `updateOwnProfileRejectsATooShortNameWithValidationError` | A one-character first name → `400` from `@Size`; the service is never reached. |
 | `updateOwnProfilePropagatesAnEmptyPatchWith400` | When the service refuses a body with every field null → `400` carrying its message. |
 | `updateOwnProfileRequiresAuthenticationWith401` | `PATCH /users/me` without a token → `401`; the service is never reached. |
+| `updateRoleReturnsTheUpdatedUser` | `PATCH /users/{id}/role` → `200` with the new role in the summary. |
+| `updateRoleRejectsANullRoleWithValidationError` | An empty body → `400` from `@NotNull`; the service is never reached. |
+| `updateRolePropagatesTheLastAdminRefusalWith400` | The last-admin refusal reaches the client as `400` with its message. |
+| `updateRolePropagatesForbiddenWith403` | A non-admin caller → `403`. |
+| `updateRoleRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
+| `deleteUserReturnsOk` | `DELETE /users/{id}` → `200` `User deleted`, and the service is asked to deactivate that id. |
+| `deleteUserPropagatesTheLastAdminRefusalWith400` | The last-admin refusal reaches the client as `400`. |
+| `deleteUserRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
 
 ## `organization.service.OrganizationBulkRegistrationServiceTest` — Unit
 
@@ -267,6 +313,16 @@ Organization creation and member addition (with role/permission derivation).
 | `listMembersAllowsAnyMemberOfTheOrganization` | A plain member (no `MANAGE_ORGANIZATION`) can still list the members. |
 | `listMembersRejectsNonMemberWith403` | A caller who is not a member gets `ForbiddenException`; the members are never queried. |
 | `listMembersRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException`; the members are never queried. |
+| `removeMemberDeletesTheMembership` | The membership row is deleted and drops out of `Organization.members`. |
+| `removeMemberAlsoRemovesTheirProjectMembershipsInThatOrganization` | The user's `ProjectMember` rows in that organization's projects go with it, loaded and passed to `deleteAll` so the roles cascade. |
+| `removeMemberTouchesNoProjectMembershipWhenTheUserIsInNone` | With no project memberships to remove, `deleteAll` is never called. |
+| `removeMemberAllowsAnOwnerToRemoveThemselves` | An OWNER removing their own membership is allowed — no last-owner guard, because an organization with no owner is the state it is created in. |
+| `removeMemberAllowsPlatformAdmin` | A platform ADMIN removes without any membership lookup. |
+| `removeMemberRejectsAPlainMemberWith403` | A member holding only `VIEW_ORGANIZATION` is refused; nothing is deleted. |
+| `removeMemberRejectsUnauthenticated` | No session throws `UnauthorizedException`; nothing is deleted. |
+| `removeMemberRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException`. |
+| `removeMemberRejectsUnknownMember` | An unknown member id throws `IllegalArgumentException`; nothing is deleted. |
+| `removeMemberRejectsAMemberOfAnotherOrganization` | A member id belonging to a different organization answers the same `Member not found` as one that does not exist, so an owner cannot probe which membership ids exist elsewhere. |
 
 ## `organization.controller.OrganizationControllerTest` — Web
 
@@ -295,6 +351,25 @@ every non-`/auth` route); `OrganizationService` and
 | `addMemberRequiresAuthenticationWith401` | `POST /organizations/{id}/members` without a token → `401`; the service is never reached. |
 | `bulkRegisterUsersReturnsResultSummary` | `POST /organizations/{id}/users/bulk` with a CSV file → `200` with the result summary (`total`/`created`) and `credentialsCsv`. |
 | `bulkRegisterUsersPropagatesForbiddenWith403` | When the bulk service throws `ForbiddenException` → `403`, `success=false`. |
+| `removeMemberReturnsOk` | `DELETE /organizations/{id}/members/{memberId}` → `200` `Member removed`, and the service is asked to remove that pair. |
+| `removeMemberRejectsUnknownMemberWith400` | When the service reports an unknown member → `400` `Member not found`. |
+| `removeMemberPropagatesForbiddenWith403` | When the service refuses the caller → `403` with the domain message. |
+| `removeMemberRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+
+## `project.repository.ProjectMemberRepositoryTest` — Data
+
+`findByUserInOrganization`, the query that finds a user's project memberships
+inside one organization so that removing their organization membership can take
+them with it. Both filters and the delete cascade were checked by mutation: each
+one turns a case red when removed.
+
+| Case | Verifies |
+| --- | --- |
+| `findsTheMembershipsOfAUserInTheProjectsOfOneOrganization` | Two projects of the same organization both come back. |
+| `excludesProjectsOfAnotherOrganization` | A membership in another organization's project is left out — this is what keeps the removal from reaching across organizations. |
+| `excludesTheMembershipsOfOtherUsers` | Two members on the same project resolve to one row for the user asked about. |
+| `returnsEmptyWhenTheUserIsInNoProjectOfThatOrganization` | No project in that organization means no rows, not every row. |
+| `deletingTheFoundMembershipsCascadesToTheirRoles` | `deleteAll` over the loaded entities removes their `ProjectMemberRole` rows too. The role count is asserted as 1 **before** the delete: without that, the case passes even with the cascade removed, because the role would never have been written. |
 
 ## `project.service.ProjectAccessGuardTest` — Unit
 

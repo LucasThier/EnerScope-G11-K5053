@@ -2,12 +2,14 @@ package org.enerscope.user.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.enerscope.auth.filter.AuthFilter;
+import org.enerscope.common.ForbiddenException;
 import org.enerscope.config.SecurityConfig;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.session.model.Session;
 import org.enerscope.session.service.SessionService;
 import org.enerscope.user.dto.ChangePasswordRequestDTO;
 import org.enerscope.user.dto.UpdateProfileRequestDTO;
+import org.enerscope.user.dto.UpdateRoleRequestDTO;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.model.User;
 import org.enerscope.user.service.UserService;
@@ -30,6 +32,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -70,6 +73,105 @@ class UserControllerTest {
 
     private String json(Object body) throws Exception {
         return objectMapper.writeValueAsString(body);
+    }
+
+    @Test
+    void updateRoleReturnsTheUpdatedUser() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User promoted = new User("jane@enerscope.org", "Jane", "Doe", "hash", PlatformRole.ADMIN);
+        when(userService.updateRole(userId, PlatformRole.ADMIN)).thenReturn(promoted);
+
+        mockMvc.perform(patch("/users/" + userId + "/role")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateRoleRequestDTO(PlatformRole.ADMIN))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Platform role updated"))
+                .andExpect(jsonPath("$.data.platformRole").value("ADMIN"));
+    }
+
+    @Test
+    void updateRoleRejectsANullRoleWithValidationError() throws Exception {
+        mockMvc.perform(patch("/users/" + UUID.randomUUID() + "/role")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation error"));
+
+        verify(userService, never()).updateRole(any(), any());
+    }
+
+    @Test
+    void updateRolePropagatesTheLastAdminRefusalWith400() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(userService.updateRole(userId, PlatformRole.USER))
+                .thenThrow(new IllegalArgumentException(
+                        "The platform would be left without an active administrator"));
+
+        mockMvc.perform(patch("/users/" + userId + "/role")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateRoleRequestDTO(PlatformRole.USER))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("The platform would be left without an active administrator"));
+    }
+
+    @Test
+    void updateRolePropagatesForbiddenWith403() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(userService.updateRole(userId, PlatformRole.ADMIN))
+                .thenThrow(new ForbiddenException("Only platform admins can change platform roles"));
+
+        mockMvc.perform(patch("/users/" + userId + "/role")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateRoleRequestDTO(PlatformRole.ADMIN))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateRoleRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(patch("/users/" + UUID.randomUUID() + "/role")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateRoleRequestDTO(PlatformRole.ADMIN))))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).updateRole(any(), any());
+    }
+
+    @Test
+    void deleteUserReturnsOk() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/users/" + userId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("User deleted"));
+
+        verify(userService).deactivateUser(userId);
+    }
+
+    @Test
+    void deleteUserPropagatesTheLastAdminRefusalWith400() throws Exception {
+        UUID userId = UUID.randomUUID();
+        doThrow(new IllegalArgumentException("The platform would be left without an active administrator"))
+                .when(userService).deactivateUser(userId);
+
+        mockMvc.perform(delete("/users/" + userId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("The platform would be left without an active administrator"));
+    }
+
+    @Test
+    void deleteUserRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(delete("/users/" + UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).deactivateUser(any());
     }
 
     @Test

@@ -2,23 +2,33 @@ package org.enerscope.user.service;
 
 import org.enerscope.auth.dto.RegisterRequestDTO;
 import org.enerscope.common.ForbiddenException;
+import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.session.model.Session;
 import org.enerscope.user.dto.UpdateProfileRequestDTO;
+import org.enerscope.user.dto.UpdateRoleRequestDTO;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -111,6 +121,207 @@ class UserServiceTest {
         assertThrows(IllegalArgumentException.class, () -> userService.register(dto));
         verify(userRepository, never()).save(any());
         verify(encoder, never()).encode(anyString());
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void authenticateAs(User caller) {
+        Session session = new Session("token", caller, Instant.now().plusSeconds(3600));
+        var auth = new UsernamePasswordAuthenticationToken(caller, null, List.of());
+        auth.setDetails(session);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    private User platformAdmin() {
+        return new User("admin@enerscope.org", "Admin", "User", "hashed", PlatformRole.ADMIN);
+    }
+
+    private User regularUser() {
+        return new User("jane@enerscope.org", "Jane", "Doe", "hashed", PlatformRole.USER);
+    }
+
+    @Test
+    void updateRolePromotesAUserToAdminWithoutCountingAdmins() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateRole(userId, PlatformRole.ADMIN);
+
+        assertEquals(PlatformRole.ADMIN, saved.getPlatformRole());
+        verify(userRepository, never()).countByPlatformRoleAndActiveTrue(any());
+    }
+
+    @Test
+    void updateRoleDemotesAnAdminWhenAnotherActiveAdminRemains() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.countByPlatformRoleAndActiveTrue(PlatformRole.ADMIN)).thenReturn(2L);
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateRole(userId, PlatformRole.USER);
+
+        assertEquals(PlatformRole.USER, saved.getPlatformRole());
+    }
+
+    @Test
+    void updateRoleRefusesToDemoteTheLastActiveAdmin() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.countByPlatformRoleAndActiveTrue(PlatformRole.ADMIN)).thenReturn(1L);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.updateRole(userId, PlatformRole.USER));
+        assertEquals(PlatformRole.ADMIN, target.getPlatformRole());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateRoleDemotesAnInactiveAdminWithoutCountingAdmins() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        target.deactivate();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertEquals(PlatformRole.USER, userService.updateRole(userId, PlatformRole.USER).getPlatformRole());
+        verify(userRepository, never()).countByPlatformRoleAndActiveTrue(any());
+    }
+
+    @Test
+    void updateRoleIsANoOpWhenTheRoleIsUnchanged() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        assertEquals(PlatformRole.ADMIN, userService.updateRole(userId, PlatformRole.ADMIN).getPlatformRole());
+        verify(userRepository, never()).save(any());
+        verify(userRepository, never()).countByPlatformRoleAndActiveTrue(any());
+    }
+
+    @Test
+    void updateRoleRejectsANullRole() {
+        authenticateAs(platformAdmin());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.updateRole(UUID.randomUUID(), null));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void updateRoleRejectsUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.updateRole(userId, PlatformRole.ADMIN));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateRoleRejectsANonAdminCallerWith403() {
+        authenticateAs(regularUser());
+
+        assertThrows(ForbiddenException.class,
+                () -> userService.updateRole(UUID.randomUUID(), PlatformRole.ADMIN));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void updateRoleRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class,
+                () -> userService.updateRole(UUID.randomUUID(), PlatformRole.ADMIN));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void deactivateUserDeactivatesARegularAccountWithoutCountingAdmins() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        userService.deactivateUser(userId);
+
+        assertFalse(target.isActive());
+        verify(userRepository).save(target);
+        verify(userRepository, never()).countByPlatformRoleAndActiveTrue(any());
+    }
+
+    @Test
+    void deactivateUserDeactivatesAnAdminWhenAnotherActiveAdminRemains() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.countByPlatformRoleAndActiveTrue(PlatformRole.ADMIN)).thenReturn(2L);
+
+        userService.deactivateUser(userId);
+
+        assertFalse(target.isActive());
+    }
+
+    @Test
+    void deactivateUserRefusesToDeactivateTheLastActiveAdmin() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.countByPlatformRoleAndActiveTrue(PlatformRole.ADMIN)).thenReturn(1L);
+
+        assertThrows(IllegalArgumentException.class, () -> userService.deactivateUser(userId));
+        assertTrue(target.isActive());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void deactivateUserIsIdempotent() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        target.deactivate();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        userService.deactivateUser(userId);
+
+        assertFalse(target.isActive());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void deactivateUserRejectsUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class, () -> userService.deactivateUser(userId));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void deactivateUserRejectsANonAdminCallerWith403() {
+        authenticateAs(regularUser());
+
+        assertThrows(ForbiddenException.class, () -> userService.deactivateUser(UUID.randomUUID()));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void deactivateUserRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class, () -> userService.deactivateUser(UUID.randomUUID()));
+        verify(userRepository, never()).findById(any());
     }
 
     @Test

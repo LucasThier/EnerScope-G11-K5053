@@ -1371,3 +1371,140 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     in component state afterwards.
   - `docs/testing.md` is unchanged: no new backend behaviour, so no new cases.
     `mvn test` stays at 306.
+- 2026-10-03 — **`DELETE /organizations/{organizationId}/members/{memberId}`**,
+  the endpoint decision 3.3 called for: an organization OWNER removes somebody
+  from their own organization, and never deactivates the platform account.
+  - **Physical delete, unlike `Project`.** The argument that decided `Project`
+    does not apply: there the logical delete won because the history *is* the
+    product, and a membership carries no history — nothing beyond the (user,
+    organization) pair and its roles, while the work it gave access to lives in
+    the projects and versions, which are untouched. Two things settled it. The
+    unique constraint `uq_org_member_org_user (organization_id, user_id)` means
+    a deactivated row keeps occupying the pair, so `addMember` — whose check
+    does not read `active` — would answer "User is already a member" and the
+    feature would be remove-once-never-re-add unless `addMember` learned to
+    reactivate. And four read points would have needed an `active` filter, two
+    of them authorization paths (`assertIsMemberOf` and `assertCanManageUsers`),
+    which is four chances to forget. What is lost is an audit trail of who was
+    in an organization when; nothing audits that today, and if the team wants it
+    the answer is the logical delete plus the reactivation path.
+  - **`OrganizationMember.active` stays unused, and the name is already taken.**
+    The field has existed since V3 and no query reads it. The one `active` the
+    API exposes, in `OrganizationMemberDTO`, carries `user.isActive()` — the
+    account's state, not the membership's, as that record's own note says.
+  - **Project memberships are removed with it.** Project access never consults
+    organization membership: `ProjectAccessGuard` reads `projectMemberRepository`
+    only, and the organization matters in `createProject` alone. Without the
+    propagation, "removed from the organization" would leave every project
+    permission intact, which is not a strange state but a hole.
+  - **A project can be left with no ADMIN, and that is accepted.** If the person
+    removed was its only ADMIN, the project keeps running with none. Decided as
+    a consequence rather than an error; blocking it would make removing someone
+    depend on project-level state the organization screen cannot show.
+  - **Loaded entities and `deleteAll`, never a bulk `DELETE`.**
+    `ProjectMember.roles` cascades with `orphanRemoval` and its `permissions` are
+    an `@ElementCollection`, so a `@Modifying` bulk delete would skip both and
+    violate `project_member_role.project_member_id`. It would read as an
+    optimisation and break.
+  - **The organization check lives in the query, not in a comparison.** The
+    route carries two independent ids, so a member of another organization must
+    not be removable by guessing an id. The first attempt compared
+    `member.getOrganization().getId()` against the path id and threw a
+    `NullPointerException` on the first test run; the fix was not to flip the
+    comparison but to let the database answer, via
+    `findByIdAndOrganizationId`. One query, no null equality, and it refuses a
+    foreign member with the same `Member not found` as a non-existent one — a
+    distinctive message would let an owner probe which membership ids exist
+    elsewhere.
+  - **An OWNER may remove themselves, and there is no last-owner guard.**
+    `createOrganization` adds no members at all, so **an organization with zero
+    owners is the state it is born in**, not an anomaly to defend. The guard
+    from decisions 3.4 and 3.5 does not transfer: the last platform ADMIN is
+    irrecoverable because nobody could promote anyone, while an organization with
+    no owner is recovered by any platform admin adding one.
+  - **The cascade test was worthless until a mutation exposed it.** It asserted
+    zero `ProjectMemberRole` rows after the delete and passed with the cascade
+    removed from the entity — because without the cascade the role was never
+    written, so the assertion was vacuously true. It now asserts one role
+    **before** the delete, and the mutation turns it red. The two query filters
+    were mutation-checked the same way: dropping the organization filter breaks
+    two cases, dropping the user filter breaks one.
+  - **Still open, and the real fix: project access does not require organization
+    membership.** Propagating on removal closes the case this endpoint opens, but
+    somebody added straight to a project without belonging to the owning
+    organization still gets in. Making every project guard consult organization
+    membership is a change across all of them and belongs in its own card.
+  - **No frontend.** There is no organization-members screen yet —
+    `AdminOrganizationsPage` is a form and a list of names — so the UI waits on
+    the Admin redesign, which is still blocked on whether the user list is per
+    organization or platform-wide.
+  - `mvn test` 306 → 325: `OrganizationServiceTest` 23 → 33,
+    `OrganizationControllerTest` 18 → 22, and a new
+    `ProjectMemberRepositoryTest` (5), the second `@DataJpaTest` in the
+    repository.
+- 2026-10-03 — **`PATCH /users/{id}/role` and `DELETE /users/{id}`**, built
+  together because they share one invariant. Platform administrators only; the
+  check runs in the service, which holds the `AppLogger` that
+  `AuthUtil.requirePlatformAdmin` needs, the way `createOrganization` already
+  does it.
+  - **One invariant replaces two identity rules: at least one active ADMIN must
+    remain.** Decisions 3.4 and 3.5 were written as protections against demoting
+    or deactivating *yourself*, but the self-case is the only way to reach zero:
+    a caller must be a platform ADMIN, so if the target is a *different* active
+    ADMIN then two exist and removing one leaves one. The invariant is also
+    strictly stronger than an identity check, because of the login hardening of
+    the same day — a deactivated admin keeps a valid access token for up to an
+    hour, and in that window could demote the last *other* active admin. Caller
+    and target differ there, so an "is it you?" test would allow it; counting
+    active admins refuses it.
+  - **The guard is skipped where it cannot bite:** promotions, a target that is
+    already a `USER`, a target that is an inactive ADMIN (never part of the
+    count), and an unchanged role. Each of those is a case in the suite
+    asserting the count query is never even called.
+  - **Refused with `IllegalArgumentException` (400), not `ForbiddenException`
+    (403).** The caller *is* authorized; it is the resulting state that is
+    refused. Throughout this codebase a `403` means "wrong caller", and
+    borrowing it for a state conflict would blur that. `409` would be the
+    textbook answer and there is no handler for it.
+  - **Deactivating a user propagates nothing**, and that is the design the UI
+    already assumes. Both membership DTOs expose an `active` that carries
+    `user.isActive()`, and `ProjectMembersModal` renders **"Suspendido"** beside
+    the name from it — so the member lists were built to show a suspended
+    account, and propagating would delete what that screen exists to display.
+    The account cannot sign in anyway, keeping the row preserves who was on a
+    project, and the project member count filters `pm.active`, so a suspended
+    member still counts and the number still matches the rows on screen.
+    `UserService` has no membership repository, so it cannot propagate by
+    construction.
+  - **Contrast with removing an organization membership**, shipped the same day:
+    that is about one organization's roster and deletes the row; this is about
+    the account and keeps every row. Different operations, different semantics.
+  - **Third `@DataJpaTest`, and a trap it walked into.** The `test` profile
+    points at `jdbc:h2:mem:enerscope;DB_CLOSE_DELAY=-1` — a *named* in-memory
+    database that outlives each Spring context and is shared with the
+    `@SpringBootTest` one, where `AdminSeeder` **commits**
+    `admin@enerscope.org`. `app_user.mail` is `UNIQUE`, so the first version of
+    `UserRepositoryTest`, which persisted that same address, did not fail
+    cleanly: it blocked on a lock held by a surefire JVM that was still alive,
+    and the run hung for minutes. Every address in that class is now prefixed
+    `count-`. Worth knowing before the next repository test: committed seed data
+    is visible to every context, and a colliding unique value hangs rather than
+    throws.
+  - **Mutation-checked, and a derived query resists the obvious mutation.**
+    Renaming `countByPlatformRoleAndActiveTrue` breaks compilation at every call
+    site, which is itself the argument for derived queries over hand-written
+    JPQL: the name *is* the specification. The realistic mutation is someone
+    replacing the derivation with explicit JPQL, so that is what was tried —
+    dropping the `active` filter turns two cases red, dropping the role filter
+    turns two red.
+  - **No frontend, and the queue behind the Admin redesign is now four
+    endpoints:** this pair, `PATCH /users/{id}/role`, and the organization
+    membership removal all wait on a users screen, which waits on `GET /users`,
+    which waits on the decision of whether that list is per organization or
+    platform-wide. They are reachable from Swagger and absent from the product.
+    That decision has stopped being one card among several.
+  - **`PATCH /users/{id}` for someone else's profile was deliberately not
+    built.** Since a user can edit their own name and job title, an admin
+    editing other people's profiles unblocks nothing.
+  - `mvn test` 325 → 353: `UserServiceTest` 22 → 38,
+    `UserControllerTest` 9 → 17, and a new `UserRepositoryTest` (4).
