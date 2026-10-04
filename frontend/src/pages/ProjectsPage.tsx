@@ -3,6 +3,8 @@ import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { PlusIcon, SearchIcon } from '../components/ui/icons';
+import { DeleteProjectDialog } from '../components/projects/DeleteProjectDialog';
+import { EditProjectModal } from '../components/projects/EditProjectModal';
 import { NewProjectModal } from '../components/projects/NewProjectModal';
 import { ProjectMembersModal } from '../components/projects/ProjectMembersModal';
 import { ProjectsTable } from '../components/projects/ProjectsTable';
@@ -23,6 +25,8 @@ export function ProjectsPage() {
   const [organizationId, setOrganizationId] = useState(ALL_ORGANIZATIONS);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewing, setViewing] = useState<ProjectSummary | null>(null);
+  const [editing, setEditing] = useState<ProjectSummary | null>(null);
+  const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
 
   const organizations = useMemo(() => {
     const byId = new Map<string, string>();
@@ -121,7 +125,12 @@ export function ProjectsPage() {
             Ningún proyecto coincide con la búsqueda.
           </p>
         ) : (
-          <ProjectsTable projects={visibleProjects} onView={setViewing} />
+          <ProjectsTable
+            projects={visibleProjects}
+            onView={setViewing}
+            onEdit={setEditing}
+            onDelete={setDeleting}
+          />
         )}
       </Card>
 
@@ -129,6 +138,18 @@ export function ProjectsPage() {
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreated={reload}
+      />
+
+      <EditProjectModal
+        project={editing}
+        onClose={() => setEditing(null)}
+        onUpdated={reload}
+      />
+
+      <DeleteProjectDialog
+        project={deleting}
+        onClose={() => setDeleting(null)}
+        onDeleted={reload}
       />
 
       <ProjectMembersModal project={viewing} onClose={() => setViewing(null)} />

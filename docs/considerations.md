@@ -969,6 +969,11 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   - **The opener is restored only if `isConnected`.** It can be gone by the
     time the modal closes — a `ProjectsTable` row removed while the dialog was
     open — and focusing a detached node does nothing.
+  - **The empty-list branch is deliberate, not dead code.** No panel can reach
+    it while the close button renders, so it never fires today. It stays because
+    the alternative, on a panel with nothing focusable, is Tab silently leaking
+    to the page behind the dialog; it falls back to focusing the panel itself,
+    which carries `tabIndex={-1}` for exactly that reason.
   - **Known, pre-existing, not changed here: the initial focus lands on the
     close button, not on the first field.** The header precedes the body in the
     panel, so the "Cerrar" button is the first focusable in document order —
@@ -983,11 +988,386 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     shipped on `npm run build` + `npm run lint`. The behaviour was checked by
     rendering the real `Modal` under jsdom in a throwaway harness outside the
     repo, dispatching actual `Tab`/`Shift+Tab` events and asserting
-    `document.activeElement`: 18 checks over the six scenarios above, all
-    passing. **Note for whoever adds the test setup:** jsdom has no layout
+    `document.activeElement`: 18 checks, all passing, covering a form-shaped
+    panel with its `<select>` both enabled and disabled, a read-only panel whose
+    only focusable is the close button, Tab and Shift+Tab at both edges and in
+    the middle, focus pulled back after escaping the panel, focus restored on
+    close, an opener detached while the dialog was open, and unmounting while
+    open. **Note for whoever adds the test setup:** jsdom has no layout
     engine, so `getClientRects()` returns an empty list even for visible
     elements, which makes `focusablesIn` see nothing. The harness stubbed
     `Element.prototype.getClientRects`; a real suite will need the same stub or
     `happy-dom`. A focus trap is exactly the kind of thing that breaks silently
     in a later refactor, so this is a strong candidate for the first frontend
     test card.
+- 2026-10-01 — **`docs/testing.md` now matches the code exactly.** The catalog
+  described 228 of the 251 executions `mvn test` reports; the gap was the
+  `node.*` classes (2 cases) and the `strategyCost.*` ones (20), which had never
+  been catalogued, plus `money.MoneyAmountTest`, recorded as 6 cases when it has
+  7 — `addsAll` was missing. Totals are now 237 catalogued cases, 251 surefire
+  executions, and the "this catalog is still incomplete" warning is gone.
+  - **`node.controller.NodeControllerTest` is filed as Unit, not Web**, even
+    though it drives `MockMvc`. It builds the controller with
+    `MockMvcBuilders.standaloneSetup`, so there is no Spring context and no
+    `SecurityConfig`/`AuthFilter` chain — by the type legend at the top of the
+    catalog that is Unit, and `Web` is reserved for `@WebMvcTest`. The
+    distinction is not cosmetic: that test exercises a request which arrives
+    already authorized, so it says nothing about who may create a node. The
+    eleven `POST /nodes/**` endpoints still carry no authorization check.
+  - **The catalog now records how thin the node coverage is.** One of the eleven
+    creation endpoints is tested, and `NodeService`'s eleven save methods have
+    one case between them. Writing that down is the point: the previous totals
+    made the suite look like it covered more than it does.
+  - **Counts were reconciled mechanically, not by eye.** Every case name in the
+    catalog was matched against the `@Test`/`@ParameterizedTest` methods in
+    `backend/src/test`, in both directions, so there are no documented cases
+    that do not exist and no tests missing from the catalog: 23 classes, 237
+    against 237. Per-class surefire output was then compared with the summary
+    table. Worth repeating whenever the catalog drifts again, which it will.
+- 2026-10-01 — **Project deletion will be a logical one (`active = false`), not a
+  physical `DELETE`.** Decided by the team before any code was written, and it
+  shapes both halves of the project ABM card.
+  - **Why logical.** A physical delete depends on the still-open question of
+    which project a child version belongs to: `Version.parentVersion` is a
+    `@ManyToOne` with no cascade and `fk_version_parent` carries no
+    `ON DELETE`, so deleting a project's versions in the wrong order violates
+    that constraint, and a child living in another project would be left
+    pointing at a parent that no longer exists. The logical delete does not
+    touch that question. The history — versions, changes, who was a member — is
+    also part of what the product is for.
+  - **No FK in this schema cascades.** `project_member.project_id`,
+    `version.versions_id`, `version.parent_version_id` and
+    `project.organization_id` are all plain `REFERENCES`, so a physical delete
+    would have depended entirely on Hibernate issuing child deletes in the
+    right order, which the test profile cannot check: it runs H2 with
+    `ddl-auto=create-drop` and Flyway disabled, so the real constraints are
+    never exercised.
+  - **Zero migrations.** `active BOOLEAN NOT NULL DEFAULT TRUE` already exists
+    on `project` (V3), `project_member` (V4) and `version` (V5), and
+    `BaseEntity` already carries `deactivate()`/`activate()`. The flag was
+    there from the start and nothing read it: no repository query filtered on
+    it, and its only consumers were two DTOs reporting a *user's* account state.
+  - **The deactivation cascades to members and versions**, rather than leaving
+    every read to remember filtering by the owning project's flag. The cascade
+    walks `project.getVersions()` — the project's own list — and not the
+    parent/child tree, which is what keeps it independent of the open modelling
+    question. Verified that `project.addVersion` is called in exactly one place,
+    `ProjectService.saveVersion`, so every version created through
+    `POST /projects/{id}/version` is in that list; the only versions outside it
+    are the detached ones from `POST /version/createtest`, which belong to no
+    project by definition.
+  - **A platform ADMIN still reaches versions of a deactivated project.**
+    `assertCanViewVersion`/`assertCanEditVersion` return early for platform
+    admins before resolving the owning project, so the filter never runs for
+    them. Kept deliberately: without it there would be no way to inspect or
+    revive a project after it was deactivated.
+  - **The frontend cannot tell who may edit.** `ProjectSummaryDTO` does not
+    carry the caller's permissions, so the row actions render for every user and
+    an unauthorized click comes back as a `403` shown in an `Alert`. Extending
+    the summary DTO with per-caller permissions is its own card.
+  - **`Organization` has the same shape and is deliberately left alone** — an
+    `@OneToMany` to `projects` with `CascadeType.ALL` and no DELETE endpoint.
+    Whatever is decided here should eventually apply there; noted as future
+    work, not done.
+- 2026-10-01 — **`PATCH /projects/{projectId}`**, the first half of the project
+  ABM card.
+  - **`MANAGE_PROJECT`, not `EDIT_PROJECT`.** The guard already separates the
+    two: `EDIT_PROJECT` is for a project's *contents* — its versions, nodes and
+    connections — and `MANAGE_PROJECT` is for administering the project itself.
+    Renaming is administration, so only project ADMINs and platform admins pass.
+  - **True partial semantics: a null field means "leave it".** The DTO carries
+    `@Size` but no `@NotBlank`, because Bean Validation skips nulls, and the
+    service rejects the two degenerate bodies validation cannot catch — both
+    fields null, and a field present but whitespace-only. `@Size(min = 2)`
+    happily accepts two spaces, which is why the blank check exists at all.
+  - **`organizationId` is not patchable.** Moving a project between
+    organizations changes who can see it and has its own authorization rule
+    (`createProject` requires membership of the target organization). Left out
+    on purpose; it is a different card.
+  - **A domain method on the entity, not `@Setter`.** `Project.updateDetails`
+    ignores nulls, in the shape of `BaseEntity.deactivate()`. Lombok's
+    `@Setter` on `Version` is exactly what produced the null-snapshot bug of
+    2026-09-15, and that is not worth repeating for two fields.
+  - **Body validation runs before the project lookup**, so a malformed patch
+    answers `400` without revealing whether the id exists; the permission check
+    still runs after the lookup, keeping an unknown id at `400` as the other
+    endpoints do.
+  - **The edit modal sends only what changed**, and closes without a request
+    when nothing did. That uses the partial semantics instead of echoing both
+    fields back, so an unchanged description cannot clobber a concurrent edit.
+  - `mvn test` 251 → 267: `ProjectServiceTest` 31 → 41 and
+    `ProjectControllerTest` 17 → 23.
+- 2026-10-02 — **`DELETE /projects/{projectId}`**, the second half of the project
+  ABM card, implementing the logical delete decided on 2026-10-01.
+  - **`ProjectService.deactivateProject` deactivates the project, then every
+    member and every version in `Project.versions`**, inside one transaction.
+    The cascade walks the project's own version list rather than the
+    parent/child tree, which is what keeps it clear of the open question about
+    which project a child version belongs to.
+  - **Idempotent.** Deleting an already inactive project resolves it,
+    authorizes the caller, logs at `debug` and returns without a second write.
+    That is what a `DELETE` is supposed to do, and it keeps a double click from
+    bumping `lastModified`.
+  - **`MANAGE_PROJECT`**, the same bar as `PATCH`: deleting is administering the
+    project, not editing its contents.
+  - **Five read points now filter on `active`.** `findSummaries` and
+    `findSummariesForMember` filter `p.active`, their `memberCount` subqueries
+    filter `pm.active`, `findIdByVersionId` filters both `v.active` and
+    `p.active`, and `listMembers` moved from `existsById` to
+    `existsByIdAndActiveTrue`. The project-list filter is not optional: without
+    it the delete would do nothing visible.
+  - **`findIdByVersionId` checks both flags on purpose.** The cascade already
+    guarantees that a deactivated project has deactivated versions, so
+    `v.active` alone would do. `p.active` is there so the guard still refuses if
+    a project is ever deactivated by some path that does not cascade — a direct
+    database edit, or a future endpoint that forgets.
+  - **First `@DataJpaTest` in the repository**, and the reason it exists: no
+    mocked test can tell whether a `@Query` actually excludes a row. The
+    catalog's type legend gained a **Data** entry for it, because the slice is
+    neither Unit (it has a real database) nor Web nor a full `@SpringBootTest`.
+  - **Each filter was verified by mutation, not just by a passing test.** The
+    four filters were removed one at a time and the suite re-run; each removal
+    turned exactly one case red — `findSummariesExcludesADeactivatedProject`,
+    `findIdByVersionIdIgnoresADeactivatedVersion`,
+    `findIdByVersionIdIgnoresAVersionOfADeactivatedProject` and
+    `findSummariesCountsOnlyActiveMembers`. A green test over a query nobody
+    has tried to break proves very little; this is the cheap way to find out.
+  - **The confirm button is a `primary`, not a `danger`.** `Button` has only
+    `primary`/`secondary`/`ghost`, and the missing `danger` ramp in `@theme` was
+    already noted on 2026-09-10. The dialog carries the weight in its copy
+    instead, and says the project can be recovered, which is true under the
+    logical delete.
+  - **`RowAction` is gone from `ProjectsTable`.** It existed only to render the
+    two disabled placeholders; with both actions wired there is nothing left for
+    it to do.
+  - `mvn test` 267 → 289: `ProjectServiceTest` 41 → 48,
+    `ProjectControllerTest` 23 → 27, and a new `ProjectRepositoryTest` (11).
+- 2026-10-02 — **`Modal` now puts the initial focus on the first field of the
+  body, not on the close button.** This supersedes the note of 2026-10-01 that
+  recorded the old behaviour as known and unchanged.
+  - **A second ref on the body**, rather than filtering the close button out of
+    the selector. The header precedes the body in the panel, so the X was simply
+    the first focusable in document order. Initial focus now queries
+    `focusablesIn(bodyRef.current)`; the Tab trap still queries the panel, so
+    the X stays in the cycle — it only stops being where the modal opens.
+  - **Where each modal now lands:** `NewProjectModal` and `EditProjectModal` on
+    their name input, `DeleteProjectDialog` on "Cancelar", which is the safe
+    action and a good default for a destructive dialog, and
+    `ProjectMembersModal` on the panel itself, because its body is a read-only
+    table with nothing focusable in it. Focusing the dialog is the standard
+    fallback for that case: the panel carries `role="dialog"` and
+    `aria-labelledby`, so a screen reader announces it, and Escape still closes.
+  - **That fallback exposed a leak, which is fixed here.** With focus on the
+    panel, the panel is not one of the focusables, so the old edge test —
+    `active === firstFocusable` / `active === lastFocusable` — matched neither,
+    and `panel.contains(active)` was true because `contains` includes the node
+    itself. `Shift+Tab` therefore fell through uninterrupted and moved focus
+    backwards out of the dialog, onto the page behind it.
+  - **The edge test is now an index, not a containment check.**
+    `focusables.indexOf(document.activeElement)` returning `-1` means "not in
+    the cycle" and routes focus to the edge Tab was heading for, which covers
+    both the panel and anything outside the dialog in one branch, and let the
+    `contains` call go. Plain Tab from the panel now moves to the first
+    focusable explicitly instead of relying on the browser doing it.
+  - **Verified by re-running the jsdom harness**, which went from 18 checks to
+    21: the three new ones cover the panel fallback, Tab from the panel entering
+    the cycle, and the `Shift+Tab` leak. Restoring the old `contains` check
+    turns four of them red, so the fix is load-bearing rather than cosmetic.
+- 2026-10-02 — **A `danger` colour ramp and a matching `Button` variant.** The
+  gap noted on 2026-09-10 — error states using Tailwind's default reds with no
+  `danger` ramp in `@theme` — is half closed: the ramp exists and the button
+  uses it.
+  - **The ramp carries Tailwind v4's own red values, on purpose.** Declaring it
+    in `@theme` follows what the file already asks for ("reuse these instead of
+    raw hex"), while keeping the values identical to the reds already on screen
+    means migrating `Alert`, `TextField`, `TextArea`, `NewProjectModal` and
+    `OrganizationPicker` later is a find-replace with no visual diff at all.
+    The steps declared — 50, 200, 400, 600, 700 — are exactly the ones those
+    five files use, so nothing will be missing when that happens. Tailwind
+    drops the unused ones from the build, so 50 and 200 cost nothing today.
+  - **Contrast, measured rather than assumed**, since this file keeps a WCAG
+    budget: `danger-600` is 4.76:1 against white and `danger-700` is 6.42:1, so
+    white text on the fill and on the hover both clear AA for body text. It is
+    the same shape as `primary`, which is `brand-800` (5.13:1) hovering to
+    `brand-900` (7.87:1).
+  - **The focus ring moved from `base` into the variants.** It had to:
+    `ring-brand-400` and `ring-danger-400` set the same property, and which one
+    wins is decided by the order of the generated stylesheet, not by the order
+    of the class string, so a red button could not simply append its ring. The
+    three existing variants kept `ring-brand-400`, so none of them changed.
+  - **`danger-400` for the ring, knowing it is 2.89:1 against white** and so
+    under the 3:1 that WCAG 2.2 asks of a non-text indicator. `brand-400`, the
+    ring every other button has used since the beginning, is no better. Matching
+    it keeps the system coherent; fixing the focus ring is a system-wide change
+    and belongs in its own card.
+- 2026-10-03 — **`PATCH /users/me`**, the first half of the user ABM. Only the
+  caller's own profile: `firstName`, `lastName` and `jobTitle`.
+  - **No authorization check, by construction.** The account comes from
+    `AuthUtil.requireSession()` and there is no `userId` field in the DTO, so
+    the endpoint cannot be aimed at another account — the same shape as
+    `PATCH /users/me/password`. An admin editing somebody else is a different
+    endpoint, and it is paused pending a team decision.
+  - **`mail` and `platformRole` are not patchable.** `mail` is the login
+    identity, is `UNIQUE`, is normalised by `User.normalizeMail` and travels in
+    the JWT claims, so changing it invalidates live sessions in a way that is
+    not obvious from the call. `platformRole` grants the platform-admin bypass
+    present in every guard in the system; promoting someone is not editing a
+    profile and belongs in its own endpoint with its own log.
+  - **The three fields do not share the same blank rule, and that is
+    deliberate.** Under partial semantics null means "leave it", so without an
+    exception a job title could be set but never removed. `jobTitle` is
+    nullable with no default — V7 says accounts predating it simply have none —
+    so a blank job title clears it to `null`. `firstName` and `lastName` are
+    `NOT NULL`, so a blank one is rejected with a `400`. `@Size(min = 2)` alone
+    would accept two spaces, which is why the service checks for blanks at all.
+  - **`User.updateJobTitle` was removed**, subsumed by the new
+    `updateProfile(firstName, lastName, jobTitle)`. It had been dead since it
+    was written: declared on the entity and called from nowhere, exactly like
+    `changePassword` before its endpoint existed. **`updatePlatformRole` is
+    still dead and was left alone** — the admin-edit card will use it.
+  - **The blank-to-null rule lives on the entity**, not in the service, because
+    "a blank job title means no job title" is a rule about the field rather than
+    about the request. The service rejects what is invalid; the entity
+    normalises what it stores.
+  - **The frontend updates the cached user instead of re-reading it.** The top
+    bar renders the name and job title from `useAuth().user`, so it would go
+    stale after a save. Calling the existing `refresh()` would have worked, but
+    it posts to `/auth/refresh`, which mints a whole new session — rotating both
+    tokens as a side effect of saving your own name is a surprise waiting for
+    whoever debugs it next. Instead `session.saveUser` and an `updateUser`
+    action write the user the `PATCH` already returned. No extra round trip.
+  - **The page sends only what changed**, and when nothing did it shows the
+    success state without calling the API, which also avoids the all-fields-null
+    `400`.
+  - **`/profile` is outside `RoleRoute`**: every authenticated user has a
+    profile, unlike `/admin/**`. Reachable from a new "Mi perfil" entry in
+    `UserMenu`, which until now only offered logging out.
+  - **This gives `jobTitle` its first screen.** The field has existed since V7
+    in the database, the entity, `RegisterRequestDTO`, `UserSummaryDTO`,
+    `OrganizationMemberDTO` and `ProjectMemberDTO`, and is displayed in the top
+    bar and both member tables — but `RegisterForm` never sent it, so nothing in
+    the app could set it.
+  - **Still not closed: `PATCH /users/me/password` has no screen.** A profile
+    page is its natural home and adding the form there needs no backend work.
+    Kept out of this card on purpose, as its own next one.
+  - `mvn test` 289 → 302: `UserServiceTest` 12 → 20 and
+    `UserControllerTest` 4 → 9.
+- 2026-10-03 — **`login` and `POST /auth/refresh` now refuse deactivated
+  accounts.** `app_user.active` has existed since V1 with no query reading it,
+  so until now a logical delete of a user would have been decorative: the
+  account kept logging in.
+  - **The active check runs after the password check, and the order is the
+    point.** Login answers the same generic message for an unknown email and a
+    wrong password, so it does not leak which addresses exist. Checking `active`
+    first would have broken that: a distinctive "deactivated" reply would tell
+    anyone that the address is registered. Checking it second means the specific
+    message only reaches someone who already proved they know the password,
+    which tells them nothing they did not have.
+  - **Login answers `403`, not `401`**, and not for taste: the response
+    interceptor in `api/client.ts` retries a refresh on **every** `401`, and
+    `authApi.login` goes through that client. A `401` from login would make the
+    interceptor try to refresh with whatever stale token is in storage and
+    replay the login. A `403` reaches the form untouched.
+  - **Refresh answers `401`**, matching the two returns already in that method
+    and landing in the `catch` of `AuthProvider.refresh`, which clears the
+    session and logs the user out.
+  - **No per-request check, deliberately.** `SessionService` rebuilds the user
+    from the JWT claims without touching the database, which is the stateless
+    trade-off `SecurityConfig` already took. **The consequence: an access token
+    issued before the deactivation keeps working until it expires — 60 minutes
+    by default.** At that point the client refreshes, the refresh is refused and
+    the session is cleared. Immediate revocation would need stateful sessions and
+    is a separate decision.
+  - **No log on the refresh branch.** `AuthController` has no `AppLogger`
+    injected and adding one is a constructor change outside this card; the
+    `warn` in `UserService.login` covers the case worth recording.
+  - **Verified by mutation.** Removing the login check turns
+    `loginRejectsADeactivatedAccount` red; moving it *before* the password check
+    turns `loginChecksThePasswordBeforeTheActiveFlag` red with
+    `expected IllegalArgumentException but was ForbiddenException`, which is the
+    enumeration leak caught directly; removing the refresh check turns
+    `refreshRejectsADeactivatedAccountWith401` red. In that last one the mutated
+    path then crashes on an unstubbed mock and answers `500` rather than `200`,
+    so the assertion carrying the real claim is the
+    `verify(sessionService, never()).create(...)` beside it.
+  - **A hole this opens, worth knowing before the delete endpoints land:** a
+    platform admin who deactivates their own account is now locked out of the
+    app, and `AdminSeeder` does not rescue them — it recreates the default admin
+    only when the account does not exist, and a deactivated account exists. That
+    is question 5 of the team's authorization document. Nothing here can trigger
+    it, because this card adds no way to deactivate anybody; it becomes reachable
+    with the user DELETE.
+  - `mvn test` 302 → 306: `UserServiceTest` 20 → 22 and
+    `AuthControllerTest` 14 → 16.
+- 2026-10-03 — **The five authorization questions for the user ABM are
+  answered.** Decided by the team; recorded here as the reference the remaining
+  cards build on. The question that framed all of them is that a user can belong
+  to several organizations (`UNIQUE (organization_id, user_id)`), so the account
+  is the platform's, not any one organization's.
+  - **A user edits their own profile.** `PATCH /users/me` with `firstName`,
+    `lastName` and `jobTitle`. Already built.
+  - **An organization OWNER does not edit other people's accounts.** Creating
+    users stays theirs — single and bulk — but editing a profile belongs to the
+    account's owner or to a platform admin. This is the most restrictive of the
+    three options that were on the table, and it keeps an OWNER of one
+    organization from changing what another organization sees.
+  - **An OWNER removes a membership, never an account.** The reach is
+    `DELETE /organizations/{organizationId}/members/{memberId}`: the user leaves
+    that one organization and keeps signing in everywhere else. Deactivating the
+    account platform-wide is not an OWNER's to do. **That endpoint does not
+    exist yet** — it is a card of its own, and it is the one an OWNER actually
+    wants when they say they need to remove somebody.
+  - **Only a platform ADMIN changes `platformRole`,** and the operation refuses
+    to leave the platform without one: an admin cannot demote themselves if they
+    are the last active ADMIN. It is its own endpoint, not part of the profile
+    `PATCH` — the role grants the platform-admin bypass present in every guard.
+  - **The last active ADMIN cannot deactivate themselves.** Same rule from the
+    other direction, and it closes the hole recorded with the login hardening:
+    a self-deactivated admin is locked out of the app, and `AdminSeeder` does not
+    rescue them because it only recreates the default admin when the account does
+    not exist.
+  - **What this changes about the cards that were paused.** The admin-edit card
+    shrinks to platform admins only, so it needs no organization-scoped rule at
+    all. The user-delete card gains the last-admin guard. And a third card
+    appears that the original plan did not have: removing a membership, which is
+    the operation an OWNER was missing. The listing card is unaffected — it was
+    waiting on a different question, whether the list is per organization or
+    platform-wide.
+- 2026-10-03 — **`PATCH /users/me/password` finally has a screen.** The endpoint
+  shipped on 2026-09-16 with the note that the loop was not closed for the end
+  user; a bulk-registered account could not replace its generated password from
+  inside the app. No backend work here — the endpoint and its seven tests were
+  already in place.
+  - **A second card on `ProfilePage`**, not a route or a modal of its own. Same
+    "my account" context, the page is already routed, and a separate route for
+    one form buys nothing. Both cards gained an `h2` now that there are two.
+  - **Its own component in `components/auth/`**, beside `LoginForm` and
+    `RegisterForm`, because `ProfilePage` already carried six pieces of state
+    and a second form inline would have made it hard to read. Pages compose
+    forms here; this keeps that split rather than opening a one-file directory.
+  - **A confirmation field, unlike `RegisterForm`, and the difference is
+    real.** There an admin types a temporary password they are about to hand
+    over, and a typo is undone by handing over another one. Here the user
+    replaces their own password, and **this application has no recovery path at
+    all**: no forgot-password endpoint, no admin reset, nothing. A typo would
+    mean fixing the row in the database. The confirmation is client-side only
+    and does not touch the DTO.
+  - **No "must differ from the current password" rule.** The backend has none,
+    and adding it only in the client would be inventing a rule that a `curl`
+    walks past.
+  - **The wrong-password error goes in an `Alert`, not on the field.** The
+    backend answers `400 Current password is incorrect`; pinning it to the field
+    would mean matching that English string, which is fragile and breaks the day
+    the language decision lands. Every other form in the app surfaces backend
+    errors the same way.
+  - **The session survives the change, and so do the ones on other devices.**
+    The backend replaces the hash and nothing else: the JWT is stateless and
+    there is no session revocation, so a token issued before the change stays
+    valid until it expires, anywhere it was issued. Staying signed in here is
+    right; invalidating the others would need stateful sessions, the same
+    trade-off recorded with the login hardening. Logging the user out locally
+    would only look like a fix.
+  - **The three fields are cleared on success**, so the plaintext does not sit
+    in component state afterwards.
+  - `docs/testing.md` is unchanged: no new backend behaviour, so no new cases.
+    `mvn test` stays at 306.

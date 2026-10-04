@@ -5,6 +5,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.enerscope.session.model.Session;
 import org.enerscope.user.dto.ChangePasswordRequestDTO;
+import org.enerscope.user.dto.UpdateProfileRequestDTO;
+import org.enerscope.user.dto.UserSummaryDTO;
+import org.enerscope.user.model.User;
 import org.enerscope.user.service.UserService;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.AuthUtil;
@@ -30,6 +33,18 @@ public class UserController {
 
     public UserController(UserService userService) {
         this.userService = userService;
+    }
+
+    @PatchMapping("/me")
+    @Operation(summary = "Update your own profile",
+            description = "Change your first name, last name or job title. Fields left out are kept "
+                    + "as they are, and a blank job title clears it. The account comes from the "
+                    + "session, so this endpoint cannot be pointed at another user.")
+    public ResponseEntity<ApiResponse<UserSummaryDTO>> updateOwnProfile(
+            @Valid @RequestBody UpdateProfileRequestDTO data) {
+        Session session = AuthUtil.requireSession();
+        User user = userService.updateProfile(session.getUser().getId(), data);
+        return Responses.ok("Profile updated", UserSummaryDTO.from(user));
     }
 
     /**

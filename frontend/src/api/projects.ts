@@ -5,6 +5,7 @@ import type {
   Project,
   ProjectMember,
   ProjectSummary,
+  UpdateProjectRequest,
 } from '../types/project';
 import type { AxiosResponse } from 'axios';
 
@@ -19,6 +20,15 @@ export const projectsApi = {
 
   create: (data: CreateProjectRequest): Promise<AxiosResponse<ApiResponse<Project>>> =>
     client.post('/projects', data),
+
+  update: (
+    projectId: string,
+    data: UpdateProjectRequest,
+  ): Promise<AxiosResponse<ApiResponse<Project>>> =>
+    client.patch(`/projects/${projectId}`, data),
+
+  remove: (projectId: string): Promise<AxiosResponse<ApiResponse<null>>> =>
+    client.delete(`/projects/${projectId}`),
 
   /** Members of a project: readable by platform admins and by members of the project. */
   members: (projectId: string): Promise<AxiosResponse<ApiResponse<ProjectMember[]>>> =>

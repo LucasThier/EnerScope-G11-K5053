@@ -6,12 +6,14 @@ import { formatDate } from '../../utils/date';
 interface ProjectsTableProps {
   projects: ProjectSummary[];
   onView: (project: ProjectSummary) => void;
+  onEdit: (project: ProjectSummary) => void;
+  onDelete: (project: ProjectSummary) => void;
 }
 
 const headerCell = 'px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
 const bodyCell = 'px-4 py-3 text-sm text-ink-700 align-top';
 
-export function ProjectsTable({ projects, onView }: ProjectsTableProps) {
+export function ProjectsTable({ projects, onView, onEdit, onDelete }: ProjectsTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[56rem] border-collapse">
@@ -55,12 +57,18 @@ export function ProjectsTable({ projects, onView }: ProjectsTableProps) {
                   >
                     <EyeIcon className="h-4 w-4" />
                   </RowButton>
-                  <RowAction label={`Editar ${project.name}`}>
+                  <RowButton
+                    label={`Editar ${project.name}`}
+                    onClick={() => onEdit(project)}
+                  >
                     <PencilIcon className="h-4 w-4" />
-                  </RowAction>
-                  <RowAction label={`Eliminar ${project.name}`}>
+                  </RowButton>
+                  <RowButton
+                    label={`Eliminar ${project.name}`}
+                    onClick={() => onDelete(project)}
+                  >
                     <TrashIcon className="h-4 w-4" />
-                  </RowAction>
+                  </RowButton>
                 </div>
               </td>
             </tr>
@@ -93,17 +101,5 @@ function RowButton({
     >
       {children}
     </button>
-  );
-}
-
-function RowAction({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <span
-      aria-disabled="true"
-      title={`${label} — no disponible`}
-      className="inline-flex cursor-not-allowed rounded-lg p-1 text-ink-500"
-    >
-      {children}
-    </span>
   );
 }

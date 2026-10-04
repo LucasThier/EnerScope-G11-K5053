@@ -8,6 +8,7 @@ import org.enerscope.project.dto.CreateProjectRequestDTO;
 import org.enerscope.project.dto.ProjectDTO;
 import org.enerscope.project.dto.ProjectMemberDTO;
 import org.enerscope.project.dto.ProjectSummaryDTO;
+import org.enerscope.project.dto.UpdateProjectRequestDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
@@ -20,7 +21,9 @@ import org.enerscope.version.service.VersionService;
 import org.enerscope.version.model.Version;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -60,6 +63,27 @@ public class ProjectController {
     public ResponseEntity<ApiResponse<ProjectDTO>> createProject(@Valid @RequestBody CreateProjectRequestDTO data) {
         Project project = projectService.createProject(data);
         return Responses.created("Project created", toDTO(project));
+    }
+
+    @PatchMapping("/{projectId}")
+    @Operation(summary = "Update a project",
+            description = "Change a project's name or description. Fields left out are kept as they are. "
+                    + "Requires MANAGE_PROJECT on the project, or a platform admin.")
+    public ResponseEntity<ApiResponse<ProjectDTO>> updateProject(
+            @PathVariable UUID projectId,
+            @Valid @RequestBody UpdateProjectRequestDTO data) {
+        Project project = projectService.updateProject(projectId, data);
+        return Responses.ok("Project updated", toDTO(project));
+    }
+
+    @DeleteMapping("/{projectId}")
+    @Operation(summary = "Delete a project",
+            description = "Deactivates the project and, with it, its members and its versions. "
+                    + "The rows are kept, so the project can be revived. "
+                    + "Requires MANAGE_PROJECT on the project, or a platform admin.")
+    public ResponseEntity<ApiResponse<Void>> deleteProject(@PathVariable UUID projectId) {
+        projectService.deactivateProject(projectId);
+        return Responses.ok("Project deleted");
     }
 
     @PostMapping("/{projectId}/members")

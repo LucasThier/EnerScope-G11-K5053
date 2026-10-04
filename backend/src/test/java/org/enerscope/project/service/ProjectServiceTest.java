@@ -9,6 +9,7 @@ import org.enerscope.organization.service.OrganizationService;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
 import org.enerscope.project.dto.ProjectSummaryDTO;
+import org.enerscope.project.dto.UpdateProjectRequestDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
@@ -39,6 +40,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -375,13 +377,133 @@ class ProjectServiceTest {
                 verify(projectMemberRepository, never()).save(any());
         }
 
+        @Test
+        void updateProjectChangesNameAndDescription() {
+                UUID projectId = UUID.randomUUID();
+                User caller = new User("owner@enerscope.org", "Owner", "User", "hashed", PlatformRole.USER);
+                authenticateAs(caller);
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.ADMIN)));
+                when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                Project saved = projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO("Grid Expansion II", "A wider grid"));
+
+                assertEquals("Grid Expansion II", saved.getName());
+                assertEquals("A wider grid", saved.getDescription());
+        }
+
+        @Test
+        void updateProjectLeavesOutTheFieldsThatAreNull() {
+                UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                Project saved = projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO("Grid Expansion II", null));
+
+                assertEquals("Grid Expansion II", saved.getName());
+                assertEquals("Expands the regional grid", saved.getDescription());
+        }
+
+        @Test
+        void updateProjectRejectsAPatchWithEveryFieldNull() {
+                UUID projectId = UUID.randomUUID();
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO(null, null)));
+                verify(projectRepository, never()).findById(any());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void updateProjectRejectsANullBody() {
+                UUID projectId = UUID.randomUUID();
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.updateProject(projectId, null));
+                verify(projectRepository, never()).findById(any());
+        }
+
+        @Test
+        void updateProjectRejectsABlankName() {
+                UUID projectId = UUID.randomUUID();
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO("   ", null)));
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void updateProjectRejectsABlankDescription() {
+                UUID projectId = UUID.randomUUID();
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO(null, "   ")));
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void updateProjectRejectsUnknownProject() {
+                UUID projectId = UUID.randomUUID();
+                when(projectRepository.findById(projectId)).thenReturn(Optional.empty());
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO("Grid Expansion II", null)));
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void updateProjectAllowsPlatformAdmin() {
+                UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                assertEquals("Grid Expansion II", projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO("Grid Expansion II", null)).getName());
+
+                verify(projectMemberRepository, never()).findByProjectIdAndUserId(any(), any());
+        }
+
+        @Test
+        void updateProjectRejectsProjectEditorWith403() {
+                UUID projectId = UUID.randomUUID();
+                User caller = new User("editor@enerscope.org", "Ed", "Itor", "hashed", PlatformRole.USER);
+                authenticateAs(caller);
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                assertThrows(ForbiddenException.class, () -> projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO("Grid Expansion II", null)));
+                assertEquals("Grid Expansion", project.getName());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void updateProjectRejectsUnauthenticated() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+                assertThrows(UnauthorizedException.class, () -> projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO("Grid Expansion II", null)));
+                verify(projectRepository, never()).save(any());
+        }
+
         // ---- listMembers ---------------------------------------------------------
 
         @Test
         void listMembersReturnsEveryMemberForPlatformAdmin() {
                 UUID projectId = UUID.randomUUID();
                 authenticateAs(admin());
-                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectRepository.existsByIdAndActiveTrue(projectId)).thenReturn(true);
                 when(projectMemberRepository.findByProjectIdWithUser(projectId))
                                 .thenReturn(List.of(sampleMember(ProjectMemberType.ADMIN)));
 
@@ -397,7 +519,7 @@ class ProjectServiceTest {
                 UUID projectId = UUID.randomUUID();
                 User caller = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
                 authenticateAs(caller);
-                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectRepository.existsByIdAndActiveTrue(projectId)).thenReturn(true);
                 when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(true);
                 when(projectMemberRepository.findByProjectIdWithUser(projectId))
                                 .thenReturn(List.of(sampleMember(ProjectMemberType.EDITOR)));
@@ -410,7 +532,7 @@ class ProjectServiceTest {
                 UUID projectId = UUID.randomUUID();
                 User caller = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
                 authenticateAs(caller);
-                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectRepository.existsByIdAndActiveTrue(projectId)).thenReturn(true);
                 when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(false);
 
                 assertThrows(ForbiddenException.class, () -> projectService.listMembers(projectId));
@@ -420,7 +542,7 @@ class ProjectServiceTest {
         @Test
         void listMembersRejectsUnauthenticated() {
                 UUID projectId = UUID.randomUUID();
-                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectRepository.existsByIdAndActiveTrue(projectId)).thenReturn(true);
 
                 assertThrows(UnauthorizedException.class, () -> projectService.listMembers(projectId));
                 verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
@@ -429,7 +551,7 @@ class ProjectServiceTest {
         @Test
         void listMembersRejectsUnknownProject() {
                 UUID projectId = UUID.randomUUID();
-                when(projectRepository.existsById(projectId)).thenReturn(false);
+                when(projectRepository.existsByIdAndActiveTrue(projectId)).thenReturn(false);
 
                 assertThrows(IllegalArgumentException.class, () -> projectService.listMembers(projectId));
                 verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
@@ -556,6 +678,106 @@ class ProjectServiceTest {
 
         private User admin() {
                 return new User("admin@enerscope.org", "Admin", "User", "hashed", PlatformRole.ADMIN);
+        }
+
+        @Test
+        void deactivateProjectDeactivatesTheProject() {
+                UUID projectId = UUID.randomUUID();
+                User caller = new User("owner@enerscope.org", "Owner", "User", "hashed", PlatformRole.USER);
+                authenticateAs(caller);
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.ADMIN)));
+
+                projectService.deactivateProject(projectId);
+
+                assertFalse(project.isActive());
+                verify(projectRepository).save(project);
+        }
+
+        @Test
+        void deactivateProjectCascadesToMembersAndVersions() {
+                UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                ProjectMember member = new ProjectMember(
+                                new User("jane@enerscope.org", "Jane", "Doe", "hashed"), project);
+                project.addMember(member);
+                Version version = new Version("v1", null, null, null, null, null);
+                Version child = new Version("v2", version, null, null, null, null);
+                project.addVersion(version);
+                project.addVersion(child);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+                projectService.deactivateProject(projectId);
+
+                assertFalse(project.isActive());
+                assertFalse(member.isActive());
+                assertFalse(version.isActive());
+                assertFalse(child.isActive());
+        }
+
+        @Test
+        void deactivateProjectIsIdempotent() {
+                UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                project.deactivate();
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+                projectService.deactivateProject(projectId);
+
+                assertFalse(project.isActive());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void deactivateProjectRejectsUnknownProject() {
+                UUID projectId = UUID.randomUUID();
+                when(projectRepository.findById(projectId)).thenReturn(Optional.empty());
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.deactivateProject(projectId));
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void deactivateProjectAllowsPlatformAdmin() {
+                UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+                projectService.deactivateProject(projectId);
+
+                assertFalse(project.isActive());
+                verify(projectMemberRepository, never()).findByProjectIdAndUserId(any(), any());
+        }
+
+        @Test
+        void deactivateProjectRejectsProjectEditorWith403() {
+                UUID projectId = UUID.randomUUID();
+                User caller = new User("editor@enerscope.org", "Ed", "Itor", "hashed", PlatformRole.USER);
+                authenticateAs(caller);
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                assertThrows(ForbiddenException.class, () -> projectService.deactivateProject(projectId));
+                assertTrue(project.isActive());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void deactivateProjectRejectsUnauthenticated() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+                assertThrows(UnauthorizedException.class, () -> projectService.deactivateProject(projectId));
+                assertTrue(project.isActive());
+                verify(projectRepository, never()).save(any());
         }
 
         private User creator() {

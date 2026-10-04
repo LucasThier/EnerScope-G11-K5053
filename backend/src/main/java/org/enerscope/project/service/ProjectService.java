@@ -7,6 +7,7 @@ import org.enerscope.organization.service.OrganizationService;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
 import org.enerscope.project.dto.ProjectSummaryDTO;
+import org.enerscope.project.dto.UpdateProjectRequestDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
@@ -118,6 +119,32 @@ public class ProjectService {
                 return saved;
         }
 
+        @Transactional
+        public Project updateProject(UUID projectId, UpdateProjectRequestDTO data) {
+                if (data == null) {
+                        throw new IllegalArgumentException("data cannot be null");
+                }
+                if (data.name() == null && data.description() == null) {
+                        throw new IllegalArgumentException(
+                                        "At least one of name or description must be provided");
+                }
+                if (data.name() != null && data.name().isBlank()) {
+                        throw new IllegalArgumentException("Project name cannot be blank");
+                }
+                if (data.description() != null && data.description().isBlank()) {
+                        throw new IllegalArgumentException("Project description cannot be blank");
+                }
+
+                Project project = projectRepository.findById(projectId)
+                                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                accessGuard.assertCanManageProject(projectId);
+
+                project.updateDetails(data.name(), data.description());
+                Project saved = projectRepository.save(project);
+                logger.info("Updated project {}", saved.getName());
+                return saved;
+        }
+
         /**
          * The members of a project, with their user and roles already fetched.
          * Readable by a platform ADMIN or by any member of the project — listing
@@ -126,11 +153,31 @@ public class ProjectService {
          */
         @Transactional(readOnly = true)
         public List<ProjectMember> listMembers(UUID projectId) {
-                if (!projectRepository.existsById(projectId)) {
+                if (!projectRepository.existsByIdAndActiveTrue(projectId)) {
                         throw new IllegalArgumentException("Project not found");
                 }
                 assertCanViewProject(projectId);
                 return projectMemberRepository.findByProjectIdWithUser(projectId);
+        }
+
+        @Transactional
+        public void deactivateProject(UUID projectId) {
+                Project project = projectRepository.findById(projectId)
+                                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                accessGuard.assertCanManageProject(projectId);
+
+                if (!project.isActive()) {
+                        logger.debug("Project {} is already inactive", project.getName());
+                        return;
+                }
+
+                project.deactivate();
+                project.getMembers().forEach(ProjectMember::deactivate);
+                project.getVersions().forEach(Version::deactivate);
+                projectRepository.save(project);
+
+                logger.info("Deactivated project {} along with {} members and {} versions",
+                                project.getName(), project.getMembers().size(), project.getVersions().size());
         }
 
         /**

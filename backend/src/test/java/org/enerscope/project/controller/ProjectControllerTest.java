@@ -9,6 +9,7 @@ import org.enerscope.organization.model.Organization;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
 import org.enerscope.project.dto.ProjectSummaryDTO;
+import org.enerscope.project.dto.UpdateProjectRequestDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
@@ -36,10 +37,13 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -257,6 +261,138 @@ class ProjectControllerTest {
                         .content(json(new VersionDTO("Baseline", null))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("You are not allowed to edit this project"));
+    }
+
+    @Test
+    void updateProjectReturnsTheUpdatedProject() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        Project updated = new Project("Grid Expansion II", "A wider grid", organization);
+        when(projectService.updateProject(eq(projectId), any(UpdateProjectRequestDTO.class))).thenReturn(updated);
+
+        mockMvc.perform(patch("/projects/" + projectId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateProjectRequestDTO("Grid Expansion II", "A wider grid"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.name").value("Grid Expansion II"))
+                .andExpect(jsonPath("$.data.description").value("A wider grid"));
+    }
+
+    @Test
+    void updateProjectAcceptsABodyWithOnlyOneField() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        Project updated = new Project("Grid Expansion II", "Expands the regional grid", new Organization("Acme"));
+        when(projectService.updateProject(eq(projectId), any(UpdateProjectRequestDTO.class))).thenReturn(updated);
+
+        mockMvc.perform(patch("/projects/" + projectId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateProjectRequestDTO("Grid Expansion II", null))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.description").value("Expands the regional grid"));
+    }
+
+    @Test
+    void updateProjectRejectsATooShortNameWithValidationError() throws Exception {
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(patch("/projects/" + projectId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateProjectRequestDTO("A", null))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
+
+        verify(projectService, never()).updateProject(any(), any());
+    }
+
+    @Test
+    void updateProjectRejectsUnknownProjectWith400() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        when(projectService.updateProject(eq(projectId), any(UpdateProjectRequestDTO.class)))
+                .thenThrow(new IllegalArgumentException("Project not found"));
+
+        mockMvc.perform(patch("/projects/" + projectId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateProjectRequestDTO("Grid Expansion II", null))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Project not found"));
+    }
+
+    @Test
+    void updateProjectPropagatesForbiddenWith403() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        when(projectService.updateProject(eq(projectId), any(UpdateProjectRequestDTO.class)))
+                .thenThrow(new ForbiddenException("You are not allowed to manage this project"));
+
+        mockMvc.perform(patch("/projects/" + projectId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateProjectRequestDTO("Grid Expansion II", null))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You are not allowed to manage this project"));
+    }
+
+    @Test
+    void updateProjectRequiresAuthenticationWith401() throws Exception {
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(patch("/projects/" + projectId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateProjectRequestDTO("Grid Expansion II", null))))
+                .andExpect(status().isUnauthorized());
+
+        verify(projectService, never()).updateProject(any(), any());
+    }
+
+    @Test
+    void deleteProjectReturnsOk() throws Exception {
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/projects/" + projectId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Project deleted"));
+
+        verify(projectService).deactivateProject(projectId);
+    }
+
+    @Test
+    void deleteProjectRejectsUnknownProjectWith400() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        doThrow(new IllegalArgumentException("Project not found"))
+                .when(projectService).deactivateProject(projectId);
+
+        mockMvc.perform(delete("/projects/" + projectId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Project not found"));
+    }
+
+    @Test
+    void deleteProjectPropagatesForbiddenWith403() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        doThrow(new ForbiddenException("You are not allowed to manage this project"))
+                .when(projectService).deactivateProject(projectId);
+
+        mockMvc.perform(delete("/projects/" + projectId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You are not allowed to manage this project"));
+    }
+
+    @Test
+    void deleteProjectRequiresAuthenticationWith401() throws Exception {
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/projects/" + projectId))
+                .andExpect(status().isUnauthorized());
+
+        verify(projectService, never()).deactivateProject(any());
     }
 
     // ---- addMember -------------------------------------------------------

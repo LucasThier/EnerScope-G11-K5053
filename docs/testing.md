@@ -17,6 +17,10 @@ Run everything with `cd backend && mvn test`.
   - **Unit** — plain JUnit + Mockito, no Spring context, no database.
   - **Web** — `@WebMvcTest` (web layer + security only, collaborators mocked, no
     database).
+  - **Data** — `@DataJpaTest` (the JPA slice against H2 on the `test` profile:
+    real entities, real schema, real queries, no web layer). Use it for what
+    only a database can answer, such as whether a `@Query` filters the rows it
+    claims to.
   - **Integration** — `@SpringBootTest` with the full context on the H2 `test`
     profile.
 
@@ -25,37 +29,42 @@ Run everything with `cd backend && mvn test`.
 | Test class | Type | Cases |
 | --- | --- | --- |
 | `ApplicationContextTest` | Integration | 1 |
-| `auth.controller.AuthControllerTest` | Web | 14 |
+| `auth.controller.AuthControllerTest` | Web | 16 |
 | `common.CsvUtilTest` | Unit | 5 |
 | `jwt.JwtServiceTest` | Unit | 5 |
 | `util.AuthUtilTest` | Unit | 7 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 |
-| `money.MoneyAmountTest` | Unit | 6 |
-| `user.service.UserServiceTest` | Unit | 12 |
+| `money.MoneyAmountTest` | Unit | 7 |
+| `user.service.UserServiceTest` | Unit | 22 |
 | `user.service.PasswordGeneratorTest` | Unit | 4 |
-| `user.controller.UserControllerTest` | Web | 4 |
+| `user.controller.UserControllerTest` | Web | 9 |
 | `organization.service.OrganizationServiceTest` | Unit | 23 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 12 |
 | `organization.controller.OrganizationControllerTest` | Web | 18 |
 | `project.service.ProjectAccessGuardTest` | Unit | 22 |
-| `project.service.ProjectServiceTest` | Unit | 31 |
-| `project.controller.ProjectControllerTest` | Web | 17 |
+| `project.service.ProjectServiceTest` | Unit | 48 |
+| `project.controller.ProjectControllerTest` | Web | 27 |
+| `project.repository.ProjectRepositoryTest` | Data | 11 |
 | `version.service.VersionServiceTest` | Unit | 22 [^p] |
 | `version.controller.VersionControllerTest` | Web | 10 |
-| **Total** | | **214 [^p]** |
+| `node.service.NodeServiceTest` | Unit | 1 |
+| `node.controller.NodeControllerTest` | Unit | 1 |
+| `strategyCost.CostTest` | Unit | 8 |
+| `strategyCost.InvestmentCostTest` | Unit | 2 |
+| `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
+| **Total** | | **292 [^p]** |
 
 [^p]: Two cases in `version.service.VersionServiceTest` are
 `@ParameterizedTest`s running over the eight mutating version entry points,
 so they count as 16 executions rather than 2. Surefire therefore reports
-**228** for the classes catalogued here.
+**306** for the 292 cases catalogued here.
 
-> **This catalog is still incomplete.** `mvn test` currently reports **251**
-> executions against the **228** covered here. The remaining 23-case gap is now
-> fully accounted for: the `node.*` classes were never catalogued (2 cases), neither
-> were the `strategyCost.*` ones (20), and `money.MoneyAmountTest` really has 7
-> cases, not the 6 recorded here. Cataloguing those is its own task — see
-> `docs/considerations.md`. The two `version.*` entries, which used to describe
-> cases that did not exist, were rewritten from the code on 2026-09-15.
+> **The catalog matches the code.** `mvn test` reports **306** executions,
+> which is what the table above adds up to. The `node.*` and `strategyCost.*`
+> classes, never catalogued before, were added on 2026-10-01 along with the
+> seventh `money.MoneyAmountTest` case the table had been missing. The two
+> `version.*` entries, which used to describe cases that did not exist, were
+> rewritten from the code on 2026-09-15.
 
 ## `ApplicationContextTest` — Integration
 
@@ -82,10 +91,12 @@ requires an ADMIN bearer token); `SessionService`, `UserService` and
 | `loginReturnsSessionForValidCredentials` | `POST /auth/login` with valid credentials → `200` `Authenticated` and tokens. |
 | `loginExposesJobTitleInTheUserSummary` | The login response's `data.user.jobTitle` carries the user's job title, so the client needs no extra call. |
 | `loginRejectsBadCredentialsWith400` | Wrong credentials → `400` `Invalid email or password`. |
+| `loginRejectsADeactivatedAccountWith403` | An inactive account → `403` `This account has been deactivated`. A `403` and not a `401` on purpose: the client's response interceptor retries a refresh on every `401`, and login goes through that client. |
 | `loginRejectsBlankFieldsWithValidationError` | Blank mail/password → `400` `Validation error`; `UserService.login` is never called. |
 | `refreshIssuesNewSessionForValidToken` | Valid refresh token for an existing user → `200` `Session renewed` with a new refresh token. |
 | `refreshRejectsInvalidTokenWith401` | Invalid/expired refresh token → `401` `Invalid or expired refresh token`. |
 | `refreshRejectsWhenUserNoLongerExistsWith401` | Token valid but the user no longer exists → `401` `User not found`. |
+| `refreshRejectsADeactivatedAccountWith401` | Token valid but the account is inactive → `401` `This account has been deactivated`, and no session is minted. |
 | `refreshRejectsBlankTokenWithValidationError` | Blank `refreshToken` → `400` `Validation error`; `SessionService.validateRefreshToken` is never called. |
 | `logoutReturnsOk` | `POST /auth/logout` → `200` `Session closed` (stateless no-op). |
 
@@ -148,6 +159,7 @@ The `MoneyAmount` value object.
 | `rejectsNullValue` | Constructing from `null` throws `IllegalArgumentException`. |
 | `rejectsDivisionByZero` | Dividing by zero throws `ArithmeticException`. |
 | `equalityIsValueBased` | Equality and `hashCode` are based on the numeric value. |
+| `addsAll` | `addAll` folds a list of amounts onto the receiver. |
 
 ## `user.service.UserServiceTest` — Unit
 
@@ -167,6 +179,16 @@ Registration, login and password logic.
 | `changePasswordRejectsWrongCurrentPasswordAndLeavesTheHashAlone` | A wrong current password throws `IllegalArgumentException`, the hash is untouched, and nothing is encoded or saved. |
 | `changePasswordRejectsUnknownUser` | An unknown user id throws `IllegalArgumentException`; nothing is saved. |
 | `loginRejectsUnknownMail` | An unknown email throws `IllegalArgumentException`. |
+| `loginRejectsADeactivatedAccount` | Correct credentials on an inactive account throw `ForbiddenException` (403) rather than opening a session. |
+| `loginChecksThePasswordBeforeTheActiveFlag` | A wrong password on an inactive account answers the generic `IllegalArgumentException`, not the "deactivated" message. Pins the ordering that keeps the endpoint from leaking which emails exist. |
+| `updateProfileChangesAllThreeFields` | A patch carrying `firstName`, `lastName` and `jobTitle` applies all three and saves. |
+| `updateProfileLeavesOutTheFieldsThatAreNull` | A patch carrying only `firstName` leaves the stored last name and job title untouched. |
+| `updateProfileClearsTheJobTitleWhenItArrivesBlank` | A whitespace-only `jobTitle` stores `null`, which is the only way to remove a job title under partial semantics. |
+| `updateProfileDoesNotLetABlankNameThrough` | A whitespace-only first or last name throws `IllegalArgumentException`; both columns are `NOT NULL`, so blank is not the same as clearing. |
+| `updateProfileRejectsAPatchWithEveryFieldNull` | A body with all three fields null throws `IllegalArgumentException`; the user is never looked up. |
+| `updateProfileRejectsANullBody` | A null DTO throws `IllegalArgumentException` before any repository call. |
+| `updateProfileRejectsUnknownUser` | An unknown user id throws `IllegalArgumentException`; nothing is saved. |
+| `updateProfileNeverTouchesMailRoleOrPassword` | `mail`, `platformRole` and `passwordHash` come out unchanged: the DTO has no field that could carry them. |
 
 ## `user.service.PasswordGeneratorTest` — Unit
 
@@ -190,6 +212,11 @@ chain; `UserService` is mocked.
 | `changeOwnPasswordRejectsWrongCurrentPasswordWith400` | When the service refuses the current password → `400` with `Current password is incorrect`. |
 | `changeOwnPasswordRejectsShortNewPasswordWithValidationError` | A `newPassword` under 8 characters → `400` `Validation error` with the per-field message; the service is never called. |
 | `changeOwnPasswordRequiresAuthenticationWith401` | The same call without a bearer token → `401`; the service is never reached. |
+| `updateOwnProfileUsesTheCallerFromTheSession` | `PATCH /users/me` → `200` with the updated summary, and the service is called with the id from the token, not from the body. |
+| `updateOwnProfileAcceptsABodyWithOnlyOneField` | A body carrying only `firstName` is accepted: the optional fields are not rejected by validation. |
+| `updateOwnProfileRejectsATooShortNameWithValidationError` | A one-character first name → `400` from `@Size`; the service is never reached. |
+| `updateOwnProfilePropagatesAnEmptyPatchWith400` | When the service refuses a body with every field null → `400` carrying its message. |
+| `updateOwnProfileRequiresAuthenticationWith401` | `PATCH /users/me` without a token → `401`; the service is never reached. |
 
 ## `organization.service.OrganizationBulkRegistrationServiceTest` — Unit
 
@@ -342,6 +369,23 @@ coverage and what matters here is that `createProject` runs it.
 | `saveVersionRejectsNullProjectId` | A null project id throws `IllegalArgumentException`; `VersionService` is never called. |
 | `saveVersionRejectsNullVersionData` | A null `VersionDTO` throws `IllegalArgumentException`; `VersionService` is never called. |
 | `saveVersionRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException`; no version is created and nothing is saved. |
+| `updateProjectChangesNameAndDescription` | A project ADMIN patching both fields gets both applied and the project saved. |
+| `updateProjectLeavesOutTheFieldsThatAreNull` | A patch carrying only `name` leaves the stored description untouched — the partial semantics of `PATCH`. |
+| `updateProjectRejectsAPatchWithEveryFieldNull` | A body with both fields null throws `IllegalArgumentException`; the project is never even looked up. |
+| `updateProjectRejectsANullBody` | A null DTO throws `IllegalArgumentException` before any repository call. |
+| `updateProjectRejectsABlankName` | A whitespace-only name throws `IllegalArgumentException`; nothing is saved. `@Size(min = 2)` alone would accept two spaces. |
+| `updateProjectRejectsABlankDescription` | A whitespace-only description throws `IllegalArgumentException`; nothing is saved. |
+| `updateProjectRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException`; nothing is saved. |
+| `updateProjectAllowsPlatformAdmin` | A platform ADMIN patches without any membership lookup. |
+| `updateProjectRejectsProjectEditorWith403` | A member holding only `EDIT_PROJECT` is refused: renaming is `MANAGE_PROJECT`. The in-memory project keeps its old name and nothing is saved. |
+| `updateProjectRejectsUnauthenticated` | No session throws `UnauthorizedException`; nothing is saved. |
+| `deactivateProjectDeactivatesTheProject` | A project ADMIN deleting the project clears its `active` flag and saves it. |
+| `deactivateProjectCascadesToMembersAndVersions` | Members and versions are deactivated with the project, child versions included — the cascade walks `Project.versions`, not the parent/child tree. |
+| `deactivateProjectIsIdempotent` | Deleting an already inactive project is a no-op: nothing is saved a second time. |
+| `deactivateProjectRejectsUnknownProject` | An unknown project id throws `IllegalArgumentException`; nothing is saved. |
+| `deactivateProjectAllowsPlatformAdmin` | A platform ADMIN deletes without any membership lookup. |
+| `deactivateProjectRejectsProjectEditorWith403` | A member holding only `EDIT_PROJECT` is refused; the project stays active and nothing is saved. |
+| `deactivateProjectRejectsUnauthenticated` | No session throws `UnauthorizedException`; the project stays active. |
 
 ## `project.controller.ProjectControllerTest` — Web
 
@@ -368,6 +412,40 @@ non-`/auth` route); `ProjectService` is mocked.
 | `createVersionPropagatesForbiddenWith403` | When the service refuses a caller without `EDIT_PROJECT` → `403` with the domain message. |
 | `addMemberPropagatesForbiddenWith403` | When the service refuses the caller → `403` with `You are not allowed to manage this project`. |
 | `addMemberRequiresAuthenticationWith401` | `POST /projects/{id}/members` without a token → `401`; the service is never reached. |
+| `updateProjectReturnsTheUpdatedProject` | `PATCH /projects/{id}` → `200` with the updated name and description in the envelope. |
+| `updateProjectAcceptsABodyWithOnlyOneField` | A body carrying only `name` is accepted — the optional fields are not rejected by validation. |
+| `updateProjectRejectsATooShortNameWithValidationError` | A one-character name → `400` from `@Size`; the service is never reached. |
+| `updateProjectRejectsUnknownProjectWith400` | When the service reports an unknown id → `400` with `Project not found`. |
+| `updateProjectPropagatesForbiddenWith403` | When the service refuses the caller → `403` with `You are not allowed to manage this project`. |
+| `updateProjectRequiresAuthenticationWith401` | `PATCH /projects/{id}` without a token → `401`; the service is never reached. |
+| `deleteProjectReturnsOk` | `DELETE /projects/{id}` → `200` with `Project deleted`, and the service is asked to deactivate that id. |
+| `deleteProjectRejectsUnknownProjectWith400` | When the service reports an unknown id → `400` with `Project not found`. |
+| `deleteProjectPropagatesForbiddenWith403` | When the service refuses the caller → `403` with `You are not allowed to manage this project`. |
+| `deleteProjectRequiresAuthenticationWith401` | `DELETE /projects/{id}` without a token → `401`; the service is never reached. |
+
+## `project.repository.ProjectRepositoryTest` — Data
+
+The `active` filters on `ProjectRepository`, which are the half of the logical
+delete that no mocked test can reach: whether a `@Query` actually leaves a
+deactivated row out is a question only a database answers. The first
+`@DataJpaTest` in the repository.
+
+Each case was checked by removing the filter it covers and confirming it turns
+red, so none of them passes for the wrong reason.
+
+| Case | Verifies |
+| --- | --- |
+| `findSummariesReturnsAnActiveProject` | The baseline: an active project appears in the summaries. |
+| `findSummariesExcludesADeactivatedProject` | A deactivated project is left out — this is what makes the delete visible in the UI. |
+| `findSummariesCountsOnlyActiveMembers` | `memberCount` counts active members only: a project with one active and one deactivated member reports 1. |
+| `findSummariesForMemberReturnsAnActiveProject` | The baseline for the member-scoped query. |
+| `findSummariesForMemberExcludesADeactivatedProject` | A member of a deactivated project no longer sees it. |
+| `findIdByVersionIdReturnsTheOwningProject` | The baseline: a version resolves to the project it hangs off. |
+| `findIdByVersionIdIgnoresADeactivatedVersion` | A deactivated version resolves to nothing, so `ProjectAccessGuard` refuses it. |
+| `findIdByVersionIdIgnoresAVersionOfADeactivatedProject` | Belt and braces: even an active version inside a deactivated project resolves to nothing, so the guard holds whether or not the cascade ran. |
+| `existsByIdAndActiveTrueIsTrueForAnActiveProject` | The baseline for the `listMembers` guard. |
+| `existsByIdAndActiveTrueIsFalseOnceTheProjectIsDeactivated` | Listing the members of a deleted project answers `400`. |
+| `existsByIdAndActiveTrueIsFalseForAnUnknownId` | An id that was never stored is not active either. |
 
 ## `version.service.VersionServiceTest` — Unit
 
@@ -421,3 +499,73 @@ version UUID, which is what made guarding them necessary.
 | `createDetachedVersionReturnsTheVersionForAPlatformAdmin` | `POST /version/createtest` → `200` with the created version. |
 | `createDetachedVersionPropagatesForbiddenWith403` | The same call for a non-admin → `403` with `Only platform admins can create detached versions`. |
 | `createDetachedVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+
+## `node.service.NodeServiceTest` — Unit
+
+`NodeService` has eleven save methods; only `saveWell` is covered. The case
+builds a complete `WellDTO`, saves it through a mocked `WellRepository` that
+echoes its argument back, and reads it again through the same mock.
+
+| Case | Verifies |
+| --- | --- |
+| `saveWellShouldReturnWell` | `saveWell` maps a complete `WellDTO` onto a persisted `Well`, preserving `name`, `maxCollectionCapacity` and `declineCurve`. |
+
+## `node.controller.NodeControllerTest` — Unit
+
+**Not a `@WebMvcTest`**, despite driving `MockMvc`: it builds the controller
+with `MockMvcBuilders.standaloneSetup`, so there is no Spring context and no
+`SecurityConfig`/`AuthFilter` chain, and the request arrives already
+authorized. This case therefore says nothing about *who* may create a node —
+the eleven `POST /nodes/**` endpoints still carry no authorization check of
+their own. One of the eleven is covered.
+
+| Case | Verifies |
+| --- | --- |
+| `createWellShouldReturnOk` | `POST /nodes/well` with a complete `WellDTO` → `200`, JSON content type, and `Well created successfully` in the envelope. |
+
+## `strategyCost.CostTest` — Unit
+
+The cost calculations on `BaseNode`, reached through a local `DummyNode`
+subclass that exposes the protected fields. `MoneyAmount` and `InvestmentCost`
+are mocked, so these cases pin the arithmetic and the failure messages rather
+than the money type itself.
+
+| Case | Verifies |
+| --- | --- |
+| `CalculateInvestmentCost_Success` | `CalculateInvestmentCost` returns whatever the node's `InvestmentCost` computes. |
+| `CalculateInvestmentCost_ThrowsException_WhenNull` | With no `InvestmentCost`, it throws with `Investment Cost is empty`. |
+| `CalculateOperatingCost_Success` | `CalculateOperatingCost` multiplies the monthly operating cost by the lifespan in months. |
+| `CalculateOperatingCost_ThrowsException_WhenNull` | With no operating cost, it throws with `Base Node missing arguments`. |
+| `CalculateUpkeepCost_Success` | `CalculateUpkeepCost` multiplies the upkeep cost by the number of maintenances the lifespan allows — 12 months at a 60-day interval gives 6. |
+| `CalculateUpkeepCost_ThrowsException_WhenNull` | With no upkeep cost, it throws with `Base Node missing arguments`. |
+| `CalculateTotalCost_Success` | `CalculateTotalCost` adds the investment, operating and upkeep totals together. |
+| `CalculateTotalCost_HandlesExceptionsAndReturnsZeroForMissingCosts` | With all three costs missing, the exceptions are swallowed and the total comes back as `MoneyAmount.of(0)` instead of failing. |
+
+## `strategyCost.InvestmentCostTest` — Unit
+
+`InvestmentCost.CalculateCost`, which sums its components. The components list
+is injected by reflection because the field has no setter.
+
+| Case | Verifies |
+| --- | --- |
+| `CalculateCost_SumsAllComponentsSuccessfully` | Every component is asked for its cost exactly once, and the results are accumulated onto `MoneyAmount.of(0)`. |
+| `CalculateCost_HandlesComponentException` | A component that throws is skipped instead of failing the whole calculation; the remaining components still add up. |
+
+## `strategyCost.CostBasisCalculatorsTest` — Unit
+
+The five cost-basis strategies, each multiplying a `MoneyAmount` by a dimension
+read off the node. `Flat` accepts any node; the other four require a specific
+node type, so each of those also has a case for the type it must reject.
+
+| Case | Verifies |
+| --- | --- |
+| `Flat_ReturnsSameMoneyAmount` | `Flat` ignores the node and returns the amount unchanged. |
+| `Per_M_CalculatesCostForGatheringNetwork` | `Per_M` multiplies by the gathering network's length. |
+| `Per_M_ThrowsException_ForInvalidNodeType` | `Per_M` on anything that is not a `GatheringNetwork` throws `ClassCastException`. |
+| `Per_KM_CalculatesCostForPipeline` | `Per_KM` multiplies by the pipeline's length. |
+| `Per_KM_ThrowsException_ForInvalidNodeType` | `Per_KM` on anything that is not a `Pipeline` throws `ClassCastException`. |
+| `Per_KM2_CalculatesCostForWell` | `Per_KM2` multiplies by the well's surface. |
+| `Per_KM2_ThrowsException_ForInvalidNodeType` | `Per_KM2` on anything that is not a `Well` throws `ClassCastException`. |
+| `Per_Conections_Total_CalculatesCostForGatheringNetwork` | `Per_Conections_Total` multiplies by the gathering network's connected-well count. |
+| `Per_Conections_Total_ReturnsSameMoneyForPipelineConnection` | For a `PipelineConnection` the amount is returned unchanged — the connection counts as one. |
+| `Per_Conections_Total_ThrowsException_ForInvalidNodeType` | Any other node type throws with `Wrong type of node`. |

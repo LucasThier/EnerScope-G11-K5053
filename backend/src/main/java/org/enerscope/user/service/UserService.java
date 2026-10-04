@@ -1,7 +1,9 @@
 package org.enerscope.user.service;
 
 import org.enerscope.auth.dto.RegisterRequestDTO;
+import org.enerscope.common.ForbiddenException;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.user.dto.UpdateProfileRequestDTO;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
@@ -36,9 +38,37 @@ public class UserService {
     }
 
     public User login(String mail, String rawPassword) {
-        return userRepository.findByMailIgnoreCase(mail)
+        User user = userRepository.findByMailIgnoreCase(mail)
                 .filter(u -> encoder.matches(rawPassword, u.getPasswordHash()))
                 .orElseThrow(() -> new IllegalArgumentException("Invalid email or password"));
+        if (!user.isActive()) {
+            logger.warn("Login refused for deactivated account {}", user.getMail());
+            throw new ForbiddenException("This account has been deactivated");
+        }
+        return user;
+    }
+
+    public User updateProfile(UUID userId, UpdateProfileRequestDTO data) {
+        if (data == null) {
+            throw new IllegalArgumentException("data cannot be null");
+        }
+        if (data.firstName() == null && data.lastName() == null && data.jobTitle() == null) {
+            throw new IllegalArgumentException(
+                    "At least one of firstName, lastName or jobTitle must be provided");
+        }
+        if (data.firstName() != null && data.firstName().isBlank()) {
+            throw new IllegalArgumentException("First name cannot be blank");
+        }
+        if (data.lastName() != null && data.lastName().isBlank()) {
+            throw new IllegalArgumentException("Last name cannot be blank");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        user.updateProfile(data.firstName(), data.lastName(), data.jobTitle());
+        User saved = userRepository.save(user);
+        logger.info("Profile updated for user {}", saved.getMail());
+        return saved;
     }
 
     public void changePassword(UUID userId, String currentPassword, String newPassword) {

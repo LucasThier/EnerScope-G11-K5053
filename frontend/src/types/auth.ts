@@ -38,6 +38,17 @@ export interface UserSummary {
   jobTitle: string | null;
 }
 
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface UpdateProfileRequest {
+  firstName?: string;
+  lastName?: string;
+  jobTitle?: string;
+}
+
 export interface NewSessionResponse {
   accessToken: string;
   refreshToken: string;

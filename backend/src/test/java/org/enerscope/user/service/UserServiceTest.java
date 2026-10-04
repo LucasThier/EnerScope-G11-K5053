@@ -1,7 +1,9 @@
 package org.enerscope.user.service;
 
 import org.enerscope.auth.dto.RegisterRequestDTO;
+import org.enerscope.common.ForbiddenException;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.user.dto.UpdateProfileRequestDTO;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
@@ -131,6 +133,28 @@ class UserServiceTest {
     }
 
     @Test
+    void loginRejectsADeactivatedAccount() {
+        User user = new User("user@enerscope.org", "Jane", "Doe", "hashed");
+        user.deactivate();
+        when(userRepository.findByMailIgnoreCase("user@enerscope.org")).thenReturn(Optional.of(user));
+        when(encoder.matches("password123", "hashed")).thenReturn(true);
+
+        assertThrows(ForbiddenException.class,
+                () -> userService.login("user@enerscope.org", "password123"));
+    }
+
+    @Test
+    void loginChecksThePasswordBeforeTheActiveFlag() {
+        User user = new User("user@enerscope.org", "Jane", "Doe", "hashed");
+        user.deactivate();
+        when(userRepository.findByMailIgnoreCase("user@enerscope.org")).thenReturn(Optional.of(user));
+        when(encoder.matches("wrong", "hashed")).thenReturn(false);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.login("user@enerscope.org", "wrong"));
+    }
+
+    @Test
     void loginRejectsUnknownMail() {
         when(userRepository.findByMailIgnoreCase("ghost@enerscope.org")).thenReturn(Optional.empty());
 
@@ -152,6 +176,101 @@ class UserServiceTest {
 
         assertEquals("new-hash", user.getPasswordHash());
         verify(userRepository).save(user);
+    }
+
+    @Test
+    void updateProfileChangesAllThreeFields() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hash", PlatformRole.USER, "Analyst");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateProfile(
+                userId, new UpdateProfileRequestDTO("Juana", "Perez", "Senior Analyst"));
+
+        assertEquals("Juana", saved.getFirstName());
+        assertEquals("Perez", saved.getLastName());
+        assertEquals("Senior Analyst", saved.getJobTitle());
+    }
+
+    @Test
+    void updateProfileLeavesOutTheFieldsThatAreNull() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hash", PlatformRole.USER, "Analyst");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateProfile(userId, new UpdateProfileRequestDTO("Juana", null, null));
+
+        assertEquals("Juana", saved.getFirstName());
+        assertEquals("Doe", saved.getLastName());
+        assertEquals("Analyst", saved.getJobTitle());
+    }
+
+    @Test
+    void updateProfileClearsTheJobTitleWhenItArrivesBlank() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hash", PlatformRole.USER, "Analyst");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateProfile(userId, new UpdateProfileRequestDTO(null, null, "   "));
+
+        assertNull(saved.getJobTitle());
+    }
+
+    @Test
+    void updateProfileDoesNotLetABlankNameThrough() {
+        UUID userId = UUID.randomUUID();
+
+        assertThrows(IllegalArgumentException.class, () -> userService.updateProfile(
+                userId, new UpdateProfileRequestDTO("   ", null, null)));
+        assertThrows(IllegalArgumentException.class, () -> userService.updateProfile(
+                userId, new UpdateProfileRequestDTO(null, "   ", null)));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateProfileRejectsAPatchWithEveryFieldNull() {
+        UUID userId = UUID.randomUUID();
+
+        assertThrows(IllegalArgumentException.class, () -> userService.updateProfile(
+                userId, new UpdateProfileRequestDTO(null, null, null)));
+        verify(userRepository, never()).findById(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateProfileRejectsANullBody() {
+        UUID userId = UUID.randomUUID();
+
+        assertThrows(IllegalArgumentException.class, () -> userService.updateProfile(userId, null));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void updateProfileRejectsUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class, () -> userService.updateProfile(
+                userId, new UpdateProfileRequestDTO("Juana", null, null)));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateProfileNeverTouchesMailRoleOrPassword() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hash", PlatformRole.ADMIN, "Analyst");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateProfile(
+                userId, new UpdateProfileRequestDTO("Juana", "Perez", "Lead"));
+
+        assertEquals("jane@enerscope.org", saved.getMail());
+        assertEquals(PlatformRole.ADMIN, saved.getPlatformRole());
+        assertEquals("hash", saved.getPasswordHash());
     }
 
     @Test

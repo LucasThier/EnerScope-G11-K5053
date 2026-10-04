@@ -23,11 +23,12 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     @Query("""
             SELECT new org.enerscope.project.dto.ProjectSummaryDTO(
                     p.id, p.name, p.description, o.id, o.name,
-                    (SELECT COUNT(pm) FROM ProjectMember pm WHERE pm.project = p),
+                    (SELECT COUNT(pm) FROM ProjectMember pm WHERE pm.project = p AND pm.active = true),
                     p.lastModified)
             FROM Project p
             JOIN p.organization o
-            WHERE (:organizationId IS NULL OR o.id = :organizationId)
+            WHERE p.active = true
+              AND (:organizationId IS NULL OR o.id = :organizationId)
             ORDER BY p.lastModified DESC
             """)
     List<ProjectSummaryDTO> findSummaries(@Param("organizationId") UUID organizationId);
@@ -36,12 +37,13 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     @Query("""
             SELECT new org.enerscope.project.dto.ProjectSummaryDTO(
                     p.id, p.name, p.description, o.id, o.name,
-                    (SELECT COUNT(pm) FROM ProjectMember pm WHERE pm.project = p),
+                    (SELECT COUNT(pm) FROM ProjectMember pm WHERE pm.project = p AND pm.active = true),
                     p.lastModified)
             FROM Project p
             JOIN p.organization o
             JOIN p.members m
-            WHERE m.user.id = :userId
+            WHERE p.active = true
+              AND m.user.id = :userId
               AND (:organizationId IS NULL OR o.id = :organizationId)
             ORDER BY p.lastModified DESC
             """)
@@ -58,6 +60,11 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
      * {@code organization} and {@code members} out of it — callers only need the
      * id to run an authorization check.</p>
      */
-    @Query("SELECT p.id FROM Project p JOIN p.versions v WHERE v.id = :versionId")
+    @Query("""
+            SELECT p.id FROM Project p JOIN p.versions v
+            WHERE v.id = :versionId AND v.active = true AND p.active = true
+            """)
     Optional<UUID> findIdByVersionId(@Param("versionId") UUID versionId);
+
+    boolean existsByIdAndActiveTrue(UUID id);
 }
