@@ -1966,3 +1966,39 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     permission filter of `ownsAnyActiveOrganization`, and the active, case and
     exact-match properties of the user lookup.
   - `mvn test` 416 → 440.
+- 2026-10-05 — **Results schema: the migration is the design, the entities
+  follow it.** `docker compose up` on a fresh database failed on a chain of
+  mismatches (a table created twice, then columns the entities map and no
+  migration creates). The migrations and the entities were written separately
+  and nothing in the suite compares them: the tests build their H2 schema from
+  the entities with Flyway off, so only Hibernate's `validate` on PostgreSQL
+  notices. What was wrong and what was done:
+  - `V8` and `V9` both created `result_per_node`. `V9` now only adds what `V8`
+    lacks (`final_result` and its three percentile tables); `V8` is untouched.
+  - `V11` adds two columns the entities already mapped:
+    `base_node.maintenance_duration` and `flng_unit.gas_consumption`.
+  - `Result.resultPerNodes` had no `@JoinColumn`, so JPA expected a join table
+    (`result_result_per_nodes`) that no migration creates. It now maps
+    `result_per_node.result_id`, the `NOT NULL` foreign key V8 designed, which
+    also gives cascade delete in the database. `Version.results` maps
+    `result.version_id` (it defaulted to `results_id`).
+  - `ResultPerNode.nodeID` maps `node_id` explicitly. Spring's naming strategy
+    only inserts an underscore before an upper-case letter that is followed by a
+    lower-case one, so `nodeID` silently became `nodeid`. Prefer spelling out
+    snake_case names for anything with an acronym in it.
+  - `year` is a reserved word in H2 2.x: Hibernate cannot create `result` on the
+    default H2 URL (it logs a WARN and carries on), so nothing could ever
+    persist a result in the H2 tests. `ResultMappingTest` opts into
+    `NON_KEYWORDS=YEAR`; do the same for any new test that touches `result`.
+  - **To check when the `Probabilistica` work is merged:** `FinalResult` there
+    declares three `@OneToMany List<ResultPerNode>` (`percentile90/50/10`) with
+    no `@JoinColumn` or `@JoinTable`, while `V9` creates the join tables
+    `final_result_p90/p50/p10`. Unless the mapping names those tables and
+    columns, startup will fail the same way. Not run, only read.
+  - **Worth its own card:** a test that applies the Flyway migrations to a real
+    PostgreSQL (Testcontainers) and starts the context with `ddl-auto=validate`
+    would have caught all of the above. It needs Docker on the CI runner, so it
+    was left out here.
+  - Anyone whose local database already ran an earlier copy of `V9` or `V11`
+    needs a fresh one (`docker compose down -v`): Flyway rejects a migration
+    whose checksum changed.

@@ -52,22 +52,26 @@ Run everything with `cd backend && mvn test`.
 | `version.controller.VersionControllerTest` | Web | 10 |
 | `node.service.NodeServiceTest` | Unit | 1 |
 | `node.controller.NodeControllerTest` | Unit | 1 |
+| `simulator.ResultMappingTest` | Data | 7 |
 | `strategyCost.CostTest` | Unit | 8 |
 | `strategyCost.InvestmentCostTest` | Unit | 2 |
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| **Total** | | **426 [^p]** |
+| **Total** | | **433 [^p]** |
 
 [^p]: Two cases in `version.service.VersionServiceTest` are
 `@ParameterizedTest`s running over the eight mutating version entry points,
-so they count as 16 executions rather than 2. Surefire therefore reports
-**440** for the 426 cases catalogued here.
+so they count as 16 executions rather than 2. The 433 cases catalogued here
+therefore make 447 executions.
 
-> **The catalog matches the code.** `mvn test` reports **440** executions,
-> which is what the table above adds up to. The `node.*` and `strategyCost.*`
-> classes, never catalogued before, were added on 2026-10-01 along with the
-> seventh `money.MoneyAmountTest` case the table had been missing. The two
-> `version.*` entries, which used to describe cases that did not exist, were
-> rewritten from the code on 2026-09-15.
+> **This catalog has drifted from the code.** On 2026-10-05 `mvn test` ran
+> **587** executions, against the 447 above. The gap is not a mistake in the
+> rows: it is tests merged since the catalog was last reconciled. Three classes
+> have no entry (`organization.repository.OrganizationMemberRepositoryTest`,
+> `simulator.ResultTest` and `simulator.SimulatorTest`: 33 executions) and
+> eleven have grown past their recorded count (`user.*`, `organization.*`,
+> `project.*` and `version.service.VersionServiceTest`: 107 executions in
+> total). Reconciling them is its own task. `simulator.ResultMappingTest` was
+> added on 2026-10-05 and is counted correctly.
 
 ## `ApplicationContextTest` — Integration
 
@@ -705,6 +709,35 @@ their own. One of the eleven is covered.
 | Case | Verifies |
 | --- | --- |
 | `createWellShouldReturnOk` | `POST /nodes/well` with a complete `WellDTO` → `200`, JSON content type, and `Well created successfully` in the envelope. |
+
+## `simulator.ResultMappingTest` — Data
+
+Pins the JPA mapping of the simulation results to the tables and columns that
+`V8__create_results.sql` creates. Production runs Hibernate in `validate` mode
+against the migrated PostgreSQL schema, but the tests build their H2 schema from
+the entities, so a drifting annotation is invisible to the rest of the suite and
+only shows up as an application that will not start. The cases therefore read
+the stored rows back with plain SQL, using the migration's own column names.
+
+`year` is a reserved word in H2 2.x, so this class keeps the `test` profile's
+datasource instead of the embedded one `@DataJpaTest` would substitute, and adds
+`NON_KEYWORDS=YEAR` to its URL; on a stock H2 URL Hibernate cannot create the
+`result` table at all.
+
+Five of the seven cases were checked by reverting the three mapping changes
+(`@JoinColumn` on `Result.resultPerNodes` and on `Version.results`, `node_id`
+on `ResultPerNode.nodeID`) and confirming they turn red; the first and the last
+pass under either mapping and exist to show the pieces still work together.
+
+| Case | Verifies |
+| --- | --- |
+| `resultPerNodesAreStoredAndLoadedBackWithTheirValues` | A version saved with a result and two per-node rows cascades all of them, and the result loads back with its year and each row's node class and totals. |
+| `resultPerNodeRowsReferenceTheirResultThroughResultId` | Both per-node rows carry the result's id in `result_per_node.result_id` — the foreign key column of V8, not a join table. |
+| `resultPerNodeRowsStoreTheNodeIdInTheNodeIdColumn` | The node id is stored in `result_per_node.node_id` (the naming strategy would have produced `nodeid`). |
+| `resultRowReferencesItsVersionThroughVersionId` | The result carries its version's id in `result.version_id`. |
+| `noJoinTableIsUsedForTheResultPerNodes` | The schema has no `result_result_per_nodes` table, which JPA creates by default for an unannotated `@OneToMany` and no migration provides. |
+| `removingAResultPerNodeFromItsResultDeletesItsRow` | Removing a row from the result's list deletes it (orphan removal) instead of trying to null the `NOT NULL` `result_id`. |
+| `deletingAVersionDeletesItsResultsAndTheirRows` | Deleting a version cascades to its results and their per-node rows. |
 
 ## `strategyCost.CostTest` — Unit
 
