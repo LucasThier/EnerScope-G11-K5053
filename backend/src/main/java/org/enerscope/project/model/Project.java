@@ -46,8 +46,21 @@ public class Project extends BaseEntity {
         this.organization = organization;
     }
 
+    public void updateDetails(String name, String description) {
+        if (name != null) {
+            this.name = name;
+        }
+        if (description != null) {
+            this.description = description;
+        }
+    }
+
     public void addMember(ProjectMember member) {
         members.add(member);
+    }
+
+    public void removeMember(ProjectMember member) {
+        members.remove(member);
     }
 
     public void addVersion(Version version) {

@@ -1,6 +1,8 @@
 package org.enerscope.version.service;
 
 import org.enerscope.common.EntityNotFoundException;
+import org.enerscope.common.ForbiddenException;
+import org.enerscope.common.UnauthorizedException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.dto.BaseNodeDTO;
@@ -8,6 +10,7 @@ import org.enerscope.node.dto.DiagramDTO;
 import org.enerscope.node.dto.GeographicalPositionDTO;
 import org.enerscope.node.dto.GraphPositionDTO;
 import org.enerscope.node.dto.NodeGraphDataDTO;
+import org.enerscope.node.dto.ConnectionDTO;
 import org.enerscope.node.dto.WellDTO;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.BaseNode;
@@ -29,6 +32,9 @@ import org.enerscope.version.repository.VersionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -40,6 +46,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -47,8 +55,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -69,6 +80,16 @@ class VersionServiceTest {
     @Mock
     private org.enerscope.node.service.NodeService nodeService;
 
+    /**
+     * Mocked rather than built over mocked repositories: the rules it carries
+     * are covered case by case in {@code ProjectAccessGuardTest}, and the tests
+     * below are about version mechanics. What matters here is that every entry
+     * point runs it, which the authorization tests at the bottom assert
+     * explicitly.
+     */
+    @Mock
+    private org.enerscope.project.service.ProjectAccessGuard accessGuard;
+
     @InjectMocks
     private VersionService versionService;
 
@@ -80,7 +101,8 @@ class VersionServiceTest {
                 connectionRepository,
                 nodeRepository,
                 logger,
-                nodeService);
+                nodeService,
+                accessGuard);
     }
 
     @Test
@@ -89,7 +111,7 @@ class VersionServiceTest {
         UUID versionId = UUID.randomUUID();
         String newName = "New Version Name";
         Version existingVersion = new Version("Old Name", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>(),new ArrayList<>());
+                new ArrayList<>());
 
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(existingVersion));
         when(versionRepository.save(any(Version.class))).thenReturn(existingVersion);
@@ -118,7 +140,7 @@ class VersionServiceTest {
         nodeDTO.setState(NodeStateEnum.RUNNING);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>(),new ArrayList<>());
+                new ArrayList<>());
 
         // Create a minimal Well instance for testing
         Well originalNode = new Well(
@@ -189,7 +211,7 @@ class VersionServiceTest {
         nodeDTO.setState(NodeStateEnum.PENDING);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>(),new ArrayList<>());
+                new ArrayList<>());
 
         // Create a minimal Well instance for testing
         Well originalNode = new Well(
@@ -268,7 +290,7 @@ class VersionServiceTest {
         nodeDTO.setState(NodeStateEnum.REMOVED);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>(),new ArrayList<>());
+                new ArrayList<>());
 
         // Create a minimal Well instance for testing
         Well originalNode = new Well(
@@ -374,7 +396,7 @@ class VersionServiceTest {
         WellDTO nodeDTO = new WellDTO();
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>(),new ArrayList<>());
+                new ArrayList<>());
 
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
         when(nodeRepository.findById(nodeId)).thenReturn(Optional.empty());
@@ -392,7 +414,7 @@ class VersionServiceTest {
         wellDTO.setState(NodeStateEnum.PROPOSED);
 
         Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>(),new ArrayList<>());
+                new ArrayList<>());
 
         Well savedWell = new Well(
                 "Test Well",
@@ -443,7 +465,7 @@ class VersionServiceTest {
         UUID toId = UUID.randomUUID();
 
         Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>(), new ArrayList<>());
+                new ArrayList<>());
 
         NodeGraphData graphData = new NodeGraphData(
                 new GraphPosition(10.0, 20.0),
@@ -483,7 +505,7 @@ class VersionServiceTest {
         UUID nodeId = UUID.randomUUID();
 
         Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>(), new ArrayList<>());
+                new ArrayList<>());
         Well node = new Well(
                 "Well A", NodeStateEnum.RUNNING, Instant.now(), 12,
                 MoneyAmount.of(1), 30, MoneyAmount.of(1), 0.0f,
@@ -517,7 +539,7 @@ class VersionServiceTest {
         UUID versionId = UUID.randomUUID();
         UUID nodeId = UUID.randomUUID();
         Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>(), new ArrayList<>());
+                new ArrayList<>());
         Well node = new Well(
                 "W", NodeStateEnum.RUNNING, Instant.now(), 24,
                 MoneyAmount.of(100), 30, MoneyAmount.of(50), 0.0f,
@@ -557,6 +579,172 @@ class VersionServiceTest {
         assertTrue(saved.getConnectionSnapshot().isEmpty());
     }
 
+    // ---- authorization -------------------------------------------------------
+    //
+    // Every entry point of this service is reachable from VersionController with
+    // nothing but a version UUID, so each one has to resolve the owning project
+    // and check the caller against it. The rules themselves live in
+    // ProjectAccessGuard (and are tested there); what these cases pin down is
+    // that no entry point skips the guard, and that a rejected call touches
+    // neither the database nor the node service.
+
+    private static final UUID GUARDED_VERSION_ID = UUID.randomUUID();
+    private static final UUID GUARDED_NODE_ID = UUID.randomUUID();
+    private static final UUID GUARDED_CONNECTION_ID = UUID.randomUUID();
+
+    /** The eight endpoints that change a version, or something inside it. */
+    static Stream<Arguments> mutatingOperations() {
+        WellDTO wellDTO = new WellDTO();
+        wellDTO.setName("Test Well");
+        ConnectionDTO connectionDTO = new ConnectionDTO();
+        org.enerscope.version.dto.VersionDTO versionDTO = new org.enerscope.version.dto.VersionDTO();
+        versionDTO.setName("Renamed");
+        return Stream.of(
+                arguments("deleteVersion",
+                        (Consumer<VersionService>) s -> s.deleteVersion(GUARDED_VERSION_ID)),
+                arguments("modifyVersion",
+                        (Consumer<VersionService>) s -> s.modifyVersion(GUARDED_VERSION_ID, versionDTO)),
+                arguments("addNodeToVersion",
+                        (Consumer<VersionService>) s -> s.addNodeToVersion(GUARDED_VERSION_ID, wellDTO)),
+                arguments("addConnectionToVersion",
+                        (Consumer<VersionService>) s -> s.addConnectionToVersion(GUARDED_VERSION_ID, connectionDTO)),
+                arguments("editNodeInVersion",
+                        (Consumer<VersionService>) s -> s.editNodeInVersion(
+                                GUARDED_VERSION_ID, GUARDED_NODE_ID, wellDTO)),
+                arguments("editConnectionInVersion",
+                        (Consumer<VersionService>) s -> s.editConnectionInVersion(
+                                GUARDED_VERSION_ID, GUARDED_CONNECTION_ID, connectionDTO)),
+                arguments("deleteNodeFromVersion",
+                        (Consumer<VersionService>) s -> s.deleteNodeFromVersion(GUARDED_VERSION_ID, GUARDED_NODE_ID)),
+                arguments("deleteConnectionFromVersion",
+                        (Consumer<VersionService>) s -> s.deleteConnectionFromVersion(
+                                GUARDED_VERSION_ID, GUARDED_CONNECTION_ID)));
+    }
+
+    @ParameterizedTest(name = "{0} is refused without EDIT_PROJECT on the owning project")
+    @MethodSource("mutatingOperations")
+    void mutatingOperationsRejectCallerWithoutEditPermission(String name, Consumer<VersionService> operation) {
+        doThrow(new ForbiddenException("You are not allowed to edit this project"))
+                .when(accessGuard).assertCanEditVersion(GUARDED_VERSION_ID);
+
+        assertThrows(ForbiddenException.class, () -> operation.accept(versionService));
+
+        verifyNoInteractions(versionRepository, nodeRepository, connectionRepository, nodeService);
+    }
+
+    @ParameterizedTest(name = "{0} is refused without a session")
+    @MethodSource("mutatingOperations")
+    void mutatingOperationsRejectUnauthenticatedCaller(String name, Consumer<VersionService> operation) {
+        doThrow(new UnauthorizedException("Authentication required"))
+                .when(accessGuard).assertCanEditVersion(GUARDED_VERSION_ID);
+
+        assertThrows(UnauthorizedException.class, () -> operation.accept(versionService));
+
+        verifyNoInteractions(versionRepository, nodeRepository, connectionRepository, nodeService);
+    }
+
+    @Test
+    void getVersionChecksViewPermissionAndReturnsTheVersion() {
+        Version version = new Version("Baseline", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>());
+        when(versionRepository.findById(GUARDED_VERSION_ID)).thenReturn(Optional.of(version));
+
+        assertSame(version, versionService.getVersion(GUARDED_VERSION_ID));
+
+        verify(accessGuard).assertCanViewVersion(GUARDED_VERSION_ID);
+    }
+
+    @Test
+    void getVersionRejectsCallerOutsideTheOwningProject() {
+        doThrow(new ForbiddenException("You are not allowed to view this project"))
+                .when(accessGuard).assertCanViewVersion(GUARDED_VERSION_ID);
+
+        assertThrows(ForbiddenException.class, () -> versionService.getVersion(GUARDED_VERSION_ID));
+
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void getVersionRejectsUnauthenticatedCaller() {
+        doThrow(new UnauthorizedException("Authentication required"))
+                .when(accessGuard).assertCanViewVersion(GUARDED_VERSION_ID);
+
+        assertThrows(UnauthorizedException.class, () -> versionService.getVersion(GUARDED_VERSION_ID));
+
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void saveOrphanVersionCreatesTheVersionForAPlatformAdmin() {
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Scratch");
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Version saved = versionService.saveOrphanVersion(data);
+
+        assertEquals("Scratch", saved.getName());
+        verify(accessGuard).assertIsPlatformAdmin("create detached versions");
+    }
+
+    @Test
+    void saveOrphanVersionRejectsNonPlatformAdmin() {
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Scratch");
+        doThrow(new ForbiddenException("Only platform admins can create detached versions"))
+                .when(accessGuard).assertIsPlatformAdmin("create detached versions");
+
+        assertThrows(ForbiddenException.class, () -> versionService.saveOrphanVersion(data));
+
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void saveOrphanVersionRejectsUnauthenticatedCaller() {
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Scratch");
+        doThrow(new UnauthorizedException("Authentication required"))
+                .when(accessGuard).assertIsPlatformAdmin("create detached versions");
+
+        assertThrows(UnauthorizedException.class, () -> versionService.saveOrphanVersion(data));
+
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void saveVersionIsUnguardedBecauseItsCallersAuthorizeInstead() {
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Baseline");
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        versionService.saveVersion(data);
+
+        // ProjectService.saveVersion checks EDIT_PROJECT before reaching here, and
+        // saveOrphanVersion requires a platform admin; a check in between would be
+        // a third rule on a path that has no version id to check yet.
+        verifyNoInteractions(accessGuard);
+    }
+
+    // ---- snapshot initialisation ---------------------------------------------
+    //
+    // A version used to be created with null snapshots when it had no parent
+    // version, which serialised as "nodeSnapshot": null on the create response
+    // (the same version read back later answers []) and left every
+    // getNodeSnapshot() call in this service one dereference away from an NPE.
+
+    @Test
+    void saveVersionWithoutParentInitialisesEmptySnapshots() {
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Baseline");
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Version saved = versionService.saveVersion(data);
+
+        assertNotNull(saved.getNodeSnapshot());
+        assertNotNull(saved.getConnectionSnapshot());
+        assertTrue(saved.getNodeSnapshot().isEmpty());
+        assertTrue(saved.getConnectionSnapshot().isEmpty());
+    }
+
     @Test
     void updateNodeBasics_ShouldUpdateNameAndState() {
         // Given
@@ -564,7 +752,7 @@ class VersionServiceTest {
         UUID nodeId = UUID.randomUUID();
 
         Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
-                new ArrayList<>(), new ArrayList<>());
+                new ArrayList<>());
         Well node = new Well(
                 "Old Name", NodeStateEnum.PROPOSED, Instant.now(), 12,
                 MoneyAmount.of(1), 30, MoneyAmount.of(1), 0.0f,
@@ -589,4 +777,80 @@ class VersionServiceTest {
         verify(nodeRepository, times(1)).save(node);
     }
 
+    @Test
+    void addNodeToVersionWorksOnAFreshlyCreatedRootVersion() {
+        UUID versionId = UUID.randomUUID();
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Baseline");
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+        Version rootVersion = versionService.saveVersion(data);
+
+        WellDTO wellDTO = new WellDTO();
+        wellDTO.setName("Test Well");
+        wellDTO.setState(NodeStateEnum.PROPOSED);
+        Well savedWell = sampleWell();
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(rootVersion));
+        when(nodeService.saveWell(any(WellDTO.class))).thenReturn(savedWell);
+
+        BaseNode result = versionService.addNodeToVersion(versionId, wellDTO);
+
+        assertSame(savedWell, result);
+        assertTrue(rootVersion.getNodeSnapshot().contains(savedWell));
+        assertEquals(1, rootVersion.getNodeChanges().size());
+        assertEquals(ChangeTypeEnum.ADD, rootVersion.getNodeChanges().get(0).getChangeType());
+    }
+
+    @Test
+    void saveVersionFromParentWithNullSnapshotsDoesNotPropagateNull() {
+        UUID parentId = UUID.randomUUID();
+        Version legacyParent = new Version();
+        legacyParent.setName("Legacy");
+        legacyParent.setNodeSnapshot(null);
+        legacyParent.setConnectionSnapshot(null);
+        org.enerscope.version.dto.VersionDTO data = new org.enerscope.version.dto.VersionDTO();
+        data.setName("Child");
+        data.setParentVersion(parentId);
+        when(versionRepository.findById(parentId)).thenReturn(Optional.of(legacyParent));
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Version child = versionService.saveVersion(data);
+
+        assertNotNull(child.getNodeSnapshot());
+        assertNotNull(child.getConnectionSnapshot());
+        assertTrue(child.getNodeSnapshot().isEmpty());
+        assertTrue(child.getConnectionSnapshot().isEmpty());
+    }
+
+    @Test
+    void versionNoArgsConstructorStartsWithEmptyCollections() {
+        Version version = new Version();
+
+        assertNotNull(version.getNodeSnapshot());
+        assertNotNull(version.getConnectionSnapshot());
+        assertNotNull(version.getNodeChanges());
+        assertNotNull(version.getConnectionChanges());
+    }
+
+    /** A fully built Well, matching the fixture the add/edit cases above use. */
+    private Well sampleWell() {
+        return new Well(
+                "Test Well",
+                NodeStateEnum.PROPOSED,
+                Instant.now(),
+                120,
+                MoneyAmount.of(1000000),
+                30,
+                MoneyAmount.of(50000),
+                0.0f,
+                new InvestmentCost(),
+                new NodeGraphData(),
+                UUID.randomUUID(),
+                new NodeTypeData(),
+                100.0f,
+                0.5f,
+                0.8f,
+                10,
+                MoneyAmount.of(5000),
+                500f);
+    }
 }

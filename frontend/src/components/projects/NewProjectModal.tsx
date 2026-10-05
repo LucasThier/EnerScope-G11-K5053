@@ -55,7 +55,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
       errors.name = `El nombre debe tener entre ${NAME_MIN} y ${NAME_MAX} caracteres.`;
     }
     if (!organizationId) {
-      errors.organizationId = 'Elegí una organización líder.';
+      errors.organizationId = 'Elegí una organización.';
     }
     const trimmedDescription = description.trim();
     if (!trimmedDescription) {
@@ -107,7 +107,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
 
         <div className="flex flex-col gap-2">
           <label htmlFor={organizationSelectId} className="text-sm font-medium text-ink-600">
-            Organización líder
+            Organización
           </label>
           <select
             id={organizationSelectId}
@@ -117,7 +117,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
             aria-invalid={fieldErrors.organizationId ? true : undefined}
             className={
               fieldErrors.organizationId
-                ? selectClasses.replace('border-ink-200', 'border-red-400')
+                ? selectClasses.replace('border-ink-200', 'border-danger-400')
                 : selectClasses
             }
           >
@@ -131,7 +131,7 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
             ))}
           </select>
           {fieldErrors.organizationId && (
-            <span className="text-xs text-red-600">{fieldErrors.organizationId}</span>
+            <span className="text-xs text-danger-600">{fieldErrors.organizationId}</span>
           )}
         </div>
 

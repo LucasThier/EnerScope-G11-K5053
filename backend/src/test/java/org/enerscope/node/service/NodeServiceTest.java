@@ -71,7 +71,8 @@ class NodeServiceTest {
     @BeforeEach
     void setUp() {
         // Using a mock or stub implementation for testing
-        nodeService = new NodeService(wellRepository, null, null, null, null, null, null, null, null, null, null);
+        nodeService = new NodeService(wellRepository, null, null, null, null, null,
+                null, null, null, null, null, null,null);
     }
 
     @Test

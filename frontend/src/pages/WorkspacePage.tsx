@@ -1,44 +1,48 @@
-import type { ReactNode } from 'react';
-import { Card } from '../components/ui/Card';
+import { useState } from 'react';
+import { AccountCard } from '../components/dashboard/AccountCard';
+import { ActiveProjectCard } from '../components/dashboard/ActiveProjectCard';
+import { PlatformSummary } from '../components/dashboard/PlatformSummary';
+import { QuickActions } from '../components/dashboard/QuickActions';
+import { RecentProjectsList } from '../components/dashboard/RecentProjectsList';
+import { NewProjectModal } from '../components/projects/NewProjectModal';
+import { useActiveProject } from '../hooks/useActiveProject';
 import { useAuth } from '../hooks/useAuth';
 
-/** Landing page for regular platform users. */
+/** Landing page for every signed-in user. Admins additionally see the
+ * platform-wide summary above the project cards. */
 export function WorkspacePage() {
   const { user } = useAuth();
+  const { reload } = useActiveProject();
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const isAdmin = user?.platformRole === 'ADMIN';
 
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-ink-800">
-          {user?.firstName ? `Hola, ${user.firstName}` : 'Hola'}
-        </h1>
-        <p className="mt-1 text-sm text-ink-500">Este es tu espacio de trabajo en EnerScope.</p>
+        <h1 className="text-2xl font-semibold text-ink-800">Inicio</h1>
+        <p className="mt-1 text-sm text-ink-500">
+          Resumen de tu actividad y accesos a las áreas principales.
+        </p>
       </header>
 
-      <Card>
-        <h2 className="text-lg font-semibold text-ink-800">Tu cuenta</h2>
-        {/* Label and value are separated by size and weight, not by colour alone:
-            the label is the small uppercase step of the type scale, the value is
-            body text. Reading a field is then one glance rather than two. */}
-        <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Nombre">
-            {user?.firstName} {user?.lastName}
-          </Field>
-          <Field label="Email">{user?.mail}</Field>
-          <Field label="Rol">
-            {user?.platformRole === 'ADMIN' ? 'Administrador' : 'Usuario'}
-          </Field>
-        </dl>
-      </Card>
-    </div>
-  );
-}
+      {isAdmin && <PlatformSummary />}
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</dt>
-      <dd className="mt-1 text-sm text-ink-700">{children}</dd>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="flex flex-col gap-6 lg:col-span-2">
+          <ActiveProjectCard onNewProject={() => setIsNewProjectOpen(true)} />
+          <RecentProjectsList />
+        </div>
+        <div className="flex flex-col gap-6">
+          <QuickActions onNewProject={() => setIsNewProjectOpen(true)} />
+          <AccountCard />
+        </div>
+      </div>
+
+      <NewProjectModal
+        open={isNewProjectOpen}
+        onClose={() => setIsNewProjectOpen(false)}
+        onCreated={reload}
+      />
     </div>
   );
 }
