@@ -2,11 +2,19 @@ package org.enerscope.user.service;
 
 import org.enerscope.auth.dto.RegisterRequestDTO;
 import org.enerscope.common.ForbiddenException;
+import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.UnauthorizedException;
+import org.enerscope.organization.model.enums.OrganizationMemberPermission;
+import org.enerscope.organization.model.enums.OrganizationMemberType;
+import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.session.model.Session;
 import org.enerscope.user.dto.UpdateProfileRequestDTO;
 import org.enerscope.user.dto.UpdateRoleRequestDTO;
+import org.enerscope.user.dto.UserDetailDTO;
+import org.enerscope.user.dto.UserListItemDTO;
+import org.enerscope.user.dto.UserOrganizationMembershipDTO;
+import org.enerscope.user.dto.UserSearchResultDTO;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
@@ -42,6 +50,8 @@ class UserServiceTest {
     @Mock
     private UserRepository userRepository;
     @Mock
+    private OrganizationRepository organizationRepository;
+    @Mock
     private PasswordEncoder encoder;
     @Mock
     private AppLogger logger;
@@ -50,7 +60,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, encoder, logger);
+        userService = new UserService(userRepository, organizationRepository, encoder, logger);
     }
 
     @Test
@@ -141,6 +151,166 @@ class UserServiceTest {
 
     private User regularUser() {
         return new User("jane@enerscope.org", "Jane", "Doe", "hashed", PlatformRole.USER);
+    }
+
+    @Test
+    void searchByMailReturnsTheMinimalProjectionForAnOwner() {
+        User owner = regularUser();
+        authenticateAs(owner);
+        UserSearchResultDTO found = new UserSearchResultDTO(
+                UUID.randomUUID(), "Jane", "Doe", "jane@enerscope.org");
+        when(organizationRepository.ownsAnyActiveOrganization(
+                owner.getId(), OrganizationMemberPermission.MANAGE_ORGANIZATION)).thenReturn(true);
+        when(userRepository.findSearchResultByMail("jane@enerscope.org"))
+                .thenReturn(Optional.of(found));
+
+        assertEquals(found, userService.searchByMail("jane@enerscope.org"));
+    }
+
+    @Test
+    void searchByMailAllowsAPlatformAdminWithoutOwningAnything() {
+        authenticateAs(platformAdmin());
+        UserSearchResultDTO found = new UserSearchResultDTO(
+                UUID.randomUUID(), "Jane", "Doe", "jane@enerscope.org");
+        when(userRepository.findSearchResultByMail("jane@enerscope.org"))
+                .thenReturn(Optional.of(found));
+
+        assertEquals(found, userService.searchByMail("jane@enerscope.org"));
+        verify(organizationRepository, never()).ownsAnyActiveOrganization(any(), any());
+    }
+
+    @Test
+    void searchByMailAnswersTheSameMessageForAnUnknownAndASuspendedAccount() {
+        User owner = regularUser();
+        authenticateAs(owner);
+        when(organizationRepository.ownsAnyActiveOrganization(
+                owner.getId(), OrganizationMemberPermission.MANAGE_ORGANIZATION)).thenReturn(true);
+        when(userRepository.findSearchResultByMail(any())).thenReturn(Optional.empty());
+
+        EntityNotFoundException unknown = assertThrows(EntityNotFoundException.class,
+                () -> userService.searchByMail("ghost@enerscope.org"));
+        EntityNotFoundException suspended = assertThrows(EntityNotFoundException.class,
+                () -> userService.searchByMail("suspended@enerscope.org"));
+
+        assertEquals("User not found", unknown.getMessage());
+        assertEquals(unknown.getMessage(), suspended.getMessage());
+    }
+
+    @Test
+    void searchByMailNeverEchoesTheAddressItWasGiven() {
+        User owner = regularUser();
+        authenticateAs(owner);
+        when(organizationRepository.ownsAnyActiveOrganization(
+                owner.getId(), OrganizationMemberPermission.MANAGE_ORGANIZATION)).thenReturn(true);
+        when(userRepository.findSearchResultByMail(any())).thenReturn(Optional.empty());
+
+        EntityNotFoundException thrown = assertThrows(EntityNotFoundException.class,
+                () -> userService.searchByMail("ghost@enerscope.org"));
+
+        assertFalse(thrown.getMessage().contains("ghost@enerscope.org"));
+    }
+
+    @Test
+    void searchByMailRejectsACallerWhoOwnsNoOrganizationWith403() {
+        User plain = regularUser();
+        authenticateAs(plain);
+        when(organizationRepository.ownsAnyActiveOrganization(
+                plain.getId(), OrganizationMemberPermission.MANAGE_ORGANIZATION)).thenReturn(false);
+
+        assertThrows(ForbiddenException.class, () -> userService.searchByMail("jane@enerscope.org"));
+        verify(userRepository, never()).findSearchResultByMail(any());
+    }
+
+    @Test
+    void searchByMailRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class,
+                () -> userService.searchByMail("jane@enerscope.org"));
+        verify(userRepository, never()).findSearchResultByMail(any());
+    }
+
+    @Test
+    void listAllReturnsWhatTheRepositoryProjects() {
+        authenticateAs(platformAdmin());
+        UserListItemDTO row = new UserListItemDTO(
+                UUID.randomUUID(), "jane@enerscope.org", "Jane", "Doe", "Analyst",
+                PlatformRole.USER, true, 2L);
+        when(userRepository.findListItems()).thenReturn(List.of(row));
+
+        assertEquals(List.of(row), userService.listAll());
+    }
+
+    @Test
+    void listAllRejectsANonAdminCallerWith403() {
+        authenticateAs(regularUser());
+
+        assertThrows(ForbiddenException.class, () -> userService.listAll());
+        verify(userRepository, never()).findListItems();
+    }
+
+    @Test
+    void listAllRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class, () -> userService.listAll());
+        verify(userRepository, never()).findListItems();
+    }
+
+    @Test
+    void getDetailAssemblesIdentityAndBothMembershipLists() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        authenticateAs(platformAdmin());
+        List<UserOrganizationMembershipDTO> organizations = List.of(new UserOrganizationMembershipDTO(
+                UUID.randomUUID(), "Acme", true, OrganizationMemberType.OWNER));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.findOrganizationMembershipsForUser(userId)).thenReturn(organizations);
+        when(userRepository.findProjectMembershipsForUser(userId)).thenReturn(List.of());
+
+        UserDetailDTO detail = userService.getDetail(userId);
+
+        assertEquals(target.getMail(), detail.mail());
+        assertEquals(organizations, detail.organizations());
+        assertTrue(detail.projects().isEmpty());
+    }
+
+    @Test
+    void getDetailReturnsTheDetailOfASuspendedAccount() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        target.deactivate();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.findOrganizationMembershipsForUser(userId)).thenReturn(List.of());
+        when(userRepository.findProjectMembershipsForUser(userId)).thenReturn(List.of());
+
+        UserDetailDTO detail = userService.getDetail(userId);
+
+        assertFalse(detail.active());
+    }
+
+    @Test
+    void getDetailThrowsEntityNotFoundForAnUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        EntityNotFoundException thrown = assertThrows(EntityNotFoundException.class,
+                () -> userService.getDetail(userId));
+
+        assertEquals("User not found", thrown.getMessage());
+        verify(userRepository, never()).findOrganizationMembershipsForUser(any());
+    }
+
+    @Test
+    void getDetailRejectsANonAdminCallerWith403() {
+        authenticateAs(regularUser());
+
+        assertThrows(ForbiddenException.class, () -> userService.getDetail(UUID.randomUUID()));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void getDetailRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class, () -> userService.getDetail(UUID.randomUUID()));
+        verify(userRepository, never()).findById(any());
     }
 
     @Test
@@ -243,6 +413,72 @@ class UserServiceTest {
     void updateRoleRejectsUnauthenticated() {
         assertThrows(UnauthorizedException.class,
                 () -> userService.updateRole(UUID.randomUUID(), PlatformRole.ADMIN));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void reactivateUserBringsASuspendedAccountBack() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        target.deactivate();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        userService.reactivateUser(userId);
+
+        assertTrue(target.isActive());
+        verify(userRepository).save(target);
+    }
+
+    @Test
+    void reactivateUserNeverConsultsTheAdminCount() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        target.deactivate();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        userService.reactivateUser(userId);
+
+        assertTrue(target.isActive());
+        verify(userRepository, never()).countByPlatformRoleAndActiveTrue(any());
+    }
+
+    @Test
+    void reactivateUserIsIdempotent() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        userService.reactivateUser(userId);
+
+        assertTrue(target.isActive());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivateUserRejectsUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class, () -> userService.reactivateUser(userId));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivateUserRejectsANonAdminCallerWith403() {
+        authenticateAs(regularUser());
+
+        assertThrows(ForbiddenException.class, () -> userService.reactivateUser(UUID.randomUUID()));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void reactivateUserRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class,
+                () -> userService.reactivateUser(UUID.randomUUID()));
         verify(userRepository, never()).findById(any());
     }
 

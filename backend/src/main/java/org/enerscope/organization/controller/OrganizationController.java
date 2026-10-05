@@ -9,6 +9,8 @@ import org.enerscope.organization.dto.CreateOrganizationRequestDTO;
 import org.enerscope.organization.dto.OrganizationDTO;
 import org.enerscope.organization.dto.OrganizationMemberDTO;
 import org.enerscope.organization.dto.RegisterOrganizationUserRequestDTO;
+import org.enerscope.organization.dto.UpdateOrganizationMemberRoleRequestDTO;
+import org.enerscope.organization.dto.UpdateOrganizationRequestDTO;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.model.OrganizationMember;
 import org.enerscope.organization.model.OrganizationMemberRole;
@@ -21,6 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -56,10 +59,7 @@ public class OrganizationController {
     @Operation(summary = "List organizations",
             description = "Platform admins get every organization; other users get the ones they belong to.")
     public ResponseEntity<ApiResponse<List<OrganizationDTO>>> listOrganizations() {
-        List<OrganizationDTO> organizations = organizationService.listForCurrentUser().stream()
-                .map(this::toDTO)
-                .toList();
-        return Responses.ok("Organizations", organizations);
+        return Responses.ok("Organizations", organizationService.listForCurrentUser());
     }
 
     @PostMapping
@@ -68,6 +68,45 @@ public class OrganizationController {
             @Valid @RequestBody CreateOrganizationRequestDTO data) {
         Organization organization = organizationService.createOrganization(data);
         return Responses.created("Organization created", toDTO(organization));
+    }
+
+    @GetMapping("/owned")
+    @Operation(summary = "List the organizations the caller owns",
+            description = "The active organizations where the caller holds MANAGE_ORGANIZATION. "
+                    + "Self-scoped, so any authenticated user may ask; a caller who owns none "
+                    + "gets an empty list.")
+    public ResponseEntity<ApiResponse<List<OrganizationDTO>>> listOwnedOrganizations() {
+        return Responses.ok("Owned organizations", organizationService.listOwnedByCurrentUser());
+    }
+
+    @PatchMapping("/{organizationId}")
+    @Operation(summary = "Rename an organization",
+            description = "Platform administrators only, the same bar as creating one. An "
+                    + "organization carries no other editable field today.")
+    public ResponseEntity<ApiResponse<OrganizationDTO>> updateOrganization(
+            @PathVariable UUID organizationId,
+            @Valid @RequestBody UpdateOrganizationRequestDTO data) {
+        return Responses.ok("Organization updated",
+                organizationService.updateOrganization(organizationId, data));
+    }
+
+    @DeleteMapping("/{organizationId}")
+    @Operation(summary = "Deactivate an organization",
+            description = "Platform administrators only. The row is deactivated, not deleted: its "
+                    + "projects and members keep their own flags, so reactivating restores exactly "
+                    + "what was there. While it is inactive nothing can be written into it.")
+    public ResponseEntity<ApiResponse<Void>> deleteOrganization(@PathVariable UUID organizationId) {
+        organizationService.deactivateOrganization(organizationId);
+        return Responses.ok("Organization deleted");
+    }
+
+    @PostMapping("/{organizationId}/reactivate")
+    @Operation(summary = "Reactivate an organization",
+            description = "Platform administrators only. Brings a deactivated organization back "
+                    + "with its projects and members exactly as they were.")
+    public ResponseEntity<ApiResponse<Void>> reactivateOrganization(@PathVariable UUID organizationId) {
+        organizationService.reactivateOrganization(organizationId);
+        return Responses.ok("Organization reactivated");
     }
 
     @GetMapping("/{organizationId}/members")
@@ -90,6 +129,20 @@ public class OrganizationController {
             @Valid @RequestBody AddOrganizationMemberRequestDTO data) {
         OrganizationMember member = organizationService.addMember(organizationId, data);
         return Responses.created("Member added", toDTO(member));
+    }
+
+    @PatchMapping("/{organizationId}/members/{memberId}")
+    @Operation(summary = "Change the role of an organization member",
+            description = "Replaces the member's role (OWNER or MEMBER) and its permissions without "
+                    + "removing the membership, so the member's project memberships are untouched. "
+                    + "Setting the role the member already has is a no-op. Allowed for platform "
+                    + "admins and organization owners.")
+    public ResponseEntity<ApiResponse<OrganizationMemberDTO>> changeMemberRole(
+            @PathVariable UUID organizationId,
+            @PathVariable UUID memberId,
+            @Valid @RequestBody UpdateOrganizationMemberRoleRequestDTO data) {
+        OrganizationMember member = organizationService.changeMemberRole(organizationId, memberId, data);
+        return Responses.ok("Member role updated", toDTO(member));
     }
 
     @DeleteMapping("/{organizationId}/members/{memberId}")
@@ -145,7 +198,9 @@ public class OrganizationController {
     }
 
     private OrganizationDTO toDTO(Organization organization) {
-        return new OrganizationDTO(organization.getId(), organization.getName(), organization.getCreatedAt());
+        return new OrganizationDTO(
+                organization.getId(), organization.getName(), organization.getCreatedAt(),
+                organization.isActive(), 0L);
     }
 
     private OrganizationMemberDTO toDTO(OrganizationMember member) {

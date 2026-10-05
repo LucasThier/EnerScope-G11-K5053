@@ -1,19 +1,28 @@
-import type { ReactNode } from 'react';
 import type { ProjectSummary } from '../../types/project';
-import { EyeIcon, PencilIcon, TrashIcon } from '../ui/icons';
+import { EyeIcon, PencilIcon, TeamIcon, TrashIcon } from '../ui/icons';
+import { RowButton } from '../ui/RowButton';
 import { formatDate } from '../../utils/date';
 
 interface ProjectsTableProps {
   projects: ProjectSummary[];
+  isPlatformAdmin: boolean;
   onView: (project: ProjectSummary) => void;
   onEdit: (project: ProjectSummary) => void;
   onDelete: (project: ProjectSummary) => void;
+  onManageMembers: (project: ProjectSummary) => void;
 }
 
 const headerCell = 'px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
 const bodyCell = 'px-4 py-3 text-sm text-ink-700 align-top';
 
-export function ProjectsTable({ projects, onView, onEdit, onDelete }: ProjectsTableProps) {
+export function ProjectsTable({
+  projects,
+  isPlatformAdmin,
+  onView,
+  onEdit,
+  onDelete,
+  onManageMembers,
+}: ProjectsTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[56rem] border-collapse">
@@ -57,6 +66,15 @@ export function ProjectsTable({ projects, onView, onEdit, onDelete }: ProjectsTa
                   >
                     <EyeIcon className="h-4 w-4" />
                   </RowButton>
+                  {(isPlatformAdmin || project.myRole === 'ADMIN') && (
+                    <RowButton
+                      label={`Administrar los integrantes de ${project.name}`}
+                      title="Administrar integrantes"
+                      onClick={() => onManageMembers(project)}
+                    >
+                      <TeamIcon className="h-4 w-4" />
+                    </RowButton>
+                  )}
                   <RowButton
                     label={`Editar ${project.name}`}
                     onClick={() => onEdit(project)}
@@ -79,27 +97,3 @@ export function ProjectsTable({ projects, onView, onEdit, onDelete }: ProjectsTa
   );
 }
 
-function RowButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className={
-        'inline-flex rounded-lg p-1 text-ink-500 transition-colors hover:bg-ink-50 ' +
-        'hover:text-ink-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400'
-      }
-    >
-      {children}
-    </button>
-  );
-}

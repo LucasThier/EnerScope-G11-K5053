@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -279,6 +280,61 @@ class ProjectAccessGuardTest {
     @Test
     void assertIsPlatformAdminRejectsUnauthenticated() {
         assertThrows(UnauthorizedException.class, () -> guard.assertIsPlatformAdmin("create detached versions"));
+    }
+
+    @Test
+    void assertCanManageProjectDeniesAnAdminAfterTheyAreDemotedToEditor() {
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("demoted@enerscope.org");
+        authenticateAs(caller);
+        ProjectMember member = memberWith(ProjectMemberType.ADMIN);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(member));
+        assertDoesNotThrow(() -> guard.assertCanManageProject(projectId));
+
+        member.changeRole(ProjectMemberType.EDITOR, ProjectMember.defaultPermissionsFor(ProjectMemberType.EDITOR));
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanManageProject(projectId));
+    }
+
+    @Test
+    void assertCanEditProjectStillAllowsAnAdminAfterTheyAreDemotedToEditor() {
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("demoted@enerscope.org");
+        authenticateAs(caller);
+        ProjectMember member = memberWith(ProjectMemberType.ADMIN);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(member));
+
+        member.changeRole(ProjectMemberType.EDITOR, ProjectMember.defaultPermissionsFor(ProjectMemberType.EDITOR));
+
+        assertDoesNotThrow(() -> guard.assertCanEditProject(projectId));
+    }
+
+    @Test
+    void assertCanManageProjectAllowsAnEditorAfterTheyArePromotedToAdmin() {
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("promoted@enerscope.org");
+        authenticateAs(caller);
+        ProjectMember member = memberWith(ProjectMemberType.EDITOR);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(member));
+        assertThrows(ForbiddenException.class, () -> guard.assertCanManageProject(projectId));
+
+        member.changeRole(ProjectMemberType.ADMIN, ProjectMember.defaultPermissionsFor(ProjectMemberType.ADMIN));
+
+        assertDoesNotThrow(() -> guard.assertCanManageProject(projectId));
+    }
+
+    @Test
+    void changingTheRoleDoesNotShareThePermissionSetWithTheDefaults() {
+        ProjectMember member = memberWith(ProjectMemberType.EDITOR);
+        member.changeRole(ProjectMemberType.ADMIN, ProjectMember.defaultPermissionsFor(ProjectMemberType.ADMIN));
+
+        member.getRoles().iterator().next().getPermissions().remove(ProjectMemberPermission.MANAGE_PROJECT);
+
+        assertEquals(true, ProjectMember.defaultPermissionsFor(ProjectMemberType.ADMIN)
+                .contains(ProjectMemberPermission.MANAGE_PROJECT));
     }
 
     // ---- helpers -------------------------------------------------------------

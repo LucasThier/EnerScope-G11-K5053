@@ -84,7 +84,7 @@ public class OrganizationBulkRegistrationService {
     }
 
     public BulkRegistrationResultDTO register(UUID organizationId, String csvContent) {
-        Organization organization = organizationRepository.findById(organizationId)
+        Organization organization = organizationRepository.findByIdAndActiveTrue(organizationId)
                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
         organizationService.assertCanManageUsers(organizationId);
 

@@ -4,10 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.enerscope.auth.filter.AuthFilter;
 import org.enerscope.config.SecurityConfig;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.ForbiddenException;
 import org.enerscope.organization.dto.AddOrganizationMemberRequestDTO;
 import org.enerscope.organization.dto.BulkRegistrationResultDTO;
 import org.enerscope.organization.dto.CreateOrganizationRequestDTO;
+import org.enerscope.organization.dto.OrganizationDTO;
+import org.enerscope.organization.dto.UpdateOrganizationMemberRoleRequestDTO;
+import org.enerscope.organization.dto.UpdateOrganizationRequestDTO;
 import org.enerscope.organization.dto.RegisterOrganizationUserRequestDTO;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.model.OrganizationMember;
@@ -45,6 +49,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -102,13 +107,66 @@ class OrganizationControllerTest {
     @Test
     void listOrganizationsReturnsList() throws Exception {
         when(organizationService.listForCurrentUser())
-                .thenReturn(List.of(new Organization("Acme")));
+                .thenReturn(List.of(new OrganizationDTO(
+                        UUID.randomUUID(), "Acme", Instant.now(), true, 4L)));
 
         mockMvc.perform(get("/organizations")
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data[0].name").value("Acme"));
+                .andExpect(jsonPath("$.data[0].name").value("Acme"))
+                .andExpect(jsonPath("$.data[0].memberCount").value(4));
+    }
+
+    @Test
+    void updateOrganizationReturnsTheUpdatedOrganization() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        when(organizationService.updateOrganization(eq(orgId), any(UpdateOrganizationRequestDTO.class)))
+                .thenReturn(new OrganizationDTO(orgId, "Acme Energy", Instant.now(), true, 3L));
+
+        mockMvc.perform(patch("/organizations/" + orgId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateOrganizationRequestDTO("Acme Energy"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Organization updated"))
+                .andExpect(jsonPath("$.data.name").value("Acme Energy"))
+                .andExpect(jsonPath("$.data.memberCount").value(3));
+    }
+
+    @Test
+    void updateOrganizationRejectsABlankNameWithValidationError() throws Exception {
+        mockMvc.perform(patch("/organizations/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateOrganizationRequestDTO("  "))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation error"));
+
+        verify(organizationService, never()).updateOrganization(any(), any());
+    }
+
+    @Test
+    void updateOrganizationPropagatesForbiddenWith403() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        when(organizationService.updateOrganization(eq(orgId), any(UpdateOrganizationRequestDTO.class)))
+                .thenThrow(new ForbiddenException("Only platform admins can update organizations"));
+
+        mockMvc.perform(patch("/organizations/" + orgId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateOrganizationRequestDTO("Acme Energy"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateOrganizationRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(patch("/organizations/" + UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateOrganizationRequestDTO("Acme Energy"))))
+                .andExpect(status().isUnauthorized());
+
+        verify(organizationService, never()).updateOrganization(any(), any());
     }
 
     // ---- listMembers -------------------------------------------------------
@@ -365,15 +423,15 @@ class OrganizationControllerTest {
     }
 
     @Test
-    void removeMemberRejectsUnknownMemberWith400() throws Exception {
+    void removeMemberAnswers404ForAnUnknownMember() throws Exception {
         UUID orgId = UUID.randomUUID();
         UUID memberId = UUID.randomUUID();
-        doThrow(new IllegalArgumentException("Member not found"))
+        doThrow(new EntityNotFoundException("Member not found"))
                 .when(organizationService).removeMember(orgId, memberId);
 
         mockMvc.perform(delete("/organizations/" + orgId + "/members/" + memberId)
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message").value("Member not found"));
     }
 
@@ -428,5 +486,167 @@ class OrganizationControllerTest {
                 .andExpect(status().isUnauthorized());
 
         verify(organizationService, never()).addMember(any(), any());
+    }
+    @Test
+    void deleteOrganizationReturnsOk() throws Exception {
+        UUID orgId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/organizations/" + orgId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Organization deleted"));
+
+        verify(organizationService).deactivateOrganization(orgId);
+    }
+
+    @Test
+    void deleteOrganizationPropagatesForbiddenWith403() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        doThrow(new ForbiddenException("Only platform admins can deactivate organizations"))
+                .when(organizationService).deactivateOrganization(orgId);
+
+        mockMvc.perform(delete("/organizations/" + orgId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void deleteOrganizationRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(delete("/organizations/" + UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+
+        verify(organizationService, never()).deactivateOrganization(any());
+    }
+
+    @Test
+    void reactivateOrganizationReturnsOk() throws Exception {
+        UUID orgId = UUID.randomUUID();
+
+        mockMvc.perform(post("/organizations/" + orgId + "/reactivate")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Organization reactivated"));
+
+        verify(organizationService).reactivateOrganization(orgId);
+    }
+
+    @Test
+    void reactivateOrganizationRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(post("/organizations/" + UUID.randomUUID() + "/reactivate"))
+                .andExpect(status().isUnauthorized());
+
+        verify(organizationService, never()).reactivateOrganization(any());
+    }
+
+    @Test
+    void listOwnedOrganizationsReturnsThem() throws Exception {
+        when(organizationService.listOwnedByCurrentUser())
+                .thenReturn(List.of(new OrganizationDTO(
+                        UUID.randomUUID(), "Acme", Instant.now(), true, 3L)));
+
+        mockMvc.perform(get("/organizations/owned")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Owned organizations"))
+                .andExpect(jsonPath("$.data[0].name").value("Acme"));
+    }
+
+    @Test
+    void listOwnedOrganizationsRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(get("/organizations/owned"))
+                .andExpect(status().isUnauthorized());
+
+        verify(organizationService, never()).listOwnedByCurrentUser();
+    }
+
+    @Test
+    void changeMemberRoleReturnsTheUpdatedMember() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        when(organizationService.changeMemberRole(eq(orgId), eq(memberId),
+                any(UpdateOrganizationMemberRoleRequestDTO.class)))
+                .thenReturn(sampleMember(OrganizationMemberType.MEMBER,
+                        Set.of(OrganizationMemberPermission.VIEW_ORGANIZATION)));
+
+        mockMvc.perform(patch("/organizations/" + orgId + "/members/" + memberId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateOrganizationMemberRoleRequestDTO(OrganizationMemberType.MEMBER))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Member role updated"))
+                .andExpect(jsonPath("$.data.memberType").value("MEMBER"))
+                .andExpect(jsonPath("$.data.permissions[0]").value("VIEW_ORGANIZATION"));
+    }
+
+    @Test
+    void changeMemberRoleRejectsAMissingRoleWith400() throws Exception {
+        UUID orgId = UUID.randomUUID();
+
+        mockMvc.perform(patch("/organizations/" + orgId + "/members/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest());
+
+        verify(organizationService, never()).changeMemberRole(any(), any(), any());
+    }
+
+    @Test
+    void changeMemberRoleRejectsAnUnknownRoleWith400() throws Exception {
+        UUID orgId = UUID.randomUUID();
+
+        mockMvc.perform(patch("/organizations/" + orgId + "/members/" + UUID.randomUUID())
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"memberType\":\"ADMIN\"}"))
+                .andExpect(status().isBadRequest());
+
+        verify(organizationService, never()).changeMemberRole(any(), any(), any());
+    }
+
+    @Test
+    void changeMemberRolePropagatesForbiddenWith403() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        when(organizationService.changeMemberRole(eq(orgId), eq(memberId),
+                any(UpdateOrganizationMemberRoleRequestDTO.class)))
+                .thenThrow(new ForbiddenException("You are not allowed to manage users in this organization"));
+
+        mockMvc.perform(patch("/organizations/" + orgId + "/members/" + memberId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateOrganizationMemberRoleRequestDTO(OrganizationMemberType.OWNER))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value("You are not allowed to manage users in this organization"));
+    }
+
+    @Test
+    void changeMemberRolePropagatesAnUnknownMemberWith404() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        when(organizationService.changeMemberRole(eq(orgId), eq(memberId),
+                any(UpdateOrganizationMemberRoleRequestDTO.class)))
+                .thenThrow(new EntityNotFoundException("Member not found"));
+
+        mockMvc.perform(patch("/organizations/" + orgId + "/members/" + memberId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateOrganizationMemberRoleRequestDTO(OrganizationMemberType.OWNER))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Member not found"));
+    }
+
+    @Test
+    void changeMemberRoleRequiresAuthenticationWith401() throws Exception {
+        UUID orgId = UUID.randomUUID();
+
+        mockMvc.perform(patch("/organizations/" + orgId + "/members/" + UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new UpdateOrganizationMemberRoleRequestDTO(OrganizationMemberType.OWNER))))
+                .andExpect(status().isUnauthorized());
+
+        verify(organizationService, never()).changeMemberRole(any(), any(), any());
     }
 }

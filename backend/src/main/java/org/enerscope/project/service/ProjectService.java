@@ -1,17 +1,21 @@
 package org.enerscope.project.service;
 
 import org.enerscope.logging.AppLogger;
+import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.organization.model.Organization;
+import org.enerscope.organization.model.OrganizationMember;
+import org.enerscope.organization.repository.OrganizationMemberRepository;
 import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.organization.service.OrganizationService;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
+import org.enerscope.project.dto.ProjectMemberCandidateDTO;
 import org.enerscope.project.dto.ProjectSummaryDTO;
+import org.enerscope.project.dto.UpdateProjectMemberRoleRequestDTO;
 import org.enerscope.project.dto.UpdateProjectRequestDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
-import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.project.repository.ProjectRepository;
@@ -25,30 +29,16 @@ import org.enerscope.version.service.VersionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class ProjectService {
 
-        // Default permission set granted per member type when a member is added.
-        // There is no API to customize permissions yet; when that becomes needed,
-        // extend AddProjectMemberRequestDTO instead of this map.
-        private static final Map<ProjectMemberType, Set<ProjectMemberPermission>> DEFAULT_PERMISSIONS = Map.of(
-                        ProjectMemberType.ADMIN, EnumSet.of(
-                                        ProjectMemberPermission.MANAGE_PROJECT,
-                                        ProjectMemberPermission.EDIT_PROJECT,
-                                        ProjectMemberPermission.VIEW_PROJECT),
-                        ProjectMemberType.EDITOR, EnumSet.of(
-                                        ProjectMemberPermission.EDIT_PROJECT,
-                                        ProjectMemberPermission.VIEW_PROJECT));
-
         private final ProjectRepository projectRepository;
         private final ProjectMemberRepository projectMemberRepository;
         private final OrganizationRepository organizationRepository;
+        private final OrganizationMemberRepository organizationMemberRepository;
         private final UserRepository userRepository;
         private final AppLogger logger;
         private final VersionService versionService;
@@ -58,6 +48,7 @@ public class ProjectService {
         public ProjectService(ProjectRepository projectRepository,
                         ProjectMemberRepository projectMemberRepository,
                         OrganizationRepository organizationRepository,
+                        OrganizationMemberRepository organizationMemberRepository,
                         UserRepository userRepository,
                         AppLogger logger, VersionService versionService,
                         ProjectAccessGuard accessGuard,
@@ -65,6 +56,7 @@ public class ProjectService {
                 this.projectRepository = projectRepository;
                 this.projectMemberRepository = projectMemberRepository;
                 this.organizationRepository = organizationRepository;
+                this.organizationMemberRepository = organizationMemberRepository;
                 this.userRepository = userRepository;
                 this.logger = logger;
                 this.versionService = versionService;
@@ -82,7 +74,7 @@ public class ProjectService {
         public List<ProjectSummaryDTO> listForCurrentUser(UUID organizationId) {
                 User caller = AuthUtil.requireSession().getUser();
                 if (AuthUtil.isPlatformAdmin(caller)) {
-                        return projectRepository.findSummaries(organizationId);
+                        return projectRepository.findSummaries(caller.getId(), organizationId);
                 }
                 return projectRepository.findSummariesForMember(caller.getId(), organizationId);
         }
@@ -105,7 +97,7 @@ public class ProjectService {
                 User creator = userRepository.findById(session.getUser().getId())
                                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
-                Organization organization = organizationRepository.findById(data.organizationId())
+                Organization organization = organizationRepository.findByIdAndActiveTrue(data.organizationId())
                                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
                 organizationService.assertIsMemberOf(data.organizationId(), "create projects in");
 
@@ -202,12 +194,24 @@ public class ProjectService {
          * did before, and before the user lookup, so an unauthorized caller cannot
          * probe which user ids exist.</p>
          */
+        @Transactional
         public ProjectMember addMember(UUID projectId, AddProjectMemberRequestDTO data) {
-                Project project = projectRepository.findById(projectId)
+                Project project = projectRepository.findByIdAndActiveTrue(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
                 accessGuard.assertCanManageProject(projectId);
                 User user = userRepository.findById(data.userId())
                                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                if (!user.isActive()) {
+                        throw new IllegalArgumentException("User is not active");
+                }
+                UUID organizationId = project.getOrganization().getId();
+                boolean inOrganization = organizationMemberRepository
+                                .findByOrganizationIdAndUserId(organizationId, user.getId())
+                                .filter(OrganizationMember::isActive)
+                                .isPresent();
+                if (!inOrganization) {
+                        throw new IllegalArgumentException("User is not a member of the project's organization");
+                }
                 if (projectMemberRepository.existsByProjectIdAndUserId(projectId, data.userId())) {
                         throw new IllegalArgumentException("User is already a member of this project");
                 }
@@ -217,10 +221,85 @@ public class ProjectService {
                 return saved;
         }
 
+        @Transactional
+        public ProjectMember changeMemberRole(UUID projectId, UUID memberId,
+                        UpdateProjectMemberRoleRequestDTO data) {
+                if (data == null || data.memberType() == null) {
+                        throw new IllegalArgumentException("memberType cannot be null");
+                }
+                projectRepository.findByIdAndActiveTrue(projectId)
+                                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                accessGuard.assertCanManageProject(projectId);
+
+                ProjectMember member = projectMemberRepository.findByIdAndProjectId(memberId, projectId)
+                                .orElseThrow(() -> new EntityNotFoundException("Member not found"));
+
+                ProjectMemberType newType = data.memberType();
+                boolean alreadyThatRole = member.getRoles().size() == 1
+                                && member.getRoles().iterator().next().getMemberType() == newType;
+                if (alreadyThatRole) {
+                        logger.debug("Member {} already has the {} role; nothing to change", memberId, newType);
+                        return member;
+                }
+
+                if (newType != ProjectMemberType.ADMIN) {
+                        assertNotLastAdmin(projectId, member);
+                }
+                member.changeRole(newType, ProjectMember.defaultPermissionsFor(newType));
+                ProjectMember saved = projectMemberRepository.save(member);
+                logger.info("Changed the role of user {} in project {} to {}",
+                                saved.getUser().getMail(), saved.getProject().getName(), newType);
+                return saved;
+        }
+
+        @Transactional
+        public void removeMember(UUID projectId, UUID memberId) {
+                Project project = projectRepository.findByIdAndActiveTrue(projectId)
+                                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                accessGuard.assertCanManageProject(projectId);
+
+                ProjectMember member = projectMemberRepository.findByIdAndProjectId(memberId, projectId)
+                                .orElseThrow(() -> new EntityNotFoundException("Member not found"));
+
+                assertNotLastAdmin(projectId, member);
+                project.removeMember(member);
+                projectMemberRepository.delete(member);
+                logger.info("Removed user {} from project {}", member.getUser().getMail(), project.getName());
+        }
+
+        @Transactional(readOnly = true)
+        public List<ProjectMemberCandidateDTO> listMemberCandidates(UUID projectId, String q) {
+                Project project = projectRepository.findByIdAndActiveTrue(projectId)
+                                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                accessGuard.assertCanManageProject(projectId);
+                return organizationMemberRepository.findProjectMemberCandidates(
+                                project.getOrganization().getId(), projectId, searchPattern(q));
+        }
+
+        private static String searchPattern(String q) {
+                if (q == null || q.isBlank()) {
+                        return "%";
+                }
+                String escaped = q.trim().toLowerCase()
+                                .replace("\\", "\\\\")
+                                .replace("%", "\\%")
+                                .replace("_", "\\_");
+                return "%" + escaped + "%";
+        }
+
+        private void assertNotLastAdmin(UUID projectId, ProjectMember member) {
+                boolean countsAsAdmin = member.isActive()
+                                && member.getUser().isActive()
+                                && member.getRoles().stream().anyMatch(r -> r.getMemberType() == ProjectMemberType.ADMIN);
+                if (countsAsAdmin && projectMemberRepository.countAdminsByProject(projectId) <= 1) {
+                        throw new IllegalArgumentException("The project would be left without an administrator");
+                }
+        }
+
         private ProjectMember attachMember(Project project, User user, ProjectMemberType memberType) {
                 ProjectMember member = new ProjectMember(user, project);
                 ProjectMemberRole role = new ProjectMemberRole(
-                                memberType.name(), memberType, DEFAULT_PERMISSIONS.get(memberType));
+                                memberType.name(), memberType, ProjectMember.defaultPermissionsFor(memberType));
                 member.addRole(role);
                 project.addMember(member);
                 return projectMemberRepository.save(member);

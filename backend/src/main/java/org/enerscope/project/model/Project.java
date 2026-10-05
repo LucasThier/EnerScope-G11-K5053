@@ -59,6 +59,10 @@ public class Project extends BaseEntity {
         members.add(member);
     }
 
+    public void removeMember(ProjectMember member) {
+        members.remove(member);
+    }
+
     public void addVersion(Version version) {
         versions.add(version);
     }

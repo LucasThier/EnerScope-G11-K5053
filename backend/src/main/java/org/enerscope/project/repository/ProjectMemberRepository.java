@@ -20,6 +20,18 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, UU
      */
     Optional<ProjectMember> findByProjectIdAndUserId(UUID projectId, UUID userId);
 
+    Optional<ProjectMember> findByIdAndProjectId(UUID id, UUID projectId);
+
+    @Query("""
+            SELECT COUNT(DISTINCT m) FROM ProjectMember m
+            JOIN m.roles r
+            WHERE m.project.id = :projectId
+              AND m.active = true
+              AND m.user.active = true
+              AND r.memberType = org.enerscope.project.model.enums.ProjectMemberType.ADMIN
+            """)
+    long countAdminsByProject(@Param("projectId") UUID projectId);
+
     /**
      * Members of a project with their user and roles already fetched, so mapping
      * to a DTO never triggers a lazy load per row. A constructor projection is

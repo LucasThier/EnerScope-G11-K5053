@@ -1,11 +1,15 @@
 package org.enerscope.organization.service;
 
 import org.enerscope.auth.dto.RegisterRequestDTO;
+import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.dto.AddOrganizationMemberRequestDTO;
 import org.enerscope.organization.dto.CreateOrganizationRequestDTO;
+import org.enerscope.organization.dto.OrganizationDTO;
+import org.enerscope.organization.dto.UpdateOrganizationMemberRoleRequestDTO;
+import org.enerscope.organization.dto.UpdateOrganizationRequestDTO;
 import org.enerscope.organization.dto.RegisterOrganizationUserRequestDTO;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.model.OrganizationMember;
@@ -69,12 +73,13 @@ public class OrganizationService {
      * Organizations visible to the current caller: a platform ADMIN sees every
      * organization; anyone else sees the organizations they are a member of.
      */
-    public List<Organization> listForCurrentUser() {
+    @Transactional(readOnly = true)
+    public List<OrganizationDTO> listForCurrentUser() {
         User caller = AuthUtil.requireSession().getUser();
         if (AuthUtil.isPlatformAdmin(caller)) {
-            return organizationRepository.findAll();
+            return organizationRepository.findSummaries();
         }
-        return organizationRepository.findDistinctByMembers_User_Id(caller.getId());
+        return organizationRepository.findSummariesForMember(caller.getId());
     }
 
     /**
@@ -84,9 +89,7 @@ public class OrganizationService {
      */
     @Transactional(readOnly = true)
     public List<OrganizationMember> listMembers(UUID organizationId) {
-        if (!organizationRepository.existsById(organizationId)) {
-            throw new IllegalArgumentException("Organization not found");
-        }
+        requireActiveOrganization(organizationId);
         assertCanViewOrganization(organizationId);
         return organizationMemberRepository.findByOrganizationIdWithUser(organizationId);
     }
@@ -106,6 +109,35 @@ public class OrganizationService {
         return saved;
     }
 
+    @Transactional(readOnly = true)
+    public List<OrganizationDTO> listOwnedByCurrentUser() {
+        User caller = AuthUtil.requireSession().getUser();
+        return organizationRepository.findOwnedBy(
+                caller.getId(), OrganizationMemberPermission.MANAGE_ORGANIZATION);
+    }
+
+    @Transactional
+    public OrganizationDTO updateOrganization(UUID organizationId, UpdateOrganizationRequestDTO data) {
+        AuthUtil.requirePlatformAdmin(logger, "update organizations");
+        if (data == null) {
+            throw new IllegalArgumentException("data cannot be null");
+        }
+
+        Organization organization = organizationRepository.findByIdAndActiveTrue(organizationId)
+                .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
+        String previousName = organization.getName();
+        organization.rename(data.name());
+        Organization saved = organizationRepository.save(organization);
+        logger.info("Renamed organization {} to {}", previousName, saved.getName());
+
+        return new OrganizationDTO(
+                saved.getId(),
+                saved.getName(),
+                saved.getCreatedAt(),
+                saved.isActive(),
+                organizationMemberRepository.countByOrganizationId(organizationId));
+    }
+
     /**
      * Adds an existing user to an organization. Restricted to the same callers
      * as {@link #registerUserInOrganization}: a platform ADMIN or a member
@@ -115,7 +147,7 @@ public class OrganizationService {
      * unauthorized caller cannot probe which user ids exist.
      */
     public OrganizationMember addMember(UUID organizationId, AddOrganizationMemberRequestDTO data) {
-        Organization organization = organizationRepository.findById(organizationId)
+        Organization organization = organizationRepository.findByIdAndActiveTrue(organizationId)
                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
         assertCanManageUsers(organizationId);
         User user = userRepository.findById(data.userId())
@@ -141,9 +173,38 @@ public class OrganizationService {
      * the {@link OrganizationMemberPermission#MANAGE_ORGANIZATION} permission,
      * may call this.
      */
+    @Transactional
+    public OrganizationMember changeMemberRole(UUID organizationId, UUID memberId,
+                                               UpdateOrganizationMemberRoleRequestDTO data) {
+        if (data == null || data.memberType() == null) {
+            throw new IllegalArgumentException("memberType cannot be null");
+        }
+        organizationRepository.findByIdAndActiveTrue(organizationId)
+                .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
+        assertCanManageUsers(organizationId);
+
+        OrganizationMember member = organizationMemberRepository
+                .findByIdAndOrganizationId(memberId, organizationId)
+                .orElseThrow(() -> new EntityNotFoundException("Member not found"));
+
+        OrganizationMemberType newType = data.memberType();
+        boolean alreadyThatRole = member.getRoles().size() == 1
+                && member.getRoles().iterator().next().getMemberType() == newType;
+        if (alreadyThatRole) {
+            logger.debug("Member {} already has the {} role; nothing to change", memberId, newType);
+            return member;
+        }
+
+        member.changeRole(newType, DEFAULT_PERMISSIONS.get(newType));
+        OrganizationMember saved = organizationMemberRepository.save(member);
+        logger.info("Changed the role of user {} in organization {} to {}",
+                saved.getUser().getMail(), saved.getOrganization().getName(), newType);
+        return saved;
+    }
+
     public OrganizationMember registerUserInOrganization(UUID organizationId,
                                                          RegisterOrganizationUserRequestDTO data) {
-        Organization organization = organizationRepository.findById(organizationId)
+        Organization organization = organizationRepository.findByIdAndActiveTrue(organizationId)
                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
         assertCanManageUsers(organizationId);
 
@@ -167,13 +228,13 @@ public class OrganizationService {
 
     @Transactional
     public void removeMember(UUID organizationId, UUID memberId) {
-        Organization organization = organizationRepository.findById(organizationId)
+        Organization organization = organizationRepository.findByIdAndActiveTrue(organizationId)
                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
         assertCanManageUsers(organizationId);
 
         OrganizationMember member = organizationMemberRepository
                 .findByIdAndOrganizationId(memberId, organizationId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+                .orElseThrow(() -> new EntityNotFoundException("Member not found"));
 
         User user = member.getUser();
         List<ProjectMember> projectMemberships =
@@ -187,6 +248,38 @@ public class OrganizationService {
 
         logger.info("Removed user {} from organization {} along with {} project memberships",
                 user.getMail(), organization.getName(), projectMemberships.size());
+    }
+
+    @Transactional
+    public void deactivateOrganization(UUID organizationId) {
+        AuthUtil.requirePlatformAdmin(logger, "deactivate organizations");
+
+        Organization organization = organizationRepository.findById(organizationId)
+                .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
+        if (!organization.isActive()) {
+            logger.debug("Organization {} is already inactive", organization.getName());
+            return;
+        }
+
+        organization.deactivate();
+        organizationRepository.save(organization);
+        logger.info("Deactivated organization {}", organization.getName());
+    }
+
+    @Transactional
+    public void reactivateOrganization(UUID organizationId) {
+        AuthUtil.requirePlatformAdmin(logger, "reactivate organizations");
+
+        Organization organization = organizationRepository.findById(organizationId)
+                .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
+        if (organization.isActive()) {
+            logger.debug("Organization {} is already active", organization.getName());
+            return;
+        }
+
+        organization.activate();
+        organizationRepository.save(organization);
+        logger.info("Reactivated organization {}", organization.getName());
     }
 
     /**
@@ -239,6 +332,12 @@ public class OrganizationService {
     /** Default permission set granted for a member type (see {@link #DEFAULT_PERMISSIONS}). */
     public static Set<OrganizationMemberPermission> defaultPermissionsFor(OrganizationMemberType type) {
         return DEFAULT_PERMISSIONS.get(type);
+    }
+
+    private void requireActiveOrganization(UUID organizationId) {
+        if (!organizationRepository.existsByIdAndActiveTrue(organizationId)) {
+            throw new IllegalArgumentException("Organization not found");
+        }
     }
 
     private boolean hasManagePermission(OrganizationMember member) {

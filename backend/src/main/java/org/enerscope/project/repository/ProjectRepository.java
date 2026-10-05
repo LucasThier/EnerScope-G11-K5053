@@ -24,25 +24,50 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
             SELECT new org.enerscope.project.dto.ProjectSummaryDTO(
                     p.id, p.name, p.description, o.id, o.name,
                     (SELECT COUNT(pm) FROM ProjectMember pm WHERE pm.project = p AND pm.active = true),
-                    p.lastModified)
+                    p.lastModified,
+                    CASE
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember pa JOIN pa.roles ra
+                                     WHERE pa.project = p AND pa.user.id = :userId AND pa.active = true
+                                       AND ra.memberType = org.enerscope.project.model.enums.ProjectMemberType.ADMIN)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.ADMIN
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember pe JOIN pe.roles re
+                                     WHERE pe.project = p AND pe.user.id = :userId AND pe.active = true
+                                       AND re.memberType = org.enerscope.project.model.enums.ProjectMemberType.EDITOR)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.EDITOR
+                        ELSE NULL
+                    END)
             FROM Project p
             JOIN p.organization o
             WHERE p.active = true
+              AND o.active = true
               AND (:organizationId IS NULL OR o.id = :organizationId)
             ORDER BY p.lastModified DESC
             """)
-    List<ProjectSummaryDTO> findSummaries(@Param("organizationId") UUID organizationId);
+    List<ProjectSummaryDTO> findSummaries(@Param("userId") UUID userId,
+                                          @Param("organizationId") UUID organizationId);
 
-    /** As {@link #findSummaries(UUID)}, restricted to projects the user is a member of. */
+    /** As {@link #findSummaries(UUID, UUID)}, restricted to projects the user is a member of. */
     @Query("""
             SELECT new org.enerscope.project.dto.ProjectSummaryDTO(
                     p.id, p.name, p.description, o.id, o.name,
                     (SELECT COUNT(pm) FROM ProjectMember pm WHERE pm.project = p AND pm.active = true),
-                    p.lastModified)
+                    p.lastModified,
+                    CASE
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember pa JOIN pa.roles ra
+                                     WHERE pa.project = p AND pa.user.id = :userId AND pa.active = true
+                                       AND ra.memberType = org.enerscope.project.model.enums.ProjectMemberType.ADMIN)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.ADMIN
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember pe JOIN pe.roles re
+                                     WHERE pe.project = p AND pe.user.id = :userId AND pe.active = true
+                                       AND re.memberType = org.enerscope.project.model.enums.ProjectMemberType.EDITOR)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.EDITOR
+                        ELSE NULL
+                    END)
             FROM Project p
             JOIN p.organization o
             JOIN p.members m
             WHERE p.active = true
+              AND o.active = true
               AND m.user.id = :userId
               AND (:organizationId IS NULL OR o.id = :organizationId)
             ORDER BY p.lastModified DESC
@@ -67,4 +92,6 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     Optional<UUID> findIdByVersionId(@Param("versionId") UUID versionId);
 
     boolean existsByIdAndActiveTrue(UUID id);
+
+    Optional<Project> findByIdAndActiveTrue(UUID id);
 }

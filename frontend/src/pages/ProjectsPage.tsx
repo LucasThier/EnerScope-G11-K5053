@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -9,6 +10,7 @@ import { NewProjectModal } from '../components/projects/NewProjectModal';
 import { ProjectMembersModal } from '../components/projects/ProjectMembersModal';
 import { ProjectsTable } from '../components/projects/ProjectsTable';
 import { useActiveProject } from '../hooks/useActiveProject';
+import { useAuth } from '../hooks/useAuth';
 import type { ProjectSummary } from '../types/project';
 
 const ALL_ORGANIZATIONS = 'all';
@@ -21,6 +23,8 @@ export function ProjectsPage() {
   const searchId = useId();
   const organizationFilterId = useId();
   const { projects, isLoading, error, reload } = useActiveProject();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [organizationId, setOrganizationId] = useState(ALL_ORGANIZATIONS);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -127,9 +131,11 @@ export function ProjectsPage() {
         ) : (
           <ProjectsTable
             projects={visibleProjects}
+            isPlatformAdmin={user?.platformRole === 'ADMIN'}
             onView={setViewing}
             onEdit={setEditing}
             onDelete={setDeleting}
+            onManageMembers={(project) => navigate(`/projects/${project.id}/team`)}
           />
         )}
       </Card>

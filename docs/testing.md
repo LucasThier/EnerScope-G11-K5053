@@ -35,17 +35,18 @@ Run everything with `cd backend && mvn test`.
 | `util.AuthUtilTest` | Unit | 7 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 |
 | `money.MoneyAmountTest` | Unit | 7 |
-| `user.service.UserServiceTest` | Unit | 38 |
+| `user.service.UserServiceTest` | Unit | 53 |
 | `user.service.PasswordGeneratorTest` | Unit | 4 |
-| `user.controller.UserControllerTest` | Web | 17 |
-| `user.repository.UserRepositoryTest` | Data | 4 |
-| `organization.service.OrganizationServiceTest` | Unit | 33 |
-| `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 12 |
-| `organization.controller.OrganizationControllerTest` | Web | 22 |
+| `user.controller.UserControllerTest` | Web | 26 |
+| `user.repository.UserRepositoryTest` | Data | 13 |
+| `organization.service.OrganizationServiceTest` | Unit | 56 |
+| `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 13 |
+| `organization.controller.OrganizationControllerTest` | Web | 33 |
+| `organization.repository.OrganizationRepositoryTest` | Data | 16 |
 | `project.service.ProjectAccessGuardTest` | Unit | 22 |
-| `project.service.ProjectServiceTest` | Unit | 48 |
+| `project.service.ProjectServiceTest` | Unit | 49 |
 | `project.controller.ProjectControllerTest` | Web | 27 |
-| `project.repository.ProjectRepositoryTest` | Data | 11 |
+| `project.repository.ProjectRepositoryTest` | Data | 13 |
 | `project.repository.ProjectMemberRepositoryTest` | Data | 5 |
 | `version.service.VersionServiceTest` | Unit | 22 [^p] |
 | `version.controller.VersionControllerTest` | Web | 10 |
@@ -54,14 +55,14 @@ Run everything with `cd backend && mvn test`.
 | `strategyCost.CostTest` | Unit | 8 |
 | `strategyCost.InvestmentCostTest` | Unit | 2 |
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| **Total** | | **339 [^p]** |
+| **Total** | | **426 [^p]** |
 
 [^p]: Two cases in `version.service.VersionServiceTest` are
 `@ParameterizedTest`s running over the eight mutating version entry points,
 so they count as 16 executions rather than 2. Surefire therefore reports
-**353** for the 339 cases catalogued here.
+**440** for the 426 cases catalogued here.
 
-> **The catalog matches the code.** `mvn test` reports **353** executions,
+> **The catalog matches the code.** `mvn test` reports **440** executions,
 > which is what the table above adds up to. The `node.*` and `strategyCost.*`
 > classes, never catalogued before, were added on 2026-10-01 along with the
 > seventh `money.MoneyAmountTest` case the table had been missing. The two
@@ -191,6 +192,15 @@ Registration, login and password logic.
 | `updateProfileRejectsANullBody` | A null DTO throws `IllegalArgumentException` before any repository call. |
 | `updateProfileRejectsUnknownUser` | An unknown user id throws `IllegalArgumentException`; nothing is saved. |
 | `updateProfileNeverTouchesMailRoleOrPassword` | `mail`, `platformRole` and `passwordHash` come out unchanged: the DTO has no field that could carry them. |
+| `listAllReturnsWhatTheRepositoryProjects` | The service hands back the projection untouched. |
+| `listAllRejectsANonAdminCallerWith403` | A regular user is refused before the query runs. |
+| `listAllRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+| `searchByMailReturnsTheMinimalProjectionForAnOwner` | An owner of an active organization gets the name and address, nothing else. |
+| `searchByMailAllowsAPlatformAdminWithoutOwningAnything` | A platform admin passes without the ownership query running at all. |
+| `searchByMailAnswersTheSameMessageForAnUnknownAndASuspendedAccount` | Both answer `User not found`, identical, so the endpoint cannot be used to tell a suspended account from one that never existed. |
+| `searchByMailNeverEchoesTheAddressItWasGiven` | The message is fixed and does not repeat the address that was searched. |
+| `searchByMailRejectsACallerWhoOwnsNoOrganizationWith403` | A plain member is refused before the lookup runs. |
+| `searchByMailRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
 | `updateRolePromotesAUserToAdminWithoutCountingAdmins` | A promotion applies and never runs the admin count, which only guards demotions. |
 | `updateRoleDemotesAnAdminWhenAnotherActiveAdminRemains` | With two active ADMINs, demoting one is allowed. |
 | `updateRoleRefusesToDemoteTheLastActiveAdmin` | With one active ADMIN, the demotion throws and the in-memory role is unchanged. |
@@ -207,6 +217,12 @@ Registration, login and password logic.
 | `deactivateUserRejectsUnknownUser` | An unknown id throws; nothing is saved. |
 | `deactivateUserRejectsANonAdminCallerWith403` | A regular user is refused before any lookup. |
 | `deactivateUserRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+| `reactivateUserBringsASuspendedAccountBack` | A deactivated account is activated and saved. |
+| `reactivateUserNeverConsultsTheAdminCount` | The last-admin invariant does not apply: reactivating can only add an active administrator. |
+| `reactivateUserIsIdempotent` | Reactivating an already active account saves nothing. |
+| `reactivateUserRejectsUnknownUser` | An unknown id throws; nothing is saved. |
+| `reactivateUserRejectsANonAdminCallerWith403` | A regular user is refused before any lookup. |
+| `reactivateUserRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
 
 ## `user.service.PasswordGeneratorTest` — Unit
 
@@ -238,6 +254,15 @@ address here is prefixed `count-` for that reason.
 | `excludesInactiveAdmins` | A deactivated ADMIN is not counted, which is what makes the invariant about *active* administrators. |
 | `excludesRegularUsers` | `USER` rows are not counted, however many there are. |
 | `countsZeroWhenEveryAdminIsInactive` | With every ADMIN deactivated the count is zero, the state the invariant exists to prevent. |
+| `listItemsCarryTheFieldsTheTableShows` | `findListItems` projects mail, job title, role and active state into the record the users table renders. |
+| `listItemsIncludeDeactivatedAccounts` | Suspended accounts are **in** the list. This is the one list in the repository that must not filter on `active` — it is the only screen from which an account could be revived. |
+| `listItemsCountTheOrganizationsEachUserBelongsTo` | A user in two organizations reports 2. |
+| `listItemsCountZeroForAnAccountWithNoOrganization` | An account created outside any organization reports 0, which is what makes an otherwise invisible account visible as orphaned. |
+| `listItemsDoNotCountAnotherUsersOrganizations` | The subquery is correlated: two users sharing one organization report 1 and 2, not 3 each. |
+| `searchFindsAnActiveAccountByItsExactAddress` | The baseline for the owner-facing lookup. |
+| `searchIgnoresCase` | `LOWER()` on both sides, so a typed address matches whatever case it was stored in. |
+| `searchNeverMatchesPartially` | Neither a local part nor a bare domain matches — this is what keeps the endpoint from enumerating the roster. |
+| `searchSkipsASuspendedAccount` | A deactivated account is not found, which is what makes the `404` indistinguishable from an unknown address. |
 
 ## `user.controller.UserControllerTest` — Web
 
@@ -255,6 +280,13 @@ chain; `UserService` is mocked.
 | `updateOwnProfileRejectsATooShortNameWithValidationError` | A one-character first name → `400` from `@Size`; the service is never reached. |
 | `updateOwnProfilePropagatesAnEmptyPatchWith400` | When the service refuses a body with every field null → `400` carrying its message. |
 | `updateOwnProfileRequiresAuthenticationWith401` | `PATCH /users/me` without a token → `401`; the service is never reached. |
+| `listUsersReturnsTheProjection` | `GET /users` → `200` with the mail, active flag and organization count in the envelope. |
+| `listUsersPropagatesForbiddenWith403` | A non-admin caller → `403`. |
+| `listUsersRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
+| `searchUserReturnsTheMinimalProjection` | `GET /users/search?mail=…` → `200`, and the payload carries no `platformRole` and no `active`. |
+| `searchUserAnswers404WithAFixedMessage` | A miss is a `404` with `User not found`. |
+| `searchUserPropagatesForbiddenWith403` | A caller who owns nothing → `403`. |
+| `searchUserRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
 | `updateRoleReturnsTheUpdatedUser` | `PATCH /users/{id}/role` → `200` with the new role in the summary. |
 | `updateRoleRejectsANullRoleWithValidationError` | An empty body → `400` from `@NotNull`; the service is never reached. |
 | `updateRolePropagatesTheLastAdminRefusalWith400` | The last-admin refusal reaches the client as `400` with its message. |
@@ -263,6 +295,8 @@ chain; `UserService` is mocked.
 | `deleteUserReturnsOk` | `DELETE /users/{id}` → `200` `User deleted`, and the service is asked to deactivate that id. |
 | `deleteUserPropagatesTheLastAdminRefusalWith400` | The last-admin refusal reaches the client as `400`. |
 | `deleteUserRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
+| `reactivateUserReturnsOk` | `POST /users/{id}/reactivate` → `200` `User reactivated`, and the service is asked to reactivate that id. |
+| `reactivateUserRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
 
 ## `organization.service.OrganizationBulkRegistrationServiceTest` — Unit
 
@@ -283,6 +317,7 @@ account and adds it as a member).
 | `throwsWhenFileIsEmpty` | Empty content throws `IllegalArgumentException`. |
 | `rejectsUnknownOrganization` | An unknown organization id throws before any user is created. |
 | `rejectsWhenCallerNotAuthorized` | A `ForbiddenException` from the authorization check aborts the batch; nothing is created or saved. |
+| `registerRejectsADeactivatedOrganization` | No batch can be loaded into a deactivated organization. |
 
 ## `organization.service.OrganizationServiceTest` — Unit
 
@@ -291,9 +326,32 @@ Organization creation and member addition (with role/permission derivation).
 | Case | Verifies |
 | --- | --- |
 | `createOrganizationPersistsAndReturnsOrganization` | Creating an organization persists it and returns it with the given name. |
-| `listForCurrentUserReturnsAllForAdmin` | A platform ADMIN caller lists every organization (`findAll`). |
+| `listForCurrentUserReturnsAllForAdmin` | A platform ADMIN gets every organization through `findSummaries`, without the member-scoped query running. |
 | `listForCurrentUserReturnsMembershipsForRegularUser` | A regular user lists only the organizations they are a member of. |
 | `listForCurrentUserRejectsUnauthenticated` | No authenticated caller → `UnauthorizedException`. |
+| `listOwnedByCurrentUserAsksForTheManagePermission` | The service asks for `MANAGE_ORGANIZATION`, not for the OWNER member type. |
+| `listOwnedByCurrentUserIsEmptyForSomebodyWhoOwnsNothing` | A plain member gets an empty list rather than an error. |
+| `listOwnedByCurrentUserRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+| `updateOrganizationRenamesIt` | A platform ADMIN renames the organization and the new name comes back in the DTO. |
+| `updateOrganizationAnswersWithTheRealMemberCount` | The response carries the count from `countByOrganizationId`, not the `0L` the controller's entity mapper would have produced. |
+| `updateOrganizationRejectsANullBody` | A null DTO throws before the organization is looked up. |
+| `updateOrganizationRejectsUnknownOrganization` | An unknown id throws `IllegalArgumentException`; nothing is saved. |
+| `updateOrganizationRejectsAnOrganizationOwnerWith403` | An OWNER is refused: renaming is platform-admin only, symmetric with creating. |
+| `updateOrganizationRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+| `addMemberRejectsADeactivatedOrganization` | No member can be added to a deactivated organization. |
+| `registerUserInOrganizationRejectsADeactivatedOrganization` | No account can be created inside a deactivated organization. |
+| `removeMemberRejectsADeactivatedOrganization` | No membership can be removed from a deactivated organization. |
+| `listMembersRejectsADeactivatedOrganization` | Its roster is not readable either. |
+| `updateOrganizationRejectsADeactivatedOrganization` | It cannot be renamed while deactivated. |
+| `deactivateOrganizationDeactivatesTheRowOnly` | Only the organization row flips; its projects and members keep `active = true`, which is what makes reactivation lossless. |
+| `deactivateOrganizationIsIdempotent` | Deactivating an already inactive organization saves nothing. |
+| `deactivateOrganizationRejectsUnknownOrganization` | An unknown id throws `IllegalArgumentException`. |
+| `deactivateOrganizationRejectsANonAdminCallerWith403` | An organization OWNER is refused: platform admins only. |
+| `deactivateOrganizationRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+| `reactivateOrganizationBringsItBack` | A deactivated organization is activated and saved. |
+| `reactivateOrganizationIsIdempotent` | Reactivating an active organization saves nothing. |
+| `reactivateOrganizationRejectsANonAdminCallerWith403` | An OWNER is refused. |
+| `reactivateOrganizationRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
 | `createOrganizationRejectsRegularUserWith403` | A non-admin caller gets `ForbiddenException`; nothing is saved. |
 | `createOrganizationRejectsUnauthenticated` | No session throws `UnauthorizedException`; nothing is saved. |
 | `addMemberAllowsOrganizationOwner` | A member holding `MANAGE_ORGANIZATION` adds another user; the membership is persisted. |
@@ -324,6 +382,35 @@ Organization creation and member addition (with role/permission derivation).
 | `removeMemberRejectsUnknownMember` | An unknown member id throws `IllegalArgumentException`; nothing is deleted. |
 | `removeMemberRejectsAMemberOfAnotherOrganization` | A member id belonging to a different organization answers the same `Member not found` as one that does not exist, so an owner cannot probe which membership ids exist elsewhere. |
 
+## `organization.repository.OrganizationRepositoryTest` — Data
+
+The two projections behind `GET /organizations`, added when the list gained a
+`memberCount`. The correlated subquery was mutation-checked: decorrelating it
+turns two cases red.
+
+**Test emails are prefixed `orgs-`** so they cannot collide with the
+`admin@enerscope.org` row that `AdminSeeder` commits into the shared H2 database
+— see the note on `user.repository.UserRepositoryTest`.
+
+| Case | Verifies |
+| --- | --- |
+| `summariesCountTheMembersOfEachOrganization` | Two members count as two, and an organization with none reports zero. |
+| `summariesDoNotCountAnotherOrganizationsMembers` | The subquery is correlated: two organizations with one member each report 1 and 1, not 2. |
+| `summariesComeBackOrderedByName` | Rows arrive alphabetically, which is what the table reads. |
+| `memberSummariesReturnOnlyTheOrganizationsTheUserBelongsTo` | The member-scoped query leaves out organizations the user is not in. |
+| `memberSummariesStillCarryTheFullMemberCount` | A member sees the organization's whole headcount, not just their own row. |
+| `memberSummariesAreEmptyForAUserInNoOrganization` | A user in no organization gets nothing, not everything. |
+| `summariesIncludeDeactivatedOrganizations` | The admin list does **not** filter on `active` — a platform admin has to see suspended organizations to reactivate them. A mutation adding the filter turns this red. |
+| `memberSummariesExcludeDeactivatedOrganizations` | The member-scoped list does filter: a regular user stops seeing a deactivated organization. |
+| `existsByIdAndActiveTrueIsTrueWhileActive` | The baseline for the entry-point check. |
+| `existsByIdAndActiveTrueIsFalseOnceDeactivated` | Which is what makes `listMembers` refuse. |
+| `findByIdAndActiveTrueSkipsADeactivatedOrganization` | The resolution used by the five write entry points returns empty for a deactivated organization. |
+| `ownedReturnsTheOrganizationsWhereTheCallerHoldsManage` | The baseline for the sidebar entry and the route guard. |
+| `ownedExcludesOrganizationsWhereTheCallerIsOnlyAMember` | A `MEMBER` owns nothing, which is what keeps the sidebar entry locked for them. |
+| `ownedExcludesDeactivatedOrganizations` | A deactivated organization drops out, so its owner stops being offered a page they cannot write to. |
+| `ownedExcludesOrganizationsOwnedBySomebodyElse` | Correlated on the caller: two owners of different organizations see one each. |
+| `ownsAnyActiveOrganizationFollowsTheSameRule` | The boolean behind the user lookup agrees with the list: true for the owner, false for the plain member. |
+
 ## `organization.controller.OrganizationControllerTest` — Web
 
 Exercises `OrganizationController` through the real `SecurityConfig`/
@@ -334,6 +421,10 @@ every non-`/auth` route); `OrganizationService` and
 | Case | Verifies |
 | --- | --- |
 | `listOrganizationsReturnsList` | `GET /organizations` → `200` with the list of organizations (`data[0].name`). |
+| `updateOrganizationReturnsTheUpdatedOrganization` | `PATCH /organizations/{id}` → `200` with the new name and the real `memberCount`. |
+| `updateOrganizationRejectsABlankNameWithValidationError` | A whitespace-only name → `400` from `@NotBlank`; the service is never reached. |
+| `updateOrganizationPropagatesForbiddenWith403` | A caller who is not a platform admin → `403`. |
+| `updateOrganizationRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
 | `listMembersReturnsMembersWithIdentityFields` | `GET /organizations/{id}/members` → `200` with `firstName`, `lastName`, `jobTitle`, `active` and `memberType` per row. |
 | `listMembersRequiresAuthenticationWith401` | Without a Bearer token → `401`; `OrganizationService.listMembers` is never called. |
 | `listMembersPropagatesForbiddenWith403` | When the service throws `ForbiddenException` (caller is not a member) → `403`, `success=false`. |
@@ -351,6 +442,13 @@ every non-`/auth` route); `OrganizationService` and
 | `addMemberRequiresAuthenticationWith401` | `POST /organizations/{id}/members` without a token → `401`; the service is never reached. |
 | `bulkRegisterUsersReturnsResultSummary` | `POST /organizations/{id}/users/bulk` with a CSV file → `200` with the result summary (`total`/`created`) and `credentialsCsv`. |
 | `bulkRegisterUsersPropagatesForbiddenWith403` | When the bulk service throws `ForbiddenException` → `403`, `success=false`. |
+| `deleteOrganizationReturnsOk` | `DELETE /organizations/{id}` → `200` `Organization deleted`, and the service is asked to deactivate that id. |
+| `deleteOrganizationPropagatesForbiddenWith403` | A caller who is not a platform admin → `403`. |
+| `deleteOrganizationRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
+| `reactivateOrganizationReturnsOk` | `POST /organizations/{id}/reactivate` → `200` `Organization reactivated`. |
+| `reactivateOrganizationRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
+| `listOwnedOrganizationsReturnsThem` | `GET /organizations/owned` → `200` `Owned organizations`. |
+| `listOwnedOrganizationsRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
 | `removeMemberReturnsOk` | `DELETE /organizations/{id}/members/{memberId}` → `200` `Member removed`, and the service is asked to remove that pair. |
 | `removeMemberRejectsUnknownMemberWith400` | When the service reports an unknown member → `400` `Member not found`. |
 | `removeMemberPropagatesForbiddenWith403` | When the service refuses the caller → `403` with the domain message. |
@@ -418,6 +516,7 @@ coverage and what matters here is that `createProject` runs it.
 | `createProjectRejectsUnauthenticated` | Creating a project with no session throws `UnauthorizedException`; neither the project nor a membership is saved. |
 | `createProjectRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException`; the project is never saved. |
 | `createProjectChecksCallerBelongsToTargetOrganization` | Creating a project runs the organization membership check with that organization's id and the `create projects in` action. |
+| `createProjectRejectsADeactivatedOrganization` | No project can be created inside a deactivated organization. |
 | `createProjectRejectsCallerOutsideOrganizationWith403` | A caller who does not belong to the target organization gets `ForbiddenException`; neither the project nor a membership is saved. |
 | `addMemberAllowsProjectAdmin` | A project ADMIN (`MANAGE_PROJECT`) adds a member and it is persisted. |
 | `addMemberAllowsPlatformAdmin` | A platform ADMIN adds a member without any membership lookup. |
@@ -518,6 +617,8 @@ red, so none of them passes for the wrong reason.
 | `findIdByVersionIdReturnsTheOwningProject` | The baseline: a version resolves to the project it hangs off. |
 | `findIdByVersionIdIgnoresADeactivatedVersion` | A deactivated version resolves to nothing, so `ProjectAccessGuard` refuses it. |
 | `findIdByVersionIdIgnoresAVersionOfADeactivatedProject` | Belt and braces: even an active version inside a deactivated project resolves to nothing, so the guard holds whether or not the cascade ran. |
+| `findSummariesExcludesProjectsOfADeactivatedOrganization` | A project of a deactivated organization drops out of the admin list, which is how the organization's contents become unreachable without propagating the flag. |
+| `findSummariesForMemberExcludesProjectsOfADeactivatedOrganization` | Same for the member-scoped list. |
 | `existsByIdAndActiveTrueIsTrueForAnActiveProject` | The baseline for the `listMembers` guard. |
 | `existsByIdAndActiveTrueIsFalseOnceTheProjectIsDeactivated` | Listing the members of a deleted project answers `400`. |
 | `existsByIdAndActiveTrueIsFalseForAnUnknownId` | An id that was never stored is not active either. |

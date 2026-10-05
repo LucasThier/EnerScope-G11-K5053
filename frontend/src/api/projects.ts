@@ -1,7 +1,10 @@
 import { client } from './client';
 import type { ApiResponse } from '../types/auth';
 import type {
+  AddProjectMemberRequest,
   CreateProjectRequest,
+  ProjectMemberCandidate,
+  UpdateProjectMemberRoleRequest,
   Project,
   ProjectMember,
   ProjectSummary,
@@ -33,4 +36,26 @@ export const projectsApi = {
   /** Members of a project: readable by platform admins and by members of the project. */
   members: (projectId: string): Promise<AxiosResponse<ApiResponse<ProjectMember[]>>> =>
     client.get(`/projects/${projectId}/members`),
+
+  addMember: (
+    projectId: string,
+    data: AddProjectMemberRequest,
+  ): Promise<AxiosResponse<ApiResponse<ProjectMember>>> =>
+    client.post(`/projects/${projectId}/members`, data),
+
+  changeMemberRole: (
+    projectId: string,
+    memberId: string,
+    data: UpdateProjectMemberRoleRequest,
+  ): Promise<AxiosResponse<ApiResponse<ProjectMember>>> =>
+    client.patch(`/projects/${projectId}/members/${memberId}`, data),
+
+  removeMember: (projectId: string, memberId: string): Promise<AxiosResponse<ApiResponse<null>>> =>
+    client.delete(`/projects/${projectId}/members/${memberId}`),
+
+  memberCandidates: (
+    projectId: string,
+    q?: string,
+  ): Promise<AxiosResponse<ApiResponse<ProjectMemberCandidate[]>>> =>
+    client.get(`/projects/${projectId}/member-candidates`, q ? { params: { q } } : undefined),
 };

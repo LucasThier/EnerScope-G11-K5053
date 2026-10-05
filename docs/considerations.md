@@ -1508,3 +1508,369 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     editing other people's profiles unblocks nothing.
   - `mvn test` 325 → 353: `UserServiceTest` 22 → 38,
     `UserControllerTest` 9 → 17, and a new `UserRepositoryTest` (4).
+- 2026-10-03 — **`GET /users` and the Usuarios screen (C1).** The list is
+  platform-wide and platform-admin only. Decided that way because
+  `POST /auth/register` creates accounts outside every organization, so a list
+  scoped per organization would leave them visible from nowhere.
+  - **`organizationCount` is in the projection, and it is the point.** Showing
+    the account without it would still not say the account is *orphaned*; a `0`
+    in that column is what makes the problem the decision was made for visible.
+    It is a correlated subquery, the shape `ProjectSummaryDTO.memberCount`
+    already uses. Organization *names* are not included: they are a collection,
+    and JPQL cannot build one into a record — the limitation already written
+    down for `ProjectMemberRepository.findByProjectIdWithUser`.
+  - **It counts every membership row, with no `active` filter**, because
+    removing an organization membership is a physical delete, so there are no
+    inactive membership rows to exclude.
+  - **This is the one list that must NOT filter on `active`**, which runs against
+    the habit of the last four cards. Every other list learned to hide
+    deactivated rows; here a platform admin has to see suspended accounts,
+    because this screen is the only place one could ever be revived. The state
+    is a column, not a filter, and a mutation adding `WHERE u.active = true`
+    turns `listItemsIncludeDeactivatedAccounts` red.
+  - **No pagination, consistent with every other list, and the note is that this
+    one differs in kind.** `GET /projects` already returns every project
+    unpaginated for an admin, so the precedent is set — but a project is created
+    deliberately while `POST /organizations/{id}/users/bulk` can add hundreds of
+    accounts from one CSV. Paginating only this endpoint would leave the
+    repository with two conventions; when it is done it should cover the three
+    lists together.
+  - **Ordered by first then last name.** A roster table is read to find a
+    person, and the search box covers lookup; `findSummaries` orders by
+    `lastModified DESC` because a project list is read for recent activity.
+  - **`RoleBadge` was dead code and this is its first use.** It was written for
+    the auth portal, noted as unused on 2026-09-10, and renders the raw enum. It
+    now carries a label map — "Administrador"/"Usuario" — matching what
+    `UserMenu` already does inline, so the badge no longer puts `ADMIN` in a
+    Spanish interface.
+  - **`RowButton` was extracted to `components/ui/`.** It was private to
+    `ProjectsTable`, and it is a genuine primitive: an icon button with an
+    `aria-label` and a focus ring. `ProjectsTable` now imports it.
+  - **`headerCell`/`bodyCell` were deliberately left duplicated.** They were
+    already copied in `ProjectsTable` and `ProjectMembersModal`, and `UsersTable`
+    makes a third. Extracting two short class strings across tables with
+    different column counts pays little; noted rather than done.
+  - **The create form moved into a modal behind a button**, the shape
+    `ProjectsPage` uses, and it refreshes the table through `RegisterForm`'s
+    existing `onSuccess` callback. `useUsers` is modelled on `useOrganizations`.
+  - **The projection and its subquery were mutation-checked.** Decorrelating the
+    subquery (counting every membership rather than the user's) turns
+    `listItemsDoNotCountAnotherUsersOrganizations` red with `expected: <1> but
+    was: <3>`.
+  - **Timing note for whoever runs a single `@DataJpaTest` here.** Nine cases in
+    `UserRepositoryTest` measure 0.38s in total, but the class took eight minutes
+    when run on its own: the cost is Spring context startup scanning a classpath
+    that lives on iCloud Drive, where cold files are materialised on demand. In
+    the full suite the context is built once and shared by the three
+    `@DataJpaTest` classes, and the whole run is about 20 seconds. The tests are
+    not slow; the first context on cold files is.
+  - **C2 and C3 are what remains.** The two user actions
+    (`PATCH /users/{id}/role`, `DELETE /users/{id}`) go on this table next. The
+    organization membership removal does **not**: it acts on one organization's
+    roster, so it belongs to an organization-members screen, which needs the
+    already-existing `GET /organizations/{id}/members` wired to a frontend.
+  - `mvn test` 353 → 364: `UserServiceTest` 38 → 41,
+    `UserControllerTest` 17 → 20, `UserRepositoryTest` 4 → 9.
+- 2026-10-04 — **The Usuarios screen got its actions (C2), plus the reactivate
+  endpoint the previous card left missing.**
+  - **`POST /users/{id}/reactivate` was added rather than deferred.** C1's
+    justification for listing deactivated accounts was that this is the only
+    screen one could be revived from — and no endpoint could revive one:
+    `BaseEntity.activate()` had been declared since the first migration and
+    called from nowhere, dead in the same way `updateJobTitle` was. Shipping the
+    column without it would have shown a state with no way out, which is worse
+    than not showing it.
+  - **It takes no last-admin check**, because reactivating can only *add* an
+    active administrator. A case asserts the count query is never called, so the
+    reasoning is pinned rather than just written here.
+  - **`POST .../reactivate`, not a `PATCH` with an `active` field.** The second
+    would have reused `PATCH /users/{id}`, which is precisely the
+    edit-someone-else's-profile endpoint the team decided not to build, and a
+    `DELETE` that toggles would be worse.
+  - **The role modal is a select, not a pair of confirm dialogs.** With two
+    roles a directional dialog ("promote?" / "demote?") needs two texts and
+    breaks the day a third role appears; the select maps one-to-one onto
+    `UpdateRoleRequestDTO` and shows the current role as its starting value. It
+    closes without calling the API when the role is unchanged.
+  - **`LockIcon` for the role, deliberately not `PencilIcon`.** In
+    `ProjectsTable` the pencil means "edit this entity", and editing another
+    person's profile is exactly what was decided against; a pencil here would
+    promise something no endpoint does. The reactivate action needed an icon
+    that did not exist, so `UndoIcon` was drawn into `icons.tsx` — the file
+    exists to hold hand-drawn icons rather than pull in a dependency.
+  - **A warning when an admin deactivates themselves.** Decision (B) allows it
+    while other admins remain, so hiding the action on your own row would be
+    wrong. What is not obvious is the consequence: the session is stateless, so
+    the app keeps working until the access token expires — up to an hour — and
+    only another admin can bring the account back. The dialog says so when
+    `user.id === caller.id`.
+  - **No per-row permission gating.** `/admin/users` sits behind
+    `RoleRoute role="ADMIN"`, so only platform admins reach the page at all.
+    This is the opposite of `ProjectsTable`, where the row actions render for
+    everyone and an unauthorized click comes back as a `403`, because that page
+    is open to every user.
+  - **The last-admin refusal will read in English.** `getErrorMessage` prefers
+    the backend message, so an admin demoting themselves as the last one sees
+    "The platform would be left without an active administrator" in the alert.
+    It is the most visible instance yet of the open language question, because
+    it is a message an administrator will actually hit.
+  - **Frontend untested, as every UI card here.** `npm run build` and
+    `npm run lint` are the gate; the reactivate half is covered on the backend.
+  - `mvn test` 364 → 372: `UserServiceTest` 41 → 47 and
+    `UserControllerTest` 20 → 22.
+- 2026-10-04 — **The Organizaciones screen and the membership removal (C3).**
+  The page went from a form plus a list of names to the table-and-modal shape
+  `ProjectsPage` uses, and the `DELETE .../members/{memberId}` endpoint from
+  2026-10-03 finally has a caller.
+  - **Two `Modal`s cannot be stacked, so the confirmation lives inside the
+    members modal.** Both of `Modal`'s effects are document-level and keyed on
+    `open`: two open modals mean two Escape listeners, two Tab traps each
+    querying its own panel, and a scroll lock restored by whichever unmounts
+    last. The members modal therefore has two states — the roster and the
+    confirmation, with a "Volver" — rather than opening a second dialog over the
+    first. Worth knowing before the next nested-dialog idea.
+  - **The orphaned-project warning is written as a possibility, because the UI
+    cannot know.** Detecting that the person was a project's only ADMIN would
+    need per-project admin counts, and no endpoint gives them. The copy says "si
+    era el único administrador de alguno de ellos, ese proyecto queda sin
+    administrador" — conditional on purpose rather than asserting something
+    unverified.
+  - **The self-removal warning says the opposite of what it would elsewhere.**
+    This page is behind `RoleRoute role="ADMIN"`, so only platform admins reach
+    it, and a platform admin removing their own membership **keeps full access
+    through the admin bypass**. The alert says they stop appearing as a member
+    and that their access continues through the role, not the membership —
+    unlike the user-deactivation dialog of the previous card, where access is
+    genuinely lost.
+  - **`OrganizationDTO` gained `memberCount`,** which turned
+    `listForCurrentUser` from returning entities into returning the projection,
+    mirroring `ProjectRepository.findSummaries`/`findSummariesForMember`. The
+    derived `findDistinctByMembers_User_Id` it replaced was deleted rather than
+    left unused. `DISTINCT` is not needed on the member-scoped query because
+    `uq_org_member_org_user` already makes one row per (organization, user).
+    `toDTO(Organization)` stays for `createOrganization` and passes `0L`, which
+    is true of a freshly created organization.
+  - **Fourth `@DataJpaTest`.** The correlated subquery is the kind of thing
+    mocks cannot check; decorrelating it turns
+    `summariesCountTheMembersOfEachOrganization` and
+    `summariesDoNotCountAnotherOrganizationsMembers` red. Its emails are
+    prefixed `orgs-` for the shared-H2 reason recorded with
+    `UserRepositoryTest`.
+  - **`memberType` and `permissions` are now unions in `types/auth.ts`,** which
+    they had to be for the role labels and which closes a real inconsistency:
+    the project equivalents in `types/project.ts` were already typed as unions
+    while the organization ones were `string` and `string[]`.
+  - **Future card: an organization OWNER has no screen for this.** The endpoint
+    allows them — `assertCanManageUsers` covers `MANAGE_ORGANIZATION` — and
+    decision 3.3 was written for them, but `/admin/organizations` sits behind
+    `RoleRoute role="ADMIN"` and the sidebar reaches it only through
+    `ADMIN_ITEMS`. **An OWNER still needs the API to remove anybody from their
+    own organization.** Giving them a screen is a navigation decision — where it
+    lives in the sidebar for a non-admin, whether it is one page per
+    organization or a picker — and is bigger than this card, so it was left out
+    deliberately rather than missed.
+  - `mvn test` 372 → 378, all in the new `OrganizationRepositoryTest`.
+- 2026-10-04 — **The nine loose `red-*` utilities were migrated to the `danger`
+  ramp.** This closes the gap first noted on 2026-09-10 and half-closed on
+  2026-10-02, when the ramp was added for the `Button` variant while the existing
+  reds stayed on Tailwind's defaults.
+  - **Twelve occurrences across five files** — `Alert`, `TextField`, `TextArea`,
+    `NewProjectModal` and `OrganizationPicker` — replaced token for token:
+    `red-NNN` became `danger-NNN` with the step numbers unchanged.
+  - **The five steps in use are exactly the five the ramp declares** (50, 200,
+    400, 600, 700), which is why the migration needed no new values. The ramp was
+    declared with those steps in 2026-10-02 precisely so this day would be a
+    find-and-replace; nothing had to be invented.
+  - **Zero visual change, verified rather than asserted.** The ramp's values were
+    compared against `--color-red-*` in the installed
+    `node_modules/tailwindcss/theme.css`: all five match character for character,
+    so no rendered colour moved. `grep` confirms no `red-[0-9]` remains anywhere
+    in `frontend/src`, and the built stylesheet carries no `red-*` class.
+  - **`danger-50` and `danger-200` now reach the build.** They were declared in
+    2026-10-02 and tree-shaken out, because only the button used the ramp;
+    `Alert` is what pulls them in, so all five variables are emitted now.
+  - **Nine `danger` utilities are generated**, counting the variant forms:
+    `bg-danger-50`, `bg-danger-600`, `border-danger-200`, `border-danger-400`,
+    `focus:border-danger-400`, `focus-visible:ring-danger-400`,
+    `hover:bg-danger-700`, `text-danger-600` and `text-danger-700`.
+  - **What this does not fix:** the focus ring is still `brand-400` on every
+    variant but `danger`, and both sit under the 3:1 that WCAG 2.2 asks of a
+    non-text indicator. That remains its own card, unchanged by this one.
+- 2026-10-04 — **`PATCH /organizations/{organizationId}` (SCRUM-55, first
+  half).** Renames an organization, which is the only editable field it has:
+  `Organization` carries `name` and two collections, everything else coming from
+  `BaseEntity`.
+  - **Platform admin only, and deliberately not an OWNER.** `createOrganization`
+    already requires `requirePlatformAdmin`, so letting an OWNER rename or delete
+    an organization they cannot create would be the odd asymmetry. There is a
+    second reason: by the finding of the previous card, `/admin/organizations`
+    sits behind `RoleRoute role="ADMIN"`, so an OWNER has no screen and the
+    permission would only be exercisable through Swagger. If owners should rename
+    their own organization, that belongs with the owner screen already recorded
+    as future work.
+  - **`assertCanManageUsers` was not reused**, which is a side benefit: its name
+    says users while it actually checks `MANAGE_ORGANIZATION`, and borrowing it
+    for organization edits would make that name worse.
+  - **The name is required, not optional.** The project `PATCH` has partial
+    semantics because it has two fields; with one field "partial" is degenerate —
+    a null name leaves nothing to do, so the only outcome would be the
+    "at least one field" error. `@NotBlank @Size(min = 2, max = 120)` matches
+    `CreateOrganizationRequestDTO`, and it also removes the need for the
+    service-side blank check the project card required: there `@Size(min = 2)`
+    accepted two spaces, here `@NotBlank` rejects them.
+  - **`organization.name` has no unique constraint** (V3 declares it
+    `NOT NULL` only), so a rename cannot collide — unlike `app_user.mail`.
+  - **The response carries the real member count.** `OrganizationDTO` gained
+    `memberCount` in the previous card, and the service has the entity rather
+    than the projection. Reusing the controller's `toDTO(Organization)` would
+    have published `0L`, which is true of a freshly created organization and a
+    lie about an existing one. The service builds the DTO itself with a new
+    `countByOrganizationId` — it already holds `organizationMemberRepository`,
+    which is also why the count lives in the service rather than injecting a
+    repository into the controller. A case asserts the count is the real one.
+  - **No `@DataJpaTest`.** This card adds no filtered query:
+    `countByOrganizationId` is a derived query over a single criterion, where the
+    method name is the specification. The `active` filters and their mutation
+    checks are all in the second half.
+  - **Second half (D2) is where the risk is:** `DELETE` and `reactivate` as a
+    logical delete, plus the ten read points that resolve an organization and
+    would otherwise keep letting writes into a deactivated one. Splitting was
+    deliberate so the rename could be reviewed without that noise.
+  - `mvn test` 378 → 388: `OrganizationServiceTest` 33 → 39 and
+    `OrganizationControllerTest` 22 → 26.
+- 2026-10-04 — **`DELETE /organizations/{id}` and
+  `POST /organizations/{id}/reactivate` (SCRUM-55, second half).** A logical
+  delete on the organization row alone, platform admin only.
+  - **Physical delete was never an option here.** `Organization` cascades `ALL`
+    with `orphanRemoval` to both `members` and `projects`, and through projects
+    to project members, roles, permissions, versions, node and connection
+    changes and the two snapshot join tables. No FK in the schema carries
+    `ON DELETE CASCADE`, so it would have rested entirely on Hibernate ordering
+    across that graph — including the `fk_version_parent` self-reference that
+    made physical delete unacceptable for `Project`. The organization case
+    contains the project case and adds a level.
+  - **Nothing is propagated, which is the opposite of what `Project` does, and
+    for a reason `Project` never faced.** Deep propagation would make
+    reactivation lossy: a project already deactivated before the organization
+    went down could not be told apart from one deactivated by the cascade, so
+    reviving the organization would wrongly revive it. `Project` never hit this
+    because project reactivation was never built. Here the state is shown in the
+    table, and the lesson from the users screen is that a visible state with no
+    way back is worse than no state at all — so reactivation had to be lossless,
+    and that ruled out propagation. A case asserts that deactivating an
+    organization leaves its project and its member with `active = true`.
+  - **Nine read points filter instead.** `findSummariesForMember`, `listMembers`,
+    `updateOrganization`, `addMember`, `registerUserInOrganization`,
+    `removeMember`, the CSV batch, `createProject`, and both project list
+    queries through their `JOIN p.organization o`. The five that would otherwise
+    let a write into a deactivated organization each have an explicit rejection
+    case.
+  - **`updateOrganization` was the tenth point the approved list missed.**
+    Renaming is a write into the organization, so leaving it open while blocking
+    `addMember` would have been inconsistent. Added with the same one-line
+    change as the others.
+  - **The check was taken back out of `assertCanManageUsers` and
+    `assertIsMemberOf`,** which the plan had put there for defence in depth. All
+    six entry points resolve the organization with `findByIdAndActiveTrue`
+    *before* calling a guard, so the guard's copy is unreachable in every
+    existing path — and it cost 34 test failures whose fix would have been
+    stubbing the same fact twice in every member-operation test, permanently.
+    The invariant is now stated instead: **every public entry point resolves an
+    active organization before it authorizes**, and `requireActiveOrganization`
+    remains as the helper `listMembers` uses. If a future caller reaches a guard
+    without resolving first, that invariant is what has to be re-checked.
+  - **`GET /organizations` does not filter for a platform admin**, deliberately:
+    `findSummaries` is the admin path and the suspended rows have to be visible
+    for reactivation. `findSummariesForMember` does filter. A case asserts the
+    admin list includes deactivated organizations, so the asymmetry is pinned
+    against someone "fixing" it later. `OrganizationDTO` carries `active` for
+    the column.
+  - **`DELETE` and `reactivate` resolve with plain `findById`,** not the
+    filtered one: with the filter the idempotent case would answer `400` instead
+    of being the no-op it is meant to be.
+  - **All nine filters were mutation-checked**, one at a time, and each turns at
+    least one case red. Worth recording what kind of coverage each has: the two
+    in the repositories are verified behaviourally against rows that really carry
+    `active = false`, while the seven in the services are verified at the
+    interaction level — a mocked repository cannot model "the row exists but is
+    inactive", so what the service tests pin is *which* method is called. The
+    behavioural backing for those is that `findByIdAndActiveTrue` and
+    `existsByIdAndActiveTrue` are themselves proven in
+    `OrganizationRepositoryTest`.
+  - **An environment note worth knowing: the mutation run made iCloud fork the
+    files.** Writing and restoring the same five sources in a quick loop left
+    conflicted copies named `OrganizationService 2.java` and the like, which
+    broke the build with duplicate-class errors. They were untracked, each
+    original was verified to hold the correct filter before deleting the copies.
+    A mutation loop on this repository should expect that.
+  - `mvn test` 388 → 416.
+- 2026-10-04 — **The organization owner finally has a screen for their own
+  roster**, at `/organizations/:organizationId`. Closes the gap recorded on
+  2026-10-03: the removal endpoint allowed owners and only platform admins could
+  reach a page.
+  - **`GET /organizations/owned` rather than a field on `OrganizationDTO`.**
+    Adding `callerMemberType` to the projection would have meant a
+    `LEFT JOIN ... ON m.user.id = :callerId` in the admin query — which can
+    legitimately match no membership — plus a changed signature and reworked
+    tests across two closed cards. The dedicated query is self-scoped, needs no
+    guard beyond a session, and is exactly what the sidebar asks. **The page
+    needs no new field at all:** `GET /organizations/{id}/members` already
+    returns the caller among the members, with their `memberType`.
+  - **It filters on the permission, not the member type.**
+    `MANAGE_ORGANIZATION MEMBER OF r.permissions`, matching what
+    `assertCanManageUsers` actually checks. Filtering on `memberType = OWNER`
+    would miss a `MEMBER`-typed role that was ever granted the permission.
+    `DISTINCT` because a member with two roles would otherwise duplicate the row.
+  - **`GET /users/search?mail=` closes the real hole:** an owner can create
+    accounts but had no way to learn the `userId` of somebody who already has
+    one, and `POST /{id}/members` takes a `userId`. Exact match, case-insensitive
+    through `LOWER()` on both sides, and a projection of nothing but id, name and
+    address — no `platformRole`, no `active`, no counts.
+  - **A suspended account answers the same `404` with the same fixed message as
+    an address that was never registered,** so the endpoint cannot be used to
+    probe account states. The message does not repeat the address that was
+    searched, and two cases pin both properties: one asserts the two messages are
+    identical, the other that the message does not contain the needle. The
+    `warn` logged when a non-admin's lookup misses names the caller, never the
+    address.
+  - **`UserService` took `OrganizationRepository`, not `OrganizationService`.**
+    `OrganizationService` already depends on `UserService`, so the reverse would
+    close a cycle; a repository depends on nothing. Same reasoning
+    `ProjectAccessGuard` documents for its own shape.
+  - **The sidebar reuses the slot the design already reserved.** `NAV_ITEMS` has
+    carried "Organización / Equipo" with a padlock since the shell was built;
+    this card gives it a `to` **only when the caller owns an organization**, so a
+    plain member still sees it locked. The list is now built inside the
+    component rather than as a module constant.
+  - **One entry, and a selector inside the page when there is more than one
+    organization.** The sidebar does not grow with the number of organizations,
+    the URL still identifies one organization so it stays shareable, and an
+    owner of a single organization never sees a selector.
+  - **`OrganizationOwnerRoute` is UX, not security.** Every operation is already
+    guarded by `assertCanManageUsers`; the route only stops somebody who types
+    the URL from seeing a shell and collecting `403`s. It shows `PageLoader`
+    while the owned list loads instead of redirecting, because without that a
+    refresh bounces to the home page. `RoleRoute` was deliberately **not**
+    generalised: platform role and organization role are different questions, and
+    one parameterised guard doing both reads worse than two of fifteen lines.
+  - **The remove dialog says the opposite of the admin one.** An owner removing
+    themselves **does** lose access — to the organization and, through the
+    membership propagation built on 2026-10-03, to its projects — and only a
+    platform admin can add them back. The page then redirects to `/app` rather
+    than reloading a roster that would answer `403`.
+  - **`OrganizationMembersTable` was extracted** from
+    `OrganizationMembersModal`, which had the markup, the role labels and the
+    cell classes inline. The admin modal and the owner page now share it; the
+    confirmation copy stays duplicated on purpose, because the two dialogs say
+    different things.
+  - **Still missing, and worth its own card: the owner has no screen for
+    creating a *new* user.** `POST /organizations/{id}/users` and
+    `/users/bulk` both allow owners, `AdminUsersPage` is platform-admin only, and
+    this card covers adding somebody who already has an account. An owner
+    onboarding a brand-new person still needs the API.
+  - **The mutation run used backups outside the iCloud volume this time**, after
+    the forked-file incident of the previous card, and no conflicted copies
+    appeared. Seven mutations, all red: the three filters of `findOwnedBy`, the
+    permission filter of `ownsAnyActiveOrganization`, and the active, case and
+    exact-match properties of the user lookup.
+  - `mvn test` 416 → 440.

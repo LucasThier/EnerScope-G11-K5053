@@ -1,27 +1,40 @@
 package org.enerscope.user.service;
 
 import org.enerscope.auth.dto.RegisterRequestDTO;
+import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.ForbiddenException;
+import org.enerscope.organization.model.enums.OrganizationMemberPermission;
+import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.user.dto.UpdateProfileRequestDTO;
+import org.enerscope.user.dto.UserDetailDTO;
+import org.enerscope.user.dto.UserListItemDTO;
+import org.enerscope.user.dto.UserSearchResultDTO;
 import org.enerscope.util.AuthUtil;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
+    private final OrganizationRepository organizationRepository;
     private final PasswordEncoder encoder;
     private final AppLogger logger;
 
-    public UserService(UserRepository userRepository, PasswordEncoder encoder, AppLogger logger) {
+    public UserService(UserRepository userRepository,
+                       OrganizationRepository organizationRepository,
+                       PasswordEncoder encoder,
+                       AppLogger logger) {
         this.userRepository = userRepository;
+        this.organizationRepository = organizationRepository;
         this.encoder = encoder;
         this.logger = logger;
     }
@@ -72,6 +85,49 @@ public class UserService {
         return saved;
     }
 
+    @Transactional(readOnly = true)
+    public List<UserListItemDTO> listAll() {
+        AuthUtil.requirePlatformAdmin(logger, "list platform users");
+        return userRepository.findListItems();
+    }
+
+    @Transactional(readOnly = true)
+    public UserDetailDTO getDetail(UUID userId) {
+        AuthUtil.requirePlatformAdmin(logger, "view user detail");
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+        return new UserDetailDTO(
+                user.getId(),
+                user.getMail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getJobTitle(),
+                user.getPlatformRole(),
+                user.isActive(),
+                userRepository.findOrganizationMembershipsForUser(userId),
+                userRepository.findProjectMembershipsForUser(userId));
+    }
+
+    @Transactional(readOnly = true)
+    public UserSearchResultDTO searchByMail(String mail) {
+        User caller = AuthUtil.requireSession().getUser();
+        boolean platformAdmin = AuthUtil.isPlatformAdmin(caller);
+        if (!platformAdmin && !organizationRepository.ownsAnyActiveOrganization(
+                caller.getId(), OrganizationMemberPermission.MANAGE_ORGANIZATION)) {
+            logger.warn("User {} is not allowed to look users up by mail", caller.getMail());
+            throw new ForbiddenException("You are not allowed to look users up");
+        }
+
+        return userRepository.findSearchResultByMail(mail)
+                .orElseThrow(() -> {
+                    if (!platformAdmin) {
+                        logger.warn("User {} looked up an address with no active account",
+                                caller.getMail());
+                    }
+                    return new EntityNotFoundException("User not found");
+                });
+    }
+
     public User updateRole(UUID userId, PlatformRole newRole) {
         AuthUtil.requirePlatformAdmin(logger, "change platform roles");
         if (newRole == null) {
@@ -107,6 +163,21 @@ public class UserService {
         user.deactivate();
         userRepository.save(user);
         logger.info("Deactivated user {}", user.getMail());
+    }
+
+    public void reactivateUser(UUID userId) {
+        AuthUtil.requirePlatformAdmin(logger, "reactivate users");
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        if (user.isActive()) {
+            logger.debug("User {} is already active", user.getMail());
+            return;
+        }
+
+        user.activate();
+        userRepository.save(user);
+        logger.info("Reactivated user {}", user.getMail());
     }
 
     private void assertWouldLeaveAnActiveAdmin(User user, String action) {

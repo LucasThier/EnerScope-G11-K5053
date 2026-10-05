@@ -2,14 +2,20 @@ package org.enerscope.user.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.enerscope.auth.filter.AuthFilter;
+import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.ForbiddenException;
 import org.enerscope.config.SecurityConfig;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.session.model.Session;
 import org.enerscope.session.service.SessionService;
+import org.enerscope.organization.model.enums.OrganizationMemberType;
 import org.enerscope.user.dto.ChangePasswordRequestDTO;
 import org.enerscope.user.dto.UpdateProfileRequestDTO;
 import org.enerscope.user.dto.UpdateRoleRequestDTO;
+import org.enerscope.user.dto.UserDetailDTO;
+import org.enerscope.user.dto.UserListItemDTO;
+import org.enerscope.user.dto.UserOrganizationMembershipDTO;
+import org.enerscope.user.dto.UserSearchResultDTO;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.model.User;
 import org.enerscope.user.service.UserService;
@@ -23,6 +29,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,7 +40,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -73,6 +82,88 @@ class UserControllerTest {
 
     private String json(Object body) throws Exception {
         return objectMapper.writeValueAsString(body);
+    }
+
+    @Test
+    void listUsersReturnsTheProjection() throws Exception {
+        when(userService.listAll()).thenReturn(List.of(new UserListItemDTO(
+                UUID.randomUUID(), "jane@enerscope.org", "Jane", "Doe", "Analyst",
+                PlatformRole.USER, true, 2L)));
+
+        mockMvc.perform(get("/users")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Users"))
+                .andExpect(jsonPath("$.data[0].mail").value("jane@enerscope.org"))
+                .andExpect(jsonPath("$.data[0].active").value(true))
+                .andExpect(jsonPath("$.data[0].organizationCount").value(2));
+    }
+
+    @Test
+    void listUsersPropagatesForbiddenWith403() throws Exception {
+        when(userService.listAll())
+                .thenThrow(new ForbiddenException("Only platform admins can list platform users"));
+
+        mockMvc.perform(get("/users")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listUsersRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(get("/users"))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).listAll();
+    }
+
+    @Test
+    void getUserDetailReturnsTheFullDetail() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UserDetailDTO detail = new UserDetailDTO(
+                userId, "jane@enerscope.org", "Jane", "Doe", "Analyst", PlatformRole.USER, true,
+                List.of(new UserOrganizationMembershipDTO(
+                        UUID.randomUUID(), "Acme", true, OrganizationMemberType.OWNER)),
+                List.of());
+        when(userService.getDetail(userId)).thenReturn(detail);
+
+        mockMvc.perform(get("/users/" + userId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mail").value("jane@enerscope.org"))
+                .andExpect(jsonPath("$.data.active").value(true))
+                .andExpect(jsonPath("$.data.organizations[0].organizationName").value("Acme"))
+                .andExpect(jsonPath("$.data.projects").isEmpty());
+    }
+
+    @Test
+    void getUserDetailAnswers404WithAFixedMessage() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(userService.getDetail(userId)).thenThrow(new EntityNotFoundException("User not found"));
+
+        mockMvc.perform(get("/users/" + userId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("User not found"));
+    }
+
+    @Test
+    void getUserDetailPropagatesForbiddenWith403() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(userService.getDetail(userId))
+                .thenThrow(new ForbiddenException("Only platform admins can view user detail"));
+
+        mockMvc.perform(get("/users/" + userId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getUserDetailRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(get("/users/" + UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).getDetail(any());
     }
 
     @Test
@@ -139,6 +230,26 @@ class UserControllerTest {
                 .andExpect(status().isUnauthorized());
 
         verify(userService, never()).updateRole(any(), any());
+    }
+
+    @Test
+    void reactivateUserReturnsOk() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/users/" + userId + "/reactivate")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("User reactivated"));
+
+        verify(userService).reactivateUser(userId);
+    }
+
+    @Test
+    void reactivateUserRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(post("/users/" + UUID.randomUUID() + "/reactivate"))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).reactivateUser(any());
     }
 
     @Test
@@ -297,4 +408,49 @@ class UserControllerTest {
 
         verify(userService, never()).changePassword(any(), any(), any());
     }
+    @Test
+    void searchUserReturnsTheMinimalProjection() throws Exception {
+        when(userService.searchByMail("jane@enerscope.org")).thenReturn(new UserSearchResultDTO(
+                UUID.randomUUID(), "Jane", "Doe", "jane@enerscope.org"));
+
+        mockMvc.perform(get("/users/search")
+                        .param("mail", "jane@enerscope.org")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.mail").value("jane@enerscope.org"))
+                .andExpect(jsonPath("$.data.firstName").value("Jane"))
+                .andExpect(jsonPath("$.data.platformRole").doesNotExist())
+                .andExpect(jsonPath("$.data.active").doesNotExist());
+    }
+
+    @Test
+    void searchUserAnswers404WithAFixedMessage() throws Exception {
+        when(userService.searchByMail(any())).thenThrow(new EntityNotFoundException("User not found"));
+
+        mockMvc.perform(get("/users/search")
+                        .param("mail", "ghost@enerscope.org")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("User not found"));
+    }
+
+    @Test
+    void searchUserPropagatesForbiddenWith403() throws Exception {
+        when(userService.searchByMail(any()))
+                .thenThrow(new ForbiddenException("You are not allowed to look users up"));
+
+        mockMvc.perform(get("/users/search")
+                        .param("mail", "jane@enerscope.org")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void searchUserRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(get("/users/search").param("mail", "jane@enerscope.org"))
+                .andExpect(status().isUnauthorized());
+
+        verify(userService, never()).searchByMail(any());
+    }
+
 }

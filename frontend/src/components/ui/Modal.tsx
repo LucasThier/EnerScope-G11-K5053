@@ -5,6 +5,7 @@ interface ModalProps {
   open: boolean;
   onClose: () => void;
   title: string;
+  subtitle?: string;
   /** `lg` is for a panel that carries a table rather than a form. */
   size?: 'md' | 'lg';
   children: ReactNode;
@@ -27,7 +28,7 @@ function focusablesIn(panel: HTMLElement): HTMLElement[] {
   );
 }
 
-export function Modal({ open, onClose, title, size = 'md', children }: ModalProps) {
+export function Modal({ open, onClose, title, subtitle, size = 'md', children }: ModalProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -124,9 +125,12 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
         }
       >
         <div className="flex items-start justify-between gap-4 border-b border-ink-100 px-6 py-4">
-          <h2 id={titleId} className="text-lg font-semibold text-ink-800">
-            {title}
-          </h2>
+          <div className="min-w-0">
+            <h2 id={titleId} className="text-lg font-semibold text-ink-800">
+              {title}
+            </h2>
+            {subtitle && <p className="mt-0.5 truncate text-sm text-ink-500">{subtitle}</p>}
+          </div>
           <button
             type="button"
             onClick={onClose}

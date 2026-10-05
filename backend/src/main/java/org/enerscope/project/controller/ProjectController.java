@@ -6,8 +6,10 @@ import jakarta.validation.Valid;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
 import org.enerscope.project.dto.ProjectDTO;
+import org.enerscope.project.dto.ProjectMemberCandidateDTO;
 import org.enerscope.project.dto.ProjectMemberDTO;
 import org.enerscope.project.dto.ProjectSummaryDTO;
+import org.enerscope.project.dto.UpdateProjectMemberRoleRequestDTO;
 import org.enerscope.project.dto.UpdateProjectRequestDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
@@ -104,6 +106,42 @@ public class ProjectController {
                 .map(this::toDTO)
                 .toList();
         return Responses.ok("Project members", members);
+    }
+
+    @PatchMapping("/{projectId}/members/{memberId}")
+    @Operation(summary = "Change the role of a project member",
+            description = "Replaces the member's role and permissions. Setting the role the member "
+                    + "already has changes nothing. A project cannot be left without an active ADMIN. "
+                    + "Requires MANAGE_PROJECT on the project, or a platform admin.")
+    public ResponseEntity<ApiResponse<ProjectMemberDTO>> changeMemberRole(
+            @PathVariable UUID projectId,
+            @PathVariable UUID memberId,
+            @Valid @RequestBody UpdateProjectMemberRoleRequestDTO data) {
+        ProjectMember member = projectService.changeMemberRole(projectId, memberId, data);
+        return Responses.ok("Member role updated", toDTO(member));
+    }
+
+    @DeleteMapping("/{projectId}/members/{memberId}")
+    @Operation(summary = "Remove a member from a project",
+            description = "Deletes the membership. A project cannot be left without an active ADMIN, "
+                    + "which includes an admin removing themselves. "
+                    + "Requires MANAGE_PROJECT on the project, or a platform admin.")
+    public ResponseEntity<ApiResponse<Void>> removeMember(
+            @PathVariable UUID projectId,
+            @PathVariable UUID memberId) {
+        projectService.removeMember(projectId, memberId);
+        return Responses.ok("Member removed");
+    }
+
+    @GetMapping("/{projectId}/member-candidates")
+    @Operation(summary = "List the users that can be added to a project",
+            description = "Active members of the project's organization who are not on the project yet. "
+                    + "The optional q filters by first name, last name or mail. "
+                    + "Requires MANAGE_PROJECT on the project, or a platform admin.")
+    public ResponseEntity<ApiResponse<List<ProjectMemberCandidateDTO>>> listMemberCandidates(
+            @PathVariable UUID projectId,
+            @RequestParam(required = false) String q) {
+        return Responses.ok("Member candidates", projectService.listMemberCandidates(projectId, q));
     }
 
     @PostMapping(value = "/{projectId}/version", consumes = MediaType.APPLICATION_JSON_VALUE)

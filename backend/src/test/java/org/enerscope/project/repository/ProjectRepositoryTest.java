@@ -4,6 +4,8 @@ import org.enerscope.organization.model.Organization;
 import org.enerscope.project.dto.ProjectSummaryDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
+import org.enerscope.project.model.ProjectMemberRole;
+import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.version.model.Version;
@@ -20,6 +22,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
@@ -54,6 +57,16 @@ class ProjectRepositoryTest {
         return entityManager.persist(projectMember);
     }
 
+    private ProjectMember attachAs(Project project, User user, ProjectMemberType... types) {
+        ProjectMember projectMember = new ProjectMember(user, project);
+        for (ProjectMemberType type : types) {
+            projectMember.addRole(new ProjectMemberRole(
+                    type.name(), type, ProjectMember.defaultPermissionsFor(type)));
+        }
+        project.addMember(projectMember);
+        return entityManager.persist(projectMember);
+    }
+
     private Version attachVersion(Project project, String name) {
         Version version = new Version(name, null, null, null, null, null);
         project.addVersion(version);
@@ -70,7 +83,7 @@ class ProjectRepositoryTest {
         project("Grid Expansion");
         sync();
 
-        List<ProjectSummaryDTO> summaries = projectRepository.findSummaries(null);
+        List<ProjectSummaryDTO> summaries = projectRepository.findSummaries(member.getId(), null);
 
         assertEquals(1, summaries.size());
         assertEquals("Grid Expansion", summaries.get(0).name());
@@ -82,7 +95,7 @@ class ProjectRepositoryTest {
         project.deactivate();
         sync();
 
-        assertTrue(projectRepository.findSummaries(null).isEmpty());
+        assertTrue(projectRepository.findSummaries(member.getId(), null).isEmpty());
     }
 
     @Test
@@ -95,7 +108,7 @@ class ProjectRepositoryTest {
         leaving.deactivate();
         sync();
 
-        List<ProjectSummaryDTO> summaries = projectRepository.findSummaries(null);
+        List<ProjectSummaryDTO> summaries = projectRepository.findSummaries(member.getId(), null);
 
         assertEquals(1, summaries.size());
         assertEquals(1L, summaries.get(0).memberCount());
@@ -172,5 +185,89 @@ class ProjectRepositoryTest {
     @Test
     void existsByIdAndActiveTrueIsFalseForAnUnknownId() {
         assertFalse(projectRepository.existsByIdAndActiveTrue(UUID.randomUUID()));
+    }
+    @Test
+    void findSummariesExcludesProjectsOfADeactivatedOrganization() {
+        project("Grid Expansion");
+        organization.deactivate();
+        sync();
+
+        assertTrue(projectRepository.findSummaries(member.getId(), null).isEmpty());
+    }
+
+    @Test
+    void findSummariesForMemberExcludesProjectsOfADeactivatedOrganization() {
+        Project project = project("Grid Expansion");
+        attach(project, member);
+        organization.deactivate();
+        sync();
+
+        assertTrue(projectRepository.findSummariesForMember(member.getId(), null).isEmpty());
+    }
+
+    @Test
+    void findSummariesForMemberExposesTheCallerRole() {
+        Project led = project("Grid Expansion");
+        Project edited = project("Solar Farm");
+        User other = entityManager.persist(
+                new User("joe@enerscope.org", "Joe", "Roe", "hashed", PlatformRole.USER));
+        attachAs(led, member, ProjectMemberType.ADMIN);
+        attachAs(edited, member, ProjectMemberType.EDITOR);
+        attachAs(edited, other, ProjectMemberType.ADMIN);
+        sync();
+
+        List<ProjectSummaryDTO> summaries = projectRepository.findSummariesForMember(member.getId(), null);
+
+        assertEquals(2, summaries.size());
+        assertEquals(ProjectMemberType.ADMIN, roleOf(summaries, "Grid Expansion"));
+        assertEquals(ProjectMemberType.EDITOR, roleOf(summaries, "Solar Farm"));
+    }
+
+    @Test
+    void findSummariesExposesNullRoleWhenCallerIsNotAMember() {
+        Project project = project("Grid Expansion");
+        User platformAdmin = entityManager.persist(
+                new User("admin@enerscope.org", "Ada", "Min", "hashed", PlatformRole.ADMIN));
+        attachAs(project, member, ProjectMemberType.ADMIN);
+        sync();
+
+        List<ProjectSummaryDTO> summaries = projectRepository.findSummaries(platformAdmin.getId(), null);
+
+        assertEquals(1, summaries.size());
+        assertNull(summaries.get(0).myRole());
+    }
+
+    @Test
+    void findSummariesExposesTheCallerRoleWhenPlatformAdminIsAMember() {
+        Project project = project("Grid Expansion");
+        User platformAdmin = entityManager.persist(
+                new User("admin@enerscope.org", "Ada", "Min", "hashed", PlatformRole.ADMIN));
+        attachAs(project, platformAdmin, ProjectMemberType.EDITOR);
+        sync();
+
+        List<ProjectSummaryDTO> summaries = projectRepository.findSummaries(platformAdmin.getId(), null);
+
+        assertEquals(1, summaries.size());
+        assertEquals(ProjectMemberType.EDITOR, summaries.get(0).myRole());
+    }
+
+    @Test
+    void findSummariesForMemberPrefersAdminWhenTheCallerHoldsTwoRoles() {
+        Project project = project("Grid Expansion");
+        attachAs(project, member, ProjectMemberType.EDITOR, ProjectMemberType.ADMIN);
+        sync();
+
+        List<ProjectSummaryDTO> summaries = projectRepository.findSummariesForMember(member.getId(), null);
+
+        assertEquals(1, summaries.size());
+        assertEquals(ProjectMemberType.ADMIN, summaries.get(0).myRole());
+    }
+
+    private ProjectMemberType roleOf(List<ProjectSummaryDTO> summaries, String name) {
+        return summaries.stream()
+                .filter(summary -> summary.name().equals(name))
+                .findFirst()
+                .orElseThrow()
+                .myRole();
     }
 }

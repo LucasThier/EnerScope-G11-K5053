@@ -32,6 +32,10 @@ public class Organization extends BaseEntity {
         this.name = name;
     }
 
+    public void rename(String newName) {
+        this.name = newName;
+    }
+
     public void addMember(OrganizationMember member) {
         members.add(member);
     }
