@@ -240,4 +240,25 @@ CREATE TABLE  node_connection (
     CONSTRAINT fk_cp_to_node FOREIGN KEY (to_node_id) REFERENCES base_node(id)
 );
 
+CREATE TABLE internal_consumption (
+                                      id                  UUID NOT NULL,
+    -- Specific fields for InternalConsumption
+                                      consumption_summer  REAL,
+                                      consumption_autumn  REAL,
+                                      consumption_winter  REAL,
+                                      consumption_spring  REAL,
+
+                                      PRIMARY KEY (id),
+                                      CONSTRAINT fk_ic_base_node FOREIGN KEY (id) REFERENCES base_node(id)
+);
+
+CREATE TABLE industrial_consumption (
+                                      id          UUID NOT NULL,
+    -- Specific fields for InternalConsumption
+                                      consumption REAL,
+
+                                      PRIMARY KEY (id),
+                                      CONSTRAINT fk_ic_base_node FOREIGN KEY (id) REFERENCES base_node(id)
+);
+
 

@@ -1,6 +1,8 @@
 package org.enerscope.simulator;
 
 import org.enerscope.node.model.BaseNode;
+import org.enerscope.node.model.export.IndustrialConsumption;
+import org.enerscope.node.model.export.InternalConsumption;
 import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.extraction.GatheringNetwork;
@@ -443,5 +445,83 @@ public class ResultTest {
         assertEquals(83000.0f, resultLNGCarrier.getTotalProduced(),0.1f);
         assertEquals(0f,resultLNGCarrier.getTotalDeferred(),0.1f);
         assertEquals(0f,resultLNGCarrier.getExtra(),0.1f);
+    }
+
+    @Test
+    public void testResultInternalConsumption(){
+        UUID pipelineId = UUID.randomUUID();
+        UUID internalConsumptionId = UUID.randomUUID();
+
+        Pipeline mockPipeline = Mockito.mock(Pipeline.class);
+        setupBaseNodeMocks(mockPipeline, pipelineId);
+        when(mockPipeline.getMaxFlowCapacity()).thenReturn(1000f);
+        when(mockPipeline.getLength()).thenReturn(100f);
+        when(mockPipeline.getLossPerKm()).thenReturn(0f);
+
+        InternalConsumption mockInternalConsumption = Mockito.mock(InternalConsumption.class);
+        setupBaseNodeMocks(mockInternalConsumption, internalConsumptionId);
+        when(mockInternalConsumption.getConsumptionSummer()).thenReturn(1000f);
+        when(mockInternalConsumption.getConsumptionAutumn()).thenReturn(1500f);
+        when(mockInternalConsumption.getConsumptionWinter()).thenReturn(2000f);
+        when(mockInternalConsumption.getConsumptionSpring()).thenReturn(1500f);
+
+        SimPipeline simPipeline = new SimPipeline(mockPipeline);
+        SimInternalConsumption simInternalConsumption = new SimInternalConsumption(mockInternalConsumption);
+
+        simInternalConsumption.addPreviousNode(simPipeline);
+
+        for (int t = 0; t < 8760; t++) {
+            simPipeline.setToDeliver(new ToDeliver(1000f,0f));
+            simInternalConsumption.simulate(t);
+        }
+
+        ResultPerNode resultInternalConsumption = simInternalConsumption.createResult();
+
+        assertEquals(13140000f, resultInternalConsumption.getMaxPossibleProduced(), 0.1f);
+        assertEquals(8760000f, resultInternalConsumption.getTotalProduced(), 0.1f);
+        assertEquals(0f,resultInternalConsumption.getTotalDeferred(),0.1f);
+        assertEquals(0f,resultInternalConsumption.getExtra(),0.1f);
+    }
+
+    @Test
+    public void testResultIndustrialConsumption(){
+        UUID pipelineId = UUID.randomUUID();
+        UUID industrialConsumption = UUID.randomUUID();
+
+        Pipeline mockPipeline = Mockito.mock(Pipeline.class);
+        setupBaseNodeMocks(mockPipeline, pipelineId);
+        when(mockPipeline.getMaxFlowCapacity()).thenReturn(1000f);
+        when(mockPipeline.getLength()).thenReturn(100f);
+        when(mockPipeline.getLossPerKm()).thenReturn(0f);
+
+        IndustrialConsumption mockIndustrialConsumption = Mockito.mock(IndustrialConsumption.class);
+        setupBaseNodeMocks(mockIndustrialConsumption, industrialConsumption);
+        when(mockIndustrialConsumption.getConsumption()).thenReturn(1500f);
+
+        SimPipeline simPipeline = new SimPipeline(mockPipeline);
+        SimIndustrialConsumption simIndustrialConsumption = new SimIndustrialConsumption(mockIndustrialConsumption);
+
+        simIndustrialConsumption.addPreviousNode(simPipeline);
+
+        for (int t = 0; t < 8760; t++) {
+            simPipeline.setToDeliver(new ToDeliver(1000f,0f));
+            simIndustrialConsumption.simulate(t);
+        }
+
+        ResultPerNode resultIndustrialConsumption = simIndustrialConsumption.createResult();
+
+//        System.out.println("=== RESULTADO Internal Consumption ===");
+//        System.out.println("Node ID: " + resultIndustrialConsumption.getNodeID());
+//        System.out.println("Max Possible Produced: " + resultIndustrialConsumption.getMaxPossibleProduced());
+//        System.out.println("Total Produced: " + resultIndustrialConsumption.getTotalProduced());
+//        System.out.println("Total Deferred: " + resultIndustrialConsumption.getTotalDeferred());
+//        System.out.println("Total Extra: " + resultIndustrialConsumption.getExtra());
+
+        assertNotNull(resultIndustrialConsumption.getNodeID(), "El InternalConsumption debe tener un ID asignado");
+
+        assertEquals(13140000f,resultIndustrialConsumption.getMaxPossibleProduced(),0.1f);
+        assertEquals(8760000f, resultIndustrialConsumption.getTotalProduced(),0.1f);
+        assertEquals(0f,resultIndustrialConsumption.getTotalDeferred(),0.1f);
+        assertEquals(0f,resultIndustrialConsumption.getExtra(),0.1f);
     }
 }
