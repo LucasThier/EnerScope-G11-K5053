@@ -5,6 +5,7 @@ import org.enerscope.auth.dto.LoginRequestDTO;
 import org.enerscope.auth.dto.RefreshRequestDTO;
 import org.enerscope.auth.dto.RegisterRequestDTO;
 import org.enerscope.auth.filter.AuthFilter;
+import org.enerscope.common.ForbiddenException;
 import org.enerscope.config.SecurityConfig;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.session.model.Session;
@@ -218,6 +219,19 @@ class AuthControllerTest {
     }
 
     @Test
+    void loginRejectsADeactivatedAccountWith403() throws Exception {
+        when(userService.login(any(), any()))
+                .thenThrow(new ForbiddenException("This account has been deactivated"));
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new LoginRequestDTO("jane@enerscope.org", "password123"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("This account has been deactivated"));
+    }
+
+    @Test
     void loginRejectsBlankFieldsWithValidationError() throws Exception {
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -271,6 +285,23 @@ class AuthControllerTest {
                         .content(json(new RefreshRequestDTO(REFRESH_TOKEN))))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("User not found"));
+    }
+
+    @Test
+    void refreshRejectsADeactivatedAccountWith401() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = sampleUser();
+        user.deactivate();
+        when(sessionService.validateRefreshToken(REFRESH_TOKEN)).thenReturn(Optional.of(userId));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        mockMvc.perform(post("/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new RefreshRequestDTO(REFRESH_TOKEN))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("This account has been deactivated"));
+
+        verify(sessionService, never()).create(any(User.class));
     }
 
     @Test

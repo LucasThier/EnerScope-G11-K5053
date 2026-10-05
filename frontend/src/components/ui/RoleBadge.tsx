@@ -10,12 +10,17 @@ const styles: Record<PlatformRole, string> = {
   USER: 'bg-ink-100 text-ink-600',
 };
 
+const labels: Record<PlatformRole, string> = {
+  ADMIN: 'Administrador',
+  USER: 'Usuario',
+};
+
 export function RoleBadge({ role, className = '' }: RoleBadgeProps) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${styles[role]} ${className}`}
     >
-      {role}
+      {labels[role]}
     </span>
   );
 }
