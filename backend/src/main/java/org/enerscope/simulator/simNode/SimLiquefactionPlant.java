@@ -102,4 +102,10 @@ class SimLiquefactionPlant extends SimBaseNode{
         resultPerNode.setExtra(totalDischarged);
         return resultPerNode;
     }
+    @Override
+    public void reset() {
+        super.reset();
+        this.amountInIntermediateStorage = new ToDeliver(0,0);
+        totalDischarged = 0;
+    }
 }

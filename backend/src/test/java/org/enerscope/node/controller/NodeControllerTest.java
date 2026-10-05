@@ -3,7 +3,6 @@ package org.enerscope.node.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.dto.*;
 import java.util.UUID;
 import org.enerscope.node.model.enums.CostBasisEnum;
@@ -14,6 +13,8 @@ import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.repository.WellRepository;
 import org.enerscope.node.service.NodeService;
+import org.enerscope.probabilistic.ConstantValue;
+import org.enerscope.probabilistic.ProbabilisticDistribution;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -100,7 +101,7 @@ class NodeControllerTest {
                 StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
 
         wellDTO.setMaxCollectionCapacity(1000.0f);
-        wellDTO.setDeclineCurve(0.05f);
+        wellDTO.setDeclineCurve(new ProbabilisticDistributionDTO("CONSTANT",0.05f,null));
         wellDTO.setGasRichness(0.3f);
         wellDTO.setDTMTime(15);
         wellDTO.setDTMCost(150.000f);
