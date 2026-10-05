@@ -31,6 +31,8 @@ public class FLNGUnit extends LiquefactionNode {
     @Column(name = "vessel_depth")
     private float vesselDepth;
 
+    private Float gasConsumption;
+
     @Embedded
     @AttributeOverride(name = "value", column = @Column(name = "hiringCost"))
     private MoneyAmount hiringCost;

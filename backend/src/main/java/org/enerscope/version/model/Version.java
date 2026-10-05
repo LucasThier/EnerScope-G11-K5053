@@ -9,6 +9,7 @@ import org.enerscope.node.model.ConnectionChange;
 import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.project.model.Project;
+import org.enerscope.simulator.Result;
 import org.springframework.context.annotation.Lazy;
 
 import jakarta.persistence.CascadeType;
@@ -55,6 +56,10 @@ public class Version extends BaseEntity {
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     private List<NodeChange> nodeChanges = new ArrayList<>();
 
+    @JoinColumn(nullable = true)
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Result> results = new ArrayList<>();
+
     /**
      * Written by hand instead of with {@code @AllArgsConstructor} so that a null
      * collection becomes an empty one: the generated constructor overwrote the
@@ -79,5 +84,9 @@ public class Version extends BaseEntity {
 
     private static <T> List<T> orEmpty(List<T> values) {
         return values == null ? new ArrayList<>() : values;
+    }
+
+    public void addResult(Result result){
+        this.results.add(result);
     }
 }
