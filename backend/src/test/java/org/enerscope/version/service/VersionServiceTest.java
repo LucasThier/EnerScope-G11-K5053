@@ -6,17 +6,27 @@ import org.enerscope.common.UnauthorizedException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.dto.BaseNodeDTO;
+import org.enerscope.node.dto.DiagramDTO;
+import org.enerscope.node.dto.GeographicalPositionDTO;
+import org.enerscope.node.dto.GraphPositionDTO;
+import org.enerscope.node.dto.NodeGraphDataDTO;
 import org.enerscope.node.dto.ConnectionDTO;
 import org.enerscope.node.dto.WellDTO;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.BaseNode;
+import org.enerscope.node.model.GeographicalPosition;
+import org.enerscope.node.model.GraphPosition;
 import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.NodeChange;
+import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.NodeGraphData;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
 import org.enerscope.node.model.enums.NodeStateEnum;
+import org.enerscope.node.model.enums.NodeTypeEnum;
+import org.enerscope.node.model.enums.StructuralRoleEnum;
+import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -447,6 +457,128 @@ class VersionServiceTest {
         verify(versionRepository, times(1)).save(version);
     }
 
+    @Test
+    void getDiagram_ShouldMapNodesAndConnectionsToDTOs() {
+        // Given
+        UUID versionId = UUID.randomUUID();
+        UUID fromId = UUID.randomUUID();
+        UUID toId = UUID.randomUUID();
+
+        Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>());
+
+        NodeGraphData graphData = new NodeGraphData(
+                new GraphPosition(10.0, 20.0),
+                new GeographicalPosition(-70.0, -34.0));
+        Well well = new Well(
+                "Well A", NodeStateEnum.RUNNING, Instant.now(), 12,
+                MoneyAmount.of(1), 30, MoneyAmount.of(1), 0.0f,
+                new InvestmentCost(), graphData, UUID.randomUUID(),
+                new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
+                1.0f, 1.0f, 0.5f, 1, MoneyAmount.of(1), 1.0f);
+        version.getNodeSnapshot().add(well);
+
+        NodeConnection connection = new NodeConnection(UUID.randomUUID(), fromId, toId);
+        version.getConnectionSnapshot().add(connection);
+
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+
+        // When
+        DiagramDTO diagram = versionService.getDiagram(versionId);
+
+        // Then
+        assertEquals(versionId, diagram.getVersionId());
+        assertEquals(1, diagram.getNodes().size());
+        assertEquals("Well A", diagram.getNodes().get(0).getName());
+        assertEquals(NodeTypeEnum.WELL, diagram.getNodes().get(0).getType().getNodeType());
+        assertEquals(10.0, diagram.getNodes().get(0).getGraphData().getGraphPosition().getX());
+        assertEquals(-70.0, diagram.getNodes().get(0).getGraphData().getGeographicalPosition().getLongitude());
+        assertEquals(1, diagram.getConnections().size());
+        assertEquals(fromId, diagram.getConnections().get(0).getFromNodeId());
+        assertEquals(toId, diagram.getConnections().get(0).getToNodeId());
+    }
+
+    @Test
+    void updateNodePosition_ShouldUpdateGraphAndGeographicalPosition() {
+        // Given
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+
+        Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>());
+        Well node = new Well(
+                "Well A", NodeStateEnum.RUNNING, Instant.now(), 12,
+                MoneyAmount.of(1), 30, MoneyAmount.of(1), 0.0f,
+                new InvestmentCost(), new NodeGraphData(), nodeId,
+                new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
+                1.0f, 1.0f, 0.5f, 1, MoneyAmount.of(1), 1.0f);
+        version.getNodeSnapshot().add(node);
+
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(node));
+        when(nodeRepository.save(any(BaseNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        NodeGraphDataDTO position = new NodeGraphDataDTO(
+                new GraphPositionDTO(5.0, 6.0),
+                new GeographicalPositionDTO(-58.0, -34.0));
+
+        // When
+        BaseNode result = versionService.updateNodePosition(versionId, nodeId, position);
+
+        // Then
+        assertEquals(5.0, result.getGraphData().getGraphPosition().getX());
+        assertEquals(6.0, result.getGraphData().getGraphPosition().getY());
+        assertEquals(-58.0, result.getGraphData().getGeographicalPosition().getLongitude());
+        assertEquals(-34.0, result.getGraphData().getGeographicalPosition().getLatitude());
+        verify(nodeRepository, times(1)).save(node);
+    }
+
+    @Test
+    void getNodeDetail_ShouldReturnCommonAndTypeSpecificFields() {
+        // Given
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>());
+        Well node = new Well(
+                "W", NodeStateEnum.RUNNING, Instant.now(), 24,
+                MoneyAmount.of(100), 30, MoneyAmount.of(50), 0.0f,
+                new InvestmentCost(), new NodeGraphData(new GraphPosition(1.0, 2.0), null), nodeId,
+                new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
+                10.0f, 0.2f, 0.5f, 5, MoneyAmount.of(7), 3.0f);
+        version.getNodeSnapshot().add(node);
+
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(node));
+
+        // When
+        org.enerscope.node.dto.NodeDetailDTO detail = versionService.getNodeDetail(versionId, nodeId);
+
+        // Then
+        assertEquals("W", detail.getName());
+        assertEquals(NodeTypeEnum.WELL, detail.getType().getNodeType());
+        assertEquals(100.0, detail.getUpkeepCosts());
+        assertEquals(10.0, detail.getAttributes().get("maxCollectionCapacity"));
+        assertEquals(7.0, detail.getAttributes().get("dtmCost"));
+    }
+
+    @Test
+    void saveVersion_WithoutParent_InitialisesEmptyNonNullSnapshots() {
+        // Given
+        when(versionRepository.save(any(Version.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        org.enerscope.version.dto.VersionDTO dto = new org.enerscope.version.dto.VersionDTO();
+        dto.setName("V1");
+
+        // When
+        Version saved = versionService.saveVersion(dto);
+
+        // Then: snapshots must be empty (not null) so the node/connection ABM can append.
+        assertNotNull(saved.getNodeSnapshot());
+        assertTrue(saved.getNodeSnapshot().isEmpty());
+        assertNotNull(saved.getConnectionSnapshot());
+        assertTrue(saved.getConnectionSnapshot().isEmpty());
+    }
+
     // ---- authorization -------------------------------------------------------
     //
     // Every entry point of this service is reachable from VersionController with
@@ -611,6 +743,38 @@ class VersionServiceTest {
         assertNotNull(saved.getConnectionSnapshot());
         assertTrue(saved.getNodeSnapshot().isEmpty());
         assertTrue(saved.getConnectionSnapshot().isEmpty());
+    }
+
+    @Test
+    void updateNodeBasics_ShouldUpdateNameAndState() {
+        // Given
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+
+        Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>());
+        Well node = new Well(
+                "Old Name", NodeStateEnum.PROPOSED, Instant.now(), 12,
+                MoneyAmount.of(1), 30, MoneyAmount.of(1), 0.0f,
+                new InvestmentCost(), new NodeGraphData(), nodeId,
+                new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
+                1.0f, 1.0f, 0.5f, 1, MoneyAmount.of(1), 1.0f);
+        version.getNodeSnapshot().add(node);
+
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(node));
+        when(nodeRepository.save(any(BaseNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        org.enerscope.node.dto.NodeBasicsDTO basics =
+                new org.enerscope.node.dto.NodeBasicsDTO("New Name", NodeStateEnum.RUNNING);
+
+        // When
+        BaseNode result = versionService.updateNodeBasics(versionId, nodeId, basics);
+
+        // Then
+        assertEquals("New Name", result.getName());
+        assertEquals(NodeStateEnum.RUNNING, result.getState());
+        verify(nodeRepository, times(1)).save(node);
     }
 
     @Test

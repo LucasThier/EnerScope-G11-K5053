@@ -37,7 +37,7 @@ const COLLAPSED_KEY = 'sidebarCollapsed';
 const NAV_ITEMS: NavItem[] = [
   { label: 'Inicio', icon: <HomeIcon />, to: '/app' },
   { label: 'Proyectos', icon: <FolderIcon />, to: '/projects' },
-  { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon /> },
+  { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon />, to: '/editor' },
   { label: 'Simulaciones / Escenarios', icon: <FlaskIcon /> },
   { label: 'Comparar Escenarios', icon: <CompareIcon /> },
   { label: 'Reportes', icon: <ReportIcon /> },

@@ -1,5 +1,6 @@
 import { client } from './client';
 import type { ApiResponse } from '../types/auth';
+import type { VersionSummary } from '../types/diagram';
 import type {
   AddProjectMemberRequest,
   CreateProjectRequest,
@@ -36,6 +37,17 @@ export const projectsApi = {
   /** Members of a project: readable by platform admins and by members of the project. */
   members: (projectId: string): Promise<AxiosResponse<ApiResponse<ProjectMember[]>>> =>
     client.get(`/projects/${projectId}/members`),
+
+  /** Versions of a project (summaries), so the editor can pick one to open. */
+  listVersions: (projectId: string): Promise<AxiosResponse<ApiResponse<VersionSummary[]>>> =>
+    client.get(`/projects/${projectId}/versions`),
+
+  /** Create a new version under a project. */
+  createVersion: (
+    projectId: string,
+    data: { name: string; parentVersion?: string | null },
+  ): Promise<AxiosResponse<ApiResponse<unknown>>> =>
+    client.post(`/projects/${projectId}/version`, data),
 
   addMember: (
     projectId: string,
