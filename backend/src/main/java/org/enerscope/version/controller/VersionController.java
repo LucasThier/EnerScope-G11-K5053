@@ -38,10 +38,13 @@ public class VersionController {
      */
 
     @PostMapping(value = "/createtest", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(summary = "Create a new version", description = "Create a new Version with all required properties.")
+    @Operation(summary = "Create a version detached from any project",
+            description = "Creates a Version that hangs off no project. Restricted to platform admins: "
+                    + "with no owning project there is no membership that could grant access to it. "
+                    + "Versions that belong to a project are created with POST /projects/{id}/version.")
     public ResponseEntity<ApiResponse<Version>> createVersion(
             @RequestBody VersionDTO versionDTO) {
-        Version version = versionService.saveVersion(versionDTO);
+        Version version = versionService.saveOrphanVersion(versionDTO);
         return Responses.ok("Version created successfully", version);
     }
 

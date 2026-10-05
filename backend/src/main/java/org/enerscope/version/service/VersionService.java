@@ -54,6 +54,7 @@ import org.enerscope.node.model.ConnectionChange;
 import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
+import org.enerscope.project.service.ProjectAccessGuard;
 
 @Service
 @AllArgsConstructor
@@ -65,7 +66,26 @@ public class VersionService {
     private final BaseNodeRepository nodeRepository;
     private final AppLogger logger;
     private final NodeService nodeService;
+    private final ProjectAccessGuard accessGuard;
 
+    /**
+     * Creates a version detached from every project, for
+     * {@code POST /version/createtest}. A version with no owning project has no
+     * membership that could grant access to it, so only a platform ADMIN may
+     * make one — and, by the same rule in {@link ProjectAccessGuard}, only a
+     * platform ADMIN can touch it afterwards.
+     */
+    public Version saveOrphanVersion(VersionDTO data) {
+        accessGuard.assertIsPlatformAdmin("create detached versions");
+        return saveVersion(data);
+    }
+
+    /**
+     * Creates a version. Deliberately unguarded: it is reached either through
+     * {@code ProjectService.saveVersion}, which authorizes the owning project
+     * before calling it, or through {@link #saveOrphanVersion}, which requires a
+     * platform ADMIN. There is no version id to check yet at this point.
+     */
     public Version saveVersion(VersionDTO data) {
         if (data == null) {
             throw new IllegalArgumentException("VersionDTO cannot be null");
@@ -80,25 +100,30 @@ public class VersionService {
         }
 
         Version parentVersion = null;
-        List<BaseNode> nodeSnapshot = null; // do we want a new version with new changes? Or not?
-        List<NodeConnection> connectionSnapshot = null;
+        // A version starts with empty snapshots, never null ones: every
+        // getNodeSnapshot()/getConnectionSnapshot() call in this class mutates
+        // the list in place, and the create response would otherwise answer
+        // "nodeSnapshot": null where a later read answers [].
+        List<BaseNode> nodeSnapshot = new ArrayList<>();
+        List<NodeConnection> connectionSnapshot = new ArrayList<>();
         if (data.getParentVersion() != null) {
             parentVersion = versionRepository.findById(data.getParentVersion())
                     .orElseThrow(() -> new VersionNotFoundException(data.getParentVersion()));
-            // Create defensive copies to avoid sharing references with parent version
-            connectionSnapshot = parentVersion.getConnectionSnapshot() == null
-                    ? null
-                    : new ArrayList<>(parentVersion.getConnectionSnapshot());
-            nodeSnapshot = parentVersion.getNodeSnapshot() == null
-                    ? null
-                    : new ArrayList<>(parentVersion.getNodeSnapshot());
+            // Create defensive copies to avoid sharing references with parent version.
+            // Rows created before snapshots were initialised can still carry nulls.
+            if (parentVersion.getConnectionSnapshot() != null) {
+                connectionSnapshot = new ArrayList<>(parentVersion.getConnectionSnapshot());
+            }
+            if (parentVersion.getNodeSnapshot() != null) {
+                nodeSnapshot = new ArrayList<>(parentVersion.getNodeSnapshot());
+            }
         }
 
         Version version = new Version(data.getName(),
                 parentVersion,
                 nodeSnapshot,
                 connectionSnapshot,
-                new ArrayList<>(), new ArrayList<>(),new ArrayList<>());
+                new ArrayList<>(), new ArrayList<>());
 
         Version saved = versionRepository.save(version);
 
@@ -108,6 +133,7 @@ public class VersionService {
 
     public void deleteVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
+        accessGuard.assertCanEditVersion(id);
         Version version = versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
         // WE DELETE ALL OF THE SUB-VERSIONS, MAYBE CHANGE LATER
@@ -116,7 +142,16 @@ public class VersionService {
         logger.info("Deleted version with id: {}", id);
     }
 
-    public void deleteSubVersions(UUID parentVersion) {
+    /**
+     * Deletes a version and everything below it. Private on purpose: it is only
+     * reached through {@link #deleteVersion}, which runs the permission check —
+     * a public entry point here would be an unguarded way to delete a tree.
+     *
+     * <p>Known limitation: the permission check covers the root version's
+     * project. A child version attached to a different project would be deleted
+     * without that project being checked; see {@code docs/considerations.md}.</p>
+     */
+    private void deleteSubVersions(UUID parentVersion) {
 
         List<UUID> versionsToDelete = new ArrayList<>();
         Queue<UUID> queue = new LinkedList<>();
@@ -143,6 +178,7 @@ public class VersionService {
 
     public Version getVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
+        accessGuard.assertCanViewVersion(id);
         return versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
     }
@@ -151,6 +187,7 @@ public class VersionService {
     public Version modifyVersion(UUID id, VersionDTO data) {
         Objects.requireNonNull(id, "Version ID cannot be null");
         Objects.requireNonNull(data, "VersionDTO cannot be null");
+        accessGuard.assertCanEditVersion(id);
 
         Version existingVersion = versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
@@ -174,6 +211,7 @@ public class VersionService {
     public BaseNode addNodeToVersion(UUID versionId, BaseNodeDTO nodeDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
+        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -210,6 +248,7 @@ public class VersionService {
     public NodeConnection addConnectionToVersion(UUID versionId, ConnectionDTO connectionDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionDTO, "Connection DTO cannot be null");
+        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -240,6 +279,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
+        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -353,6 +393,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionId, "Connection ID cannot be null");
         Objects.requireNonNull(connectionDTO, "Connection DTO cannot be null");
+        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -439,6 +480,8 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
 
+        accessGuard.assertCanEditVersion(versionId);
+
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
 
@@ -498,6 +541,8 @@ public class VersionService {
     public void deleteConnectionFromVersion(UUID versionId, UUID connectionId) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionId, "Connection ID cannot be null");
+
+        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));

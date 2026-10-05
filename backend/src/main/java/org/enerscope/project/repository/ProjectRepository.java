@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ProjectRepository extends JpaRepository<Project, UUID> {
@@ -22,28 +23,75 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
     @Query("""
             SELECT new org.enerscope.project.dto.ProjectSummaryDTO(
                     p.id, p.name, p.description, o.id, o.name,
-                    (SELECT COUNT(pm) FROM ProjectMember pm WHERE pm.project = p),
-                    p.lastModified)
+                    (SELECT COUNT(pm) FROM ProjectMember pm WHERE pm.project = p AND pm.active = true),
+                    p.lastModified,
+                    CASE
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember pa JOIN pa.roles ra
+                                     WHERE pa.project = p AND pa.user.id = :userId AND pa.active = true
+                                       AND ra.memberType = org.enerscope.project.model.enums.ProjectMemberType.ADMIN)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.ADMIN
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember pe JOIN pe.roles re
+                                     WHERE pe.project = p AND pe.user.id = :userId AND pe.active = true
+                                       AND re.memberType = org.enerscope.project.model.enums.ProjectMemberType.EDITOR)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.EDITOR
+                        ELSE NULL
+                    END)
             FROM Project p
             JOIN p.organization o
-            WHERE (:organizationId IS NULL OR o.id = :organizationId)
+            WHERE p.active = true
+              AND o.active = true
+              AND (:organizationId IS NULL OR o.id = :organizationId)
             ORDER BY p.lastModified DESC
             """)
-    List<ProjectSummaryDTO> findSummaries(@Param("organizationId") UUID organizationId);
+    List<ProjectSummaryDTO> findSummaries(@Param("userId") UUID userId,
+                                          @Param("organizationId") UUID organizationId);
 
-    /** As {@link #findSummaries(UUID)}, restricted to projects the user is a member of. */
+    /** As {@link #findSummaries(UUID, UUID)}, restricted to projects the user is a member of. */
     @Query("""
             SELECT new org.enerscope.project.dto.ProjectSummaryDTO(
                     p.id, p.name, p.description, o.id, o.name,
-                    (SELECT COUNT(pm) FROM ProjectMember pm WHERE pm.project = p),
-                    p.lastModified)
+                    (SELECT COUNT(pm) FROM ProjectMember pm WHERE pm.project = p AND pm.active = true),
+                    p.lastModified,
+                    CASE
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember pa JOIN pa.roles ra
+                                     WHERE pa.project = p AND pa.user.id = :userId AND pa.active = true
+                                       AND ra.memberType = org.enerscope.project.model.enums.ProjectMemberType.ADMIN)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.ADMIN
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember pe JOIN pe.roles re
+                                     WHERE pe.project = p AND pe.user.id = :userId AND pe.active = true
+                                       AND re.memberType = org.enerscope.project.model.enums.ProjectMemberType.EDITOR)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.EDITOR
+                        ELSE NULL
+                    END)
             FROM Project p
             JOIN p.organization o
             JOIN p.members m
-            WHERE m.user.id = :userId
+            WHERE p.active = true
+              AND o.active = true
+              AND m.user.id = :userId
               AND (:organizationId IS NULL OR o.id = :organizationId)
             ORDER BY p.lastModified DESC
             """)
     List<ProjectSummaryDTO> findSummariesForMember(@Param("userId") UUID userId,
                                                    @Param("organizationId") UUID organizationId);
+
+    /**
+     * The id of the project a version hangs off, empty when it hangs off none.
+     *
+     * <p>{@code Project.versions} is a unidirectional {@code @OneToMany}: the
+     * foreign key lives on the {@code version} table, but {@code Version} has no
+     * field pointing back, so a version cannot reach its project on its own.
+     * Returning the id rather than the entity keeps the lazy
+     * {@code organization} and {@code members} out of it — callers only need the
+     * id to run an authorization check.</p>
+     */
+    @Query("""
+            SELECT p.id FROM Project p JOIN p.versions v
+            WHERE v.id = :versionId AND v.active = true AND p.active = true
+            """)
+    Optional<UUID> findIdByVersionId(@Param("versionId") UUID versionId);
+
+    boolean existsByIdAndActiveTrue(UUID id);
+
+    Optional<Project> findByIdAndActiveTrue(UUID id);
 }

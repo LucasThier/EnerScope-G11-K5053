@@ -5,6 +5,7 @@ interface ModalProps {
   open: boolean;
   onClose: () => void;
   title: string;
+  subtitle?: string;
   /** `lg` is for a panel that carries a table rather than a form. */
   size?: 'md' | 'lg';
   children: ReactNode;
@@ -12,11 +13,25 @@ interface ModalProps {
 
 const SIZES = { md: 'max-w-lg', lg: 'max-w-2xl' };
 
-const FOCUSABLE = 'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = [
+  'a[href]',
+  'button:not(:disabled)',
+  'input:not(:disabled)',
+  'select:not(:disabled)',
+  'textarea:not(:disabled)',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
 
-export function Modal({ open, onClose, title, size = 'md', children }: ModalProps) {
+function focusablesIn(panel: HTMLElement): HTMLElement[] {
+  return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    (element) => element.getClientRects().length > 0,
+  );
+}
+
+export function Modal({ open, onClose, title, subtitle, size = 'md', children }: ModalProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) {
@@ -40,8 +55,49 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
     if (!open) {
       return;
     }
-    const first = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
-    (first ?? panelRef.current)?.focus();
+    const panel = panelRef.current;
+    const opener = document.activeElement as HTMLElement | null;
+
+    const body = bodyRef.current;
+    const first = body ? focusablesIn(body)[0] : null;
+    (first ?? panel)?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Tab' || !panel) {
+        return;
+      }
+      const focusables = focusablesIn(panel);
+      if (focusables.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const firstFocusable = focusables[0];
+      const lastFocusable = focusables[focusables.length - 1];
+      const index = focusables.indexOf(document.activeElement as HTMLElement);
+
+      if (index === -1) {
+        event.preventDefault();
+        (event.shiftKey ? lastFocusable : firstFocusable).focus();
+        return;
+      }
+
+      if (event.shiftKey && index === 0) {
+        event.preventDefault();
+        lastFocusable.focus();
+      } else if (!event.shiftKey && index === focusables.length - 1) {
+        event.preventDefault();
+        firstFocusable.focus();
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (opener?.isConnected) {
+        opener.focus();
+      }
+    };
   }, [open]);
 
   if (!open) {
@@ -69,9 +125,12 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
         }
       >
         <div className="flex items-start justify-between gap-4 border-b border-ink-100 px-6 py-4">
-          <h2 id={titleId} className="text-lg font-semibold text-ink-800">
-            {title}
-          </h2>
+          <div className="min-w-0">
+            <h2 id={titleId} className="text-lg font-semibold text-ink-800">
+              {title}
+            </h2>
+            {subtitle && <p className="mt-0.5 truncate text-sm text-ink-500">{subtitle}</p>}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -84,7 +143,9 @@ export function Modal({ open, onClose, title, size = 'md', children }: ModalProp
             <CloseIcon className="h-5 w-5" />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div ref={bodyRef} className="p-6">
+          {children}
+        </div>
       </div>
     </div>
   );
