@@ -16,6 +16,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <lombok.version>1.18.46</lombok.version>
         <springdoc.version>2.8.9</springdoc.version>
+        <!-- Overrides the version Spring Boot manages: 1.21.3 talks to the Docker API
+             at 1.32, which Docker Engine 29 (minimum API 1.44) rejects. -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <parent>
@@ -119,6 +122,22 @@
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- MigrationsOnPostgresTest: the real Flyway migrations on a real PostgreSQL -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

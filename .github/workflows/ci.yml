@@ -5,6 +5,8 @@ on:
     branches: [master, main]
   pull_request:
     branches: [master, main]
+    # labeled/unlabeled: adding `migration-edit-ok` must re-run the migrations check.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 jobs:
   migrations:
@@ -13,54 +15,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The check diffs the pull request against its target branch.
+          fetch-depth: 0
 
-      - name: Validate migration versions are unique and well-formed
+      # Names, unique versions, no edits to migrations the base already has, and
+      # timestamped names for new ones. Run it locally the same way:
+      #   bash scripts/check-migrations.sh origin/master
+      # (Whether the migrations actually run is checked by MigrationsOnPostgresTest,
+      # in the backend job below.)
+      - name: Check migration names, versions and changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          # A pull request labelled `migration-edit-ok` may edit an existing migration.
+          ALLOW_MIGRATION_EDITS: ${{ contains(github.event.pull_request.labels.*.name, 'migration-edit-ok') && '1' || '' }}
         run: |
-          MIG_DIR="backend/src/main/resources/db/migration"
-          if [ ! -d "$MIG_DIR" ]; then
-            echo "No migration directory at $MIG_DIR — nothing to check."
-            exit 0
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            bash scripts/check-migrations.sh "origin/$BASE_REF"
+          else
+            bash scripts/check-migrations.sh
           fi
-
-          fail=0
-          declare -A seen
-          shopt -s nullglob
-
-          for f in "$MIG_DIR"/*.sql; do
-            base=$(basename "$f")
-
-            # Skip Flyway repeatable migrations (R__...), they carry no version.
-            case "$base" in
-              R__*) continue ;;
-            esac
-
-            # Enforce the versioned naming convention V<version>__<description>.sql
-            if [[ ! "$base" =~ ^V[0-9]+([._][0-9]+)*__.+\.sql$ ]]; then
-              echo "::error file=$f::Migration '$base' does not follow the Flyway convention V<version>__<description>.sql"
-              fail=1
-              continue
-            fi
-
-            ver="${base#V}"       # strip leading V
-            ver="${ver%%__*}"     # keep the version part before __
-            norm="${ver//_/.}"    # normalise separators so V2_1 == V2.1
-
-            if [[ -n "${seen[$norm]:-}" ]]; then
-              echo "::error file=$f::Duplicate migration version '$ver' — collides with '${seen[$norm]}'"
-              fail=1
-            else
-              seen[$norm]="$base"
-            fi
-          done
-
-          if [[ $fail -ne 0 ]]; then
-            echo ""
-            echo "Migration check failed: fix duplicate or malformed migration versions before merging."
-            exit 1
-          fi
-
-          echo "All migration versions are unique and well-formed:"
-          for f in "$MIG_DIR"/*.sql; do echo "  - $(basename "$f")"; done
 
   backend:
     name: Backend tests
@@ -95,6 +70,17 @@ jobs:
           else
             echo "Detected Maven (no wrapper)"
             mvn --batch-mode test
+          fi
+
+      # MigrationsOnPostgresTest runs every migration on a real PostgreSQL and
+      # validates the entities against it. It is skipped when Docker is missing,
+      # which would turn this check into a silent pass.
+      - name: Check that the migrations were tested on PostgreSQL
+        run: |
+          report=target/surefire-reports/TEST-org.enerscope.MigrationsOnPostgresTest.xml
+          if [ ! -f "$report" ] || ! grep -q 'tests="1" errors="0" skipped="0" failures="0"' "$report"; then
+            echo "::error::MigrationsOnPostgresTest did not run. The migrations were NOT validated against PostgreSQL."
+            exit 1
           fi
 
   frontend:

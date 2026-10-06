@@ -62,9 +62,23 @@ and session management**; domain features are built on top.
    - `docs/considerations.md` — append any decision, assumption, or expectation
      that future agents/humans should keep in mind. Prefer dated, concise bullets.
 4. **Schema changes** go through a new Flyway migration
-   (`backend/src/main/resources/db/migration/V<n>__<desc>.sql`). Never edit an
-   already-applied migration. Keep the JPA entities and the migration in sync
-   (Hibernate runs in `validate` mode).
+   (`backend/src/main/resources/db/migration/V<yyyyMMddHHmm>__<desc>.sql`, the
+   UTC time you create it, e.g. `V202610052110__add_maintenance_duration.sql`).
+   Keep the JPA entities and the migration in sync (Hibernate runs in
+   `validate` mode).
+   - **Never use "the next number".** Every branch picks the same one, and the
+     loser has to rename a file that may already have run on somebody's
+     database. The timestamp does not collide. The older `V1`–`V11` files stay as
+     they are.
+   - **Never edit, rename or delete a migration that is already on `master`.**
+     Databases that ran it reject the changed checksum. Add a new migration. (If
+     it truly never ran anywhere, label the pull request `migration-edit-ok`.)
+   - **Check your work the way CI does:** `bash scripts/check-migrations.sh
+     origin/master` (names, versions, what you touch) and `cd backend && mvn
+     test` with Docker running — `MigrationsOnPostgresTest` runs every
+     migration on an empty PostgreSQL and validates the entities against it.
+   - **Update your branch with `master` before opening or merging the pull
+     request**, so the checks run on the migrations you will actually ship.
 
 ## Conventions
 

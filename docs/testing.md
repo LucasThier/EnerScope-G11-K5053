@@ -21,14 +21,16 @@ Run everything with `cd backend && mvn test`.
     real entities, real schema, real queries, no web layer). Use it for what
     only a database can answer, such as whether a `@Query` filters the rows it
     claims to.
-  - **Integration** — `@SpringBootTest` with the full context on the H2 `test`
-    profile.
+  - **Integration** — `@SpringBootTest` with the full context: on the H2 `test`
+    profile, or, for `MigrationsOnPostgresTest`, against a PostgreSQL container
+    (needs Docker; skipped without it).
 
 ## Summary
 
 | Test class | Type | Cases |
 | --- | --- | --- |
 | `ApplicationContextTest` | Integration | 1 |
+| `MigrationsOnPostgresTest` | Integration | 1 |
 | `auth.controller.AuthControllerTest` | Web | 16 |
 | `common.CsvUtilTest` | Unit | 5 |
 | `jwt.JwtServiceTest` | Unit | 5 |
@@ -56,22 +58,22 @@ Run everything with `cd backend && mvn test`.
 | `strategyCost.CostTest` | Unit | 8 |
 | `strategyCost.InvestmentCostTest` | Unit | 2 |
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| **Total** | | **433 [^p]** |
+| **Total** | | **434 [^p]** |
 
 [^p]: Two cases in `version.service.VersionServiceTest` are
 `@ParameterizedTest`s running over the eight mutating version entry points,
 so they count as 16 executions rather than 2. The 433 cases catalogued here
-therefore make 447 executions.
+therefore make 448 executions.
 
 > **This catalog has drifted from the code.** On 2026-10-05 `mvn test` ran
-> **587** executions, against the 447 above. The gap is not a mistake in the
+> **588** executions, against the 448 above. The gap is not a mistake in the
 > rows: it is tests merged since the catalog was last reconciled. Three classes
 > have no entry (`organization.repository.OrganizationMemberRepositoryTest`,
 > `simulator.ResultTest` and `simulator.SimulatorTest`: 33 executions) and
 > eleven have grown past their recorded count (`user.*`, `organization.*`,
 > `project.*` and `version.service.VersionServiceTest`: 107 executions in
-> total). Reconciling them is its own task. `simulator.ResultMappingTest` was
-> added on 2026-10-05 and is counted correctly.
+> total). Reconciling them is its own task. `simulator.ResultMappingTest` and
+> `MigrationsOnPostgresTest` were added on 2026-10-05 and are counted correctly.
 
 ## `ApplicationContextTest` — Integration
 
@@ -80,6 +82,29 @@ Smoke test that the whole application wires together.
 | Case | Verifies |
 | --- | --- |
 | `contextLoadsAndSeedsAdmin` | The full Spring context (security, filters, JWT, JPA, OpenAPI, seeder) starts, and `AdminSeeder` creates the default `admin@enerscope.org` on boot. |
+
+## `MigrationsOnPostgresTest` — Integration
+
+Runs the real Flyway migrations on an empty PostgreSQL (a Testcontainers
+`postgres:16-alpine`, the image `docker-compose.yml` uses) and starts the whole
+context with `ddl-auto=validate`, as the application does. Every other test
+builds its H2 schema from the entities with Flyway switched off, so none of them
+can notice a migration that does not run, two migrations that create the same
+table, or an entity mapping a column no migration creates. Starting the context
+is the main assertion; the case adds what startup does not check.
+
+Needs Docker. Without it the test is skipped, not failed, so `mvn test` still
+works on a machine that cannot run containers; the CI workflow fails the build if
+the report shows it did not run.
+
+Checked by breaking the migrations on purpose and confirming it turns red:
+restoring the original `V9` (`relation "result_per_node" already exists`),
+deleting `V11` (`missing column [maintenance_duration] in table [base_node]`),
+and adding a misnamed file (the case's own count assertion).
+
+| Case | Verifies |
+| --- | --- |
+| `everyMigrationAppliesToAnEmptyPostgresAndTheEntitiesValidateAgainstIt` | Flyway has no pending migration, and the number applied equals the number of `.sql` files in `db/migration` — a file Flyway does not recognise by name (e.g. one underscore instead of two) is silently ignored, so it would otherwise never be noticed. Reaching it at all means every migration ran and Hibernate accepted the resulting schema. |
 
 ## `auth.controller.AuthControllerTest` — Web
 

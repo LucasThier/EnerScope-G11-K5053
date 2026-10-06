@@ -2002,3 +2002,43 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   - Anyone whose local database already ran an earlier copy of `V9` or `V11`
     needs a fresh one (`docker compose down -v`): Flyway rejects a migration
     whose checksum changed.
+- 2026-10-05 — **Migrations: how branches stop stepping on each other, and what
+  CI now blocks.** The recurring breakage had three causes: sequential numbers
+  chosen independently on every branch (across the branches, `V7` exists under four
+  different names and `V11` was taken twice at the same time), two branches adding
+  the same columns, and a test suite that cannot see any of it (H2, Flyway off).
+  - **Naming.** New migrations are `V<yyyyMMddHHmm>__<desc>.sql` (UTC time of
+    creation), so two branches cannot pick the same version. `V1`–`V11` stay as
+    they are and sort first. `spring.flyway.out-of-order=true` lets a migration
+    with an older timestamp that merges later still apply on a database that is
+    already ahead; without it Flyway refuses to start.
+  - **`scripts/check-migrations.sh`** (CI job *Flyway migrations check*): file
+    names, unique versions (`8`, `08` and `8.0` are the same version), and, for a
+    pull request, it fails if the branch edits, deletes or renames a migration the
+    target branch already has, or adds one that is not timestamped. The label
+    `migration-edit-ok` turns the first rule into a warning. Run it locally with
+    `bash scripts/check-migrations.sh origin/master`.
+  - **`MigrationsOnPostgresTest`** (CI job *Backend tests*): applies every
+    migration to an empty PostgreSQL and starts the context with
+    `ddl-auto=validate`, which catches a table created twice, a missing column and
+    a misnamed file. CI fails the build if the test was skipped (no Docker), so it
+    cannot pass by not running. Testcontainers is pinned to 1.21.4 in `pom.xml`:
+    the 1.21.3 that Spring Boot manages speaks Docker API 1.32, which Docker
+    Engine 29 (minimum 1.44) rejects. Drop the override once Boot manages 1.21.4
+    or later. It only tests a fresh database; upgrading one that holds data is not
+    covered.
+  - **Needs a GitHub setting, not code** (repository admin): protect `master`,
+    require the checks *Flyway migrations check*, *Backend tests* and *Frontend
+    lint and build*, and turn on **Require branches to be up to date before
+    merging**. The last one is the part that matters: two pull requests that are
+    each green can still break `master` once both merge, and only a re-run on the
+    updated branch sees it. On a private repository of a free personal account
+    GitHub does not offer branch protection; then the rule is not to merge on a red
+    check.
+  - **Already visible on open branches.** `modulo-resultados-v2` has `V11`–`V13`
+    and renames `V8` to `V8.5`; it will be flagged after it is updated from
+    `master`. Its `V12` adds the same two columns as
+    `V11__add_missing_node_columns.sql` (`base_node.maintenance_duration`,
+    `flng_unit.gas_consumption`), so whichever merges second must drop its copy or
+    use `ADD COLUMN IF NOT EXISTS`; `MigrationsOnPostgresTest` will fail on it
+    until then.

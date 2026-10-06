@@ -36,6 +36,10 @@ Run the tests:
 mvn test
 ```
 
+`mvn test` includes `MigrationsOnPostgresTest`, which starts a PostgreSQL
+container and runs every Flyway migration on it, so keep **Docker running**.
+Without Docker that one test is skipped (and CI fails the build if it was).
+
 See [`../docs/testing.md`](../docs/testing.md) for the test catalog — every test
 class and what each case verifies.
 
