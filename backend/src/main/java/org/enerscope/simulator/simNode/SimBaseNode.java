@@ -3,9 +3,9 @@ package org.enerscope.simulator.simNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.BaseNode;
-import org.enerscope.simulator.FlagOfInactivity;
-import org.enerscope.simulator.ResultPerNode;
-import org.enerscope.simulator.ToDeliver;
+import org.enerscope.simulator.auxiliary.FlagOfInactivity;
+import org.enerscope.simulator.results.ResultPerNode;
+import org.enerscope.simulator.auxiliary.ToDeliver;
 
 import java.util.List;
 import java.util.UUID;

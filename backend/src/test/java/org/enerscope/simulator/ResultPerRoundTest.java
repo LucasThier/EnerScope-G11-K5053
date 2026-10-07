@@ -1,6 +1,5 @@
 package org.enerscope.simulator;
 
-import org.enerscope.node.dto.ProbabilisticDistributionDTO;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.export.IndustrialConsumption;
 import org.enerscope.node.model.export.InternalConsumption;
@@ -13,6 +12,8 @@ import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
 import org.enerscope.probabilistic.ConstantValue;
+import org.enerscope.simulator.auxiliary.ToDeliver;
+import org.enerscope.simulator.results.ResultPerNode;
 import org.enerscope.simulator.simNode.*;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

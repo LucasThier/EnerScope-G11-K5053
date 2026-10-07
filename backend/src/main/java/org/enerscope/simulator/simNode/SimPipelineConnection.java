@@ -2,7 +2,7 @@ package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.transportation.PipelineConnection;
-import org.enerscope.simulator.ResultPerNode;
+import org.enerscope.simulator.results.ResultPerNode;
 
 import java.util.ArrayList;
 import java.util.List;

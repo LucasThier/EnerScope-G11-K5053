@@ -1,4 +1,4 @@
-package org.enerscope.simulator;
+package org.enerscope.simulator.results;
 
 import jakarta.persistence.*;
 import lombok.Getter;

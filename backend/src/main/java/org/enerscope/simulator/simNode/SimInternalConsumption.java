@@ -1,8 +1,8 @@
 package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.export.InternalConsumption;
-import org.enerscope.simulator.ResultPerNode;
-import org.enerscope.simulator.ToDeliver;
+import org.enerscope.simulator.results.ResultPerNode;
+import org.enerscope.simulator.auxiliary.ToDeliver;
 
 import java.util.ArrayList;
 import java.util.List;

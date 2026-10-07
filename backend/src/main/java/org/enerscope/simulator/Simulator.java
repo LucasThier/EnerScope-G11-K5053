@@ -14,6 +14,8 @@ import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
+import org.enerscope.simulator.results.FinalResult;
+import org.enerscope.simulator.results.ResultPerRound;
 import org.enerscope.simulator.simNode.*;
 import org.enerscope.version.model.Version;
 

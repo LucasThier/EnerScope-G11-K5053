@@ -2,9 +2,8 @@ package org.enerscope.simulator.simNode;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.transportation.Pipeline;
-import org.enerscope.simulator.ResultPerNode;
+import org.enerscope.simulator.results.ResultPerNode;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -8,8 +8,7 @@ import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.ConnectionChange;
 import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
-import org.enerscope.simulator.FinalResult;
-import org.enerscope.simulator.ResultPerRound;
+import org.enerscope.simulator.results.FinalResult;
 import org.springframework.context.annotation.Lazy;
 
 import jakarta.persistence.CascadeType;

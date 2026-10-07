@@ -1,10 +1,10 @@
 package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.export.LNGCarrier;
-import org.enerscope.simulator.ResultPerNode;
-import org.enerscope.simulator.ToDeliver;
+import org.enerscope.simulator.results.ResultPerNode;
+import org.enerscope.simulator.auxiliary.ToDeliver;
 
-import static org.enerscope.simulator.FlagOfInactivity.OverLifeSpan;
+import static org.enerscope.simulator.auxiliary.FlagOfInactivity.OverLifeSpan;
 
 public class SimLNGCarrier extends SimBaseNode{
     private int exportFrequency;

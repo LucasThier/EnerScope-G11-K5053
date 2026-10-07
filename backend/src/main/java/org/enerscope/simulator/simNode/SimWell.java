@@ -3,11 +3,10 @@ package org.enerscope.simulator.simNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.extraction.Well;
-import org.enerscope.probabilistic.ConstantValue;
 import org.enerscope.probabilistic.ProbabilisticDistribution;
-import org.enerscope.simulator.FlagOfInactivity;
-import org.enerscope.simulator.ResultPerNode;
-import org.enerscope.simulator.ToDeliver;
+import org.enerscope.simulator.auxiliary.FlagOfInactivity;
+import org.enerscope.simulator.results.ResultPerNode;
+import org.enerscope.simulator.auxiliary.ToDeliver;
 
 @Getter
 @Setter
