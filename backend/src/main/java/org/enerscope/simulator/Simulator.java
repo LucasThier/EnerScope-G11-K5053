@@ -118,6 +118,7 @@ public class Simulator {
         simLiquefactionPlants.forEach(node -> node.reset());
         simSeaportTerminals.forEach(node -> node.reset());
         simLNGCarriers.forEach(node -> node.reset());
+        consumptionNodes.forEach(node -> node.reset());
     }
 
     private void orderResults() {
@@ -214,3 +215,5 @@ public class Simulator {
     }
 
 }
+
+

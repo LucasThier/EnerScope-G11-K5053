@@ -5,7 +5,6 @@ import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.money.MoneyAmount;
-import org.enerscope.node.dto.BaseNodeDTO;
 import org.enerscope.node.dto.DiagramDTO;
 import org.enerscope.node.dto.GeographicalPositionDTO;
 import org.enerscope.node.dto.GraphPositionDTO;
@@ -21,7 +20,6 @@ import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.NodeGraphData;
-import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
 import org.enerscope.node.model.enums.NodeStateEnum;
 import org.enerscope.node.model.enums.NodeTypeEnum;
@@ -36,15 +34,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -476,7 +471,7 @@ class VersionServiceTest {
                 MoneyAmount.of(1), 30, MoneyAmount.of(1), 0.0f,
                 new InvestmentCost(), graphData, UUID.randomUUID(),
                 new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
-                1.0f, 1.0f, 0.5f, 1, MoneyAmount.of(1), 1.0f);
+                1.0f, new ConstantValue(0.1f), 0.5f, 1, MoneyAmount.of(1), 1.0f);
         version.getNodeSnapshot().add(well);
 
         NodeConnection connection = new NodeConnection(UUID.randomUUID(), fromId, toId);
@@ -512,7 +507,7 @@ class VersionServiceTest {
                 MoneyAmount.of(1), 30, MoneyAmount.of(1), 0.0f,
                 new InvestmentCost(), new NodeGraphData(), nodeId,
                 new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
-                1.0f, 1.0f, 0.5f, 1, MoneyAmount.of(1), 1.0f);
+                1.0f, new ConstantValue(1.0f), 0.5f, 1, MoneyAmount.of(1), 1.0f);
         version.getNodeSnapshot().add(node);
 
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
@@ -546,7 +541,7 @@ class VersionServiceTest {
                 MoneyAmount.of(100), 30, MoneyAmount.of(50), 0.0f,
                 new InvestmentCost(), new NodeGraphData(new GraphPosition(1.0, 2.0), null), nodeId,
                 new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
-                10.0f, 0.2f, 0.5f, 5, MoneyAmount.of(7), 3.0f);
+                10.0f, new ConstantValue(0.2f), 0.5f, 5, MoneyAmount.of(7), 3.0f);
         version.getNodeSnapshot().add(node);
 
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
@@ -759,7 +754,7 @@ class VersionServiceTest {
                 MoneyAmount.of(1), 30, MoneyAmount.of(1), 0.0f,
                 new InvestmentCost(), new NodeGraphData(), nodeId,
                 new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
-                1.0f, 1.0f, 0.5f, 1, MoneyAmount.of(1), 1.0f);
+                1.0f, new ConstantValue(1.0f), 0.5f, 1, MoneyAmount.of(1), 1.0f);
         version.getNodeSnapshot().add(node);
 
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
@@ -848,7 +843,7 @@ class VersionServiceTest {
                 UUID.randomUUID(),
                 new NodeTypeData(),
                 100.0f,
-                0.5f,
+                new ConstantValue(0.5f),
                 0.8f,
                 10,
                 MoneyAmount.of(5000),

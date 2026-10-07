@@ -3,10 +3,11 @@ package org.enerscope.simulator;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.enerscope.node.model.export.LNGCarrier;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+
 
 @Getter
 @Setter
@@ -32,7 +33,7 @@ public class ResultPerRound {
     }
 
     public float amountProduced(){
-        List<ResultPerNode> lngNodes = resultPerNodes.stream().filter(resultPerNode -> resultPerNode.getNodeClass() ==  LNGCarrier.class.getSimpleName()).toList();
+        List<ResultPerNode> lngNodes = resultPerNodes.stream().filter(resultPerNode -> resultPerNode.getNodeClass() == LNGCarrier.class.getSimpleName()).toList();
         return (float) lngNodes.stream().mapToDouble(value -> value.getTotalProduced()).sum();
     }
 }
