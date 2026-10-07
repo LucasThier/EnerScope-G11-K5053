@@ -3,6 +3,8 @@ package org.enerscope.simulator;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.BaseNode;
+import org.enerscope.node.model.export.IndustrialConsumption;
+import org.enerscope.node.model.export.InternalConsumption;
 import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.extraction.GatheringNetwork;
@@ -28,6 +30,7 @@ public class Simulator {
     private List<SimLiquefactionPlant> simLiquefactionPlants;
     private List<SimSeaportTerminal> simSeaportTerminals;
     private List<SimLNGCarrier> simLNGCarriers;
+    private List<SimBaseNode> consumptionNodes;
 
     private Version version;
     private List<ResultPerRound> resultsPerRound;
@@ -43,6 +46,7 @@ public class Simulator {
         simLiquefactionPlants = new ArrayList<>();
         simSeaportTerminals = new ArrayList<>();
         simLNGCarriers = new ArrayList<>();
+        consumptionNodes = new ArrayList<>();
         this.version = version;
         resultsPerRound = new ArrayList<>();
 
@@ -92,6 +96,7 @@ public class Simulator {
                     readyNodes.forEach(simBaseNode -> simBaseNode.simulate(exactTime));
                     quedanPendientes = !nodesToProcess.isEmpty();
                 }
+                consumptionNodes.forEach(simLiquefactionPlant -> simLiquefactionPlant.simulate(exactTime));
                 simLiquefactionPlants.forEach(simLiquefactionPlant -> simLiquefactionPlant.simulate(exactTime));
                 simSeaportTerminals.forEach(simSeaportTerminal -> simSeaportTerminal.simulate(exactTime));
                 simLNGCarriers.forEach(simLNGCarrier -> simLNGCarrier.simulate(exactTime));
@@ -129,6 +134,8 @@ public class Simulator {
         resultPerRound.addAllResultPerNodes(simLiquefactionPlants.stream().map(SimLiquefactionPlant::createResult).toList());
         resultPerRound.addAllResultPerNodes(simSeaportTerminals.stream().map(SimSeaportTerminal::createResult).toList());
         resultPerRound.addAllResultPerNodes(simLNGCarriers.stream().map(SimLNGCarrier::createResult).toList());
+        resultPerRound.addAllResultPerNodes(consumptionNodes.stream().map(SimBaseNode::createResult).toList());
+
         this.resultsPerRound.add(resultPerRound);
     }
 
@@ -193,11 +200,17 @@ public class Simulator {
             SimLNGCarrier simLNGCarrier = new SimLNGCarrier(lngCarrier);
             simLNGCarriers.add(simLNGCarrier);
             simNode = simLNGCarrier;
+        } else if (baseNode instanceof InternalConsumption internalConsumption) {
+            SimInternalConsumption simInternalConsumption = new SimInternalConsumption(internalConsumption);
+            consumptionNodes.add(simInternalConsumption);
+            simNode = simInternalConsumption;
+        } else if (baseNode instanceof IndustrialConsumption industrialConsumption) {
+            SimIndustrialConsumption simIndustrialConsumption = new SimIndustrialConsumption(industrialConsumption);
+            consumptionNodes.add(simIndustrialConsumption);
+            simNode = simIndustrialConsumption;
         }
 
         return simNode;
     }
 
 }
-
-

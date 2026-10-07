@@ -7,9 +7,20 @@ import lombok.Setter;
 
 import org.enerscope.common.BaseEntity;
 
-import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 
+/**
+ * Presentation data of a node. Holds two independent positions:
+ * <ul>
+ * <li>{@link GraphPosition} — where the node sits on the abstract diagram
+ * canvas (x/y).</li>
+ * <li>{@link GeographicalPosition} — where the node sits in the real world
+ * (longitude/latitude), used by the map/globe view.</li>
+ * </ul>
+ * Both are nullable and independent: a node can have a diagram position without
+ * a geographical one, and vice versa.
+ */
 @Entity
 @Getter
 @Setter
@@ -17,12 +28,9 @@ import jakarta.persistence.Entity;
 @AllArgsConstructor
 public class NodeGraphData extends BaseEntity {
 
-    @Column(name = "xPosition")
-    private Double xPosition;
+    @Embedded
+    private GraphPosition graphPosition;
 
-    @Column(name = "yPosition")
-    private Double yPosition;
-
-    @Column(name = "coordinates")
-    private Double coordinates;
+    @Embedded
+    private GeographicalPosition geographicalPosition;
 }
