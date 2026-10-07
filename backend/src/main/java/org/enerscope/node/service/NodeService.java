@@ -22,6 +22,10 @@ import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
 import org.enerscope.node.repository.*;
+import org.enerscope.probabilistic.ConstantValue;
+import org.enerscope.probabilistic.NormalDistributionCase;
+import org.enerscope.probabilistic.ProbabilisticDistribution;
+import org.enerscope.probabilistic.UniformDistributionCase;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;

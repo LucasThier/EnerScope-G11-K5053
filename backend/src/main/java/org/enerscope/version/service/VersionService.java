@@ -363,7 +363,7 @@ public class VersionService {
         Map<String, Double> a = new LinkedHashMap<>();
         if (node instanceof Well w) {
             a.put("maxCollectionCapacity", (double) w.getMaxCollectionCapacity());
-            a.put("declineCurve", (double) w.getDeclineCurve());
+            a.put("declineCurve", (double) w.getDeclineCurve().generateValue());
             a.put("gasRichness", (double) w.getGasRichness());
             a.put("dtmTime", (double) w.getDTMTime());
             a.put("dtmCost", money(w.getDTMCost()));
