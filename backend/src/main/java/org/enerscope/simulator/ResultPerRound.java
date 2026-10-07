@@ -3,19 +3,15 @@ package org.enerscope.simulator;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.enerscope.node.model.export.LNGCarrier;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+
 
 @Getter
 @Setter
-@Entity
-@Table(name = "result")
-public class Result {
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    protected UUID id;
+public class ResultPerRound {
 
     @Column(name = "year")
     private int year;
@@ -27,16 +23,17 @@ public class Result {
     @JoinColumn(name = "result_id", nullable = false)
     private List<ResultPerNode> resultPerNodes;
 
-    public Result() {
-
-    }
 
     public void addAllResultPerNodes(List<ResultPerNode> resultPerNodes){
         this.resultPerNodes.addAll(resultPerNodes);
     }
 
-    public Result(int year){
-        this.year = year;
+    public ResultPerRound(){
         this.resultPerNodes = new ArrayList<>();
+    }
+
+    public float amountProduced(){
+        List<ResultPerNode> lngNodes = resultPerNodes.stream().filter(resultPerNode -> resultPerNode.getNodeClass() == LNGCarrier.class.getSimpleName()).toList();
+        return (float) lngNodes.stream().mapToDouble(value -> value.getTotalProduced()).sum();
     }
 }

@@ -160,14 +160,15 @@ CREATE TABLE  well (
     id                        UUID                     NOT NULL ,
     -- Specific fields
     max_collection_capacity   REAL,
-    decline_curve             REAL,
+    decline_curve_id          UUID,
     gas_richness               REAL,
     dtm_time                  INTEGER,
     DTMCost                   NUMERIC(19,2)              NOT NULL,
     surface                     REAL,
 
     PRIMARY KEY (id),
-    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id),
+    CONSTRAINT fk_well_decline_curve FOREIGN KEY (decline_curve_id) REFERENCES probabilistic_distribution(id);
 );
 
 -- TreatmentPlant table
