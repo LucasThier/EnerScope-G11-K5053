@@ -235,9 +235,9 @@ public class ResultPerRoundTest {
         assertNotNull(resultPipeline.getNodeID(), "El Pozo debe tener un ID asignado");
 
         assertEquals(8760000f,resultPipeline.getMaxPossibleProduced(),0.1f);
-        assertEquals(7008100f, resultPipeline.getTotalProduced(),0.1f);
-        assertEquals(100f,resultPipeline.getTotalDeferred(),0.1f);
-        assertEquals(876000f,resultPipeline.getExtra(),0.1f);
+        assertEquals(7007311f, resultPipeline.getTotalProduced(),0.1f);
+        assertEquals(111.111084f,resultPipeline.getTotalDeferred(),0.1f);
+        assertEquals(778602.75f,resultPipeline.getExtra(),0.1f);
     }
 
     @Test

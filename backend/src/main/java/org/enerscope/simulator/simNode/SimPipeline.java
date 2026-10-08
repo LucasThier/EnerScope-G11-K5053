@@ -34,6 +34,10 @@ public class SimPipeline extends SimBaseNode{
 
     @Override
     protected void activeAction(int time){
+        ToDeliver totalArrived = new ToDeliver(0,0);
+        List<TransitBatch> arrivedTransitQueue = inTransitQueue.stream().filter(aTransitBatch -> aTransitBatch.getTimeOfArrival() <= time).toList();
+        inTransitQueue.removeAll(arrivedTransitQueue);
+
         float capacity = Math.min(maxFlowCapacity * travelTimeInHours - toDeliver.getAmount() -
                 (float) inTransitQueue.stream().mapToDouble(inTransitBatch -> inTransitBatch.getToDeliver().getAmount()).sum(), maxFlowCapacity);
         float toGather = (float) nodesBefore.stream().mapToDouble(simBaseNode -> simBaseNode.getToDeliver().getAmount()).sum();
@@ -51,10 +55,6 @@ public class SimPipeline extends SimBaseNode{
         totalLost += lost;
         transitBatch.getToDeliver().setAmount(batchAmount - lost);
         inTransitQueue.add(transitBatch);
-
-        ToDeliver totalArrived = new ToDeliver(0,0);
-        List<TransitBatch> arrivedTransitQueue = inTransitQueue.stream().filter(aTransitBatch -> aTransitBatch.getTimeOfArrival() <= time).toList();
-        inTransitQueue.removeAll(arrivedTransitQueue);
 
         arrivedTransitQueue.forEach(aTransitBatch -> totalArrived.mix(aTransitBatch.getToDeliver()));
         float newCapacity = maxFlowCapacity - toDeliver.getAmount();
