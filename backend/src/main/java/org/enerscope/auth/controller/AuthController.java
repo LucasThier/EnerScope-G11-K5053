@@ -69,6 +69,10 @@ public class AuthController {
         if (user == null) {
             return ResponseEntity.status(401).body(ApiResponse.error("User not found"));
         }
+        if (!user.isActive()) {
+            return ResponseEntity.status(401)
+                    .body(ApiResponse.error("This account has been deactivated"));
+        }
 
         return Responses.ok("Session renewed", newSession(user));
     }

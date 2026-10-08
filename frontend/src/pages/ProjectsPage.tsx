@@ -1,12 +1,16 @@
 import { useId, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { PlusIcon, SearchIcon } from '../components/ui/icons';
+import { DeleteProjectDialog } from '../components/projects/DeleteProjectDialog';
+import { EditProjectModal } from '../components/projects/EditProjectModal';
 import { NewProjectModal } from '../components/projects/NewProjectModal';
 import { ProjectMembersModal } from '../components/projects/ProjectMembersModal';
 import { ProjectsTable } from '../components/projects/ProjectsTable';
 import { useActiveProject } from '../hooks/useActiveProject';
+import { useAuth } from '../hooks/useAuth';
 import type { ProjectSummary } from '../types/project';
 
 const ALL_ORGANIZATIONS = 'all';
@@ -19,10 +23,14 @@ export function ProjectsPage() {
   const searchId = useId();
   const organizationFilterId = useId();
   const { projects, isLoading, error, reload } = useActiveProject();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [organizationId, setOrganizationId] = useState(ALL_ORGANIZATIONS);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewing, setViewing] = useState<ProjectSummary | null>(null);
+  const [editing, setEditing] = useState<ProjectSummary | null>(null);
+  const [deleting, setDeleting] = useState<ProjectSummary | null>(null);
 
   const organizations = useMemo(() => {
     const byId = new Map<string, string>();
@@ -121,7 +129,14 @@ export function ProjectsPage() {
             Ningún proyecto coincide con la búsqueda.
           </p>
         ) : (
-          <ProjectsTable projects={visibleProjects} onView={setViewing} />
+          <ProjectsTable
+            projects={visibleProjects}
+            isPlatformAdmin={user?.platformRole === 'ADMIN'}
+            onView={setViewing}
+            onEdit={setEditing}
+            onDelete={setDeleting}
+            onManageMembers={(project) => navigate(`/projects/${project.id}/team`)}
+          />
         )}
       </Card>
 
@@ -129,6 +144,18 @@ export function ProjectsPage() {
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreated={reload}
+      />
+
+      <EditProjectModal
+        project={editing}
+        onClose={() => setEditing(null)}
+        onUpdated={reload}
+      />
+
+      <DeleteProjectDialog
+        project={deleting}
+        onClose={() => setDeleting(null)}
+        onDeleted={reload}
       />
 
       <ProjectMembersModal project={viewing} onClose={() => setViewing(null)} />

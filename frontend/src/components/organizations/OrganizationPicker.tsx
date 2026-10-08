@@ -95,7 +95,7 @@ export function OrganizationPicker({
               Cancelar
             </Button>
           </div>
-          {error && <span className="text-xs text-red-600">{error}</span>}
+          {error && <span className="text-xs text-danger-600">{error}</span>}
         </div>
       ) : (
         <div className="flex gap-2">

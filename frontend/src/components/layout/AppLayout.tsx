@@ -11,15 +11,15 @@ import { TopBar } from './TopBar';
 export function AppLayout() {
   return (
     <ActiveProjectProvider>
-      <div className="flex min-h-screen flex-col bg-ink-50">
+      {/* h-screen (not min-h-screen) so full-bleed pages like the editor can
+          fill the remaining height; padded pages scroll inside PaddedMain. */}
+      <div className="flex h-screen flex-col bg-ink-50">
         <TopBar />
         <div className="flex min-h-0 flex-1">
           <Sidebar />
-          <main className="min-w-0 flex-1 px-6 py-8">
-            <div className="mx-auto w-full max-w-5xl">
-              <Outlet />
-            </div>
-          </main>
+          {/* Pages control their own area: PaddedMain centres regular pages,
+              while full-bleed pages (the editor) fill the space themselves. */}
+          <Outlet />
         </div>
       </div>
     </ActiveProjectProvider>

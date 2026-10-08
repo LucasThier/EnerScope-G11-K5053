@@ -11,6 +11,8 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.enerscope.common.BaseEntity;
+import org.enerscope.organization.model.enums.OrganizationMemberPermission;
+import org.enerscope.organization.model.enums.OrganizationMemberType;
 import org.enerscope.user.model.User;
 
 import java.util.HashSet;
@@ -46,5 +48,10 @@ public class OrganizationMember extends BaseEntity {
     public void addRole(OrganizationMemberRole role) {
         roles.add(role);
         role.assignToMember(this);
+    }
+
+    public void changeRole(OrganizationMemberType type, Set<OrganizationMemberPermission> permissions) {
+        roles.clear();
+        addRole(new OrganizationMemberRole(type.name(), type, new HashSet<>(permissions)));
     }
 }

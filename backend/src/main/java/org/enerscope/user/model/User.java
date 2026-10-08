@@ -85,8 +85,16 @@ public class User extends BaseEntity {
         this.platformRole = newRole;
     }
 
-    public void updateJobTitle(String newJobTitle) {
-        this.jobTitle = newJobTitle;
+    public void updateProfile(String newFirstName, String newLastName, String newJobTitle) {
+        if (newFirstName != null) {
+            this.firstName = newFirstName;
+        }
+        if (newLastName != null) {
+            this.lastName = newLastName;
+        }
+        if (newJobTitle != null) {
+            this.jobTitle = newJobTitle.isBlank() ? null : newJobTitle;
+        }
     }
 
     private static String normalizeMail(String mail) {

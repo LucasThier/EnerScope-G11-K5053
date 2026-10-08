@@ -95,6 +95,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const updateUser = useCallback((updated: UserSummary): void => {
+    session.saveUser(updated);
+    setUser(updated);
+  }, []);
+
   const logout = useCallback(async (): Promise<void> => {
     await authApi.logout();
     setUser(null);
@@ -109,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     registerInOrganization,
     logout,
     refresh,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

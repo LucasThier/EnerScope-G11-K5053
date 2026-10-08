@@ -59,6 +59,12 @@
   --color-ink-700: #2f3841; /* body text, wordmark */
   --color-ink-800: #232b33; /* headings */
   --color-ink-900: #161b21;
+
+  --color-danger-50: oklch(97.1% 0.013 17.38);
+  --color-danger-200: oklch(88.5% 0.062 18.334);
+  --color-danger-400: oklch(70.4% 0.191 22.216);
+  --color-danger-600: oklch(57.7% 0.245 27.325);
+  --color-danger-700: oklch(50.5% 0.213 27.518);
 }
 
 /* Base page surface. Kept minimal — everything else is Tailwind utilities. */

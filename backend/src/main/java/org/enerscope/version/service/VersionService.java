@@ -31,6 +31,31 @@ import java.util.stream.Collectors;
 // Additional imports for node management
 import org.enerscope.node.dto.BaseNodeDTO;
 import org.enerscope.node.dto.ConnectionDTO;
+import org.enerscope.node.dto.DiagramConnectionDTO;
+import org.enerscope.node.dto.DiagramDTO;
+import org.enerscope.node.dto.DiagramNodeDTO;
+import org.enerscope.node.dto.GeographicalPositionDTO;
+import org.enerscope.node.dto.GraphPositionDTO;
+import org.enerscope.node.dto.NodeBasicsDTO;
+import org.enerscope.node.dto.NodeDetailDTO;
+import org.enerscope.node.dto.NodeGraphDataDTO;
+import org.enerscope.node.dto.NodeTypeDataDTO;
+import org.enerscope.node.model.transportation.PipelineConnection;
+import org.enerscope.node.model.GraphPosition;
+import org.enerscope.node.model.GeographicalPosition;
+import org.enerscope.node.model.InvestmentCost;
+import org.enerscope.node.model.InvestmentCostComponent;
+import org.enerscope.money.MoneyAmount;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.enerscope.node.model.GeographicalPosition;
+import org.enerscope.node.model.GraphPosition;
+import org.enerscope.node.model.NodeGraphData;
+import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.dto.WellDTO;
 import org.enerscope.node.dto.TreatmentPlantDTO;
 import org.enerscope.node.dto.GatheringNetworkDTO;
@@ -54,6 +79,7 @@ import org.enerscope.node.model.ConnectionChange;
 import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
+import org.enerscope.project.service.ProjectAccessGuard;
 
 @Service
 @AllArgsConstructor
@@ -65,7 +91,27 @@ public class VersionService {
     private final BaseNodeRepository nodeRepository;
     private final AppLogger logger;
     private final NodeService nodeService;
+    private final ProjectAccessGuard accessGuard;
 
+    /**
+     * Creates a version detached from every project, for
+     * {@code POST /version/createtest}. A version with no owning project has no
+     * membership that could grant access to it, so only a platform ADMIN may
+     * make one — and, by the same rule in {@link ProjectAccessGuard}, only a
+     * platform ADMIN can touch it afterwards.
+     */
+    public Version saveOrphanVersion(VersionDTO data) {
+        accessGuard.assertIsPlatformAdmin("create detached versions");
+        return saveVersion(data);
+    }
+
+    /**
+     * Creates a version. Deliberately unguarded: it is reached either through
+     * {@code ProjectService.saveVersion}, which authorizes the owning project
+     * before calling it, or through {@link #saveOrphanVersion}, which requires a
+     * platform ADMIN. There is no version id to check yet at this point.
+     */
+    @Transactional
     public Version saveVersion(VersionDTO data) {
         if (data == null) {
             throw new IllegalArgumentException("VersionDTO cannot be null");
@@ -80,25 +126,47 @@ public class VersionService {
         }
 
         Version parentVersion = null;
-        List<BaseNode> nodeSnapshot = null; // do we want a new version with new changes? Or not?
-        List<NodeConnection> connectionSnapshot = null;
+        // A version starts with empty snapshots, never null ones: every
+        // getNodeSnapshot()/getConnectionSnapshot() call in this class mutates
+        // the list in place, and the create response would otherwise answer
+        // "nodeSnapshot": null where a later read answers [].
+        List<BaseNode> nodeSnapshot = new ArrayList<>();
+        List<NodeConnection> connectionSnapshot = new ArrayList<>();
         if (data.getParentVersion() != null) {
             parentVersion = versionRepository.findById(data.getParentVersion())
                     .orElseThrow(() -> new VersionNotFoundException(data.getParentVersion()));
-            // Create defensive copies to avoid sharing references with parent version
-            connectionSnapshot = parentVersion.getConnectionSnapshot() == null
-                    ? null
-                    : new ArrayList<>(parentVersion.getConnectionSnapshot());
-            nodeSnapshot = parentVersion.getNodeSnapshot() == null
-                    ? null
-                    : new ArrayList<>(parentVersion.getNodeSnapshot());
+            // Branch (git-style): deep-copy the parent's nodes and connections
+            // into brand-new, independent rows so editing the branch never
+            // touches the parent. Each cloned node keeps its cross-version
+            // identity so branches can be compared later; connections are
+            // remapped to the new node ids.
+            Map<UUID, BaseNode> idMap = new HashMap<>();
+            if (parentVersion.getNodeSnapshot() != null) {
+                for (BaseNode src : parentVersion.getNodeSnapshot()) {
+                    BaseNode saved = nodeRepository.save(cloneNodeForBranch(src));
+                    idMap.put(src.getId(), saved);
+                    nodeSnapshot.add(saved);
+                }
+            }
+            if (parentVersion.getConnectionSnapshot() != null) {
+                for (NodeConnection src : parentVersion.getConnectionSnapshot()) {
+                    BaseNode newFrom = idMap.get(src.getFromNodeId());
+                    BaseNode newTo = idMap.get(src.getToNodeId());
+                    if (newFrom == null || newTo == null) {
+                        continue;
+                    }
+                    NodeConnection saved = connectionRepository.save(
+                            new NodeConnection(src.getIdentityId(), newFrom.getId(), newTo.getId()));
+                    connectionSnapshot.add(saved);
+                }
+            }
         }
 
         Version version = new Version(data.getName(),
                 parentVersion,
                 nodeSnapshot,
                 connectionSnapshot,
-                new ArrayList<>(), new ArrayList<>(),new ArrayList<>());
+                new ArrayList<>(), new ArrayList<>());
 
         Version saved = versionRepository.save(version);
 
@@ -108,6 +176,7 @@ public class VersionService {
 
     public void deleteVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
+        accessGuard.assertCanEditVersion(id);
         Version version = versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
         // WE DELETE ALL OF THE SUB-VERSIONS, MAYBE CHANGE LATER
@@ -116,7 +185,16 @@ public class VersionService {
         logger.info("Deleted version with id: {}", id);
     }
 
-    public void deleteSubVersions(UUID parentVersion) {
+    /**
+     * Deletes a version and everything below it. Private on purpose: it is only
+     * reached through {@link #deleteVersion}, which runs the permission check —
+     * a public entry point here would be an unguarded way to delete a tree.
+     *
+     * <p>Known limitation: the permission check covers the root version's
+     * project. A child version attached to a different project would be deleted
+     * without that project being checked; see {@code docs/considerations.md}.</p>
+     */
+    private void deleteSubVersions(UUID parentVersion) {
 
         List<UUID> versionsToDelete = new ArrayList<>();
         Queue<UUID> queue = new LinkedList<>();
@@ -143,14 +221,296 @@ public class VersionService {
 
     public Version getVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
+        accessGuard.assertCanViewVersion(id);
         return versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
+    }
+
+    /**
+     * Builds the flat diagram (nodes + connections) the editor renders for a
+     * version. Runs in a read-only transaction so the lazy snapshot
+     * associations are initialised before they are mapped to DTOs.
+     */
+    @Transactional(readOnly = true)
+    public DiagramDTO getDiagram(UUID versionId) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+
+        List<DiagramNodeDTO> nodes = (version.getNodeSnapshot() == null
+                ? List.<BaseNode>of()
+                : version.getNodeSnapshot())
+                .stream().map(this::toDiagramNode).toList();
+
+        List<DiagramConnectionDTO> connections = (version.getConnectionSnapshot() == null
+                ? List.<NodeConnection>of()
+                : version.getConnectionSnapshot())
+                .stream().map(this::toDiagramConnection).toList();
+
+        return new DiagramDTO(versionId, nodes, connections);
+    }
+
+    /**
+     * Presentation-only update of a node's position (diagram x/y and/or
+     * geographical lng/lat). Used when the user drags a node on the canvas or
+     * the map. It does not record a {@code NodeChange}: a move is not a
+     * structural edit, and recording one per drag would be noise.
+     */
+    @Transactional
+    public BaseNode updateNodePosition(UUID versionId, UUID nodeId, NodeGraphDataDTO positionDTO) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Objects.requireNonNull(nodeId, "Node ID cannot be null");
+        Objects.requireNonNull(positionDTO, "Position DTO cannot be null");
+
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+
+        BaseNode node = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+
+        if (!version.getNodeSnapshot().contains(node)) {
+            throw new IllegalArgumentException(
+                    "Node with id " + nodeId + " does not exist in version " + versionId);
+        }
+
+        NodeGraphData graphData = node.getGraphData();
+        if (graphData == null) {
+            graphData = new NodeGraphData();
+            node.setGraphData(graphData);
+        }
+        if (positionDTO.getGraphPosition() != null) {
+            GraphPositionDTO gp = positionDTO.getGraphPosition();
+            graphData.setGraphPosition(new GraphPosition(gp.getX(), gp.getY()));
+        }
+        if (positionDTO.getGeographicalPosition() != null) {
+            GeographicalPositionDTO geo = positionDTO.getGeographicalPosition();
+            graphData.setGeographicalPosition(new GeographicalPosition(geo.getLongitude(), geo.getLatitude()));
+        }
+
+        BaseNode saved = nodeRepository.save(node);
+        logger.info("Updated position of node {} in version {}", nodeId, version.getName());
+        return saved;
+    }
+
+    /**
+     * Partial update of a node's basic fields (name / state) without touching
+     * its type-specific data. Presentation/labelling change, so it records no
+     * {@code NodeChange}.
+     */
+    @Transactional
+    public BaseNode updateNodeBasics(UUID versionId, UUID nodeId, NodeBasicsDTO basics) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Objects.requireNonNull(nodeId, "Node ID cannot be null");
+        Objects.requireNonNull(basics, "Basics DTO cannot be null");
+
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+
+        BaseNode node = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+
+        if (!version.getNodeSnapshot().contains(node)) {
+            throw new IllegalArgumentException(
+                    "Node with id " + nodeId + " does not exist in version " + versionId);
+        }
+
+        if (basics.getName() != null && !basics.getName().isBlank()) {
+            node.setName(basics.getName());
+        }
+        if (basics.getState() != null) {
+            node.setState(basics.getState());
+        }
+
+        BaseNode saved = nodeRepository.save(node);
+        logger.info("Updated basics of node {} in version {}", nodeId, version.getName());
+        return saved;
+    }
+
+    /**
+     * Full detail of a node for the edit form: common fields plus the
+     * type-specific values keyed by the frontend field names.
+     */
+    @Transactional(readOnly = true)
+    public NodeDetailDTO getNodeDetail(UUID versionId, UUID nodeId) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Objects.requireNonNull(nodeId, "Node ID cannot be null");
+
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+        BaseNode node = nodeRepository.findById(nodeId)
+                .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+        if (!version.getNodeSnapshot().contains(node)) {
+            throw new IllegalArgumentException(
+                    "Node with id " + nodeId + " does not exist in version " + versionId);
+        }
+
+        NodeTypeDataDTO type = null;
+        if (node.getType() != null) {
+            NodeTypeData t = node.getType();
+            type = new NodeTypeDataDTO(t.getVertical(), t.getRole(), t.getNodeType());
+        }
+
+        return new NodeDetailDTO(
+                node.getId(), node.getIdentityId(), node.getName(), node.getState(),
+                type, toGraphDataDTO(node.getGraphData()),
+                money(node.getUpkeepCosts()), money(node.getOperatingCosts()),
+                node.getLifespanInMonths(), node.getMaintenanceIntervalInDays(),
+                (double) node.getWastePercentage(),
+                typeAttributes(node));
+    }
+
+    private Map<String, Double> typeAttributes(BaseNode node) {
+        Map<String, Double> a = new LinkedHashMap<>();
+        if (node instanceof Well w) {
+            a.put("maxCollectionCapacity", (double) w.getMaxCollectionCapacity());
+            a.put("declineCurve", (double) w.getDeclineCurve());
+            a.put("gasRichness", (double) w.getGasRichness());
+            a.put("dtmTime", (double) w.getDTMTime());
+            a.put("dtmCost", money(w.getDTMCost()));
+            a.put("surface", (double) w.getSurface());
+        } else if (node instanceof GatheringNetwork g) {
+            a.put("maxTransportCapacity", (double) g.getMaxTransportCapacity());
+            a.put("length", (double) g.getLength());
+            a.put("lossPerMeter", (double) g.getLossPerMeter());
+            a.put("connectedWells", (double) g.getConnectedWells());
+        } else if (node instanceof TreatmentPlant t) {
+            a.put("maxTreatmentCapacity", (double) t.getMaxTreatmentCapacity());
+            a.put("contaminantWaste", 0.0); // not persisted on the entity
+            a.put("intermediateStorage", (double) t.getIntermediateStorage());
+            a.put("treatmentCost", money(t.getTreatmentCost()));
+        } else if (node instanceof Pipeline p) {
+            a.put("maxFlowCapacity", (double) p.getMaxFlowCapacity());
+            a.put("length", (double) p.getLength());
+            a.put("lossPerKm", (double) p.getLossPerKm());
+        } else if (node instanceof PipelineConnection pc) {
+            a.put("transferCapacity", (double) pc.getTransferCapacity());
+            a.put("outputPriority", (double) pc.getOutputPriority());
+        } else if (node instanceof CompressingPlant c) {
+            a.put("maxCompressionCapacity", (double) c.getMaxCompressionCapacity());
+            a.put("processWaste", (double) c.getProcessWaste());
+            a.put("gasConsumption", (double) c.getGasConsumption());
+        } else if (node instanceof GroundBasedLiquefactionPlant gb) {
+            a.put("maxProcessingCapacity", (double) gb.getMaxProcessingCapacity());
+            a.put("mtpaRatio", (double) gb.getMTPARatio());
+            a.put("intermediateStorage", (double) gb.getIntermediateStorage());
+            a.put("gasConsumption", (double) gb.getGasConsumption());
+        } else if (node instanceof FLNGUnit f) {
+            a.put("maxProcessingCapacity", (double) f.getMaxProcessingCapacity());
+            a.put("mtpaRatio", (double) f.getMTPARatio());
+            a.put("intermediateStorage", (double) f.getIntermediateStorage());
+            a.put("vesselDepth", (double) f.getVesselDepth());
+            a.put("hiringCost", money(f.getHiringCost()));
+        } else if (node instanceof SeaportTerminal s) {
+            a.put("intermediateStorage", (double) s.getIntermediateStorage());
+            a.put("portDepth", (double) s.getPortDepth());
+            a.put("shipCapacity", (double) s.getShipCapacity());
+        } else if (node instanceof LNGCarrier l) {
+            a.put("exportFrequency", (double) l.getExportFrequency());
+            a.put("shipCapacity", (double) l.getShipCapacity());
+            a.put("fullLoadTime", (double) l.getFullLoadTime());
+            a.put("hiringCost", money(l.getHiringCost()));
+            a.put("timeToDestination", (double) l.getTimeToDestination());
+        }
+        return a;
+    }
+
+    private static Double money(MoneyAmount amount) {
+        return amount == null ? 0.0 : amount.value().doubleValue();
+    }
+
+    /**
+     * Deep-clones a node into a new, independent transient entity for a branch:
+     * copies every field except the primary key and audit timestamps, keeps the
+     * cross-version {@code identityId}, and clones the owned one-to-one entities
+     * (graph data, type, investment cost) so they become their own new rows.
+     */
+    private BaseNode cloneNodeForBranch(BaseNode src) {
+        try {
+            BaseNode copy = src.getClass().getDeclaredConstructor().newInstance();
+            for (Class<?> c = src.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                for (Field f : c.getDeclaredFields()) {
+                    int mod = f.getModifiers();
+                    if (Modifier.isStatic(mod) || Modifier.isFinal(mod)) {
+                        continue;
+                    }
+                    String name = f.getName();
+                    if (name.equals("id") || name.equals("createdAt") || name.equals("lastModified")) {
+                        continue;
+                    }
+                    f.setAccessible(true);
+                    Object value = f.get(src);
+                    if (value instanceof NodeGraphData g) {
+                        value = cloneGraphData(g);
+                    } else if (value instanceof NodeTypeData t) {
+                        value = new NodeTypeData(t.getVertical(), t.getRole(), t.getNodeType());
+                    } else if (value instanceof InvestmentCost ic) {
+                        value = cloneInvestmentCost(ic);
+                    }
+                    f.set(copy, value);
+                }
+            }
+            return copy;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Could not clone node for branch", e);
+        }
+    }
+
+    private NodeGraphData cloneGraphData(NodeGraphData g) {
+        GraphPosition gp = (g.getGraphPosition() == null)
+                ? null
+                : new GraphPosition(g.getGraphPosition().getX(), g.getGraphPosition().getY());
+        GeographicalPosition geo = (g.getGeographicalPosition() == null)
+                ? null
+                : new GeographicalPosition(g.getGeographicalPosition().getLongitude(),
+                        g.getGeographicalPosition().getLatitude());
+        return new NodeGraphData(gp, geo);
+    }
+
+    private InvestmentCost cloneInvestmentCost(InvestmentCost ic) {
+        List<InvestmentCostComponent> components = new ArrayList<>();
+        if (ic.getComponents() != null) {
+            for (InvestmentCostComponent c : ic.getComponents()) {
+                components.add(new InvestmentCostComponent(c.getName(), c.getAmount(), c.getCostBasis()));
+            }
+        }
+        return new InvestmentCost(components);
+    }
+
+    private NodeGraphDataDTO toGraphDataDTO(NodeGraphData g) {
+        if (g == null) {
+            return null;
+        }
+        GraphPositionDTO gp = (g.getGraphPosition() == null)
+                ? null
+                : new GraphPositionDTO(g.getGraphPosition().getX(), g.getGraphPosition().getY());
+        GeographicalPositionDTO geo = (g.getGeographicalPosition() == null)
+                ? null
+                : new GeographicalPositionDTO(g.getGeographicalPosition().getLongitude(),
+                        g.getGeographicalPosition().getLatitude());
+        return new NodeGraphDataDTO(gp, geo);
+    }
+
+    private DiagramNodeDTO toDiagramNode(BaseNode node) {
+        NodeTypeDataDTO type = null;
+        if (node.getType() != null) {
+            NodeTypeData t = node.getType();
+            type = new NodeTypeDataDTO(t.getVertical(), t.getRole(), t.getNodeType());
+        }
+
+        return new DiagramNodeDTO(node.getId(), node.getIdentityId(), node.getName(), node.getState(), type,
+                toGraphDataDTO(node.getGraphData()));
+    }
+
+    private DiagramConnectionDTO toDiagramConnection(NodeConnection connection) {
+        return new DiagramConnectionDTO(connection.getId(), connection.getIdentityId(),
+                connection.getFromNodeId(), connection.getToNodeId());
     }
 
     @Transactional
     public Version modifyVersion(UUID id, VersionDTO data) {
         Objects.requireNonNull(id, "Version ID cannot be null");
         Objects.requireNonNull(data, "VersionDTO cannot be null");
+        accessGuard.assertCanEditVersion(id);
 
         Version existingVersion = versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
@@ -174,9 +534,17 @@ public class VersionService {
     public BaseNode addNodeToVersion(UUID versionId, BaseNodeDTO nodeDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
+        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+
+        // A brand-new node gets a fresh cross-version identity. Only saveWell
+        // defaulted this; centralise it here so every node type is covered and
+        // the NOT NULL identity_id column is never violated.
+        if (nodeDTO.getIdentity() == null) {
+            nodeDTO.setIdentity(UUID.randomUUID());
+        }
 
         BaseNode savedNode = switch (nodeDTO) {
             case WellDTO dto -> nodeService.saveWell(dto);
@@ -210,6 +578,7 @@ public class VersionService {
     public NodeConnection addConnectionToVersion(UUID versionId, ConnectionDTO connectionDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionDTO, "Connection DTO cannot be null");
+        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -240,6 +609,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
+        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -353,6 +723,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionId, "Connection ID cannot be null");
         Objects.requireNonNull(connectionDTO, "Connection DTO cannot be null");
+        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -439,6 +810,8 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
 
+        accessGuard.assertCanEditVersion(versionId);
+
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
 
@@ -498,6 +871,8 @@ public class VersionService {
     public void deleteConnectionFromVersion(UUID versionId, UUID connectionId) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionId, "Connection ID cannot be null");
+
+        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
