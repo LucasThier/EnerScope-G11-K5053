@@ -71,7 +71,8 @@ class NodeServiceTest {
     @BeforeEach
     void setUp() {
         // Using a mock or stub implementation for testing
-        nodeService = new NodeService(wellRepository, null, null, null, null, null, null, null, null, null, null);
+        nodeService = new NodeService(wellRepository, null, null, null, null, null,
+                null, null, null, null, null, null,null);
     }
 
     @Test
@@ -95,10 +96,9 @@ class NodeServiceTest {
         investmentCostDTO.setComponents(List.of(componentDTO));
         wellDTO.setInvestmentCost(investmentCostDTO);
 
-        NodeGraphDataDTO graphDataDTO = new NodeGraphDataDTO();
-        graphDataDTO.setXPosition(10.0);
-        graphDataDTO.setYPosition(20.0);
-        graphDataDTO.setCoordinates(0.0);
+        NodeGraphDataDTO graphDataDTO = new NodeGraphDataDTO(
+                new GraphPositionDTO(10.0, 20.0),
+                new GeographicalPositionDTO(-70.0, -34.0));
         wellDTO.setGraphData(graphDataDTO);
 
         wellDTO.setType(new NodeTypeDataDTO(VerticalEnum.EXTRACTION,

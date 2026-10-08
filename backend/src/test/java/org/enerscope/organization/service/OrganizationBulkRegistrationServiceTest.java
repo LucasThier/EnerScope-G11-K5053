@@ -61,7 +61,7 @@ class OrganizationBulkRegistrationServiceTest {
         service = new OrganizationBulkRegistrationService(
                 organizationRepository, organizationMemberRepository,
                 organizationService, userService, passwordGenerator, logger);
-        lenient().when(organizationRepository.findById(any())).thenReturn(Optional.of(new Organization("Acme")));
+        lenient().when(organizationRepository.findByIdAndActiveTrue(any())).thenReturn(Optional.of(new Organization("Acme")));
         lenient().when(passwordGenerator.generate()).thenReturn("Str0ng!Pass-01");
         lenient().when(userService.register(any(RegisterRequestDTO.class)))
                 .thenReturn(new User("row@enerscope.org", "Row", "User", "hash", PlatformRole.USER));
@@ -189,7 +189,7 @@ class OrganizationBulkRegistrationServiceTest {
 
     @Test
     void rejectsUnknownOrganization() {
-        when(organizationRepository.findById(ORG_ID)).thenReturn(Optional.empty());
+        when(organizationRepository.findByIdAndActiveTrue(ORG_ID)).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class,
                 () -> service.register(ORG_ID, "mail,firstName,lastName\nj@e.com,Jane,Doe\n"));
@@ -211,4 +211,14 @@ class OrganizationBulkRegistrationServiceTest {
         verify(organizationMemberRepository).save(captor.capture());
         return captor.getValue().getRoles().iterator().next().getMemberType();
     }
+    @Test
+    void registerRejectsADeactivatedOrganization() {
+        UUID organizationId = UUID.randomUUID();
+        when(organizationRepository.findByIdAndActiveTrue(organizationId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.register(organizationId, "mail,firstName,lastName\n"));
+        verify(organizationMemberRepository, never()).save(any());
+    }
+
 }

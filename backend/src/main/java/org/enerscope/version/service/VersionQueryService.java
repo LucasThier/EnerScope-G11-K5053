@@ -41,7 +41,7 @@ public class VersionQueryService {
                                 .map(n -> new VersionSummaryDTO.NodeSummary(n.getId(), n.getName(),
                                         n.getType() == null || n.getType().getNodeType() == null
                                                 ? "UNKNOWN" : n.getType().getNodeType().name()))
-                                .toList()))
+                                .toList(), v.getParentVersion() == null ? null : v.getParentVersion().getId(), v.getCreatedAt()))
                 .sorted(Comparator.comparing(VersionSummaryDTO::lastModified,
                         Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();

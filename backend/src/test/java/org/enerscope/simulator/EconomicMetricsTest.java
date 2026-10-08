@@ -67,6 +67,31 @@ class EconomicMetricsTest {
     }
 
     @Test
+    void consumptionNodesKeepTheirAnnualCountersInEconomicSimulations() {
+        var version = EconomicExample.version();
+        var internal = node(InternalConsumption.class);
+        when(internal.getConsumptionSummer()).thenReturn(3f);
+        when(internal.getConsumptionAutumn()).thenReturn(3f);
+        when(internal.getConsumptionWinter()).thenReturn(3f);
+        when(internal.getConsumptionSpring()).thenReturn(3f);
+        var industrial = node(IndustrialConsumption.class);
+        when(industrial.getConsumption()).thenReturn(5f);
+        var nodes = new ArrayList<BaseNode>(version.getNodeSnapshot());
+        nodes.add(internal); nodes.add(industrial); version.setNodeSnapshot(nodes);
+        version.setConnectionSnapshot(List.of(
+            new NodeConnection(UUID.randomUUID(), EconomicExample.FIRST, internal.getId()),
+            new NodeConnection(UUID.randomUUID(), EconomicExample.FIRST, industrial.getId())));
+        var simulator = new Simulator(version);
+        simulator.simulate(8760);
+        for (var expected : Map.of(internal.getId(), 3, industrial.getId(), 5).entrySet()) {
+            var metric = simulator.getAnnualMetrics().stream().filter(m -> m.nodeId().equals(expected.getKey())).findFirst().orElseThrow();
+            assertEquals(expected.getValue() * 8760, metric.output().intValueExact());
+            assertEquals(metric.input(), metric.output());
+            assertEquals(8760, metric.operatingHours().intValueExact());
+        }
+    }
+
+    @Test
     void simulatorRejectsInvalidHorizons() {
         assertThrows(IllegalArgumentException.class,()->new Simulator(EconomicExample.version()).simulate(0));
         assertThrows(IllegalArgumentException.class,()->new Simulator(EconomicExample.version()).simulate(876001));

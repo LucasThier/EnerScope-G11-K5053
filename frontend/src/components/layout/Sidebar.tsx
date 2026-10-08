@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import { useAuth } from '../../hooks/useAuth';
+import { useOwnedOrganizations } from '../../hooks/useOwnedOrganizations';
 import { useLocalPreference } from '../../hooks/useLocalPreference';
 import {
   BuildingIcon,
@@ -22,6 +23,7 @@ import {
 interface NavItem {
   label: string;
   icon: ReactNode;
+  key?: string;
   /** Absent until the section has a page; the entry renders locked instead of linking nowhere. */
   to?: string;
 }
@@ -34,20 +36,20 @@ const COLLAPSED_KEY = 'sidebarCollapsed';
  * pages that do not exist is not.
  */
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Inicio / Dashboard', icon: <HomeIcon />, to: '/app' },
+  { label: 'Inicio', icon: <HomeIcon />, to: '/app' },
   { label: 'Proyectos', icon: <FolderIcon />, to: '/projects' },
-  { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon /> },
+  { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon />, to: '/editor' },
   { label: 'Simulaciones / Escenarios', icon: <FlaskIcon /> },
   { label: 'Comparar Escenarios', icon: <CompareIcon /> },
   { label: 'Reportes', icon: <ReportIcon /> },
-  { label: 'Organización / Equipo', icon: <TeamIcon /> },
+  { label: 'Gestión de organización', icon: <TeamIcon />, key: 'team' },
   { label: 'Configuración', icon: <SettingsIcon /> },
 ];
 
 /** Platform administration, kept separate because it is not part of the project workspace. */
 const ADMIN_ITEMS: NavItem[] = [
-  { label: 'Usuarios', icon: <UsersIcon />, to: '/admin/users' },
-  { label: 'Organizaciones', icon: <BuildingIcon />, to: '/admin/organizations' },
+  { label: 'Gestión de usuarios', icon: <UsersIcon />, to: '/admin/users' },
+  { label: 'Gestión de organizaciones', icon: <BuildingIcon />, to: '/admin/organizations' },
 ];
 
 /** Shared row geometry. Padding is applied per state so the collapsed rail can
@@ -70,6 +72,12 @@ export function Sidebar() {
   const isCollapsed = narrow || preferredCollapsed;
 
   const showAdmin = user?.platformRole === 'ADMIN';
+  const { owned } = useOwnedOrganizations();
+  const items = NAV_ITEMS.map((item) =>
+    item.key === 'team' && owned.length > 0
+      ? { ...item, to: `/organizations/${owned[0].id}` }
+      : item,
+  );
 
   return (
     <aside
@@ -79,7 +87,7 @@ export function Sidebar() {
       }
     >
       <nav className="flex flex-1 flex-col gap-1 p-3">
-        {NAV_ITEMS.map((item) => (
+        {items.map((item) => (
           <NavItemLink key={item.label} item={item.label === 'Simulaciones / Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item} isCollapsed={isCollapsed} />
         ))}
 

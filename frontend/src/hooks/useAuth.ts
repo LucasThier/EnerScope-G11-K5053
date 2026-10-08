@@ -23,6 +23,7 @@ export interface AuthContextValue {
   ) => Promise<OrganizationMemberSummary>;
   logout: () => Promise<void>;
   refresh: () => Promise<UserSummary | null>;
+  updateUser: (user: UserSummary) => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);

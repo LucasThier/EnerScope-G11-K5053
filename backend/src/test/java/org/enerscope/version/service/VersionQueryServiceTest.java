@@ -88,6 +88,20 @@ class VersionQueryServiceTest {
         assertEquals(2, result.getFirst().nodes().size());
         assertEquals(version.getNodeSnapshot().getFirst().getId(), result.getFirst().nodes().getFirst().id());
     }
+    @Test void summaryIncludesDiagramMetadataAndEconomicNodesTogether() {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        var parent = version("Parent", "2030-01-01T00:00:00Z");
+        var child = version("Child", "2031-01-01T00:00:00Z");
+        child.setParentVersion(parent);
+        var created = Instant.parse("2030-06-01T00:00:00Z");
+        ReflectionTestUtils.setField(child, "createdAt", created);
+        child.setNodeSnapshot(org.enerscope.economic.service.EconomicExample.version().getNodeSnapshot());
+        var summary = service.list(projectId).getFirst();
+        assertEquals(parent.getId(), summary.parentVersionId());
+        assertEquals(created, summary.createdAt());
+        assertEquals(child.getLastModified(), summary.lastModified());
+        assertEquals(2, summary.nodes().size());
+    }
     @Test void missingProjectReturnsNotFound() {
         when(projects.findById(projectId)).thenReturn(Optional.empty());
         assertThrows(EntityNotFoundException.class, () -> service.list(projectId));

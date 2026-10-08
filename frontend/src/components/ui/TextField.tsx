@@ -18,13 +18,13 @@ export function TextField({ label, error, id, className = '', ...rest }: TextFie
         className={
           'rounded-lg border bg-white px-3 py-2 text-sm text-ink-800 placeholder:text-ink-400 ' +
           'focus:outline-none focus:ring-2 focus:ring-brand-400/40 ' +
-          (error ? 'border-red-400 focus:border-red-400 ' : 'border-ink-200 focus:border-brand-500 ') +
+          (error ? 'border-danger-400 focus:border-danger-400 ' : 'border-ink-200 focus:border-brand-500 ') +
           className
         }
         aria-invalid={error ? true : undefined}
         {...rest}
       />
-      {error && <span className="text-xs text-red-600">{error}</span>}
+      {error && <span className="text-xs text-danger-600">{error}</span>}
     </div>
   );
 }

@@ -78,3 +78,5 @@ adapter converts the simple editor to the existing economic aggregate.
 All financial calculations remain in the backend. See [economic frontend](economic-frontend.md).
 
 The economic editor additionally reads/writes version-owned durable drafts through GET/PUT economics/draft. Draft storage never feeds the engine directly; configuration validation remains mandatory for simulation.
+
+The shared version-summary route serves the diagram and economic selectors, retaining VIEW_PROJECT checks and returning parentVersionId/createdAt together with lastModified and minimal node summaries. Both editors use the same data router so unsaved economic changes continue to block navigation.

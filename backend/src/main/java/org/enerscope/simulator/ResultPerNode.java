@@ -15,6 +15,9 @@ public class ResultPerNode {
     @GeneratedValue(strategy = GenerationType.UUID)
     protected UUID id;
 
+    // Named explicitly: the naming strategy only inserts an underscore before an
+    // upper-case letter that is followed by a lower-case one, so "nodeID" would
+    // end up as the column "nodeid" instead of "node_id" (see V8).
     @Column(name = "node_id")
     private UUID nodeID;
     @Column(name = "nodeClass", length = 100)

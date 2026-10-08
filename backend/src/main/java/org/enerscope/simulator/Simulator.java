@@ -3,6 +3,8 @@ package org.enerscope.simulator;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.BaseNode;
+import org.enerscope.node.model.export.IndustrialConsumption;
+import org.enerscope.node.model.export.InternalConsumption;
 import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.extraction.GatheringNetwork;
@@ -28,6 +30,7 @@ public class Simulator {
     private List<SimLiquefactionPlant> simLiquefactionPlants;
     private List<SimSeaportTerminal> simSeaportTerminals;
     private List<SimLNGCarrier> simLNGCarriers;
+    private List<SimBaseNode> consumptionNodes;
 
     private Version version;
     private Result result;
@@ -52,6 +55,7 @@ public class Simulator {
         simLiquefactionPlants = new ArrayList<>();
         simSeaportTerminals = new ArrayList<>();
         simLNGCarriers = new ArrayList<>();
+        consumptionNodes = new ArrayList<>();
         this.version = version;
 
         Map<UUID, SimBaseNode> simNodesById = new HashMap<>();
@@ -101,6 +105,7 @@ public class Simulator {
         nodes.addAll(simLiquefactionPlants);
         nodes.addAll(simSeaportTerminals);
         nodes.addAll(simLNGCarriers);
+        nodes.addAll(consumptionNodes);
         for (SimBaseNode n : nodes) {
             double[] current = {n.getMeasuredInput(), n.getMeasuredOutput(), n.getMeasuredExported(),
                     n.getMeasuredLosses(), n.getMeasuredOperatingHours(), n.getMeasuredEvents()};
@@ -144,6 +149,7 @@ public class Simulator {
                 readyNodes.forEach(simBaseNode -> step(simBaseNode, exactTime));
                 quedanPendientes = !nodesToProcess.isEmpty();
             }
+            consumptionNodes.forEach(node -> step(node, exactTime));
             simLiquefactionPlants.forEach(simLiquefactionPlant -> step(simLiquefactionPlant, exactTime));
             simSeaportTerminals.forEach(simSeaportTerminal -> step(simSeaportTerminal, exactTime));
             simLNGCarriers.forEach(simLNGCarrier -> step(simLNGCarrier, exactTime));
@@ -164,6 +170,7 @@ public class Simulator {
         result.addAllResultPerNodes(simLiquefactionPlants.stream().map(SimLiquefactionPlant::createResult).toList());
         result.addAllResultPerNodes(simSeaportTerminals.stream().map(SimSeaportTerminal::createResult).toList());
         result.addAllResultPerNodes(simLNGCarriers.stream().map(SimLNGCarrier::createResult).toList());
+        result.addAllResultPerNodes(consumptionNodes.stream().map(SimBaseNode::createResult).toList());
         this.result = result;
     }
 
@@ -210,6 +217,14 @@ public class Simulator {
             SimLNGCarrier simLNGCarrier = new SimLNGCarrier(lngCarrier);
             simLNGCarriers.add(simLNGCarrier);
             simNode = simLNGCarrier;
+        } else if (baseNode instanceof InternalConsumption internalConsumption) {
+            SimInternalConsumption simInternalConsumption = new SimInternalConsumption(internalConsumption);
+            consumptionNodes.add(simInternalConsumption);
+            simNode = simInternalConsumption;
+        } else if (baseNode instanceof IndustrialConsumption industrialConsumption) {
+            SimIndustrialConsumption simIndustrialConsumption = new SimIndustrialConsumption(industrialConsumption);
+            consumptionNodes.add(simIndustrialConsumption);
+            simNode = simIndustrialConsumption;
         }
 
         return simNode;

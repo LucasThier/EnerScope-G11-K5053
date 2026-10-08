@@ -38,6 +38,7 @@ const evaluation = () => ({
 await page.route('**/api/v1/**', async route => {
   const url = new URL(route.request().url()), path = url.pathname.replace('/api/v1',''), method = route.request().method();
   const ok = data => route.fulfill({ json: { success: true, data, message: 'OK' } });
+  if (path.endsWith('/organizations/owned')) return ok([]);
   if (path === '/auth/refresh') return ok({ user, accessToken:'test', refreshToken:'test' });
   if (path === '/projects') return ok(projects);
   if (path.endsWith('/members')) return ok([]);

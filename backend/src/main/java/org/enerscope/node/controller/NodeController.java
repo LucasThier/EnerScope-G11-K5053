@@ -135,6 +135,22 @@ public class NodeController {
                 return Responses.ok("Connection created successfully");
         }
 
+        @PostMapping(value = "/internal-consumption", consumes = MediaType.APPLICATION_JSON_VALUE)
+        @Operation(summary = "Create a Internal Consumption node", description = "Create a new Internal Consumption node with all required properties.")
+        public ResponseEntity<ApiResponse<Void>> createInternalConsumption(
+                @RequestBody InternalConsumptionDTO internalConsumptionDTO) {
+                nodeService.saveInternalConsumption(internalConsumptionDTO);
+                return Responses.ok("Internal Consumption created successfully");
+        }
+
+        @PostMapping(value = "/industrial-consumption", consumes = MediaType.APPLICATION_JSON_VALUE)
+        @Operation(summary = "Create a Industrial Consumption node", description = "Create a new Industrial Consumption node with all required properties.")
+        public ResponseEntity<ApiResponse<Void>> createInt(
+                @RequestBody IndustrialConsumptionDTO industrialConsumptionDTO) {
+                nodeService.saveIndustrialConsumption(industrialConsumptionDTO);
+                return Responses.ok("Industrial Consumption created successfully");
+        }
+
         // Additional endpoints for nodes (e.g., get, update, delete) can be added
         // here.
 }

@@ -30,6 +30,10 @@ export const session = {
     localStorage.setItem(USER_KEY, JSON.stringify(user));
   },
 
+  saveUser: (user: UserSummary): void => {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  },
+
   clear: (): void => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);

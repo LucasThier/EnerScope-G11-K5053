@@ -81,7 +81,7 @@ class PostgreSqlEconomicIT {
         for(var original:source.getNodeSnapshot()) {
             Well well=(Well)original; String old=well.getId().toString(); ReflectionTestUtils.setField(well,"id",null);
             well.setType(new NodeTypeData(VerticalEnum.EXTRACTION,StructuralRoleEnum.GENERATOR,NodeTypeEnum.WELL));
-            well.setGraphData(new NodeGraphData(0d,0d,0d));well.setInvestmentCost(new InvestmentCost(new ArrayList<>()));
+            well.setGraphData(new NodeGraphData(new org.enerscope.node.model.GraphPosition(0d,0d), null));well.setInvestmentCost(new InvestmentCost(new ArrayList<>()));
             well.setUpkeepCosts(MoneyAmount.of(0));well.setOperatingCosts(MoneyAmount.of(0));well.setDTMCost(MoneyAmount.of(0));well.setIdentityId(UUID.randomUUID());
             em.persist(well);ids.put(old,well.getId().toString());nodes.add(well);
         }

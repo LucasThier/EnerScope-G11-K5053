@@ -143,6 +143,15 @@ export function ChevronsRightIcon(props: IconProps) {
 }
 
 /** Marks a navigation entry whose section is not available yet. */
+export function UndoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 10h11a5 5 0 0 1 0 10h-6" />
+      <path d="M7 6l-4 4 4 4" />
+    </Icon>
+  );
+}
+
 export function LockIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -202,6 +211,16 @@ export function EyeIcon(props: IconProps) {
     <Icon {...props}>
       <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" />
       <circle cx="12" cy="12" r="3" />
+    </Icon>
+  );
+}
+
+export function InfoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5" />
+      <path d="M12 7.5v.01" />
     </Icon>
   );
 }
