@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await authApi.login(data);
     const body = res.data.data;
     if (!body) {
-      throw new Error(res.data.message || 'Login failed');
+      throw new Error(res.data.message || 'No se pudo iniciar sesión');
     }
     session.save(body);
     setUser(body.user);
@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await authApi.register(data);
     const created = res.data.data;
     if (!created) {
-      throw new Error(res.data.message || 'Registration failed');
+      throw new Error(res.data.message || 'No se pudo registrar el usuario');
     }
     return created;
   }, []);
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await organizationsApi.registerUser(organizationId, data);
       const created = res.data.data;
       if (!created) {
-        throw new Error(res.data.message || 'Registration failed');
+        throw new Error(res.data.message || 'No se pudo registrar el usuario');
       }
       return created;
     },

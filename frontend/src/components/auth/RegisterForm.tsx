@@ -37,7 +37,7 @@ const EMPTY = { firstName: '', lastName: '', mail: '', password: '' };
 export function RegisterForm({
   allowRoleSelection = false,
   lockedOrganizationId,
-  submitLabel = 'Create user',
+  submitLabel = 'Crear usuario',
   onSuccess,
   className = '',
 }: RegisterFormProps) {
@@ -69,13 +69,16 @@ export function RegisterForm({
       } else {
         await register({ ...fields, role: allowRoleSelection ? role : undefined });
       }
-      const where = organizationId ? 'into the organization' : 'as a platform user';
-      setSuccess(`${fields.mail} was registered ${where}.`);
+      setSuccess(
+        organizationId
+          ? `Se registró a ${fields.mail} en la organización.`
+          : `Se creó la cuenta de plataforma de ${fields.mail}.`,
+      );
       onSuccess?.({ mail: fields.mail, organizationId });
       setFields(EMPTY);
       setRole('USER');
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not register the user'));
+      setError(getErrorMessage(err, 'No se pudo registrar el usuario'));
     } finally {
       setSubmitting(false);
     }
@@ -88,14 +91,14 @@ export function RegisterForm({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <TextField
-          label="First name"
+          label="Nombre"
           autoComplete="given-name"
           required
           value={fields.firstName}
           onChange={(e) => update('firstName', e.target.value)}
         />
         <TextField
-          label="Last name"
+          label="Apellido"
           autoComplete="family-name"
           required
           value={fields.lastName}
@@ -112,14 +115,14 @@ export function RegisterForm({
         placeholder="new.user@enerscope.org"
       />
       <TextField
-        label="Temporary password"
+        label="Contraseña temporal"
         type="password"
         autoComplete="new-password"
         required
         minLength={8}
         value={fields.password}
         onChange={(e) => update('password', e.target.value)}
-        placeholder="At least 8 characters"
+        placeholder="Al menos 8 caracteres"
       />
 
       {!lockedOrganizationId && (
@@ -129,23 +132,23 @@ export function RegisterForm({
           value={selectedOrgId}
           onChange={setSelectedOrgId}
           onCreate={createOrganization}
-          emptyLabel="No organization (platform user)"
+          emptyLabel="Sin organización (usuario de plataforma)"
         />
       )}
 
       {allowRoleSelection && !organizationId && (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <label htmlFor={roleSelectId} className="text-sm font-medium text-ink-600">
-            Platform role
+            Rol en la plataforma
           </label>
           <select
             id={roleSelectId}
             value={role}
             onChange={(e) => setRole(e.target.value as PlatformRole)}
-            className="rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+            className="rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
           >
-            <option value="USER">User</option>
-            <option value="ADMIN">Admin</option>
+            <option value="USER">Usuario</option>
+            <option value="ADMIN">Administrador</option>
           </select>
         </div>
       )}

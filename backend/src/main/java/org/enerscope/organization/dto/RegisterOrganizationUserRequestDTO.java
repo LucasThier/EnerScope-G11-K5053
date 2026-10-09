@@ -20,5 +20,8 @@ public record RegisterOrganizationUserRequestDTO(
         String lastName,
 
         @NotBlank @Size(min = 8, message = "Password must be at least 8 characters long")
-        String password
+        String password,
+
+        @Size(max = 120)
+        String jobTitle
 ) {}

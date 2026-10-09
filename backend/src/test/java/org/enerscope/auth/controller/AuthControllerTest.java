@@ -102,7 +102,7 @@ class AuthControllerTest {
                         .header("Authorization", "Bearer " + ADMIN_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(new RegisterRequestDTO(
-                                "jane@enerscope.org", "Jane", "Doe", "password123", null))))
+                                "jane@enerscope.org", "Jane", "Doe", "password123", null, null))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("User registered"))
@@ -115,7 +115,7 @@ class AuthControllerTest {
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(new RegisterRequestDTO(
-                                "jane@enerscope.org", "Jane", "Doe", "password123", null))))
+                                "jane@enerscope.org", "Jane", "Doe", "password123", null, null))))
                 .andExpect(status().isUnauthorized());
 
         verify(userService, never()).register(any());
@@ -129,7 +129,7 @@ class AuthControllerTest {
                         .header("Authorization", "Bearer " + USER_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(new RegisterRequestDTO(
-                                "jane@enerscope.org", "Jane", "Doe", "password123", null))))
+                                "jane@enerscope.org", "Jane", "Doe", "password123", null, null))))
                 .andExpect(status().isForbidden());
 
         verify(userService, never()).register(any());
@@ -145,7 +145,7 @@ class AuthControllerTest {
                         .header("Authorization", "Bearer " + ADMIN_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(new RegisterRequestDTO(
-                                "dup@enerscope.org", "Dup", "User", "password123", null))))
+                                "dup@enerscope.org", "Dup", "User", "password123", null, null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("An account with that email already exists"));
@@ -187,6 +187,21 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.message").value("Authenticated"))
                 .andExpect(jsonPath("$.data.accessToken").value(ACCESS_TOKEN))
                 .andExpect(jsonPath("$.data.refreshToken").value(REFRESH_TOKEN));
+    }
+
+    @Test
+    void loginExposesJobTitleInTheUserSummary() throws Exception {
+        User user = new User("maria@enerscope.org", "Maria", "Paz", "hashed", PlatformRole.USER,
+                "Senior Investment Analyst");
+        when(userService.login(eq("maria@enerscope.org"), eq("password123"))).thenReturn(user);
+        when(sessionService.create(any(User.class))).thenReturn(sampleSession(user));
+        when(sessionService.generateRefreshToken(any(User.class))).thenReturn(REFRESH_TOKEN);
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new LoginRequestDTO("maria@enerscope.org", "password123"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.user.jobTitle").value("Senior Investment Analyst"));
     }
 
     @Test

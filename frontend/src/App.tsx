@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage';
 import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AdminOrganizationsPage } from './pages/AdminOrganizationsPage';
 import { WorkspacePage } from './pages/WorkspacePage';
+import { ProjectsPage } from './pages/ProjectsPage';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/" element={<DashboardRedirect />} />
               <Route path="/app" element={<WorkspacePage />} />
+              <Route path="/projects" element={<ProjectsPage />} />
               <Route element={<RoleRoute role="ADMIN" />}>
                 <Route path="/admin/users" element={<AdminUsersPage />} />
                 <Route path="/admin/organizations" element={<AdminOrganizationsPage />} />

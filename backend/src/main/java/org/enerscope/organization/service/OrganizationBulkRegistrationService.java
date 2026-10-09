@@ -121,7 +121,7 @@ public class OrganizationBulkRegistrationService {
                 OrganizationMemberType memberType = parseMemberType(roleRaw);
                 String password = passwordGenerator.generate();
                 User user = userService.register(new RegisterRequestDTO(
-                        mail, firstName, lastName, password, PlatformRole.USER));
+                        mail, firstName, lastName, password, PlatformRole.USER, null));
                 addMembership(organization, user, memberType);
                 credentials.add(List.of(mail.trim().toLowerCase(Locale.ROOT), password));
             } catch (IllegalArgumentException ex) {

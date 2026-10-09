@@ -1,40 +1,64 @@
 @import "tailwindcss";
 
 /*
- * EnerScope design tokens — derived from the logo (cream background, charcoal
- * "ES" monogram/wordmark, a bright green node link and a deep forest-green
- * swoosh). Declaring them under Tailwind v4's `@theme` auto-generates the
- * matching utilities (e.g. `bg-brand-500`, `text-ink-700`, `bg-cream`), so the
- * whole app themes from here. Reuse these instead of raw hex or neutral-*.
+ * EnerScope design tokens — derived from the logo (a charcoal "ES" monogram, a
+ * bright green node link and a deep forest-green swoosh). Declaring them under
+ * Tailwind v4's `@theme` auto-generates the matching utilities (e.g.
+ * `bg-brand-800`, `text-ink-700`), so the whole app themes from here. Reuse
+ * these instead of raw hex or neutral-*.
+ *
+ * WHERE each colour goes — this matters more than which colours exist:
+ *
+ * - Brand green is an *accent*, never a surface. It is allowed on primary
+ *   buttons, links, and the active navigation item. Nothing else. Analysts sit
+ *   in front of this tool for hours, and large saturated areas tire the eye;
+ *   green earns attention precisely because it is rare.
+ * - The page itself is ink-50; cards, the top bar, the sidebar, the menus and
+ *   the form controls are white. That one step of separation is what makes a
+ *   card read as a sheet, so it replaces a tinted card background — the card
+ *   never carries the tint, the page does.
+ * - Every border, icon and text colour comes from the ink ramp.
+ *
+ * CONTRAST — every text/background pair in the app meets WCAG AA (4.5:1 for
+ * body text). The ratios below are against white, so they are the budget you
+ * have when picking a text colour:
+ *
+ *   ink-300  2.06:1   borders and dividers only — never text
+ *   ink-400  3.44:1   decorative icons and placeholders only — never text
+ *   ink-500  5.69:1   <- the floor for secondary text, labels and metadata
+ *   ink-700 11.91:1   body text
+ *   ink-800 14.34:1   headings and emphasis
+ *
+ * The same floor applies on the tinted hovers: ink-500 keeps 5.30:1 on ink-50
+ * and 4.77:1 on brand-50.
  */
 @theme {
-  /* Brand green — primary actions, highlights, the logo nodes. */
-  --color-brand-50: #eef8e7;
-  --color-brand-100: #d6efc6;
-  --color-brand-200: #bce5a2;
-  --color-brand-300: #9fd97b;
-  --color-brand-400: #83cd58;
-  --color-brand-500: #6dbe45; /* primary */
-  --color-brand-600: #55a238;
-  --color-brand-700: #3f8130; /* deep forest-green swoosh */
-  --color-brand-800: #326626;
-  --color-brand-900: #274f1f;
+  /* Brand green — primary actions, links, active navigation. Anchored on the
+     logo's two greens (500 and 900); the intermediate steps are the canonical
+     ramp that runs through both. */
+  --color-brand-50: #e8f5e9; /* active nav background */
+  --color-brand-100: #c8e6c9;
+  --color-brand-200: #a5d6a7;
+  --color-brand-300: #81c784;
+  --color-brand-400: #66bb6a; /* focus ring */
+  --color-brand-500: #4caf50; /* the logo's bright node — too light for text on white (3.03:1) */
+  --color-brand-600: #43a047;
+  --color-brand-700: #388e3c; /* 4.12:1 — large text only, not 14px body */
+  --color-brand-800: #2e7d32; /* 5.13:1 — primary button fill, active nav text */
+  --color-brand-900: #1b5e20; /* 7.87:1 — deep forest-green swoosh, primary hover */
 
-  /* Ink — charcoal used for the monogram, wordmark and body text. */
-  --color-ink-50: #f5f6f7;
-  --color-ink-100: #e6e8ea;
-  --color-ink-200: #c8ccd1;
-  --color-ink-300: #a3a9b1;
-  --color-ink-400: #6f767f;
-  --color-ink-500: #4b515a;
-  --color-ink-600: #363b43;
-  --color-ink-700: #2c2f36; /* wordmark / outlines */
-  --color-ink-800: #23262b;
-  --color-ink-900: #191b1f;
-
-  /* Cream — the logo's warm background surface. */
-  --color-cream: #f5f1e6;
-  --color-cream-dark: #ece6d5;
+  /* Ink — the logo's blue-tinted charcoal. Every surface, border and text
+     colour that is not an accent comes from here. Anchored on 800. */
+  --color-ink-50: #f5f7f9; /* the page surface, and the hover fill on white */
+  --color-ink-100: #e7ebef; /* borders */
+  --color-ink-200: #cdd5dd;
+  --color-ink-300: #aab6c2;
+  --color-ink-400: #7e8c9b;
+  --color-ink-500: #5c6875; /* secondary text, labels */
+  --color-ink-600: #454f5a;
+  --color-ink-700: #2f3841; /* body text, wordmark */
+  --color-ink-800: #232b33; /* headings */
+  --color-ink-900: #161b21;
 }
 
 /* Base page surface. Kept minimal — everything else is Tailwind utilities. */
@@ -45,6 +69,6 @@ body,
 }
 
 body {
-  background-color: var(--color-cream);
+  background-color: var(--color-ink-50);
   color: var(--color-ink-700);
 }

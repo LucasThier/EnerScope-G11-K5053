@@ -100,18 +100,20 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| `POST` | `/auth/register` | admin | Create an account (any role); returns the created user, not a session |
+| `POST` | `/auth/register` | admin | Create an account (any role, optional `jobTitle`); returns the created user, not a session |
 | `POST` | `/auth/login` | public | Authenticate, returns a session (with the user + role) |
 | `POST` | `/auth/refresh` | public | Exchange a refresh token for a new session |
 | `POST` | `/auth/logout` | public | No-op server side (client clears tokens) |
 | `GET` | `/organizations` | bearer | List organizations (all for admins; own for other users) |
 | `POST` | `/organizations` | bearer | Create an organization |
+| `GET` | `/organizations/{organizationId}/members` | admin / org member | List the organization's members with their identity fields |
 | `POST` | `/organizations/{organizationId}/members` | bearer | Add an existing user to the organization with a role (`OWNER`/`MEMBER`) |
 | `POST` | `/organizations/{organizationId}/users` | admin / org owner | Register a **new** user straight into the organization as a `MEMBER` |
 | `POST` | `/organizations/{organizationId}/users/bulk` | admin / org owner | Bulk-register users into the organization from a CSV; returns generated credentials |
+| `GET` | `/projects` | bearer | List projects (all for admins; own memberships for other users). Optional `?organizationId=` filter |
 | `POST` | `/projects` | bearer | Create a project under an organization |
 | `POST` | `/projects/{projectId}/members` | bearer | Add a user to the project with a role (`ADMIN`/`EDITOR`) |
-| `POST` | `/projects/{projectId}/versions` | bearer | Create a version of a project, optionally under a parent version |
+| `POST` | `/projects/{projectId}/version` | bearer | Create a version of a project, optionally under a parent version |
 | `GET` | `/health` | public | Liveness probe |
 
 ### Bulk user registration (`POST /organizations/{id}/users/bulk`)
@@ -169,13 +171,27 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   `MANAGE_ORGANIZATION` + `VIEW_ORGANIZATION`, `MEMBER` gets
   `VIEW_ORGANIZATION` only. Adding the same user to the same organization
   twice is rejected.
+- `GET /organizations/{organizationId}/members` lists the members with the
+  fields the team screens show: mail, first/last name, `jobTitle`, `active`,
+  membership type and permissions. Readable by a platform admin or by **any**
+  member of that organization — seeing who has access is not a management
+  action, so it does not require `MANAGE_ORGANIZATION`. Non-members get `403`.
+  `active` reflects the user account, not a membership status; there is no
+  "invited" state yet.
 - `POST /organizations/{organizationId}/users` registers a **brand new** user
   (`mail`, `firstName`, `lastName`, `password`) and adds them as a `MEMBER` in
   one step. Allowed for platform admins and organization owners (members with
   `MANAGE_ORGANIZATION`); anyone else gets `403`.
 
-### Projects (`POST /projects/**`)
+### Projects (`/projects/**`)
 
+- `GET /projects` lists projects as summaries (name, description, owning
+  organization id **and name**, member count, `lastModified`). A platform admin
+  gets every project; anyone else gets only the projects they are a **member**
+  of — belonging to the owning organization is not enough. `?organizationId=`
+  narrows the result to one organization. The rows come from a JPQL projection
+  rather than entities, so the lazy `organization`/`members` associations are
+  never loaded and the member count is not an N+1.
 - `POST /projects` creates a project (`name` + `description`) under an
   organization (`organizationId`). Projects are their own top-level resource,
   not nested under `/organizations`.
@@ -186,11 +202,13 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   `EDIT_PROJECT` + `VIEW_PROJECT`. Adding the same user to the same project
   twice is rejected.
 
-### Versions (`POST /projects/{projectId}/versions`)
+### Versions (`POST /projects/{projectId}/version`)
 
-- `POST /projects/{projectId}/versions` creates a version (`name`) of a
+- `POST /projects/{projectId}/version` creates a version (`name`) of a
   project, optionally derived from a `parentVersionId`. A `parentVersionId`
-  must belong to the same project or the request is rejected. Versions stay
+  must belong to the same project or the request is rejected. The handler is
+  transactional: the version row and the link to the project are written as one
+  unit, so a failure cannot leave a version orphaned. Versions stay
   nested under `/projects` for now — this minimal slice has no sub-resource
   of its own to justify promoting it to a top-level `/versions` resource like
   `Project` was.

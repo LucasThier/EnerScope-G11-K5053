@@ -7,6 +7,7 @@ import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
+import org.enerscope.project.dto.ProjectSummaryDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
@@ -16,6 +17,8 @@ import org.enerscope.project.service.ProjectService;
 import org.enerscope.session.model.Session;
 import org.enerscope.session.service.SessionService;
 import org.enerscope.user.model.User;
+import org.enerscope.version.dto.VersionDTO;
+import org.enerscope.version.model.Version;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +29,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -34,6 +38,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -81,6 +86,104 @@ class ProjectControllerTest {
         ProjectMember member = new ProjectMember(user, project);
         member.addRole(new ProjectMemberRole(type.name(), type, permissions));
         return member;
+    }
+
+    // ---- listProjects --------------------------------------------------------
+
+    @Test
+    void listProjectsReturnsSummaries() throws Exception {
+        when(projectService.listForCurrentUser(null)).thenReturn(List.of(new ProjectSummaryDTO(
+                UUID.randomUUID(), "Grid Expansion", "Expands the regional grid",
+                UUID.randomUUID(), "Acme", 4L, Instant.now())));
+
+        mockMvc.perform(get("/projects")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].name").value("Grid Expansion"))
+                .andExpect(jsonPath("$.data[0].organizationName").value("Acme"))
+                .andExpect(jsonPath("$.data[0].memberCount").value(4));
+    }
+
+    @Test
+    void listProjectsForwardsOrganizationFilter() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        when(projectService.listForCurrentUser(orgId)).thenReturn(List.of());
+
+        mockMvc.perform(get("/projects")
+                        .param("organizationId", orgId.toString())
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk());
+
+        verify(projectService).listForCurrentUser(orgId);
+    }
+
+    @Test
+    void listProjectsRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(get("/projects"))
+                .andExpect(status().isUnauthorized());
+
+        verify(projectService, never()).listForCurrentUser(any());
+    }
+
+    // ---- listMembers -------------------------------------------------------
+
+    @Test
+    void listMembersReturnsMembers() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        when(projectService.listMembers(projectId)).thenReturn(List.of(
+                sampleMember(ProjectMemberType.EDITOR,
+                        Set.of(ProjectMemberPermission.EDIT_PROJECT, ProjectMemberPermission.VIEW_PROJECT))));
+
+        mockMvc.perform(get("/projects/" + projectId + "/members")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Project members"))
+                .andExpect(jsonPath("$.data[0].userMail").value("jane@enerscope.org"))
+                .andExpect(jsonPath("$.data[0].firstName").value("Jane"))
+                .andExpect(jsonPath("$.data[0].lastName").value("Doe"))
+                .andExpect(jsonPath("$.data[0].active").value(true))
+                .andExpect(jsonPath("$.data[0].memberType").value("EDITOR"));
+    }
+
+    @Test
+    void listMembersRequiresAuthenticationWith401() throws Exception {
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(get("/projects/" + projectId + "/members"))
+                .andExpect(status().isUnauthorized());
+
+        verify(projectService, never()).listMembers(any());
+    }
+
+    // ---- createVersion -------------------------------------------------------
+
+    @Test
+    void createVersionReturnsCreatedVersion() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        Version version = new Version();
+        version.setName("Baseline");
+        when(projectService.saveVersion(eq(projectId), any(VersionDTO.class))).thenReturn(version);
+
+        mockMvc.perform(post("/projects/" + projectId + "/version")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new VersionDTO("Baseline", null))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Version created successfully"))
+                .andExpect(jsonPath("$.data.name").value("Baseline"));
+    }
+
+    @Test
+    void createVersionRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(post("/projects/" + UUID.randomUUID() + "/version")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new VersionDTO("Baseline", null))))
+                .andExpect(status().isUnauthorized());
+
+        verify(projectService, never()).saveVersion(any(), any());
     }
 
     // ---- createProject -------------------------------------------------------

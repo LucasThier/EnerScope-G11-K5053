@@ -7,10 +7,12 @@ import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
 import org.enerscope.project.dto.ProjectDTO;
 import org.enerscope.project.dto.ProjectMemberDTO;
+import org.enerscope.project.dto.ProjectSummaryDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
 import org.enerscope.project.service.ProjectService;
+import org.enerscope.user.model.User;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.enerscope.version.dto.VersionDTO;
@@ -18,12 +20,15 @@ import org.enerscope.version.service.VersionService;
 import org.enerscope.version.model.Version;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -41,6 +46,15 @@ public class ProjectController {
         this.projectService = projectService;
     }
 
+    @GetMapping
+    @Operation(summary = "List projects",
+            description = "Platform admins get every project; other users get the ones they are a "
+                    + "member of. Pass organizationId to narrow the result to one organization.")
+    public ResponseEntity<ApiResponse<List<ProjectSummaryDTO>>> listProjects(
+            @RequestParam(required = false) UUID organizationId) {
+        return Responses.ok("Projects", projectService.listForCurrentUser(organizationId));
+    }
+
     @PostMapping
     @Operation(summary = "Create a project", description = "Create a new project under an organization.")
     public ResponseEntity<ApiResponse<ProjectDTO>> createProject(@Valid @RequestBody CreateProjectRequestDTO data) {
@@ -55,6 +69,17 @@ public class ProjectController {
             @Valid @RequestBody AddProjectMemberRequestDTO data) {
         ProjectMember member = projectService.addMember(projectId, data);
         return Responses.created("Member added", toDTO(member));
+    }
+
+    @GetMapping("/{projectId}/members")
+    @Operation(summary = "List the members of a project",
+            description = "Returns every member with their identity fields. Readable by platform "
+                    + "admins and by any member of the project.")
+    public ResponseEntity<ApiResponse<List<ProjectMemberDTO>>> listMembers(@PathVariable UUID projectId) {
+        List<ProjectMemberDTO> members = projectService.listMembers(projectId).stream()
+                .map(this::toDTO)
+                .toList();
+        return Responses.ok("Project members", members);
     }
 
     @PostMapping(value = "/{projectId}/version", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -74,10 +99,15 @@ public class ProjectController {
 
     private ProjectMemberDTO toDTO(ProjectMember member) {
         ProjectMemberRole role = member.getRoles().iterator().next();
+        User user = member.getUser();
         return new ProjectMemberDTO(
                 member.getId(),
-                member.getUser().getId(),
-                member.getUser().getMail(),
+                user.getId(),
+                user.getMail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getJobTitle(),
+                user.isActive(),
                 role.getMemberType(),
                 role.getPermissions());
     }

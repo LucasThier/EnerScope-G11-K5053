@@ -15,7 +15,8 @@ public record UserSummaryDTO(
         String mail,
         String firstName,
         String lastName,
-        PlatformRole platformRole
+        PlatformRole platformRole,
+        String jobTitle
 ) {
     public static UserSummaryDTO from(User user) {
         return new UserSummaryDTO(
@@ -23,6 +24,7 @@ public record UserSummaryDTO(
                 user.getMail(),
                 user.getFirstName(),
                 user.getLastName(),
-                user.getPlatformRole());
+                user.getPlatformRole(),
+                user.getJobTitle());
     }
 }
