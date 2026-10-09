@@ -215,6 +215,28 @@ geographical one, and vice versa.
 Edge between two nodes (`node_connection` table): `identityId`, `fromNodeId`,
 `toNodeId` (both referencing endpoint node `id`s within the version).
 
+## VersionConflict
+
+Persistent entity (`version_conflict`). Created **automatically** by
+`VersionService.mergeSubVersionIntoParent` (through
+`VersionConflictService.recordMergeConflicts`) — there is no detection
+endpoint. `Version` itself keeps no merge metadata; everything lives here.
+
+For every other child of the merge target whose `nodeChanges`/`connectionChanges`
+touch a node or connection also changed by the merged subversion, one record is
+created:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `mergedVersion` | Version | Parent that received the merge |
+| `sourceVersion` | Version | Subversion that was merged |
+| `conflictingVersion` | Version | Sibling that changed the same entities |
+| `conflictingNodeIds` / `conflictingConnectionIds` | Set<UUID> | Entities changed by both |
+| `resolved` / `resolvedAt` | boolean / Instant | Set through `PATCH /version/conflicts/{id}/resolve` |
+| `createdAt` | Instant | From `BaseEntity`; the moment of the merge |
+
+Conflicts of a version are listed with `GET /version/{versionId}/conflicts`.
+
 ## Session (non-persistent)
 
 A `Session` is an in-memory object rebuilt from a JWT on every request. It is

@@ -324,9 +324,10 @@ public class NodeService {
       if (dto.getType() != null) {
          well.setType(DTOtoEntity(dto.getType()));
       }
-      if (dto.getIdentity() != null) {
-         well.setIdentityId(dto.getIdentity());
-      }
+      // identityId is intentionally never touched here: it's the stable key
+      // version merges/conflicts match nodes by across edits, and BaseNodeDTO's
+      // identity field exists for ADD (or explicitly testing conflicts), not
+      // for silently reassigning an existing node's identity on every edit.
 
       // Update Well-specific fields
       well.setMaxCollectionCapacity(dto.getMaxCollectionCapacity());
@@ -359,9 +360,6 @@ public class NodeService {
       if (dto.getType() != null) {
          network.setType(DTOtoEntity(dto.getType()));
       }
-      if (dto.getIdentity() != null) {
-         network.setIdentityId(dto.getIdentity());
-      }
 
       // Update GatheringNetwork-specific fields
       network.setMaxTransportCapacity(dto.getMaxTransportCapacity());
@@ -393,9 +391,6 @@ public class NodeService {
       if (dto.getType() != null) {
          plant.setType(DTOtoEntity(dto.getType()));
       }
-      if (dto.getIdentity() != null) {
-         plant.setIdentityId(dto.getIdentity());
-      }
 
       // Update TreatmentPlant-specific fields
       plant.setMaxTreatmentCapacity(dto.getMaxTreatmentCapacity());
@@ -426,9 +421,6 @@ public class NodeService {
       if (dto.getType() != null) {
          pipeline.setType(DTOtoEntity(dto.getType()));
       }
-      if (dto.getIdentity() != null) {
-         pipeline.setIdentityId(dto.getIdentity());
-      }
 
       // Update Pipeline-specific fields
       pipeline.setMaxFlowCapacity(dto.getMaxFlowCapacity());
@@ -458,9 +450,6 @@ public class NodeService {
       }
       if (dto.getType() != null) {
          plant.setType(DTOtoEntity(dto.getType()));
-      }
-      if (dto.getIdentity() != null) {
-         plant.setIdentityId(dto.getIdentity());
       }
 
       // Update CompressingPlant-specific fields
@@ -493,9 +482,6 @@ public class NodeService {
       if (dto.getType() != null) {
          plant.setType(DTOtoEntity(dto.getType()));
       }
-      if (dto.getIdentity() != null) {
-         plant.setIdentityId(dto.getIdentity());
-      }
 
       // Update GroundBasedLiquefactionPlant-specific fields
       plant.setMaxProcessingCapacity(dto.getMaxProcessingCapacity());
@@ -526,9 +512,6 @@ public class NodeService {
       }
       if (dto.getType() != null) {
          unit.setType(DTOtoEntity(dto.getType()));
-      }
-      if (dto.getIdentity() != null) {
-         unit.setIdentityId(dto.getIdentity());
       }
 
       // Update FLNGUnit-specific fields
@@ -562,9 +545,6 @@ public class NodeService {
       if (dto.getType() != null) {
          carrier.setType(DTOtoEntity(dto.getType()));
       }
-      if (dto.getIdentity() != null) {
-         carrier.setIdentityId(dto.getIdentity());
-      }
 
       // Update LNGCarrier-specific fields
       carrier.setExportFrequency(dto.getExportFrequency());
@@ -597,9 +577,6 @@ public class NodeService {
       if (dto.getType() != null) {
          terminal.setType(DTOtoEntity(dto.getType()));
       }
-      if (dto.getIdentity() != null) {
-         terminal.setIdentityId(dto.getIdentity());
-      }
 
       // Update SeaportTerminal-specific fields
       terminal.setIntermediateStorage(dto.getIntermediateStorage());
@@ -629,9 +606,6 @@ public class NodeService {
       }
       if (dto.getType() != null) {
          connection.setType(DTOtoEntity(dto.getType()));
-      }
-      if (dto.getIdentity() != null) {
-         connection.setIdentityId(dto.getIdentity());
       }
 
       // Update PipelineConnection-specific fields
