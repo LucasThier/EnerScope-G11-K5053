@@ -64,6 +64,17 @@ export function UserMenu() {
           <button
             type="button"
             role="menuitem"
+            onClick={() => {
+              close();
+              navigate('/profile');
+            }}
+            className="block w-full px-4 py-2 text-left text-sm text-ink-700 transition-colors hover:bg-ink-50"
+          >
+            Mi perfil
+          </button>
+          <button
+            type="button"
+            role="menuitem"
             onClick={() => void handleLogout()}
             className="block w-full px-4 py-2 text-left text-sm text-ink-700 transition-colors hover:bg-ink-50"
           >

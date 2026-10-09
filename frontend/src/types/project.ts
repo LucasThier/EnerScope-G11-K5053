@@ -7,6 +7,7 @@ export interface ProjectSummary {
   organizationName: string;
   memberCount: number;
   lastModified: string;
+  myRole: ProjectMemberType | null;
 }
 
 export interface Project {
@@ -31,6 +32,27 @@ export interface ProjectMember {
   active: boolean;
   memberType: ProjectMemberType;
   permissions: ProjectMemberPermission[];
+}
+
+export interface ProjectMemberCandidate {
+  id: string;
+  firstName: string;
+  lastName: string;
+  mail: string;
+}
+
+export interface AddProjectMemberRequest {
+  userId: string;
+  memberType: ProjectMemberType;
+}
+
+export interface UpdateProjectMemberRoleRequest {
+  memberType: ProjectMemberType;
+}
+
+export interface UpdateProjectRequest {
+  name?: string;
+  description?: string;
 }
 
 export interface CreateProjectRequest {

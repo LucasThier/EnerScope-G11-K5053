@@ -160,15 +160,14 @@ CREATE TABLE  well (
     id                        UUID                     NOT NULL ,
     -- Specific fields
     max_collection_capacity   REAL,
-    decline_curve_id          UUID,
+    decline_curve             REAL,
     gas_richness               REAL,
     dtm_time                  INTEGER,
     DTMCost                   NUMERIC(19,2)              NOT NULL,
     surface                     REAL,
 
     PRIMARY KEY (id),
-    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id),
-    CONSTRAINT fk_well_decline_curve FOREIGN KEY (decline_curve_id) REFERENCES probabilistic_distribution(id);
+    CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 -- TreatmentPlant table
@@ -239,6 +238,27 @@ CREATE TABLE  node_connection (
     PRIMARY KEY (id),
     CONSTRAINT fk_cp_from_node FOREIGN KEY (from_node_id) REFERENCES base_node(id),
     CONSTRAINT fk_cp_to_node FOREIGN KEY (to_node_id) REFERENCES base_node(id)
+);
+
+CREATE TABLE internal_consumption (
+                                      id                  UUID NOT NULL,
+    -- Specific fields for InternalConsumption
+                                      consumption_summer  REAL,
+                                      consumption_autumn  REAL,
+                                      consumption_winter  REAL,
+                                      consumption_spring  REAL,
+
+                                      PRIMARY KEY (id),
+                                      CONSTRAINT fk_ic_base_node FOREIGN KEY (id) REFERENCES base_node(id)
+);
+
+CREATE TABLE industrial_consumption (
+                                      id          UUID NOT NULL,
+    -- Specific fields for InternalConsumption
+                                      consumption REAL,
+
+                                      PRIMARY KEY (id),
+                                      CONSTRAINT fk_ic_base_node FOREIGN KEY (id) REFERENCES base_node(id)
 );
 
 
