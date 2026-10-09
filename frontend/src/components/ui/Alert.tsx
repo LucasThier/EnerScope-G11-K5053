@@ -9,7 +9,7 @@ interface AlertProps {
 }
 
 const tones: Record<Tone, string> = {
-  error: 'bg-red-50 text-red-700 border-red-200',
+  error: 'bg-danger-50 text-danger-700 border-danger-200',
   success: 'bg-brand-50 text-brand-800 border-brand-200',
   info: 'bg-ink-50 text-ink-700 border-ink-200',
 };

@@ -1,21 +1,42 @@
 package org.enerscope.user.service;
 
 import org.enerscope.auth.dto.RegisterRequestDTO;
+import org.enerscope.common.ForbiddenException;
+import org.enerscope.common.EntityNotFoundException;
+import org.enerscope.common.UnauthorizedException;
+import org.enerscope.organization.model.enums.OrganizationMemberPermission;
+import org.enerscope.organization.model.enums.OrganizationMemberType;
+import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.session.model.Session;
+import org.enerscope.user.dto.UpdateProfileRequestDTO;
+import org.enerscope.user.dto.UpdateRoleRequestDTO;
+import org.enerscope.user.dto.UserDetailDTO;
+import org.enerscope.user.dto.UserListItemDTO;
+import org.enerscope.user.dto.UserOrganizationMembershipDTO;
+import org.enerscope.user.dto.UserSearchResultDTO;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -29,6 +50,8 @@ class UserServiceTest {
     @Mock
     private UserRepository userRepository;
     @Mock
+    private OrganizationRepository organizationRepository;
+    @Mock
     private PasswordEncoder encoder;
     @Mock
     private AppLogger logger;
@@ -37,7 +60,7 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, encoder, logger);
+        userService = new UserService(userRepository, organizationRepository, encoder, logger);
     }
 
     @Test
@@ -110,6 +133,433 @@ class UserServiceTest {
         verify(encoder, never()).encode(anyString());
     }
 
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void authenticateAs(User caller) {
+        Session session = new Session("token", caller, Instant.now().plusSeconds(3600));
+        var auth = new UsernamePasswordAuthenticationToken(caller, null, List.of());
+        auth.setDetails(session);
+        SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    private User platformAdmin() {
+        return new User("admin@enerscope.org", "Admin", "User", "hashed", PlatformRole.ADMIN);
+    }
+
+    private User regularUser() {
+        return new User("jane@enerscope.org", "Jane", "Doe", "hashed", PlatformRole.USER);
+    }
+
+    @Test
+    void searchByMailReturnsTheMinimalProjectionForAnOwner() {
+        User owner = regularUser();
+        authenticateAs(owner);
+        UserSearchResultDTO found = new UserSearchResultDTO(
+                UUID.randomUUID(), "Jane", "Doe", "jane@enerscope.org");
+        when(organizationRepository.ownsAnyActiveOrganization(
+                owner.getId(), OrganizationMemberPermission.MANAGE_ORGANIZATION)).thenReturn(true);
+        when(userRepository.findSearchResultByMail("jane@enerscope.org"))
+                .thenReturn(Optional.of(found));
+
+        assertEquals(found, userService.searchByMail("jane@enerscope.org"));
+    }
+
+    @Test
+    void searchByMailAllowsAPlatformAdminWithoutOwningAnything() {
+        authenticateAs(platformAdmin());
+        UserSearchResultDTO found = new UserSearchResultDTO(
+                UUID.randomUUID(), "Jane", "Doe", "jane@enerscope.org");
+        when(userRepository.findSearchResultByMail("jane@enerscope.org"))
+                .thenReturn(Optional.of(found));
+
+        assertEquals(found, userService.searchByMail("jane@enerscope.org"));
+        verify(organizationRepository, never()).ownsAnyActiveOrganization(any(), any());
+    }
+
+    @Test
+    void searchByMailAnswersTheSameMessageForAnUnknownAndASuspendedAccount() {
+        User owner = regularUser();
+        authenticateAs(owner);
+        when(organizationRepository.ownsAnyActiveOrganization(
+                owner.getId(), OrganizationMemberPermission.MANAGE_ORGANIZATION)).thenReturn(true);
+        when(userRepository.findSearchResultByMail(any())).thenReturn(Optional.empty());
+
+        EntityNotFoundException unknown = assertThrows(EntityNotFoundException.class,
+                () -> userService.searchByMail("ghost@enerscope.org"));
+        EntityNotFoundException suspended = assertThrows(EntityNotFoundException.class,
+                () -> userService.searchByMail("suspended@enerscope.org"));
+
+        assertEquals("User not found", unknown.getMessage());
+        assertEquals(unknown.getMessage(), suspended.getMessage());
+    }
+
+    @Test
+    void searchByMailNeverEchoesTheAddressItWasGiven() {
+        User owner = regularUser();
+        authenticateAs(owner);
+        when(organizationRepository.ownsAnyActiveOrganization(
+                owner.getId(), OrganizationMemberPermission.MANAGE_ORGANIZATION)).thenReturn(true);
+        when(userRepository.findSearchResultByMail(any())).thenReturn(Optional.empty());
+
+        EntityNotFoundException thrown = assertThrows(EntityNotFoundException.class,
+                () -> userService.searchByMail("ghost@enerscope.org"));
+
+        assertFalse(thrown.getMessage().contains("ghost@enerscope.org"));
+    }
+
+    @Test
+    void searchByMailRejectsACallerWhoOwnsNoOrganizationWith403() {
+        User plain = regularUser();
+        authenticateAs(plain);
+        when(organizationRepository.ownsAnyActiveOrganization(
+                plain.getId(), OrganizationMemberPermission.MANAGE_ORGANIZATION)).thenReturn(false);
+
+        assertThrows(ForbiddenException.class, () -> userService.searchByMail("jane@enerscope.org"));
+        verify(userRepository, never()).findSearchResultByMail(any());
+    }
+
+    @Test
+    void searchByMailRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class,
+                () -> userService.searchByMail("jane@enerscope.org"));
+        verify(userRepository, never()).findSearchResultByMail(any());
+    }
+
+    @Test
+    void listAllReturnsWhatTheRepositoryProjects() {
+        authenticateAs(platformAdmin());
+        UserListItemDTO row = new UserListItemDTO(
+                UUID.randomUUID(), "jane@enerscope.org", "Jane", "Doe", "Analyst",
+                PlatformRole.USER, true, 2L);
+        when(userRepository.findListItems()).thenReturn(List.of(row));
+
+        assertEquals(List.of(row), userService.listAll());
+    }
+
+    @Test
+    void listAllRejectsANonAdminCallerWith403() {
+        authenticateAs(regularUser());
+
+        assertThrows(ForbiddenException.class, () -> userService.listAll());
+        verify(userRepository, never()).findListItems();
+    }
+
+    @Test
+    void listAllRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class, () -> userService.listAll());
+        verify(userRepository, never()).findListItems();
+    }
+
+    @Test
+    void getDetailAssemblesIdentityAndBothMembershipLists() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        authenticateAs(platformAdmin());
+        List<UserOrganizationMembershipDTO> organizations = List.of(new UserOrganizationMembershipDTO(
+                UUID.randomUUID(), "Acme", true, OrganizationMemberType.OWNER));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.findOrganizationMembershipsForUser(userId)).thenReturn(organizations);
+        when(userRepository.findProjectMembershipsForUser(userId)).thenReturn(List.of());
+
+        UserDetailDTO detail = userService.getDetail(userId);
+
+        assertEquals(target.getMail(), detail.mail());
+        assertEquals(organizations, detail.organizations());
+        assertTrue(detail.projects().isEmpty());
+    }
+
+    @Test
+    void getDetailReturnsTheDetailOfASuspendedAccount() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        target.deactivate();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.findOrganizationMembershipsForUser(userId)).thenReturn(List.of());
+        when(userRepository.findProjectMembershipsForUser(userId)).thenReturn(List.of());
+
+        UserDetailDTO detail = userService.getDetail(userId);
+
+        assertFalse(detail.active());
+    }
+
+    @Test
+    void getDetailThrowsEntityNotFoundForAnUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        EntityNotFoundException thrown = assertThrows(EntityNotFoundException.class,
+                () -> userService.getDetail(userId));
+
+        assertEquals("User not found", thrown.getMessage());
+        verify(userRepository, never()).findOrganizationMembershipsForUser(any());
+    }
+
+    @Test
+    void getDetailRejectsANonAdminCallerWith403() {
+        authenticateAs(regularUser());
+
+        assertThrows(ForbiddenException.class, () -> userService.getDetail(UUID.randomUUID()));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void getDetailRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class, () -> userService.getDetail(UUID.randomUUID()));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void updateRolePromotesAUserToAdminWithoutCountingAdmins() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateRole(userId, PlatformRole.ADMIN);
+
+        assertEquals(PlatformRole.ADMIN, saved.getPlatformRole());
+        verify(userRepository, never()).countByPlatformRoleAndActiveTrue(any());
+    }
+
+    @Test
+    void updateRoleDemotesAnAdminWhenAnotherActiveAdminRemains() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.countByPlatformRoleAndActiveTrue(PlatformRole.ADMIN)).thenReturn(2L);
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateRole(userId, PlatformRole.USER);
+
+        assertEquals(PlatformRole.USER, saved.getPlatformRole());
+    }
+
+    @Test
+    void updateRoleRefusesToDemoteTheLastActiveAdmin() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.countByPlatformRoleAndActiveTrue(PlatformRole.ADMIN)).thenReturn(1L);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.updateRole(userId, PlatformRole.USER));
+        assertEquals(PlatformRole.ADMIN, target.getPlatformRole());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateRoleDemotesAnInactiveAdminWithoutCountingAdmins() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        target.deactivate();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertEquals(PlatformRole.USER, userService.updateRole(userId, PlatformRole.USER).getPlatformRole());
+        verify(userRepository, never()).countByPlatformRoleAndActiveTrue(any());
+    }
+
+    @Test
+    void updateRoleIsANoOpWhenTheRoleIsUnchanged() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        assertEquals(PlatformRole.ADMIN, userService.updateRole(userId, PlatformRole.ADMIN).getPlatformRole());
+        verify(userRepository, never()).save(any());
+        verify(userRepository, never()).countByPlatformRoleAndActiveTrue(any());
+    }
+
+    @Test
+    void updateRoleRejectsANullRole() {
+        authenticateAs(platformAdmin());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.updateRole(UUID.randomUUID(), null));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void updateRoleRejectsUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.updateRole(userId, PlatformRole.ADMIN));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateRoleRejectsANonAdminCallerWith403() {
+        authenticateAs(regularUser());
+
+        assertThrows(ForbiddenException.class,
+                () -> userService.updateRole(UUID.randomUUID(), PlatformRole.ADMIN));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void updateRoleRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class,
+                () -> userService.updateRole(UUID.randomUUID(), PlatformRole.ADMIN));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void reactivateUserBringsASuspendedAccountBack() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        target.deactivate();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        userService.reactivateUser(userId);
+
+        assertTrue(target.isActive());
+        verify(userRepository).save(target);
+    }
+
+    @Test
+    void reactivateUserNeverConsultsTheAdminCount() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        target.deactivate();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        userService.reactivateUser(userId);
+
+        assertTrue(target.isActive());
+        verify(userRepository, never()).countByPlatformRoleAndActiveTrue(any());
+    }
+
+    @Test
+    void reactivateUserIsIdempotent() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        userService.reactivateUser(userId);
+
+        assertTrue(target.isActive());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivateUserRejectsUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class, () -> userService.reactivateUser(userId));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void reactivateUserRejectsANonAdminCallerWith403() {
+        authenticateAs(regularUser());
+
+        assertThrows(ForbiddenException.class, () -> userService.reactivateUser(UUID.randomUUID()));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void reactivateUserRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class,
+                () -> userService.reactivateUser(UUID.randomUUID()));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void deactivateUserDeactivatesARegularAccountWithoutCountingAdmins() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        userService.deactivateUser(userId);
+
+        assertFalse(target.isActive());
+        verify(userRepository).save(target);
+        verify(userRepository, never()).countByPlatformRoleAndActiveTrue(any());
+    }
+
+    @Test
+    void deactivateUserDeactivatesAnAdminWhenAnotherActiveAdminRemains() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.countByPlatformRoleAndActiveTrue(PlatformRole.ADMIN)).thenReturn(2L);
+
+        userService.deactivateUser(userId);
+
+        assertFalse(target.isActive());
+    }
+
+    @Test
+    void deactivateUserRefusesToDeactivateTheLastActiveAdmin() {
+        UUID userId = UUID.randomUUID();
+        User target = platformAdmin();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(userRepository.countByPlatformRoleAndActiveTrue(PlatformRole.ADMIN)).thenReturn(1L);
+
+        assertThrows(IllegalArgumentException.class, () -> userService.deactivateUser(userId));
+        assertTrue(target.isActive());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void deactivateUserIsIdempotent() {
+        UUID userId = UUID.randomUUID();
+        User target = regularUser();
+        target.deactivate();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+
+        userService.deactivateUser(userId);
+
+        assertFalse(target.isActive());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void deactivateUserRejectsUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        authenticateAs(platformAdmin());
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class, () -> userService.deactivateUser(userId));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void deactivateUserRejectsANonAdminCallerWith403() {
+        authenticateAs(regularUser());
+
+        assertThrows(ForbiddenException.class, () -> userService.deactivateUser(UUID.randomUUID()));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void deactivateUserRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class, () -> userService.deactivateUser(UUID.randomUUID()));
+        verify(userRepository, never()).findById(any());
+    }
+
     @Test
     void loginReturnsUserWhenPasswordMatches() {
         User user = new User("user@enerscope.org", "Jane", "Doe", "hashed");
@@ -130,10 +580,169 @@ class UserServiceTest {
     }
 
     @Test
+    void loginRejectsADeactivatedAccount() {
+        User user = new User("user@enerscope.org", "Jane", "Doe", "hashed");
+        user.deactivate();
+        when(userRepository.findByMailIgnoreCase("user@enerscope.org")).thenReturn(Optional.of(user));
+        when(encoder.matches("password123", "hashed")).thenReturn(true);
+
+        assertThrows(ForbiddenException.class,
+                () -> userService.login("user@enerscope.org", "password123"));
+    }
+
+    @Test
+    void loginChecksThePasswordBeforeTheActiveFlag() {
+        User user = new User("user@enerscope.org", "Jane", "Doe", "hashed");
+        user.deactivate();
+        when(userRepository.findByMailIgnoreCase("user@enerscope.org")).thenReturn(Optional.of(user));
+        when(encoder.matches("wrong", "hashed")).thenReturn(false);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.login("user@enerscope.org", "wrong"));
+    }
+
+    @Test
     void loginRejectsUnknownMail() {
         when(userRepository.findByMailIgnoreCase("ghost@enerscope.org")).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class,
                 () -> userService.login("ghost@enerscope.org", "whatever"));
+    }
+
+    // ---- changePassword ------------------------------------------------------
+
+    @Test
+    void changePasswordReplacesTheStoredHash() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "old-hash");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(encoder.matches("current-password", "old-hash")).thenReturn(true);
+        when(encoder.encode("new-password")).thenReturn("new-hash");
+
+        userService.changePassword(userId, "current-password", "new-password");
+
+        assertEquals("new-hash", user.getPasswordHash());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void updateProfileChangesAllThreeFields() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hash", PlatformRole.USER, "Analyst");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateProfile(
+                userId, new UpdateProfileRequestDTO("Juana", "Perez", "Senior Analyst"));
+
+        assertEquals("Juana", saved.getFirstName());
+        assertEquals("Perez", saved.getLastName());
+        assertEquals("Senior Analyst", saved.getJobTitle());
+    }
+
+    @Test
+    void updateProfileLeavesOutTheFieldsThatAreNull() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hash", PlatformRole.USER, "Analyst");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateProfile(userId, new UpdateProfileRequestDTO("Juana", null, null));
+
+        assertEquals("Juana", saved.getFirstName());
+        assertEquals("Doe", saved.getLastName());
+        assertEquals("Analyst", saved.getJobTitle());
+    }
+
+    @Test
+    void updateProfileClearsTheJobTitleWhenItArrivesBlank() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hash", PlatformRole.USER, "Analyst");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateProfile(userId, new UpdateProfileRequestDTO(null, null, "   "));
+
+        assertNull(saved.getJobTitle());
+    }
+
+    @Test
+    void updateProfileDoesNotLetABlankNameThrough() {
+        UUID userId = UUID.randomUUID();
+
+        assertThrows(IllegalArgumentException.class, () -> userService.updateProfile(
+                userId, new UpdateProfileRequestDTO("   ", null, null)));
+        assertThrows(IllegalArgumentException.class, () -> userService.updateProfile(
+                userId, new UpdateProfileRequestDTO(null, "   ", null)));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateProfileRejectsAPatchWithEveryFieldNull() {
+        UUID userId = UUID.randomUUID();
+
+        assertThrows(IllegalArgumentException.class, () -> userService.updateProfile(
+                userId, new UpdateProfileRequestDTO(null, null, null)));
+        verify(userRepository, never()).findById(any());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateProfileRejectsANullBody() {
+        UUID userId = UUID.randomUUID();
+
+        assertThrows(IllegalArgumentException.class, () -> userService.updateProfile(userId, null));
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    void updateProfileRejectsUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class, () -> userService.updateProfile(
+                userId, new UpdateProfileRequestDTO("Juana", null, null)));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateProfileNeverTouchesMailRoleOrPassword() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hash", PlatformRole.ADMIN, "Analyst");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        User saved = userService.updateProfile(
+                userId, new UpdateProfileRequestDTO("Juana", "Perez", "Lead"));
+
+        assertEquals("jane@enerscope.org", saved.getMail());
+        assertEquals(PlatformRole.ADMIN, saved.getPlatformRole());
+        assertEquals("hash", saved.getPasswordHash());
+    }
+
+    @Test
+    void changePasswordRejectsWrongCurrentPasswordAndLeavesTheHashAlone() {
+        UUID userId = UUID.randomUUID();
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "old-hash");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(encoder.matches("not-my-password", "old-hash")).thenReturn(false);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.changePassword(userId, "not-my-password", "new-password"));
+
+        assertEquals("old-hash", user.getPasswordHash());
+        verify(encoder, never()).encode(anyString());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void changePasswordRejectsUnknownUser() {
+        UUID userId = UUID.randomUUID();
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> userService.changePassword(userId, "current-password", "new-password"));
+
+        verify(userRepository, never()).save(any());
     }
 }

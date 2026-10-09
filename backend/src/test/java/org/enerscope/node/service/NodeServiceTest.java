@@ -71,7 +71,8 @@ class NodeServiceTest {
     @BeforeEach
     void setUp() {
         // Using a mock or stub implementation for testing
-        nodeService = new NodeService(wellRepository, null, null, null, null, null, null, null, null, null, null);
+        nodeService = new NodeService(wellRepository, null, null, null, null, null,
+                null, null, null, null, null, null,null);
     }
 
     @Test
@@ -95,17 +96,16 @@ class NodeServiceTest {
         investmentCostDTO.setComponents(List.of(componentDTO));
         wellDTO.setInvestmentCost(investmentCostDTO);
 
-        NodeGraphDataDTO graphDataDTO = new NodeGraphDataDTO();
-        graphDataDTO.setXPosition(10.0);
-        graphDataDTO.setYPosition(20.0);
-        graphDataDTO.setCoordinates(0.0);
+        NodeGraphDataDTO graphDataDTO = new NodeGraphDataDTO(
+                new GraphPositionDTO(10.0, 20.0),
+                new GeographicalPositionDTO(-70.0, -34.0));
         wellDTO.setGraphData(graphDataDTO);
 
         wellDTO.setType(new NodeTypeDataDTO(VerticalEnum.EXTRACTION,
                 StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
 
         wellDTO.setMaxCollectionCapacity(1000.0f);
-        wellDTO.setDeclineCurve(new ProbabilisticDistributionDTO("CONSTANT",0.05f,null));
+        wellDTO.setDeclineCurve(0.05f);
         wellDTO.setGasRichness(0.3f);
         wellDTO.setDTMTime(15);
         wellDTO.setDTMCost(150.000f);
@@ -124,7 +124,7 @@ class NodeServiceTest {
         assertTrue(foundWell.isPresent());
         assertEquals("Test Well", foundWell.get().getName());
         assertEquals(1000.0f, foundWell.get().getMaxCollectionCapacity());
-        assertEquals(0.05f, foundWell.get().getDeclineCurve().generateValue());
+        assertEquals(0.05f, foundWell.get().getDeclineCurve());
     }
 
     @Test

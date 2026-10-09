@@ -1,5 +1,7 @@
 package org.enerscope.project.dto;
 
+import org.enerscope.project.model.enums.ProjectMemberType;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -19,5 +21,6 @@ public record ProjectSummaryDTO(
         UUID organizationId,
         String organizationName,
         long memberCount,
-        Instant lastModified
+        Instant lastModified,
+        ProjectMemberType myRole
 ) {}

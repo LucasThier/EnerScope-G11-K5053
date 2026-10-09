@@ -3,8 +3,6 @@ package org.enerscope.simulator.simNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.extraction.Well;
-import org.enerscope.probabilistic.ConstantValue;
-import org.enerscope.probabilistic.ProbabilisticDistribution;
 import org.enerscope.simulator.FlagOfInactivity;
 import org.enerscope.simulator.ResultPerNode;
 import org.enerscope.simulator.ToDeliver;
@@ -13,10 +11,9 @@ import org.enerscope.simulator.ToDeliver;
 @Setter
 public class SimWell extends SimBaseNode{
     private float maxCollectionCapacity;
-    private ProbabilisticDistribution declineCurve;
+    private float declineCurve;
     private float gasRichness;
     private int DTMTime;
-    private float acumDecline;
 
 
     public SimWell(Well well){
@@ -25,22 +22,19 @@ public class SimWell extends SimBaseNode{
         this.declineCurve = well.getDeclineCurve();
         this.gasRichness = well.getGasRichness();
         this.DTMTime = well.getDTMTime();
-        this.acumDecline = 0;
     }
 
     @Override
     protected void activeAction(int time){
-        if(time > 0 && time % (365*24) == 0){
-            calculateTotalDecline();
-        }
+        float totalDecline = calculateTotalDecline(time);
 
-        if(acumDecline >= 100){
+        if(totalDecline >= 100){
             flagOfInactivity = FlagOfInactivity.OverLifeSpan;
             timeStartOfInactivity = time;
             active = false;
             toDeliver = new ToDeliver(0,0);
         } else {
-            float produced = maxCollectionCapacity * (100 - acumDecline)/ 100;
+            float produced = maxCollectionCapacity * (100 - totalDecline)/ 100;
             maxPossibleProduced += produced;
             toDeliver =new ToDeliver(produced,gasRichness);
         }
@@ -71,8 +65,9 @@ public class SimWell extends SimBaseNode{
         checkInactivity(time);
     }
 
-    private void calculateTotalDecline(){
-        acumDecline += declineCurve.generateValue();
+    private float calculateTotalDecline(int time){
+        int year = time/(24*365);
+        return declineCurve * year;
     }
 
     @Override
@@ -97,11 +92,5 @@ public class SimWell extends SimBaseNode{
     @Override
     public ResultPerNode createResult() {
         return new ResultPerNode(this.id, Well.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
-    }
-
-    @Override
-    public void reset() {
-        super.reset();
-        this.acumDecline = 0;
     }
 }
