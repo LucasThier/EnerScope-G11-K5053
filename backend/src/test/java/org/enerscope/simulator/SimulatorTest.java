@@ -166,6 +166,7 @@ public class SimulatorTest {
         pipeline.addPreviousNode(prevNode);
 
         pipeline.simulate(0);
+        pipeline.simulate(1);
 
         assertEquals(950f, pipeline.getToDeliver().getAmount(), "El cálculo de flujo en el Pipeline falló");
     }
@@ -186,7 +187,7 @@ public class SimulatorTest {
 
     @Test
     public void testSimLiquefactionPlant() {
-        SimLiquefactionPlant liquefactionPlant = new SimLiquefactionPlant(mockLiquefactionPlant);
+        SimGroundBasedLiquefactionPlant liquefactionPlant = new SimGroundBasedLiquefactionPlant(mockLiquefactionPlant);
         SimCompressingPlant prevNode = new SimCompressingPlant(mockCompressingPlant);
 
         prevNode.deliver(-1000f);
@@ -200,7 +201,7 @@ public class SimulatorTest {
     @Test
     public void testSimSeaportTerminal() {
         SimSeaportTerminal seaportTerminal = new SimSeaportTerminal(mockSeaportTerminal);
-        SimLiquefactionPlant prevNode = new SimLiquefactionPlant(mockLiquefactionPlant);
+        SimGroundBasedLiquefactionPlant prevNode = new SimGroundBasedLiquefactionPlant(mockLiquefactionPlant);
 
         prevNode.deliver(-1000f);
 
@@ -503,7 +504,7 @@ public class SimulatorTest {
                 createConnection(compressionId, groundLiquefactionId),
                 createConnection(compressionId, flngLiquefactionId),
                 createConnection(groundLiquefactionId, terminalId),
-                createConnection(flngLiquefactionId, terminalId),
+                createConnection(flngLiquefactionId, carrierId),
                 createConnection(terminalId, carrierId)
         );
 

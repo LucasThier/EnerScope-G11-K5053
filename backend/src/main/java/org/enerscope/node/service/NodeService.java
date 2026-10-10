@@ -232,7 +232,7 @@ public class NodeService {
             this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), data.getIdentity(),
             this.DTOtoEntity(data.getType()), data.getMaxProcessingCapacity(), data.getMTPARatio(),
             data.getIntermediateStorage(),
-            data.getVesselDepth(), MoneyAmount.of(data.getHiringCost()));
+            data.getVesselDepth(), MoneyAmount.of(data.getHiringCost()),data.getShipCapacity(), data.getGasConsumption());
 
       FLNGUnit saved = flngUnitRepository.save(flngUnit);
 
@@ -533,6 +533,8 @@ public class NodeService {
       unit.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
       unit.setOperatingCosts(dto.getOperatingCosts() != null ? MoneyAmount.of(dto.getOperatingCosts()) : null);
       unit.setWastePercentage(dto.getWastePercentage());
+      unit.setShipCapacity(dto.getShipCapacity());
+      unit.setGasConsumption(dto.getShipCapacity());
 
       // Update related entities
       if (dto.getInvestmentCost() != null) {

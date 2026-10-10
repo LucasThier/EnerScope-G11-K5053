@@ -1,6 +1,7 @@
 package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.export.LNGCarrier;
+import org.enerscope.simulator.auxiliary.ISeaTerminal;
 import org.enerscope.simulator.results.ResultPerNode;
 import org.enerscope.simulator.auxiliary.ToDeliver;
 
@@ -11,7 +12,7 @@ public class SimLNGCarrier extends SimBaseNode{
     private float shipCapacity;
     private float fullLoadTime;
     private int timeToDestination;
-    private SimSeaportTerminal simSeaportTerminal;
+    private ISeaTerminal simSeaportTerminal;
     private boolean isInPort;
     private float amountToTake;
     private float amountInTank;
@@ -85,7 +86,11 @@ public class SimLNGCarrier extends SimBaseNode{
 
     @Override
     public void addPreviousNode(SimBaseNode simBaseNode){
-        simSeaportTerminal = (SimSeaportTerminal) simBaseNode;
+        if (simBaseNode instanceof SimSeaportTerminal){
+            simSeaportTerminal = (SimSeaportTerminal) simBaseNode;
+        } else if (simBaseNode instanceof SimFLNGUnit){
+            simSeaportTerminal = (SimFLNGUnit) simBaseNode;
+        }
     }
 
     @Override

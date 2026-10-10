@@ -8,6 +8,7 @@ import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.extraction.GatheringNetwork;
 import org.enerscope.node.model.extraction.TreatmentPlant;
 import org.enerscope.node.model.extraction.Well;
+import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
@@ -267,16 +268,16 @@ public class ResultPerRoundTest {
 
         SimPipeline simPipeline = new SimPipeline(mockPipeline);
         SimCompressingPlant simCompressingPlant = new SimCompressingPlant(mockCompression);
-        SimLiquefactionPlant simLiquefactionPlant = new SimLiquefactionPlant(mockGroundLiquefaction);
+        SimGroundBasedLiquefactionPlant simGroundBasedLiquefactionPlant = new SimGroundBasedLiquefactionPlant(mockGroundLiquefaction);
 
         simCompressingPlant.addPreviousNode(simPipeline);
-        simLiquefactionPlant.addPreviousNode(simCompressingPlant);
+        simGroundBasedLiquefactionPlant.addPreviousNode(simCompressingPlant);
 
         for (int t = 0; t < 8760; t++) {
             simPipeline.setToDeliver(new ToDeliver(1000f,0f));
             simCompressingPlant.simulate(t);
-            simLiquefactionPlant.simulate(t);
-            simLiquefactionPlant.deliver(simLiquefactionPlant.getToDeliver().getAmount());
+            simGroundBasedLiquefactionPlant.simulate(t);
+            simGroundBasedLiquefactionPlant.deliver(simGroundBasedLiquefactionPlant.getToDeliver().getAmount());
         }
 
         ResultPerNode resultCompressingPlant = simCompressingPlant.createResult();
@@ -321,20 +322,20 @@ public class ResultPerRoundTest {
         when(mockTerminal.getShipCapacity()).thenReturn(2);
 
         SimCompressingPlant simCompressingPlant = new SimCompressingPlant(mockCompression);
-        SimLiquefactionPlant simLiquefactionPlant = new SimLiquefactionPlant(mockGroundLiquefaction);
+        SimGroundBasedLiquefactionPlant simGroundBasedLiquefactionPlant = new SimGroundBasedLiquefactionPlant(mockGroundLiquefaction);
         SimSeaportTerminal simSeaportTerminal = new SimSeaportTerminal(mockTerminal);
 
-        simLiquefactionPlant.addPreviousNode(simCompressingPlant);
-        simSeaportTerminal.addPreviousNode(simLiquefactionPlant);
+        simGroundBasedLiquefactionPlant.addPreviousNode(simCompressingPlant);
+        simSeaportTerminal.addPreviousNode(simGroundBasedLiquefactionPlant);
 
         for (int t = 0; t < 8760; t++) {
             simCompressingPlant.setToDeliver(new ToDeliver(1000f,5f));
-            simLiquefactionPlant.simulate(t);
+            simGroundBasedLiquefactionPlant.simulate(t);
             simSeaportTerminal.simulate(t);
             simSeaportTerminal.deliver(simSeaportTerminal.getToDeliver().getAmount());
         }
 
-        ResultPerNode resultLiquefactionPlant = simLiquefactionPlant.createResult();
+        ResultPerNode resultLiquefactionPlant = simGroundBasedLiquefactionPlant.createResult();
 
 //        System.out.println("=== RESULTADO LiquefactionPlant ===");
 //        System.out.println("Node ID: " + resultLiquefactionPlant.getNodeID());
@@ -349,6 +350,60 @@ public class ResultPerRoundTest {
         assertEquals(5258400f, resultLiquefactionPlant.getTotalProduced(),0.1f);
         assertEquals(2400f,resultLiquefactionPlant.getTotalDeferred(),0.1f);
         assertEquals(854100f,resultLiquefactionPlant.getExtra(),0.1f);
+    }
+    @Test
+    public void testResultFLNGUnit(){
+        UUID compressionId = UUID.randomUUID();
+        UUID flngId = UUID.randomUUID();
+
+        CompressingPlant mockCompression = Mockito.mock(CompressingPlant.class);
+        setupBaseNodeMocks(mockCompression, compressionId);
+
+        FLNGUnit mockFLNG = Mockito.mock(FLNGUnit.class);
+        setupBaseNodeMocks(mockFLNG, flngId);
+        when(mockFLNG.getMaxProcessingCapacity()).thenReturn(1000f);
+        when(mockFLNG.getMTPARatio()).thenReturn(90f);
+        when(mockFLNG.getIntermediateStorage()).thenReturn(3000f);
+        when(mockFLNG.getGasConsumption()).thenReturn(5f);
+        when(mockFLNG.getShipCapacity()).thenReturn(2);
+
+        SimCompressingPlant simCompressingPlant = new SimCompressingPlant(mockCompression);
+        SimFLNGUnit simFLNGUnit = new SimFLNGUnit(mockFLNG);
+
+        simFLNGUnit.addPreviousNode(simCompressingPlant);
+
+        assertTrue(simFLNGUnit.shipAbleToDock(), "Debería poder atracar un barco inicialmente");
+        simFLNGUnit.addBoat();
+        assertTrue(simFLNGUnit.shipAbleToDock(), "Debería poder atracar un segundo barco");
+        simFLNGUnit.addBoat();
+        assertFalse(simFLNGUnit.shipAbleToDock(), "No debería poder atracar tras superar la capacidad (2)");
+        simFLNGUnit.restBoat();
+        assertTrue(simFLNGUnit.shipAbleToDock(), "Debería poder atracar tras liberar un espacio");
+
+        for (int t = 0; t < 8760; t++) {
+            simCompressingPlant.setToDeliver(new ToDeliver(1000f, 5f));
+            simFLNGUnit.simulate(t);
+            simFLNGUnit.deliver(simFLNGUnit.getToDeliver().getAmount());
+        }
+
+        ResultPerNode resultFLNGUnit = simFLNGUnit.createResult();
+
+//        System.out.println("=== RESULTADO FLNGUnit ===");
+//        System.out.println("Node ID: " + resultFLNGUnit.getNodeID());
+//        System.out.println("Max Possible Produced: " + resultFLNGUnit.getMaxPossibleProduced());
+//        System.out.println("Total Produced: " + resultFLNGUnit.getTotalProduced());
+//        System.out.println("Total Deferred: " + resultFLNGUnit.getTotalDeferred());
+//        System.out.println("Total Extra: " + resultFLNGUnit.getExtra());
+
+        assertNotNull(resultFLNGUnit.getNodeID(), "El FLNG Unit debe tener un ID asignado");
+        assertEquals(8760000f, resultFLNGUnit.getMaxPossibleProduced(), 0.1f);
+        assertEquals(7114411f, resultFLNGUnit.getTotalProduced(), 0.1f);
+        assertEquals(0f, resultFLNGUnit.getTotalDeferred(), 0.1f);
+        assertEquals(854100f, resultFLNGUnit.getExtra(), 0.1f);
+
+        simFLNGUnit.reset();
+        assertTrue(simFLNGUnit.shipAbleToDock(), "Después del reset, la cantidad de barcos debe volver a 0");
+        assertEquals(0f, simFLNGUnit.getToDeliver().getAmount(), 0.1f, "El almacenamiento debe estar vacío tras el reset");
     }
 
     @Test
@@ -376,15 +431,15 @@ public class ResultPerRoundTest {
         when(mockCarrier.getFullLoadTime()).thenReturn(24f);
         when(mockCarrier.getTimeToDestination()).thenReturn(72);
 
-        SimLiquefactionPlant simLiquefactionPlant = new SimLiquefactionPlant(mockGroundLiquefaction);
+        SimGroundBasedLiquefactionPlant simGroundBasedLiquefactionPlant = new SimGroundBasedLiquefactionPlant(mockGroundLiquefaction);
         SimSeaportTerminal simSeaportTerminal = new SimSeaportTerminal(mockTerminal);
         SimLNGCarrier simLNGCarrier = new SimLNGCarrier(mockCarrier);
 
-        simSeaportTerminal.addPreviousNode(simLiquefactionPlant);
+        simSeaportTerminal.addPreviousNode(simGroundBasedLiquefactionPlant);
         simLNGCarrier.addPreviousNode(simSeaportTerminal);
 
         for (int t = 0; t < 8760; t++) {
-            simLiquefactionPlant.setAmountInIntermediateStorage(new ToDeliver(750f,0f));
+            simGroundBasedLiquefactionPlant.setAmountInIntermediateStorage(new ToDeliver(750f,0f));
             simSeaportTerminal.simulate(t);
             simLNGCarrier.simulate(t);
         }

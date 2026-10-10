@@ -3,6 +3,7 @@ package org.enerscope.simulator.simNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.export.SeaportTerminal;
+import org.enerscope.simulator.auxiliary.ISeaTerminal;
 import org.enerscope.simulator.results.ResultPerNode;
 import org.enerscope.simulator.auxiliary.ToDeliver;
 
@@ -12,12 +13,12 @@ import java.util.List;
 @Getter
 @Setter
 public
-class SimSeaportTerminal extends SimBaseNode{
+class SimSeaportTerminal extends SimBaseNode implements ISeaTerminal {
     private float intermediateStorage;
-    private int shipCapacity;
+    protected int shipCapacity;
     private ToDeliver amountInIntermediateStorage;
-    private int amountOfShip;
-    private List<SimLiquefactionPlant> simLiquefactionPlants;
+    protected int amountOfShip;
+    private List<SimGroundBasedLiquefactionPlant> simGroundBasedLiquefactionPlants;
 
     public SimSeaportTerminal(SeaportTerminal seaportTerminal){
         super(seaportTerminal);
@@ -25,13 +26,13 @@ class SimSeaportTerminal extends SimBaseNode{
         this.shipCapacity = seaportTerminal.getShipCapacity();
         this.amountInIntermediateStorage = new ToDeliver(0,0);
         this.amountOfShip = 0;
-        simLiquefactionPlants = new ArrayList<>();
+        simGroundBasedLiquefactionPlants = new ArrayList<>();
     }
 
     @Override
     protected void activeAction(int time){
 
-        float amountToTake =  (float) simLiquefactionPlants.stream().mapToDouble(SimBaseNode -> SimBaseNode.getToDeliver().getAmount()).sum();
+        float amountToTake =  (float) simGroundBasedLiquefactionPlants.stream().mapToDouble(SimBaseNode -> SimBaseNode.getToDeliver().getAmount()).sum();
         ToDeliver toProcess;
 
         float capacity = intermediateStorage - amountInIntermediateStorage.getAmount();
@@ -39,9 +40,9 @@ class SimSeaportTerminal extends SimBaseNode{
         maxPossibleProduced += intermediateStorage;
 
         if(amountToTake >= capacity){
-            toProcess = takeEqualAmounts(simLiquefactionPlants,capacity);
+            toProcess = takeEqualAmounts(simGroundBasedLiquefactionPlants,capacity);
         } else {
-            toProcess = calculateAndTakeAll(simLiquefactionPlants);
+            toProcess = calculateAndTakeAll(simGroundBasedLiquefactionPlants);
         }
 
         amountInIntermediateStorage.setAmount(amountInIntermediateStorage.getAmount() + toProcess.getAmount());
@@ -71,7 +72,7 @@ class SimSeaportTerminal extends SimBaseNode{
 
     @Override
     public void addPreviousNode(SimBaseNode simBaseNode){
-        simLiquefactionPlants.add((SimLiquefactionPlant) simBaseNode);
+        simGroundBasedLiquefactionPlants.add((SimGroundBasedLiquefactionPlant) simBaseNode);
     }
 
     @Override
