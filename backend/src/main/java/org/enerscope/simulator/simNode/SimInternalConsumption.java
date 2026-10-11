@@ -1,5 +1,7 @@
 package org.enerscope.simulator.simNode;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.enerscope.node.model.export.InternalConsumption;
 import org.enerscope.simulator.results.ResultPerNode;
 import org.enerscope.simulator.auxiliary.ToDeliver;
@@ -7,7 +9,9 @@ import org.enerscope.simulator.auxiliary.ToDeliver;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SimInternalConsumption extends SimBaseNode{
+ @Getter
+ @Setter
+ public class SimInternalConsumption extends SimBaseNode{
     private float consumptionSummer;
     private float consumptionAutumn;
     private float consumptionWinter;

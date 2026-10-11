@@ -2,6 +2,8 @@ package org.enerscope.simulator;
 
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.NodeConnection;
+import org.enerscope.node.model.export.IndustrialConsumption;
+import org.enerscope.node.model.export.InternalConsumption;
 import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.extraction.GatheringNetwork;
@@ -479,13 +481,16 @@ public class SimulatorTest {
     public void testResultInFiveYearSimulationWithAllNodeTypes() {
         UUID wellId = UUID.randomUUID();
         UUID gatheringId = UUID.randomUUID();
-        UUID compressionId = UUID.randomUUID();
+        UUID treatmentId = UUID.randomUUID();
         UUID pipelineId = UUID.randomUUID();
         UUID pipelineConnectionId = UUID.randomUUID();
+        UUID compressionId = UUID.randomUUID();
         UUID flngLiquefactionId = UUID.randomUUID();
         UUID groundLiquefactionId = UUID.randomUUID();
         UUID terminalId = UUID.randomUUID();
         UUID carrierId = UUID.randomUUID();
+        UUID industrialId = UUID.randomUUID();
+        UUID internalId = UUID.randomUUID();
 
         List<BaseNode> nodes = Arrays.asList(
                 createMockNode(Well.class, wellId, 180, 24, 120, w -> {
@@ -499,10 +504,9 @@ public class SimulatorTest {
                     when(g.getLength()).thenReturn(5f);
                     when(g.getLossPerMeter()).thenReturn(0.01f);
                 }),
-                createMockNode(CompressingPlant.class, compressionId, 180, 24, 120, c -> {
-                    when(c.getMaxCompressionCapacity()).thenReturn(100f);
-                    when(c.getProcessWaste()).thenReturn(1f);
-                    when(c.getGasConsumption()).thenReturn(2f);
+                createMockNode(TreatmentPlant.class, treatmentId, 180, 24, 120, c -> {
+                    when(c.getMaxTreatmentCapacity()).thenReturn(100f);
+                    when(c.getIntermediateStorage()).thenReturn(300f);
                 }),
                 createMockNode(Pipeline.class, pipelineId, 180, 24, 120, p -> {
                     when(p.getMaxFlowCapacity()).thenReturn(110f);
@@ -512,6 +516,11 @@ public class SimulatorTest {
                 createMockNode(PipelineConnection.class, pipelineConnectionId, 180, 24, 120, pc -> {
                     when(pc.getTransferCapacity()).thenReturn(110f);
                     when(pc.getOutputPriority()).thenReturn(1f);
+                }),
+                createMockNode(CompressingPlant.class, compressionId, 180, 24, 120, c -> {
+                    when(c.getMaxCompressionCapacity()).thenReturn(100f);
+                    when(c.getProcessWaste()).thenReturn(1f);
+                    when(c.getGasConsumption()).thenReturn(2f);
                 }),
                 createMockNode(FLNGUnit.class, flngLiquefactionId, 180, 24, 120, f -> {
                     when(f.getMaxProcessingCapacity()).thenReturn(80f);
@@ -534,16 +543,27 @@ public class SimulatorTest {
                     when(ca.getShipCapacity()).thenReturn(500f);
                     when(ca.getFullLoadTime()).thenReturn(24f);
                     when(ca.getTimeToDestination()).thenReturn(72);
+                }),
+                createMockNode(IndustrialConsumption.class, industrialId, 180, 24, 120, ca -> {
+                    when(ca.getConsumption()).thenReturn(20f);
+                }),
+                createMockNode(InternalConsumption.class, internalId, 180, 24, 120, ca -> {
+                    when(ca.getConsumptionSummer()).thenReturn(5f);
+                    when(ca.getConsumptionAutumn()).thenReturn(10f);
+                    when(ca.getConsumptionWinter()).thenReturn(20f);
+                    when(ca.getConsumptionSpring()).thenReturn(7f);
                 })
         );
 
         List<NodeConnection> connections = Arrays.asList(
                 crearConexionMock(wellId, gatheringId),
-                crearConexionMock(gatheringId, compressionId),
-                crearConexionMock(compressionId, pipelineId),
+                crearConexionMock(gatheringId, treatmentId),
+                crearConexionMock(treatmentId, pipelineId),
                 crearConexionMock(pipelineId, pipelineConnectionId),
                 crearConexionMock(pipelineConnectionId, flngLiquefactionId),
                 crearConexionMock(pipelineId, groundLiquefactionId),
+                crearConexionMock(pipelineId, industrialId),
+                crearConexionMock(pipelineId, internalId),
                 crearConexionMock(groundLiquefactionId, terminalId),
                 crearConexionMock(terminalId, carrierId)
         );
@@ -560,7 +580,7 @@ public class SimulatorTest {
 
         assertNotNull(resultPerRound);
         assertEquals(5, simulator.getFinalResult().getTime());
-        assertEquals(9, nodeResults.size());
+        assertEquals(12, nodeResults.size());
 
         nodeResults.forEach(nodeResult -> {
             assertNotNull(nodeResult.getNodeID());
@@ -591,5 +611,57 @@ public class SimulatorTest {
             simWell.simulate(t);
         }
         assertEquals(1664400f, simWell.createResult().getMaxPossibleProduced(), 0.01f);
+    }
+
+    @Test
+    public void testPipelineConnectionPriorityOrdering() {
+        UUID pipelineId = UUID.randomUUID();
+        UUID pcHighPriorityId = UUID.randomUUID(); // Prioridad alta (se ejecutará después porque su valor es mayor)
+        UUID pcLowPriorityId = UUID.randomUUID();  // Prioridad baja (se ejecutará antes porque su valor es menor)
+
+        List<BaseNode> nodes = Arrays.asList(
+                createMockNode(Pipeline.class, pipelineId, 180, 24, 120, p -> {
+                    when(p.getMaxFlowCapacity()).thenReturn(100f);
+                    when(p.getLength()).thenReturn(10f);
+                    when(p.getLossPerKm()).thenReturn(0.01f);
+                }),
+                createMockNode(PipelineConnection.class, pcHighPriorityId, 180, 24, 120, pc -> {
+                    when(pc.getTransferCapacity()).thenReturn(50f);
+                    when(pc.getOutputPriority()).thenReturn(5.0f); // Mayor valor
+                }),
+                createMockNode(PipelineConnection.class, pcLowPriorityId, 180, 24, 120, pc -> {
+                    when(pc.getTransferCapacity()).thenReturn(50f);
+                    when(pc.getOutputPriority()).thenReturn(1.0f); // Menor valor (debe ir primero)
+                })
+        );
+
+        List<NodeConnection> connections = Arrays.asList(
+                crearConexionMock(pipelineId, pcHighPriorityId),
+                crearConexionMock(pipelineId, pcLowPriorityId)
+        );
+
+        Version mockVersion = mock(Version.class);
+        when(mockVersion.getNodeSnapshot()).thenReturn(nodes);
+        when(mockVersion.getConnectionSnapshot()).thenReturn(connections);
+
+        Simulator simulator = new Simulator(mockVersion);
+        List<SimBaseNode> executionOrder = simulator.getExecutionOrder();
+
+        int indexLow = -1;
+        int indexHigh = -1;
+
+        for (int i = 0; i < executionOrder.size(); i++) {
+            SimBaseNode node = executionOrder.get(i);
+            if (node instanceof SimPipelineConnection pc) {
+                if (pc.getId().equals(pcLowPriorityId)) {
+                    indexLow = i;
+                } else if (pc.getId().equals(pcHighPriorityId)) {
+                    indexHigh = i;
+                }
+            }
+        }
+
+        assertTrue(indexLow != -1 && indexHigh != -1, "Ambos PipelineConnections deben estar presentes en el orden de ejecución.");
+        assertTrue(indexLow < indexHigh, "El PipelineConnection con menor outputPriority (1.0) debe posicionarse antes que el de mayor prioridad (5.0).");
     }
 }

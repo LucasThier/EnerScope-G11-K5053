@@ -27,19 +27,6 @@ import java.util.*;
 public class Simulator {
     private UUID versionID;
 
-    private List<SimWell> simWells;
-    private List<SimGatheringNetwork> simGatheringNetworks;
-    private List<SimTreatmentPlant> simTreatmentPlants;
-    private List<SimPipeline> simPipelines;
-    private List<SimPipelineConnection> simPipelineConnections;
-    private List<SimCompressingPlant> simCompressingPlants;
-    private List<SimGroundBasedLiquefactionPlant> simGroundBasedLiquefactionPlants;
-    private List<SimFLNGUnit> simFLNGUnits;
-    private List<SimSeaportTerminal> simSeaportTerminals;
-    private List<SimLNGCarrier> simLNGCarriers;
-    private List<SimIndustrialConsumption> simIndustrialConsumptions;
-    private List<SimInternalConsumption> simInternalConsumptions;
-
     private List<SimBaseNode> executionOrder;
 
     private Version version;
@@ -49,19 +36,6 @@ public class Simulator {
 
 
     Simulator(Version version){
-        simWells = new ArrayList<>();
-        simGatheringNetworks = new ArrayList<>();
-        simTreatmentPlants = new ArrayList<>();
-        simPipelines = new ArrayList<>();
-        simPipelineConnections = new ArrayList<>();
-        simCompressingPlants = new ArrayList<>();
-        simGroundBasedLiquefactionPlants = new ArrayList<>();
-        simFLNGUnits = new ArrayList<>();
-        simSeaportTerminals = new ArrayList<>();
-        simLNGCarriers = new ArrayList<>();
-        simIndustrialConsumptions = new ArrayList<>();
-        simInternalConsumptions = new ArrayList<>();
-
         executionOrder = new ArrayList<>();
 
         this.version = version;
@@ -180,51 +154,39 @@ public class Simulator {
 
         if (baseNode instanceof Well well) {
             SimWell simWell = new SimWell(well);
-            simWells.add(simWell);
             simNode = simWell;
         } else if (baseNode instanceof GatheringNetwork gatheringNetwork) {
             SimGatheringNetwork simGatheringNetwork = new SimGatheringNetwork(gatheringNetwork);
-            simGatheringNetworks.add(simGatheringNetwork);
             simNode = simGatheringNetwork;
         } else if (baseNode instanceof TreatmentPlant treatmentPlants) {
             SimTreatmentPlant simTreatmentPlant = new SimTreatmentPlant(treatmentPlants);
-            simTreatmentPlants.add(simTreatmentPlant);
             simNode = simTreatmentPlant;
         } else if (baseNode instanceof Pipeline pipeline) {
             SimPipeline simPipeline = new SimPipeline(pipeline);
-            simPipelines.add(simPipeline);
             simNode = simPipeline;
         } else if (baseNode instanceof PipelineConnection pipelineConnection) {
             SimPipelineConnection simPipelineConnection = new SimPipelineConnection(pipelineConnection);
-            simPipelineConnections.add(simPipelineConnection);
             simNode = simPipelineConnection;
         } else if (baseNode instanceof CompressingPlant compressingPlant) {
             SimCompressingPlant simCompressingPlant = new SimCompressingPlant(compressingPlant);
-            simCompressingPlants.add(simCompressingPlant);
             simNode = simCompressingPlant;
         } else if (baseNode instanceof GroundBasedLiquefactionPlant groundBasedLiquefactionPlant) {
             SimGroundBasedLiquefactionPlant simGroundBasedLiquefactionPlant = new SimGroundBasedLiquefactionPlant(groundBasedLiquefactionPlant);
-            simGroundBasedLiquefactionPlants.add(simGroundBasedLiquefactionPlant);
             simNode = simGroundBasedLiquefactionPlant;
         } else if (baseNode instanceof FLNGUnit flngUnit) {
             SimFLNGUnit simFLNGUnit = new SimFLNGUnit(flngUnit);
-            simFLNGUnits.add(simFLNGUnit);
             simNode = simFLNGUnit;
         } else if (baseNode instanceof SeaportTerminal seaportTerminal) {
             SimSeaportTerminal simSeaportTerminal = new SimSeaportTerminal(seaportTerminal);
-            simSeaportTerminals.add(simSeaportTerminal);
             simNode = simSeaportTerminal;
         } else if (baseNode instanceof LNGCarrier lngCarrier) {
             SimLNGCarrier simLNGCarrier = new SimLNGCarrier(lngCarrier);
-            simLNGCarriers.add(simLNGCarrier);
             simNode = simLNGCarrier;
         } else if (baseNode instanceof InternalConsumption internalConsumption) {
             SimInternalConsumption simInternalConsumption = new SimInternalConsumption(internalConsumption);
-            simInternalConsumptions.add(simInternalConsumption);
             simNode = simInternalConsumption;
         } else if (baseNode instanceof IndustrialConsumption industrialConsumption) {
             SimIndustrialConsumption simIndustrialConsumption = new SimIndustrialConsumption(industrialConsumption);
-            simIndustrialConsumptions.add(simIndustrialConsumption);
             simNode = simIndustrialConsumption;
         }
 
