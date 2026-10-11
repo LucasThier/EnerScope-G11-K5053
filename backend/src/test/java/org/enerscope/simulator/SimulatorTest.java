@@ -373,7 +373,7 @@ public class SimulatorTest {
     @Test
     @Timeout(value = 20)
     public void testSimulationWhitNNodes() {
-        int totalNodosDeseados = 100;
+        int totalNodosDeseados = 500;
         List<BaseNode> baseNodes = new ArrayList<>();
         List<NodeConnection> connections = new ArrayList<>();
         Map<String, List<UUID>> nodosPorCapa = new HashMap<>();

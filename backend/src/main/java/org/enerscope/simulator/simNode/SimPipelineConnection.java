@@ -1,10 +1,14 @@
 package org.enerscope.simulator.simNode;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.enerscope.node.model.transportation.PipelineConnection;
 import org.enerscope.simulator.auxiliary.ToDeliver;
 import org.enerscope.simulator.results.ResultPerNode;
 
 
+@Getter
+@Setter
 public class SimPipelineConnection extends SimBaseNode{
     private float transferCapacity;
     private float outputPriority;

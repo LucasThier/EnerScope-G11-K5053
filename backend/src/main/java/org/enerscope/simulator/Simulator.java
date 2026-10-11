@@ -26,14 +26,21 @@ import java.util.*;
 @Setter
 public class Simulator {
     private UUID versionID;
+
     private List<SimWell> simWells;
     private List<SimGatheringNetwork> simGatheringNetworks;
     private List<SimTreatmentPlant> simTreatmentPlants;
-    private List<SimBaseNode> simPipelineAndCompressionPlantAndPipelineConnection;
-    private List<SimBaseLiquefactionPlant> simBaseLiquefactionPlants;
+    private List<SimPipeline> simPipelines;
+    private List<SimPipelineConnection> simPipelineConnections;
+    private List<SimCompressingPlant> simCompressingPlants;
+    private List<SimGroundBasedLiquefactionPlant> simGroundBasedLiquefactionPlants;
+    private List<SimFLNGUnit> simFLNGUnits;
     private List<SimSeaportTerminal> simSeaportTerminals;
     private List<SimLNGCarrier> simLNGCarriers;
-    private List<SimBaseNode> consumptionNodes;
+    private List<SimIndustrialConsumption> simIndustrialConsumptions;
+    private List<SimInternalConsumption> simInternalConsumptions;
+
+    private List<SimBaseNode> executionOrder;
 
     private Version version;
     private List<ResultPerRound> resultsPerRound;
@@ -45,21 +52,38 @@ public class Simulator {
         simWells = new ArrayList<>();
         simGatheringNetworks = new ArrayList<>();
         simTreatmentPlants = new ArrayList<>();
-        simPipelineAndCompressionPlantAndPipelineConnection = new ArrayList<>();
-        simBaseLiquefactionPlants = new ArrayList<>();
+        simPipelines = new ArrayList<>();
+        simPipelineConnections = new ArrayList<>();
+        simCompressingPlants = new ArrayList<>();
+        simGroundBasedLiquefactionPlants = new ArrayList<>();
+        simFLNGUnits = new ArrayList<>();
         simSeaportTerminals = new ArrayList<>();
         simLNGCarriers = new ArrayList<>();
-        consumptionNodes = new ArrayList<>();
+        simIndustrialConsumptions = new ArrayList<>();
+        simInternalConsumptions = new ArrayList<>();
+
+        executionOrder = new ArrayList<>();
+
         this.version = version;
         resultsPerRound = new ArrayList<>();
 
         Map<UUID, SimBaseNode> simNodesById = new HashMap<>();
+        List<SimBaseNode> allNodes = new ArrayList<>();
 
         version.getNodeSnapshot().forEach(baseNode -> {
             SimBaseNode simNode = transformNode(baseNode);
             if (simNode != null) {
                 simNodesById.put(baseNode.getId(), simNode);
+                allNodes.add(simNode);
             }
+        });
+
+        Map<SimBaseNode, List<SimBaseNode>> successors = new HashMap<>();
+        Map<SimBaseNode, Integer> inDegree = new HashMap<>();
+
+        allNodes.forEach(node -> {
+            successors.put(node, new ArrayList<>());
+            inDegree.put(node, 0);
         });
 
         version.getConnectionSnapshot().forEach(connection -> {
@@ -67,45 +91,56 @@ public class Simulator {
             SimBaseNode toNode = simNodesById.get(connection.getToNodeId());
 
             if (fromNode != null && toNode != null) {
+                successors.get(fromNode).add(toNode);
+                inDegree.put(toNode, inDegree.get(toNode) + 1);
                 toNode.addPreviousNode(fromNode);
             }
         });
-    }
 
+        this.executionOrder = computeTopologicalOrderWithPriority(allNodes, successors, inDegree);
+    }
+    private List<SimBaseNode> computeTopologicalOrderWithPriority(List<SimBaseNode> allNodes, Map<SimBaseNode, List<SimBaseNode>> successors, Map<SimBaseNode, Integer> inDegree) {
+
+        Queue<SimBaseNode> queue = new LinkedList<>();
+
+        allNodes.stream().filter(node -> inDegree.get(node) == 0).forEach(queue::add);
+
+        List<SimBaseNode> sortedList = new ArrayList<>();
+
+        while (!queue.isEmpty()) {
+            SimBaseNode current = queue.poll();
+            sortedList.add(current);
+
+            List<SimBaseNode> nextNodes = new ArrayList<>(successors.get(current));
+
+            nextNodes.sort((n1, n2) -> {
+                if (n1 instanceof SimPipelineConnection p1 && n2 instanceof SimPipelineConnection p2) {
+                    return Float.compare(p1.getOutputPriority(), p2.getOutputPriority());
+                }
+                return 0;
+            });
+
+            for (SimBaseNode neighbor : nextNodes) {
+                inDegree.put(neighbor, inDegree.get(neighbor) - 1);
+                if (inDegree.get(neighbor) == 0) {
+                    queue.add(neighbor);
+                }
+            }
+        }
+
+        return sortedList;
+    }
     public void simulate(int time){
         int timeInHours = time * 24*365;
         for(int amount = 0; amount < 10; amount ++){
             for (int count = 0; count <= timeInHours; count ++){
                 int exactTime = count;
-                simWells.forEach(simWell -> simWell.simulate(exactTime));
-                simGatheringNetworks.forEach(simGatheringNetwork -> simGatheringNetwork.simulate(exactTime));
-                simTreatmentPlants.forEach(simTreatmentPlant -> simTreatmentPlant.simulate(exactTime));
-                boolean quedanPendientes = true;
-                List<SimBaseNode> nodesToProcess = new ArrayList<>(simPipelineAndCompressionPlantAndPipelineConnection);
-
-                while (quedanPendientes) {
-                    List<SimBaseNode> readyNodes = nodesToProcess.stream()
-                            .filter(simBaseNode -> simBaseNode.readyToBeProcessed(exactTime))
-                            .toList();
-
-                    if (readyNodes.isEmpty()) {
-                        throw new IllegalStateException("Bloqueo detectado: existen nodos pendientes pero ninguno está listo para procesarse en el tiempo " + exactTime);
-                    }
-
-                    nodesToProcess = nodesToProcess.stream()
-                            .filter(simBaseNode -> !simBaseNode.readyToBeProcessed(exactTime))
-                            .toList();
-
-                    readyNodes.forEach(simBaseNode -> simBaseNode.simulate(exactTime));
-                    quedanPendientes = !nodesToProcess.isEmpty();
-                }
-                consumptionNodes.forEach(simLiquefactionPlant -> simLiquefactionPlant.simulate(exactTime));
-                simBaseLiquefactionPlants.forEach(simGroundBasedLiquefactionPlant -> simGroundBasedLiquefactionPlant.simulate(exactTime));
-                simSeaportTerminals.forEach(simSeaportTerminal -> simSeaportTerminal.simulate(exactTime));
-                simLNGCarriers.forEach(simLNGCarrier -> simLNGCarrier.simulate(exactTime));
+                executionOrder.forEach(node -> node.simulate(exactTime));
             }
-            createResultPerRound();
-            resetAll();
+            ResultPerRound resultPerRound = new ResultPerRound();
+            resultPerRound.addAllResultPerNodes(executionOrder.stream().map(SimBaseNode::createResult).toList());
+            resultsPerRound.add(resultPerRound);
+            executionOrder.forEach(node -> node.reset());
         }
         orderResults();
         createFinalResult(time);
@@ -113,34 +148,9 @@ public class Simulator {
         version.addResult(finalResult);
     }
 
-    private void resetAll() {
-        simWells.forEach(node -> node.reset());
-        simGatheringNetworks.forEach(node -> node.reset());
-        simTreatmentPlants.forEach(node -> node.reset());
-        simPipelineAndCompressionPlantAndPipelineConnection.forEach(node -> node.reset());
-        simBaseLiquefactionPlants.forEach(node -> node.reset());
-        simSeaportTerminals.forEach(node -> node.reset());
-        simLNGCarriers.forEach(node -> node.reset());
-        consumptionNodes.forEach(node -> node.reset());
-    }
-
     private void orderResults() {
         List<ResultPerRound> resultsPerRoundOrder = this.resultsPerRound.stream().sorted(Comparator.comparingDouble(ResultPerRound::amountProduced)).toList();
         this.resultsPerRound = resultsPerRoundOrder;
-    }
-
-    private void createResultPerRound() {
-        ResultPerRound resultPerRound = new ResultPerRound();
-        resultPerRound.addAllResultPerNodes(simWells.stream().map(SimWell::createResult).toList());
-        resultPerRound.addAllResultPerNodes(simGatheringNetworks.stream().map(SimGatheringNetwork::createResult).toList());
-        resultPerRound.addAllResultPerNodes(simTreatmentPlants.stream().map(SimTreatmentPlant::createResult).toList());
-        resultPerRound.addAllResultPerNodes(simPipelineAndCompressionPlantAndPipelineConnection.stream().map(simBaseNode -> simBaseNode.createResult()).toList());
-        resultPerRound.addAllResultPerNodes(simBaseLiquefactionPlants.stream().map(SimBaseLiquefactionPlant::createResult).toList());
-        resultPerRound.addAllResultPerNodes(simSeaportTerminals.stream().map(SimSeaportTerminal::createResult).toList());
-        resultPerRound.addAllResultPerNodes(simLNGCarriers.stream().map(SimLNGCarrier::createResult).toList());
-        resultPerRound.addAllResultPerNodes(consumptionNodes.stream().map(SimBaseNode::createResult).toList());
-
-        this.resultsPerRound.add(resultPerRound);
     }
 
     private void createFinalResult(int time) {
@@ -182,23 +192,23 @@ public class Simulator {
             simNode = simTreatmentPlant;
         } else if (baseNode instanceof Pipeline pipeline) {
             SimPipeline simPipeline = new SimPipeline(pipeline);
-            simPipelineAndCompressionPlantAndPipelineConnection.add(simPipeline);
+            simPipelines.add(simPipeline);
             simNode = simPipeline;
         } else if (baseNode instanceof PipelineConnection pipelineConnection) {
             SimPipelineConnection simPipelineConnection = new SimPipelineConnection(pipelineConnection);
-            simPipelineAndCompressionPlantAndPipelineConnection.add(simPipelineConnection);
+            simPipelineConnections.add(simPipelineConnection);
             simNode = simPipelineConnection;
         } else if (baseNode instanceof CompressingPlant compressingPlant) {
             SimCompressingPlant simCompressingPlant = new SimCompressingPlant(compressingPlant);
-            simPipelineAndCompressionPlantAndPipelineConnection.add(simCompressingPlant);
+            simCompressingPlants.add(simCompressingPlant);
             simNode = simCompressingPlant;
         } else if (baseNode instanceof GroundBasedLiquefactionPlant groundBasedLiquefactionPlant) {
             SimGroundBasedLiquefactionPlant simGroundBasedLiquefactionPlant = new SimGroundBasedLiquefactionPlant(groundBasedLiquefactionPlant);
-            simBaseLiquefactionPlants.add(simGroundBasedLiquefactionPlant);
+            simGroundBasedLiquefactionPlants.add(simGroundBasedLiquefactionPlant);
             simNode = simGroundBasedLiquefactionPlant;
         } else if (baseNode instanceof FLNGUnit flngUnit) {
             SimFLNGUnit simFLNGUnit = new SimFLNGUnit(flngUnit);
-            simBaseLiquefactionPlants.add(simFLNGUnit);
+            simFLNGUnits.add(simFLNGUnit);
             simNode = simFLNGUnit;
         } else if (baseNode instanceof SeaportTerminal seaportTerminal) {
             SimSeaportTerminal simSeaportTerminal = new SimSeaportTerminal(seaportTerminal);
@@ -210,11 +220,11 @@ public class Simulator {
             simNode = simLNGCarrier;
         } else if (baseNode instanceof InternalConsumption internalConsumption) {
             SimInternalConsumption simInternalConsumption = new SimInternalConsumption(internalConsumption);
-            consumptionNodes.add(simInternalConsumption);
+            simInternalConsumptions.add(simInternalConsumption);
             simNode = simInternalConsumption;
         } else if (baseNode instanceof IndustrialConsumption industrialConsumption) {
             SimIndustrialConsumption simIndustrialConsumption = new SimIndustrialConsumption(industrialConsumption);
-            consumptionNodes.add(simIndustrialConsumption);
+            simIndustrialConsumptions.add(simIndustrialConsumption);
             simNode = simIndustrialConsumption;
         }
 
