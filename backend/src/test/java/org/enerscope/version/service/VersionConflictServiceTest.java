@@ -22,6 +22,8 @@ import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.model.ConnectionChange;
+import org.enerscope.node.model.GeographicalPosition;
+import org.enerscope.node.model.GraphPosition;
 import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.InvestmentCostComponent;
 import org.enerscope.node.model.NodeChange;
@@ -89,7 +91,7 @@ class VersionConflictServiceTest {
                 MoneyAmount.of(1000), 30, MoneyAmount.of(500), 0.1f,
                 new InvestmentCost(new ArrayList<>(List.of(
                         new InvestmentCostComponent("drilling", MoneyAmount.of(100), CostBasisEnum.PER_M)))),
-                new NodeGraphData(1.0, 2.0, 3.0),
+                new NodeGraphData(new GraphPosition(1.0, 2.0), new GeographicalPosition(3.0, 4.0)),
                 identityId,
                 new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
                 10f, 0.5f, 0.5f, 5, MoneyAmount.of(50), 100f);

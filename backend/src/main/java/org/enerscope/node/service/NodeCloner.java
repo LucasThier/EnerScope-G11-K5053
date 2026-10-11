@@ -9,6 +9,8 @@ import java.util.stream.Collectors;
 
 import org.enerscope.common.BaseEntity;
 import org.enerscope.node.model.BaseNode;
+import org.enerscope.node.model.GeographicalPosition;
+import org.enerscope.node.model.GraphPosition;
 import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.InvestmentCostComponent;
 import org.enerscope.node.model.NodeConnection;
@@ -93,8 +95,15 @@ public final class NodeCloner {
     }
 
     private static NodeGraphData cloneGraphData(NodeGraphData source) {
-        return source == null ? null
-                : new NodeGraphData(source.getXPosition(), source.getYPosition(), source.getCoordinates());
+        if (source == null) {
+            return null;
+        }
+        GraphPosition graphPosition = source.getGraphPosition() == null ? null
+                : new GraphPosition(source.getGraphPosition().getX(), source.getGraphPosition().getY());
+        GeographicalPosition geographicalPosition = source.getGeographicalPosition() == null ? null
+                : new GeographicalPosition(source.getGeographicalPosition().getLongitude(),
+                        source.getGeographicalPosition().getLatitude());
+        return new NodeGraphData(graphPosition, geographicalPosition);
     }
 
     private static InvestmentCost cloneInvestmentCost(InvestmentCost source) {

@@ -84,6 +84,9 @@ class VersionServiceTest {
         @Mock
         private VersionConflictService versionConflictService;
 
+        @Mock
+        private org.enerscope.project.service.ProjectAccessGuard accessGuard;
+
         @InjectMocks
         private VersionService versionService;
 
@@ -96,7 +99,8 @@ class VersionServiceTest {
                                 nodeRepository,
                                 logger,
                                 nodeService,
-                                versionConflictService);
+                                versionConflictService,
+                                accessGuard);
         }
 
         @Test
@@ -153,7 +157,7 @@ class VersionServiceTest {
                                 nodeId, // identity
                                 new NodeTypeData(), // type
                                 100.0f, // maxCollectionCapacity
-                                new ConstantValue(0.5f), // decline_curve
+                                0.5f, // decline_curve
                                 0.8f, // gasRichness
                                 10, // DTMTime
                                 MoneyAmount.of(5000), // DTMCost
@@ -231,7 +235,7 @@ class VersionServiceTest {
                                 nodeId, // identity
                                 new NodeTypeData(), // type
                                 100.0f, // maxCollectionCapacity
-                                new ConstantValue(0.5f), // decline_curve
+                                0.5f, // decline_curve
                                 0.8f, // gasRichness
                                 10, // DTMTime
                                 MoneyAmount.of(5000), // DTMCost
@@ -311,7 +315,7 @@ class VersionServiceTest {
                                 nodeId, // identity
                                 new NodeTypeData(), // type
                                 100.0f, // maxCollectionCapacity
-                                new ConstantValue(0.5f), // decline_curve
+                                0.5f, // decline_curve
                                 0.8f, // gasRichness
                                 10, // DTMTime
                                 MoneyAmount.of(5000), // DTMCost
@@ -538,7 +542,7 @@ class VersionServiceTest {
                                 UUID.randomUUID(), // identity
                                 new NodeTypeData(), // type
                                 100.0f, // maxCollectionCapacity
-                                new ConstantValue(0.5f), // decline_curve
+                                0.5f, // decline_curve
                                 0.8f, // gasRichness
                                 10, // DTMTime
                                 MoneyAmount.of(5000), // DTMCost

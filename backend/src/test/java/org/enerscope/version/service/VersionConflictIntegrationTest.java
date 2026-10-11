@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.enerscope.node.dto.ConnectionDTO;
+import org.enerscope.node.dto.GeographicalPositionDTO;
+import org.enerscope.node.dto.GraphPositionDTO;
 import org.enerscope.node.dto.InvestmentCostDTO;
 import org.enerscope.node.dto.NodeGraphDataDTO;
 import org.enerscope.node.dto.NodeTypeDataDTO;
@@ -23,10 +25,12 @@ import org.enerscope.version.dto.VersionConflictDTO;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
+import org.enerscope.project.service.ProjectAccessGuard;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -39,6 +43,10 @@ import org.springframework.transaction.annotation.Transactional;
 @ActiveProfiles("test")
 @Transactional
 class VersionConflictIntegrationTest {
+
+    // Permissions are covered by ProjectAccessGuardTest; here the callers have no session.
+    @MockitoBean
+    private ProjectAccessGuard accessGuard;
 
     @Autowired
     private VersionService versionService;
@@ -61,7 +69,7 @@ class VersionConflictIntegrationTest {
         InvestmentCostDTO investmentCost = new InvestmentCostDTO();
         investmentCost.setComponents(new ArrayList<>());
         dto.setInvestmentCost(investmentCost);
-        dto.setGraphData(new NodeGraphDataDTO(1.0, 2.0, 3.0));
+        dto.setGraphData(new NodeGraphDataDTO(new GraphPositionDTO(1.0, 2.0), new GeographicalPositionDTO(3.0, 4.0)));
         dto.setType(new NodeTypeDataDTO(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
         dto.setIdentity(identity);
         dto.setMaxCollectionCapacity(10f);
@@ -238,7 +246,12 @@ class VersionConflictIntegrationTest {
         Version reloadedChildB = versionRepository.findById(childB.getId()).orElseThrow();
 
         assertEquals(nodeB.getId(), toNodeOfIdentity(reloadedParent, identity), "parent's own connection must be untouched");
-        assertEquals(nodeB.getId(), toNodeOfIdentity(reloadedChildB, identity), "sibling's own connection must be untouched");
+        // Branching deep-copies the nodes and remaps connections onto the copies, so the
+        // sibling's connection still points at ITS copy of Node B (same identity, new id).
+        UUID siblingNodeBId = reloadedChildB.getNodeSnapshot().stream()
+                .filter(n -> nodeB.getIdentityId().equals(n.getIdentityId()))
+                .findFirst().orElseThrow().getId();
+        assertEquals(siblingNodeBId, toNodeOfIdentity(reloadedChildB, identity), "sibling's own connection must be untouched");
     }
 
     private String nameOfIdentity(Version version, UUID identity) {
