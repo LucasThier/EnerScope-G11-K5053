@@ -12,6 +12,7 @@ import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
+import org.enerscope.node.model.transportation.PipelineConnection;
 import org.enerscope.probabilistic.ConstantValue;
 import org.enerscope.simulator.auxiliary.ToDeliver;
 import org.enerscope.simulator.results.ResultPerNode;
@@ -239,6 +240,59 @@ public class ResultPerRoundTest {
         assertEquals(7007311f, resultPipeline.getTotalProduced(),0.1f);
         assertEquals(111.111084f,resultPipeline.getTotalDeferred(),0.1f);
         assertEquals(778602.75f,resultPipeline.getExtra(),0.1f);
+    }
+    @Test
+    public void testResultPipelineConnection(){
+        UUID pipelineId = UUID.randomUUID();
+        UUID pipelineConnectionId = UUID.randomUUID();
+        UUID compressionId = UUID.randomUUID();
+
+        Pipeline mockPipeline = Mockito.mock(Pipeline.class);
+        setupBaseNodeMocks(mockPipeline, pipelineId);
+        when(mockPipeline.getMaxFlowCapacity()).thenReturn(1000f);
+        when(mockPipeline.getLength()).thenReturn(100f);
+        when(mockPipeline.getLossPerKm()).thenReturn(0.1f);
+
+        PipelineConnection mockPipelineConnection = Mockito.mock(PipelineConnection.class);
+        setupBaseNodeMocks(mockPipelineConnection, pipelineConnectionId);
+        when(mockPipelineConnection.getOutputPriority()).thenReturn(1f);
+        when(mockPipelineConnection.getTransferCapacity()).thenReturn(1000f);
+
+        CompressingPlant mockCompression = Mockito.mock(CompressingPlant.class);
+        setupBaseNodeMocks(mockCompression, compressionId);
+        when(mockCompression.getMaxCompressionCapacity()).thenReturn(900f);
+        when(mockCompression.getProcessWaste()).thenReturn(1f);
+        when(mockCompression.getGasConsumption()).thenReturn(2f);
+
+        SimPipeline simPipeline = new SimPipeline(mockPipeline);
+        SimPipelineConnection simPipelineConnection = new SimPipelineConnection(mockPipelineConnection);
+        SimCompressingPlant simCompressingPlant = new SimCompressingPlant(mockCompression);
+
+        simPipelineConnection.addPreviousNode(simPipeline);
+        simCompressingPlant.addPreviousNode(simPipelineConnection);
+
+        for (int t = 0; t < 8760; t++) {
+            simPipeline.setToDeliver(new ToDeliver(1000f,0f));
+            simPipelineConnection.simulate(t);
+            simCompressingPlant.simulate(t);
+            simCompressingPlant.deliver(simCompressingPlant.getToDeliver().getAmount());
+        }
+
+        ResultPerNode resultPipelineConnection = simPipelineConnection.createResult();
+
+        System.out.println("=== RESULTADO PIPELINE CONNECTION ===");
+        System.out.println("Node ID: " + resultPipelineConnection.getNodeID());
+        System.out.println("Max Possible Produced: " + resultPipelineConnection.getMaxPossibleProduced());
+        System.out.println("Total Produced: " + resultPipelineConnection.getTotalProduced());
+        System.out.println("Total Deferred: " + resultPipelineConnection.getTotalDeferred());
+        System.out.println("Total Extra: " + resultPipelineConnection.getExtra());
+
+        assertNotNull(resultPipelineConnection.getNodeID(), "El Pozo debe tener un ID asignado");
+
+        assertEquals(8760000f,resultPipelineConnection.getMaxPossibleProduced(),0.1f);
+        assertEquals(7884100, resultPipelineConnection.getTotalProduced(),0.1f);
+        assertEquals(100f,resultPipelineConnection.getTotalDeferred(),0.1f);
+        assertEquals(0f,resultPipelineConnection.getExtra(),0.1f);
     }
 
     @Test

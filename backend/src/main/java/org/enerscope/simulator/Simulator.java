@@ -14,6 +14,7 @@ import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
+import org.enerscope.node.model.transportation.PipelineConnection;
 import org.enerscope.simulator.results.FinalResult;
 import org.enerscope.simulator.results.ResultPerRound;
 import org.enerscope.simulator.simNode.*;
@@ -28,7 +29,7 @@ public class Simulator {
     private List<SimWell> simWells;
     private List<SimGatheringNetwork> simGatheringNetworks;
     private List<SimTreatmentPlant> simTreatmentPlants;
-    private List<SimBaseNode> simPipelineAndCompressionPlant;
+    private List<SimBaseNode> simPipelineAndCompressionPlantAndPipelineConnection;
     private List<SimBaseLiquefactionPlant> simBaseLiquefactionPlants;
     private List<SimSeaportTerminal> simSeaportTerminals;
     private List<SimLNGCarrier> simLNGCarriers;
@@ -44,7 +45,7 @@ public class Simulator {
         simWells = new ArrayList<>();
         simGatheringNetworks = new ArrayList<>();
         simTreatmentPlants = new ArrayList<>();
-        simPipelineAndCompressionPlant = new ArrayList<>();
+        simPipelineAndCompressionPlantAndPipelineConnection = new ArrayList<>();
         simBaseLiquefactionPlants = new ArrayList<>();
         simSeaportTerminals = new ArrayList<>();
         simLNGCarriers = new ArrayList<>();
@@ -80,7 +81,7 @@ public class Simulator {
                 simGatheringNetworks.forEach(simGatheringNetwork -> simGatheringNetwork.simulate(exactTime));
                 simTreatmentPlants.forEach(simTreatmentPlant -> simTreatmentPlant.simulate(exactTime));
                 boolean quedanPendientes = true;
-                List<SimBaseNode> nodesToProcess = new ArrayList<>(simPipelineAndCompressionPlant);
+                List<SimBaseNode> nodesToProcess = new ArrayList<>(simPipelineAndCompressionPlantAndPipelineConnection);
 
                 while (quedanPendientes) {
                     List<SimBaseNode> readyNodes = nodesToProcess.stream()
@@ -116,7 +117,7 @@ public class Simulator {
         simWells.forEach(node -> node.reset());
         simGatheringNetworks.forEach(node -> node.reset());
         simTreatmentPlants.forEach(node -> node.reset());
-        simPipelineAndCompressionPlant.forEach(node -> node.reset());
+        simPipelineAndCompressionPlantAndPipelineConnection.forEach(node -> node.reset());
         simBaseLiquefactionPlants.forEach(node -> node.reset());
         simSeaportTerminals.forEach(node -> node.reset());
         simLNGCarriers.forEach(node -> node.reset());
@@ -133,7 +134,7 @@ public class Simulator {
         resultPerRound.addAllResultPerNodes(simWells.stream().map(SimWell::createResult).toList());
         resultPerRound.addAllResultPerNodes(simGatheringNetworks.stream().map(SimGatheringNetwork::createResult).toList());
         resultPerRound.addAllResultPerNodes(simTreatmentPlants.stream().map(SimTreatmentPlant::createResult).toList());
-        resultPerRound.addAllResultPerNodes(simPipelineAndCompressionPlant.stream().map(simBaseNode -> simBaseNode.createResult()).toList());
+        resultPerRound.addAllResultPerNodes(simPipelineAndCompressionPlantAndPipelineConnection.stream().map(simBaseNode -> simBaseNode.createResult()).toList());
         resultPerRound.addAllResultPerNodes(simBaseLiquefactionPlants.stream().map(SimBaseLiquefactionPlant::createResult).toList());
         resultPerRound.addAllResultPerNodes(simSeaportTerminals.stream().map(SimSeaportTerminal::createResult).toList());
         resultPerRound.addAllResultPerNodes(simLNGCarriers.stream().map(SimLNGCarrier::createResult).toList());
@@ -181,11 +182,15 @@ public class Simulator {
             simNode = simTreatmentPlant;
         } else if (baseNode instanceof Pipeline pipeline) {
             SimPipeline simPipeline = new SimPipeline(pipeline);
-            simPipelineAndCompressionPlant.add(simPipeline);
+            simPipelineAndCompressionPlantAndPipelineConnection.add(simPipeline);
             simNode = simPipeline;
+        } else if (baseNode instanceof PipelineConnection pipelineConnection) {
+            SimPipelineConnection simPipelineConnection = new SimPipelineConnection(pipelineConnection);
+            simPipelineAndCompressionPlantAndPipelineConnection.add(simPipelineConnection);
+            simNode = simPipelineConnection;
         } else if (baseNode instanceof CompressingPlant compressingPlant) {
             SimCompressingPlant simCompressingPlant = new SimCompressingPlant(compressingPlant);
-            simPipelineAndCompressionPlant.add(simCompressingPlant);
+            simPipelineAndCompressionPlantAndPipelineConnection.add(simCompressingPlant);
             simNode = simCompressingPlant;
         } else if (baseNode instanceof GroundBasedLiquefactionPlant groundBasedLiquefactionPlant) {
             SimGroundBasedLiquefactionPlant simGroundBasedLiquefactionPlant = new SimGroundBasedLiquefactionPlant(groundBasedLiquefactionPlant);
