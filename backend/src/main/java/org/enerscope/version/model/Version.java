@@ -8,8 +8,8 @@ import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.ConnectionChange;
 import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
-import org.enerscope.project.model.Project;
-import org.enerscope.simulator.Result;
+import org.enerscope.simulator.FinalResult;
+import org.enerscope.simulator.ResultPerRound;
 import org.springframework.context.annotation.Lazy;
 
 import jakarta.persistence.CascadeType;
@@ -21,11 +21,13 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @NoArgsConstructor
+@AllArgsConstructor
 @Getter
 @Setter
 @Entity
@@ -58,7 +60,7 @@ public class Version extends BaseEntity {
 
     @JoinColumn(name = "version_id", nullable = true)
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Result> results = new ArrayList<>();
+    private List<FinalResult> finalResults= new ArrayList<>();
 
     /**
      * Written by hand instead of with {@code @AllArgsConstructor} so that a null
@@ -86,7 +88,7 @@ public class Version extends BaseEntity {
         return values == null ? new ArrayList<>() : values;
     }
 
-    public void addResult(Result result){
-        this.results.add(result);
+    public void addResult(FinalResult finalResult){
+        this.finalResults.add(finalResult);
     }
 }
