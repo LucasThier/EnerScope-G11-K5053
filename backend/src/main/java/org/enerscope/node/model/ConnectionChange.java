@@ -10,8 +10,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -30,12 +28,13 @@ public class ConnectionChange extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private ChangeTypeEnum changeType;
 
+    // ManyToOne, not OneToOne - see NodeChange for why.
     @JoinColumn(nullable = true)
-    @OneToOne
+    @ManyToOne
     private NodeConnection changedConnection;
 
     @JoinColumn(nullable = true)
-    @OneToOne
+    @ManyToOne
     private NodeConnection resultConnection;
 
 }

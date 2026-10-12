@@ -127,4 +127,35 @@ class NodeServiceTest {
         assertEquals(0.05f, foundWell.get().getDeclineCurve());
     }
 
+    @Test
+    void editWellShouldNeverChangeIdentityEvenIfDtoCarriesADifferentOne() {
+        // Reproduces the reported bug: identityId is the stable key version
+        // merges/conflicts match nodes by across edits - editWell must ignore
+        // whatever the DTO's identity field carries (e.g. a stale/placeholder
+        // value from a client form), not silently reassign it.
+        UUID originalIdentity = UUID.randomUUID();
+        Well well = new Well("Original", NodeStateEnum.PROPOSED, Instant.now(), 120,
+                MoneyAmount.of(1000), 30, MoneyAmount.of(500),
+                0.1f, null, null, originalIdentity, null,
+                10f, 0.5f, 0.5f, 5, MoneyAmount.of(50), 100f);
+
+        WellDTO editDTO = new WellDTO();
+        editDTO.setName("Edited");
+        editDTO.setState(NodeStateEnum.RUNNING);
+        editDTO.setLifespanInMonths(120);
+        editDTO.setMaintenanceIntervalInDays(30);
+        editDTO.setWastePercentage(0.1f);
+        editDTO.setMaxCollectionCapacity(10f);
+        editDTO.setDeclineCurve(0.5f);
+        editDTO.setGasRichness(0.5f);
+        editDTO.setDTMTime(5);
+        editDTO.setSurface(100f);
+        editDTO.setIdentity(UUID.randomUUID()); // a different identity - must be ignored
+
+        Well edited = nodeService.editWell(well, editDTO);
+
+        assertEquals("Edited", edited.getName());
+        assertEquals(originalIdentity, edited.getIdentityId());
+    }
+
 }

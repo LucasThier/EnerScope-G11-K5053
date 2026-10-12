@@ -271,7 +271,7 @@ All responses are wrapped in a standard envelope:
 
 The economic API evaluates project versions, with persisted configuration and
 immutable NPV history. See [economic documentation and runnable example](../docs/economic-module.md).
-Use the complete migration chain through V13. The incoming master V11 for node columns is redundant with this branch's V12 and is not included. Existing databases require reviewing their Flyway history before deployment; this merge does not reset databases or repair checksums.
+Use the complete migration chain through V14. The incoming master V11 for node columns is redundant with this branch's V12 and is not included. Existing databases require reviewing their Flyway history before deployment; this merge does not reset databases or repair checksums.
 
 Economic routes use `/api/v1/projects/{projectId}/versions/{versionId}/economics`:
 `PUT/GET /configuration`, `POST/GET /evaluations`, and `GET /evaluations/{id}`.
@@ -365,3 +365,5 @@ membership/role, or a platform administrator. Responses use ApiResponse.
 See [economic frontend](../docs/economic-frontend.md).
 
 Economic drafts: migration V13 adds economic_draft. GET/PUT /projects/{projectId}/versions/{versionId}/economics/draft reads/stores editor drafts with VIEW_PROJECT/EDIT_PROJECT checks. Drafts are structurally validated separately from simulation-ready configuration.
+
+Version-conflict support from master uses V14__create_version_conflict_tables.sql on this branch (upstream calls it V12). Review Flyway history before switching an existing database between these branches.

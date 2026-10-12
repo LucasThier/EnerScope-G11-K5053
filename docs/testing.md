@@ -26,7 +26,7 @@ Run everything with `cd backend && mvn test`.
 
 ## Summary
 
-Verified on 2026-10-08: **684 executions across 39 classes**, with zero failures, errors or skips. Counts include each parameterized invocation.
+Verified on 2026-10-12: **682 executions across 41 classes**, with zero failures, errors or skips. Counts include each parameterized invocation.
 
 | Test class | Type | Executions |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ Verified on 2026-10-08: **684 executions across 39 classes**, with zero failures
 | `logging.ConsoleAppLoggerTest` | Unit | 1 |
 | `money.MoneyAmountTest` | Unit | 7 |
 | `node.controller.NodeControllerTest` | Unit | 1 |
-| `node.service.NodeServiceTest` | Unit | 1 |
+| `node.service.NodeServiceTest` | Unit | 2 |
 | `organization.controller.OrganizationControllerTest` | Web | 39 |
 | `organization.repository.OrganizationMemberRepositoryTest` | Data | 11 |
 | `organization.repository.OrganizationRepositoryTest` | Data | 16 |
@@ -67,9 +67,11 @@ Verified on 2026-10-08: **684 executions across 39 classes**, with zero failures
 | `util.AuthUtilTest` | Unit | 7 |
 | `version.controller.VersionControllerTest` | Web | 10 |
 | `version.controller.VersionQueryControllerTest` | Web | 4 |
+| `version.service.VersionConflictIntegrationTest` | Integration | 7 |
+| `version.service.VersionConflictServiceTest` | Unit | 17 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 |
-| `version.service.VersionServiceTest` | Unit | 42 |
-| **Total** | | **684** |
+| `version.service.VersionServiceTest` | Unit | 15 |
+| **Total** | | **682** |
 
 ## `ApplicationContextTest` — Integration
 
@@ -823,6 +825,17 @@ Additional cases reconciled during the 2026-10-08 merge:
 | `newVersionInitializesMutableEmptySnapshots` | new Version Initializes Mutable Empty Snapshots. |
 | `saveVersion_WithoutParent_InitialisesEmptyNonNullSnapshots` | save Version Without Parent Initialises Empty Non Null Snapshots. |
 
+Additional cases reconciled during the 2026-10-12 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `mergeSubVersionIntoParent_AddAndDelete_ShouldCancelOut` | merge Sub Version Into Parent Add And Delete Should Cancel Out. |
+| `mergeSubVersionIntoParent_SingleEdit_ShouldBePreserved` | merge Sub Version Into Parent Single Edit Should Be Preserved. |
+| `editNodeInVersion_WhenCallerPassesAStaleIdForTheSameIdentity_EditsTheCurrentRowInsteadOfDuplicatingIt` | edit Node In Version When Caller Passes AStale Id For The Same Identity Edits The Current Row Instead Of Duplicating It. |
+| `editNodeInVersion_WhenNodeAddedInThisVersion_ShouldEditInPlaceAndKeepSingleAddChange` | edit Node In Version When Node Added In This Version Should Edit In Place And Keep Single Add Change. |
+| `mergeSubVersionIntoParent_ShouldReplaceSnapshotsAndMergeChanges` | merge Sub Version Into Parent Should Replace Snapshots And Merge Changes. |
+| `editNodeInVersion_WhenIdentityNotInThisVersionsSnapshot_ShouldThrowIllegalArgumentException` | edit Node In Version When Identity Not In This Versions Snapshot Should Throw Illegal Argument Exception. |
+
 ## `version.controller.VersionControllerTest` — Web
 
 Exercises `VersionController` through the real `SecurityConfig`/`AuthFilter`
@@ -855,6 +868,12 @@ echoes its argument back, and reads it again through the same mock.
 | Case | Verifies |
 | --- | --- |
 | `saveWellShouldReturnWell` | `saveWell` maps a complete `WellDTO` onto a persisted `Well`, preserving `name`, `maxCollectionCapacity` and `declineCurve`. |
+
+Additional cases reconciled during the 2026-10-12 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `editWellShouldNeverChangeIdentityEvenIfDtoCarriesADifferentOne` | edit Well Should Never Change Identity Even If Dto Carries ADifferent One. |
 
 ## `node.controller.NodeControllerTest` — Unit
 
@@ -1186,3 +1205,47 @@ Additional cases reconciled during the 2026-10-08 merge:
 ## Frontend merge verification
 
 `npm test`: 24 cases (18 economic editor/formatting and 6 operational-result cases). Build and lint passed. Browser acceptance scripts passed with isolated API fixtures, including the new organizations/owned request, draft save/reload, simulation validation, permissions, project isolation, historical results and responsive layout.
+
+## `version.service.VersionConflictIntegrationTest` — Integration
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-12 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `repeatedMergesTouchingTheSameIdentityCollapseToOneNetNodeChange` | repeated Merges Touching The Same Identity Collapse To One Net Node Change. |
+| `mergingANewlyAddedNodeFlagsAConflictWithSiblingsThatDontHaveIt` | merging ANewly Added Node Flags AConflict With Siblings That Dont Have It. |
+| `getAllConflicts_ReturnsConflictsAcrossAllVersions` | get All Conflicts Returns Conflicts Across All Versions. |
+| `mergingOneChildFlagsAConflictOnTheSiblingThatTouchedTheSameIdentity` | merging One Child Flags AConflict On The Sibling That Touched The Same Identity. |
+| `mergingASiblingThatNeverTouchedAnythingDoesNotRevertWhatAnEarlierMergeAdded` | merging ASibling That Never Touched Anything Does Not Revert What An Earlier Merge Added. |
+| `editingAnInheritedNodeInOneChildDoesNotMutateTheParentOrSiblingRows` | editing An Inherited Node In One Child Does Not Mutate The Parent Or Sibling Rows. |
+| `editingAnInheritedConnectionInOneChildDoesNotMutateTheParentOrSiblingRows` | editing An Inherited Connection In One Child Does Not Mutate The Parent Or Sibling Rows. |
+
+## `version.service.VersionConflictServiceTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-12 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `resolveConflict_NodeAccept_BothHaveIt_CopiesDataKeepsSiblingId` | resolve Conflict Node Accept Both Have It Copies Data Keeps Sibling Id. |
+| `resolveConflict_ConnectionAccept_BothHaveIt_RemapsEndpointsThroughIdentity` | resolve Conflict Connection Accept Both Have It Remaps Endpoints Through Identity. |
+| `recordMergeConflicts_SourceWithoutChanges_DoesNotQuerySiblings` | record Merge Conflicts Source Without Changes Does Not Query Siblings. |
+| `recordMergeConflicts_SiblingNeverTouchedIdentityButHasNoRowForIt_StillCreatesConflict` | record Merge Conflicts Sibling Never Touched Identity But Has No Row For It Still Creates Conflict. |
+| `recordMergeConflicts_SiblingHasADifferentConnectionForATouchedIdentity_CreatesConflict` | record Merge Conflicts Sibling Has ADifferent Connection For ATouched Identity Creates Conflict. |
+| `recordMergeConflicts_SiblingAlreadyHasTheIdenticalMergedRow_CreatesNothing` | record Merge Conflicts Sibling Already Has The Identical Merged Row Creates Nothing. |
+| `resolveConflict_NodeAccept_OnlySiblingHasIt_RemovesFromSnapshot` | resolve Conflict Node Accept Only Sibling Has It Removes From Snapshot. |
+| `getConflictsForVersion_ReturnsMappedConflicts` | get Conflicts For Version Returns Mapped Conflicts. |
+| `resolveConflict_NodeReject_OnlyParentHasIt_WritesDeleteChange` | resolve Conflict Node Reject Only Parent Has It Writes Delete Change. |
+| `resolveConflict_NodeReject_OnlySiblingHasIt_WritesAddChange` | resolve Conflict Node Reject Only Sibling Has It Writes Add Change. |
+| `recordMergeConflicts_SiblingHasADifferentRowForATouchedIdentity_CreatesOneConflictPerIdentity` | record Merge Conflicts Sibling Has ADifferent Row For ATouched Identity Creates One Conflict Per Identity. |
+| `resolveConflict_ConnectionReject_OnlyParentHasIt_WritesDeleteChange` | resolve Conflict Connection Reject Only Parent Has It Writes Delete Change. |
+| `resolveConflict_UnknownConflict_Throws` | resolve Conflict Unknown Conflict Throws. |
+| `getConflictsForVersion_UnknownVersion_Throws` | get Conflicts For Version Unknown Version Throws. |
+| `resolveConflict_NodeReject_BothHaveIt_WritesEditChange` | resolve Conflict Node Reject Both Have It Writes Edit Change. |
+| `recordMergeConflicts_SiblingChangedDifferentIdentity_CreatesNothing` | record Merge Conflicts Sibling Changed Different Identity Creates Nothing. |
+| `resolveConflict_NodeAccept_OnlyParentHasIt_ClonesIntoSiblingSnapshot` | resolve Conflict Node Accept Only Parent Has It Clones Into Sibling Snapshot. |
