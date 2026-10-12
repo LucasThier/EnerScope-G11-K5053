@@ -76,8 +76,8 @@ public class VersionConflictService {
                 BaseNode mergedNode = findNodeByIdentity(mergedVersion.getNodeSnapshot(), identityId);
                 BaseNode siblingNode = findNodeByIdentity(sibling.getNodeSnapshot(), identityId);
                 if (rowDiffers(mergedNode, siblingNode)) {
-                    created.add(conflictRepository.save(new VersionConflict(mergedVersion, sourceVersion, sibling,
-                            ConflictEntityType.NODE, identityId)));
+                    created.add(saveOrTouchPendingConflict(mergedVersion, sourceVersion, sibling,
+                            ConflictEntityType.NODE, identityId));
                 }
             }
 
@@ -87,8 +87,8 @@ public class VersionConflictService {
                 NodeConnection siblingConnection = findConnectionByIdentity(sibling.getConnectionSnapshot(),
                         identityId);
                 if (rowDiffers(mergedConnection, siblingConnection)) {
-                    created.add(conflictRepository.save(new VersionConflict(mergedVersion, sourceVersion, sibling,
-                            ConflictEntityType.CONNECTION, identityId)));
+                    created.add(saveOrTouchPendingConflict(mergedVersion, sourceVersion, sibling,
+                            ConflictEntityType.CONNECTION, identityId));
                 }
             }
         }
@@ -98,6 +98,15 @@ public class VersionConflictService {
                     sourceVersion.getName(), mergedVersion.getName(), created.size());
         }
         return created;
+    }
+
+    private VersionConflict saveOrTouchPendingConflict(Version mergedVersion, Version sourceVersion, Version sibling,
+            ConflictEntityType entityType, UUID identityId) {
+        return conflictRepository.findPendingDuplicate(mergedVersion.getId(), sourceVersion.getId(), sibling.getId(),
+                entityType, identityId)
+                .map(conflictRepository::save)
+                .orElseGet(() -> conflictRepository
+                        .save(new VersionConflict(mergedVersion, sourceVersion, sibling, entityType, identityId)));
     }
 
     /** True when the two sides disagree on this identity: one is missing it, or they hold different rows. */

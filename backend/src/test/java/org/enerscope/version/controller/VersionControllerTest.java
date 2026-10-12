@@ -34,6 +34,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -217,5 +218,20 @@ class VersionControllerTest {
                 .andExpect(status().isUnauthorized());
 
         verify(versionService, never()).saveOrphanVersion(any());
+    }
+
+    // ---- mergeSubVersionIntoParent ---------------------------------------------
+
+    @Test
+    void mergeSubVersionIntoParentPropagatesNoParentWith400() throws Exception {
+        UUID subId = UUID.randomUUID();
+        when(versionService.mergeSubVersionIntoParent(subId))
+                .thenThrow(new IllegalArgumentException("Version has no parent version to merge into"));
+
+        mockMvc.perform(patch("/version/merge/" + subId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Version has no parent version to merge into"));
     }
 }

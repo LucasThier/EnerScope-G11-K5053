@@ -833,4 +833,18 @@ class VersionServiceTest {
                 assertSame(originalWell, mergedChange.getChangedNode());
                 assertSame(editedWell, mergedChange.getResultNode());
         }
+
+        @Test
+        void mergeSubVersionIntoParent_VersionHasNoParent_ThrowsIllegalArgumentException() {
+                UUID subId = UUID.randomUUID();
+                Version rootVersion = new Version("Root Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(), new ArrayList<>());
+                when(versionRepository.findById(subId)).thenReturn(Optional.of(rootVersion));
+
+                IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                                () -> versionService.mergeSubVersionIntoParent(subId));
+
+                assertEquals("Version has no parent version to merge into", ex.getMessage());
+                verifyNoInteractions(versionConflictService);
+        }
 }
