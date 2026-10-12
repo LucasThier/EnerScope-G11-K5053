@@ -14,7 +14,9 @@ import { EditorPage } from './pages/EditorPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { OrganizationTeamPage } from './pages/OrganizationTeamPage';
 import { ProjectTeamPage } from './pages/ProjectTeamPage';
+import { VersionsPage } from './pages/VersionsPage';
 import { OrganizationOwnerRoute } from './routes/OrganizationOwnerRoute';
+import { VersionsRedirect } from './routes/VersionsRedirect';
 
 export default function App() {
   return (
@@ -32,6 +34,8 @@ export default function App() {
                 <Route path="/app" element={<WorkspacePage />} />
                 <Route path="/projects" element={<ProjectsPage />} />
                 <Route path="/projects/:projectId/team" element={<ProjectTeamPage />} />
+                <Route path="/projects/:projectId/versions" element={<VersionsPage />} />
+                <Route path="/versions" element={<VersionsRedirect />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route element={<OrganizationOwnerRoute />}>
                   <Route path="/organizations/:organizationId" element={<OrganizationTeamPage />} />

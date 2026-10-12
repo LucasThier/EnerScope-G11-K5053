@@ -22,7 +22,7 @@ const controlClasses =
 export function ProjectsPage() {
   const searchId = useId();
   const organizationFilterId = useId();
-  const { projects, isLoading, error, reload } = useActiveProject();
+  const { projects, isLoading, error, reload, selectProject } = useActiveProject();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -136,6 +136,10 @@ export function ProjectsPage() {
             onEdit={setEditing}
             onDelete={setDeleting}
             onManageMembers={(project) => navigate(`/projects/${project.id}/team`)}
+            onViewVersions={(project) => {
+              selectProject(project.id);
+              navigate(`/projects/${project.id}/versions`);
+            }}
           />
         )}
       </Card>

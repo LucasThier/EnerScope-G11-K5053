@@ -1,6 +1,6 @@
 import { client } from './client';
 import type { ApiResponse } from '../types/auth';
-import type { VersionSummary } from '../types/diagram';
+import type { ConflictDecision, VersionConflict, VersionSummary } from '../types/diagram';
 import type {
   AddProjectMemberRequest,
   CreateProjectRequest,
@@ -48,6 +48,23 @@ export const projectsApi = {
     data: { name: string; parentVersion?: string | null },
   ): Promise<AxiosResponse<ApiResponse<unknown>>> =>
     client.post(`/projects/${projectId}/version`, data),
+
+  deleteVersion: (versionId: string): Promise<AxiosResponse<ApiResponse<null>>> =>
+    client.delete(`/version/${versionId}`),
+
+  mergeVersion: (subId: string): Promise<AxiosResponse<ApiResponse<unknown>>> =>
+    client.patch(`/version/merge/${subId}`),
+
+  getVersionConflicts: (
+    versionId: string,
+  ): Promise<AxiosResponse<ApiResponse<VersionConflict[]>>> =>
+    client.get(`/version/${versionId}/conflicts`),
+
+  resolveConflict: (
+    conflictId: string,
+    decision: ConflictDecision,
+  ): Promise<AxiosResponse<ApiResponse<VersionConflict>>> =>
+    client.patch(`/version/conflicts/${conflictId}/resolve/${decision}`),
 
   addMember: (
     projectId: string,

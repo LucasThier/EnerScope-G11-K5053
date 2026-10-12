@@ -1,5 +1,5 @@
 import type { ProjectSummary } from '../../types/project';
-import { EyeIcon, PencilIcon, TeamIcon, TrashIcon } from '../ui/icons';
+import { BranchIcon, EyeIcon, PencilIcon, TeamIcon, TrashIcon } from '../ui/icons';
 import { RowButton } from '../ui/RowButton';
 import { formatDate } from '../../utils/date';
 
@@ -10,6 +10,7 @@ interface ProjectsTableProps {
   onEdit: (project: ProjectSummary) => void;
   onDelete: (project: ProjectSummary) => void;
   onManageMembers: (project: ProjectSummary) => void;
+  onViewVersions: (project: ProjectSummary) => void;
 }
 
 const headerCell = 'px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
@@ -22,6 +23,7 @@ export function ProjectsTable({
   onEdit,
   onDelete,
   onManageMembers,
+  onViewVersions,
 }: ProjectsTableProps) {
   return (
     <div className="overflow-x-auto">
@@ -65,6 +67,13 @@ export function ProjectsTable({
                     onClick={() => onView(project)}
                   >
                     <EyeIcon className="h-4 w-4" />
+                  </RowButton>
+                  <RowButton
+                    label={`Ver versiones del proyecto ${project.name}`}
+                    title="Ver versiones"
+                    onClick={() => onViewVersions(project)}
+                  >
+                    <BranchIcon className="h-4 w-4" />
                   </RowButton>
                   {(isPlatformAdmin || project.myRole === 'ADMIN') && (
                     <RowButton

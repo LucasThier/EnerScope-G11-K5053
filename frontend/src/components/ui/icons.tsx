@@ -54,6 +54,30 @@ export function ValueChainIcon(props: IconProps) {
   );
 }
 
+export function BranchIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="6" cy="6" r="2.2" />
+      <circle cx="6" cy="18" r="2.2" />
+      <circle cx="18" cy="9" r="2.2" />
+      <path d="M6 8.2V15.8" />
+      <path d="M18 11.2A6 6 0 0 1 12 15.8h-3.8" />
+    </Icon>
+  );
+}
+
+export function MergeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="7" cy="5" r="2.2" />
+      <circle cx="7" cy="19" r="2.2" />
+      <path d="M7 7.2v9.6" />
+      <path d="M19 12H9.6" />
+      <path d="M13 8l-3.5 4 3.5 4" />
+    </Icon>
+  );
+}
+
 export function FlaskIcon(props: IconProps) {
   return (
     <Icon {...props}>

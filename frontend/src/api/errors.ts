@@ -14,10 +14,25 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
   'You are not allowed to manage this project':
     'No tenés permiso para administrar los integrantes de este proyecto.',
   'You are not allowed to view this project': 'No tenés acceso a este proyecto.',
+  'You are not allowed to edit this project':
+    'No tenés permiso para editar las versiones de este proyecto.',
+  'You are not allowed to access this version': 'No tenés acceso a esta versión.',
+  'Version name cannot be null': 'El nombre de la versión es obligatorio.',
+  'Version name cannot be blank or whitespace only': 'El nombre de la versión es obligatorio.',
 };
 
+const KNOWN_BACKEND_PREFIXES: [string, string][] = [
+  ['Version not found with id:', 'La versión no existe o ya fue eliminada.'],
+  ['Version conflict not found with id:', 'El conflicto no existe o ya fue resuelto.'],
+];
+
 function translate(message: string): string {
-  return KNOWN_BACKEND_MESSAGES[message] ?? message;
+  const exact = KNOWN_BACKEND_MESSAGES[message];
+  if (exact) {
+    return exact;
+  }
+  const prefixed = KNOWN_BACKEND_PREFIXES.find(([prefix]) => message.startsWith(prefix));
+  return prefixed ? prefixed[1] : message;
 }
 
 /**

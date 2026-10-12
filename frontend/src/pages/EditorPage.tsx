@@ -8,6 +8,7 @@ import { MapView } from '../components/editor/MapView';
 import { NodeDataPanel } from '../components/editor/NodeDataPanel';
 import { NodeFormPanel, type NodeFormInitial } from '../components/editor/NodeFormPanel';
 import { NodePalette } from '../components/editor/NodePalette';
+import { NewVersionModal } from '../components/versions/NewVersionModal';
 import {
   canConnect,
   specForType,
@@ -97,6 +98,7 @@ export function EditorPage() {
   const [createAnchor, setCreateAnchor] = useState<{ x: number; y: number } | null>(null);
   const [createType, setCreateType] = useState<NodeType | null>(null);
   const [editState, setEditState] = useState<EditState | null>(null);
+  const [isNewVersionModalOpen, setIsNewVersionModalOpen] = useState(false);
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<NodeDetail | null>(null);
@@ -337,19 +339,6 @@ export function EditorPage() {
     }
   }
 
-  async function handleCreateVersion() {
-    if (!projectId) return;
-    const name = window.prompt('New version name');
-    if (!name || !name.trim()) return;
-    try {
-      const parent = versionId || undefined;
-      await projectsApi.createVersion(projectId, { name: name.trim(), parentVersion: parent });
-      loadVersions();
-    } catch (err) {
-      setSelectorError(getErrorMessage(err, 'Could not create the version'));
-    }
-  }
-
   const selectedNode = useMemo(
     () => diagram?.nodes.find((n) => n.id === selectedNodeId) ?? null,
     [diagram, selectedNodeId],
@@ -456,7 +445,7 @@ export function EditorPage() {
             </select>
             <Button
               variant="ghost"
-              onClick={handleCreateVersion}
+              onClick={() => setIsNewVersionModalOpen(true)}
               disabled={!projectId}
               className="px-2 py-1.5 text-xs"
             >
@@ -672,6 +661,18 @@ export function EditorPage() {
           </>
         )}
       </div>
+
+      {projectId && (
+        <NewVersionModal
+          projectId={projectId}
+          open={isNewVersionModalOpen}
+          onClose={() => setIsNewVersionModalOpen(false)}
+          onCreated={() => {
+            loadVersions();
+          }}
+          defaultParentId={versionId || undefined}
+        />
+      )}
     </div>
   );
 }

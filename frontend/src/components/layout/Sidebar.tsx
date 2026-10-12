@@ -1,9 +1,11 @@
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { useActiveProject } from '../../hooks/useActiveProject';
 import { useAuth } from '../../hooks/useAuth';
 import { useOwnedOrganizations } from '../../hooks/useOwnedOrganizations';
 import { useLocalPreference } from '../../hooks/useLocalPreference';
 import {
+  BranchIcon,
   BuildingIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
@@ -18,6 +20,8 @@ import {
   UsersIcon,
   ValueChainIcon,
 } from '../ui/icons';
+
+const VERSIONS_PATH_PATTERN = /^\/projects\/[^/]+\/versions(\/|$)/;
 
 interface NavItem {
   label: string;
@@ -38,6 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Inicio', icon: <HomeIcon />, to: '/app' },
   { label: 'Proyectos', icon: <FolderIcon />, to: '/projects' },
   { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon />, to: '/editor' },
+  { label: 'Versionado', icon: <BranchIcon />, key: 'versions' },
   { label: 'Simulaciones / Escenarios', icon: <FlaskIcon /> },
   { label: 'Comparar Escenarios', icon: <CompareIcon /> },
   { label: 'Reportes', icon: <ReportIcon /> },
@@ -63,11 +68,16 @@ export function Sidebar() {
 
   const showAdmin = user?.platformRole === 'ADMIN';
   const { owned } = useOwnedOrganizations();
-  const items = NAV_ITEMS.map((item) =>
-    item.key === 'team' && owned.length > 0
-      ? { ...item, to: `/organizations/${owned[0].id}` }
-      : item,
-  );
+  const { activeProject } = useActiveProject();
+  const items = NAV_ITEMS.map((item) => {
+    if (item.key === 'team' && owned.length > 0) {
+      return { ...item, to: `/organizations/${owned[0].id}` };
+    }
+    if (item.key === 'versions') {
+      return { ...item, to: activeProject ? `/projects/${activeProject.id}/versions` : '/versions' };
+    }
+    return item;
+  });
 
   return (
     <aside
@@ -118,6 +128,7 @@ export function Sidebar() {
 }
 
 function NavItemLink({ item, isCollapsed }: { item: NavItem; isCollapsed: boolean }) {
+  const location = useLocation();
   const label = isCollapsed ? null : <span className="truncate">{item.label}</span>;
   const padding = itemPadding(isCollapsed);
 
@@ -140,6 +151,26 @@ function NavItemLink({ item, isCollapsed }: { item: NavItem; isCollapsed: boolea
         {label}
         {!isCollapsed && <LockIcon className="ml-auto h-3.5 w-3.5 shrink-0 text-ink-400" />}
       </span>
+    );
+  }
+
+  if (item.key === 'versions') {
+    const isActive =
+      VERSIONS_PATH_PATTERN.test(location.pathname) || location.pathname === item.to;
+    return (
+      <Link
+        to={item.to}
+        title={isCollapsed ? item.label : undefined}
+        className={
+          `${itemBase} ${padding} ` +
+          (isActive
+            ? 'bg-brand-50 font-semibold text-brand-800'
+            : 'font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-700')
+        }
+      >
+        <span className="shrink-0">{item.icon}</span>
+        {label}
+      </Link>
     );
   }
 
