@@ -667,8 +667,8 @@ export function EditorPage() {
           projectId={projectId}
           open={isNewVersionModalOpen}
           onClose={() => setIsNewVersionModalOpen(false)}
-          onCreated={() => {
-            loadVersions();
+          onCreated={(createdId) => {
+            loadVersions(createdId);
           }}
           defaultParentId={versionId || undefined}
         />

@@ -16,7 +16,7 @@ export function groupPendingConflicts(conflicts: VersionConflict[]): ConflictGro
     if (conflict.resolved) {
       continue;
     }
-    const key = `${conflict.entityType}|${conflict.identityId}|${conflict.sourceVersionId}`;
+    const key = `${conflict.entityType}|${conflict.identityId}|${conflict.sourceVersionId ?? conflict.id}`;
     const group = groups.get(key) ?? { key, conflicts: [] };
     group.conflicts.push(conflict);
     groups.set(key, group);

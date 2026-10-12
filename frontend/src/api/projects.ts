@@ -13,6 +13,11 @@ import type {
 } from '../types/project';
 import type { AxiosResponse } from 'axios';
 
+interface CreatedVersion {
+  id: string;
+  name: string;
+}
+
 export const projectsApi = {
   /**
    * Projects visible to the caller: every project for platform admins, own
@@ -46,7 +51,7 @@ export const projectsApi = {
   createVersion: (
     projectId: string,
     data: { name: string; parentVersion?: string | null },
-  ): Promise<AxiosResponse<ApiResponse<unknown>>> =>
+  ): Promise<AxiosResponse<ApiResponse<CreatedVersion>>> =>
     client.post(`/projects/${projectId}/version`, data),
 
   deleteVersion: (versionId: string): Promise<AxiosResponse<ApiResponse<null>>> =>

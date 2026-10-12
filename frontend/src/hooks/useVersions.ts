@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { projectsApi } from '../api/projects';
 import { getErrorMessage, getErrorStatus } from '../api/errors';
 import type { VersionSummary } from '../types/diagram';
@@ -14,7 +14,7 @@ interface UseVersions {
   error: string | null;
   errorStatus: number | null;
   reload: () => Promise<void>;
-  createVersion: (data: CreateVersionData) => Promise<void>;
+  createVersion: (data: CreateVersionData) => Promise<string>;
   deleteVersion: (versionId: string) => Promise<void>;
   mergeVersion: (subId: string) => Promise<void>;
 }
@@ -24,14 +24,19 @@ export function useVersions(projectId: string | null): UseVersions {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  const loadedProjectRef = useRef<string | null>(null);
 
   const reload = useCallback(async () => {
     if (!projectId) {
+      loadedProjectRef.current = null;
       setVersions([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
+    const isInitialLoad = loadedProjectRef.current !== projectId;
+    if (isInitialLoad) {
+      setLoading(true);
+    }
     setError(null);
     setErrorStatus(null);
     try {
@@ -41,7 +46,10 @@ export function useVersions(projectId: string | null): UseVersions {
       setError(getErrorMessage(err, 'No se pudieron cargar las versiones'));
       setErrorStatus(getErrorStatus(err));
     } finally {
-      setLoading(false);
+      loadedProjectRef.current = projectId;
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
   }, [projectId]);
 
@@ -54,8 +62,9 @@ export function useVersions(projectId: string | null): UseVersions {
       if (!projectId) {
         throw new Error('No hay un proyecto seleccionado');
       }
-      await projectsApi.createVersion(projectId, { name: data.name, parentVersion: data.parentVersion });
+      const res = await projectsApi.createVersion(projectId, { name: data.name, parentVersion: data.parentVersion });
       await reload();
+      return res.data.data?.id ?? '';
     },
     [projectId, reload],
   );

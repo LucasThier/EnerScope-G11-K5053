@@ -107,7 +107,7 @@ export type ConflictDecision = 'ACCEPT' | 'REJECT';
 export interface VersionConflict {
   id: string;
   mergedVersionId: string;
-  sourceVersionId: string;
+  sourceVersionId: string | null;
   conflictingVersionId: string;
   conflictingVersionName: string;
   entityType: ConflictEntityType;

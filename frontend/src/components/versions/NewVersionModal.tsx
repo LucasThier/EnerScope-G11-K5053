@@ -11,7 +11,7 @@ interface NewVersionModalProps {
   projectId: string;
   open: boolean;
   onClose: () => void;
-  onCreated: () => Promise<void> | void;
+  onCreated: (versionId: string) => Promise<void> | void;
   defaultParentId?: string;
 }
 
@@ -63,11 +63,11 @@ export function NewVersionModal({
 
     setSubmitting(true);
     try {
-      await createVersion({
+      const createdId = await createVersion({
         name: trimmedName,
         parentVersion: versions.length > 0 ? parentVersionId : null,
       });
-      await onCreated();
+      await onCreated(createdId);
       onClose();
     } catch (err) {
       setSubmitError(getErrorMessage(err, 'No se pudo crear la versión'));
