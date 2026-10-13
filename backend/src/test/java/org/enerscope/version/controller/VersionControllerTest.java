@@ -11,6 +11,7 @@ import org.enerscope.session.service.SessionService;
 import org.enerscope.user.model.User;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
+import org.enerscope.version.service.VersionConflictService;
 import org.enerscope.version.service.VersionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,6 +64,8 @@ class VersionControllerTest {
     private VersionService versionService;
     @MockitoBean
     private SessionService sessionService;
+    @MockitoBean
+    private VersionConflictService versionConflictService;
     // GlobalExceptionHandler (@ControllerAdvice) needs an AppLogger bean to load.
     @MockitoBean
     private AppLogger logger;
