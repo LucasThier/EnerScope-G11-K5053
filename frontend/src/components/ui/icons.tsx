@@ -150,18 +150,18 @@ export function ChevronDownIcon(props: IconProps) {
   );
 }
 
-export function ChevronsLeftIcon(props: IconProps) {
+export function MenuIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="m11 17-5-5 5-5M18 17l-5-5 5-5" />
+      <path d="M4 7h16M4 12h16M4 17h16" />
     </Icon>
   );
 }
 
-export function ChevronsRightIcon(props: IconProps) {
+export function PinIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="m13 17 5-5-5-5M6 17l5-5-5-5" />
+      <path d="M9 4h6v5l2.5 4H6.5L9 9V4ZM12 13v7" />
     </Icon>
   );
 }
