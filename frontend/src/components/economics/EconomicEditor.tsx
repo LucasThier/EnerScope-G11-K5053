@@ -7,8 +7,8 @@ import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { TextField } from '../ui/TextField';
 
-function Select({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
-  return <label className="flex flex-col gap-2 text-sm font-medium text-ink-600">{label}<select className="rounded-lg border border-ink-300 bg-white px-3 py-2 text-ink-800 focus:ring-2 focus:ring-brand-400" value={value} onChange={e => onChange(e.target.value)}>{children}</select></label>;
+function Select({ label, value, onChange, children, hideLabel = false }: { hideLabel?: boolean; label: string; value: string; onChange: (value: string) => void; children: ReactNode }) {
+  return <label className="flex flex-col gap-2 text-sm font-medium text-ink-600"><span className={hideLabel ? 'sr-only' : undefined}>{label}</span><select className="min-w-0 max-w-full rounded-lg border border-ink-300 bg-white px-3 py-2 text-ink-800 focus:ring-2 focus:ring-brand-400" value={value} onChange={e => onChange(e.target.value)}>{children}</select></label>;
 }
 export const assumptions = 'Una entidad con participación del 100 %. Régimen hipotético: ingresos gravados, costos deducibles y depreciación lineal. Sin traslado de pérdidas. Cobros, pagos operativos e impuestos al cierre del mismo año. Sin inflación, financiamiento, cambio de moneda ni cobro automático del residual. Los costos físicos existentes no se importan.';
 
@@ -17,6 +17,8 @@ export function EconomicEditor({ draft: d, onChange, nodes, disabled, save, busy
   disabled: boolean; save: (simulate: boolean) => void; busy: boolean; dirty: boolean; discard: () => void;
 }) {
   const [section, setSection] = useState<Section>('General');
+  const [assetNodeFilter, setAssetNodeFilter] = useState('*');
+  const visibleAssets = d.assets.map((asset, index) => ({ asset, index })).filter(({ asset }) => assetNodeFilter === '*' || asset.nodeId === assetNodeFilter);
   const [attemptedSimulation, setAttemptedSimulation] = useState(false);
   const errors = validateDraft(d, nodes);
   const valid = Object.values(errors).every(e => !e.length);
@@ -34,24 +36,37 @@ export function EconomicEditor({ draft: d, onChange, nodes, disabled, save, busy
     from: String(Number(d.startYear) + 1), to: String(Number(d.startYear) + Number(d.years)),
   }] });
   const addAsset = () => onChange({ ...d, assets: [...d.assets, {
-    id: crypto.randomUUID(), concept: '', nodeId: '', cost: '', residual: '0',
+    id: crypto.randomUUID(), concept: '', nodeId: nodes.some(n => n.id === assetNodeFilter) ? assetNodeFilter : '', cost: '', residual: '0',
     purchase: d.startYear + '-12-31', service: String(Number(d.startYear) + 1) + '-01-01', life: '',
   }] });
   const nodeOptions = <>{nodes.map(n => <option key={n.id} value={n.id}>{n.name} · {n.type}</option>)}</>;
+  const actionBar = (label: string) => (<div role="group" aria-label={label} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink-200 bg-white p-4">
+      <Button variant="ghost" disabled={disabled || !dirty || busy} onClick={discard}>Descartar cambios</Button>
+      <div className="flex flex-wrap gap-3"><Button variant="secondary" disabled={disabled || busy} onClick={() => save(false)}>Guardar</Button>
+        <Button loading={busy} disabled={disabled || busy} onClick={() => {
+          setAttemptedSimulation(true);
+          if (!valid) { setAssetNodeFilter('*'); setSection(sections.find(s => errors[s].length) ?? 'General'); return; }
+          save(true);
+        }}>Guardar y simular</Button></div>
+    </div>);
   return <div className="space-y-4">
+    {actionBar('Acciones superiores')}
     <div className="grid gap-4 xl:grid-cols-[9rem_minmax(0,1fr)_13rem]">
       <nav aria-label="Secciones de configuración" className="flex flex-wrap gap-2 xl:flex-col">{sections.map(s =>
         <button key={s} type="button" onClick={() => setSection(s)} aria-current={section === s ? 'page' : undefined}
           className={'rounded-lg px-3 py-2 text-left text-sm ' + (section === s ? 'bg-brand-50 font-semibold text-brand-800' : 'text-ink-600 hover:bg-ink-100')}>{s}</button>)}</nav>
-      <Card><h2 className="mb-4 text-lg font-semibold text-ink-800">{section}</h2>
+      <Card><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold text-ink-800">{section === 'Inversion' ? 'Inversión' : section}</h2>
+        {section === 'Inversion' && <div className="mx-auto w-full min-w-0 sm:w-auto sm:max-w-full"><Select hideLabel label="Filtrar inversiones por nodo" value={assetNodeFilter} onChange={setAssetNodeFilter}>
+          <option value="*">Todos los nodos</option><option value="">General del escenario (sin nodo)</option>{nodeOptions}
+        </Select></div>}</div>
         <fieldset disabled={disabled || busy} className="min-w-0 space-y-5 disabled:opacity-75">
           {section === 'General' && <><div className="grid gap-4 sm:grid-cols-2">{field('startYear', 'Año de inversión')}{field('years', 'Años operativos')}
             <Select label="Moneda" value={d.currency} onChange={currency => onChange({ ...d, currency })}>{Intl.supportedValuesOf('currency').map(c => <option key={c}>{c}</option>)}</Select>
             {field('wacc', 'WACC anual (%)')}</div><p className="text-sm text-ink-500">La inversión corresponde al período 0. La operación comienza el año siguiente y abarca {d.years || '…'} años.</p></>}
-          {section === 'Impuestos' && <>{field('entityName', 'Nombre de la entidad')}{field('taxRate', 'Tasa de impuesto (%)')}<p className="text-sm leading-6 text-ink-500">{assumptions}</p></>}
+          {section === 'Impuestos' && <>{field('entityName', 'Nombre de la entidad')}{field('taxRate', 'Tasa de impuesto (%)')}</>}
           {section === 'Inversion' && <>
             <p className="text-sm text-ink-500">La compra y el pago se registran en la misma fecha. La depreciación comienza al poner el activo en servicio.</p>
-            {d.assets.map((a, i) => {
+            {visibleAssets.map(({ asset: a, index: i }) => {
               const update = (patch: Partial<AssetDraft>) => onChange({ ...d, assets: d.assets.map(old => old.id === a.id ? { ...a, ...patch } : old) });
               return <div key={a.id} className="space-y-4 rounded-lg border border-ink-200 p-4"><div className="flex items-center justify-between"><h3 className="font-semibold">Activo {i + 1}</h3><Button variant="ghost" onClick={() => onChange({ ...d, assets: d.assets.filter(old => old.id !== a.id) })}>Quitar</Button></div>
                 <TextField label="Concepto" maxLength={107} value={a.concept} onChange={e => update({ concept: e.target.value })} />
@@ -64,6 +79,7 @@ export function EconomicEditor({ draft: d, onChange, nodes, disabled, save, busy
                   <TextField label="Vida útil (meses)" value={a.life} onChange={e => update({ life: e.target.value })} />
                 </div></div>;
             })}
+            {!!d.assets.length && !visibleAssets.length && <p className="text-sm text-ink-500">No hay inversiones asociadas a este nodo.</p>}
             {!d.assets.length && <p className="text-sm text-ink-500">No agregaste activos. Sin inversión inicial neta, el recupero puede no aplicar.</p>}
             <Button variant="secondary" onClick={addAsset}>Agregar activo</Button>
           </>}
@@ -104,15 +120,7 @@ export function EconomicEditor({ draft: d, onChange, nodes, disabled, save, busy
       </Card>
     </div>
     {attemptedSimulation && !valid && <p role="alert" className="rounded-lg border border-ink-200 bg-white p-4 text-sm text-ink-700">No se ejecutó la simulación. Revisá los errores del resumen; abrimos la primera sección pendiente. Podés guardar el borrador para continuar después.</p>}
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink-200 bg-white p-4">
-      <Button variant="ghost" disabled={!dirty || busy} onClick={discard}>Descartar cambios</Button>
-      <div className="flex flex-wrap gap-3"><Button variant="secondary" disabled={disabled || busy} onClick={() => save(false)}>Guardar</Button>
-        <Button loading={busy} disabled={disabled || busy} onClick={() => {
-          setAttemptedSimulation(true);
-          if (!valid) { setSection(sections.find(s => errors[s].length) ?? 'General'); return; }
-          save(true);
-        }}>Guardar y simular</Button></div>
-    </div>
+    {actionBar('Acciones inferiores')}
     <p className="text-xs leading-5 text-ink-500">{assumptions}</p>
   </div>;
 }

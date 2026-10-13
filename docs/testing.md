@@ -26,11 +26,12 @@ Run everything with `cd backend && mvn test`.
 
 ## Summary
 
-Verified on 2026-10-12: **682 executions across 41 classes**, with zero failures, errors or skips. Counts include each parameterized invocation.
+Verified on 2026-10-12: **684 executions across 42 classes**, with zero failures, errors or skips. Counts include each parameterized invocation.
 
 | Test class | Type | Executions |
 | --- | --- | --- |
 | `ApplicationContextTest` | Integration | 1 |
+| `node.migration.ExportVerticalMigrationTest` | Data (JDBC/H2) | 2 |
 | `auth.controller.AuthControllerTest` | Web | 16 |
 | `common.CsvUtilTest` | Unit | 5 |
 | `economic.controller.EconomicControllerTest` | Web | 12 |
@@ -71,7 +72,7 @@ Verified on 2026-10-12: **682 executions across 41 classes**, with zero failures
 | `version.service.VersionConflictServiceTest` | Unit | 17 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 |
 | `version.service.VersionServiceTest` | Unit | 15 |
-| **Total** | | **682** |
+| **Total** | | **684** |
 
 ## `ApplicationContextTest` — Integration
 
@@ -1249,3 +1250,16 @@ Additional cases reconciled during the 2026-10-12 merge:
 | `resolveConflict_NodeReject_BothHaveIt_WritesEditChange` | resolve Conflict Node Reject Both Have It Writes Edit Change. |
 | `recordMergeConflicts_SiblingChangedDifferentIdentity_CreatesNothing` | record Merge Conflicts Sibling Changed Different Identity Creates Nothing. |
 | `resolveConflict_NodeAccept_OnlyParentHasIt_ClonesIntoSiblingSnapshot` | resolve Conflict Node Accept Only Parent Has It Clones Into Sibling Snapshot. |
+
+## `node.migration.ExportVerticalMigrationTest` — Data (JDBC/H2)
+
+Executes the actual V15 SQL resource against an isolated H2 table in PostgreSQL mode.
+
+| Case | Verifies |
+| --- | --- |
+| `normalizesLegacyExportsWithoutChangingOtherNodeData` | Converts active and inactive legacy Cyrillic exports to the current Java enum; preserves identifiers, active flags, current exports and all other verticals. |
+| `migrationAcceptsFreshDatabaseWithoutNodes` | The migration succeeds on an empty table without creating data. |
+
+### Investment filter and duplicate actions (browser acceptance)
+
+`frontend/tests/economic-browser.mjs` additionally checks node/general filtering without dirtying the draft; saving hidden investments through the lower bar; editing node membership; empty matches; adding under the selected node; validating hidden invalid assets through the upper bar and clearing the filter; mobile width; and viewer restrictions on both action bars. Existing save/error/double-submit checks use the upper bar.

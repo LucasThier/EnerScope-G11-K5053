@@ -2099,3 +2099,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - 2026-10-12 — Integrated master version-conflict support into modulo-resultados-v2. The incoming V12__create_version_conflict_tables.sql is V14 on this branch because V12 aligns operational columns and V13 stores economic drafts. Existing branch migration contents are unchanged. Database histories from master need reconciliation before deployment; this merge does not migrate or reset a database. Retained the mutable-empty-snapshot regression test alongside the incoming version tests.
 
 - 2026-10-12 — Merge verification: 682 backend executions across 41 classes passed without failures, errors or skips, using a fresh isolated build directory to avoid stale/locked target classes. Frontend: 24 tests, build and lint passed. The original Maven POM is unchanged.
+
+- 2026-10-12 — V15 normalizes the legacy Cyrillic export vertical in node_type_data to ASCII EXPORT after the enum rename from master. Both active and inactive rows are covered; node identifiers, other verticals and immutable economic snapshots are preserved. Existing migration files are unchanged.
+
+- 2026-10-12 — Investment node filtering is view-only: all/general/per-node options preserve the full draft for saving and validation. Adding under a node filter preselects that node. Failed simulation clears the filter to reveal invalid assets. Top and bottom action groups share handlers and busy/permission state.
+
+- 2026-10-13 — Investment filter header now hides its visible label while retaining its accessible name, centers the selector beside the section heading, and removes the visible investment-count/save hint. Filtering and persistence are unchanged.
