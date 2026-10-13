@@ -135,6 +135,9 @@ CREATE TABLE  flng_unit (
     intermediate_storage      REAL,
     vessel_depth              REAL,
     hiring_cost        NUMERIC(19,2)              NOT NULL,
+    gas_consumption            REAL,
+    ship_capacity          INTEGER,
+
     -- Foreign keys (inherited from BaseNode)
 
     PRIMARY KEY (id),
