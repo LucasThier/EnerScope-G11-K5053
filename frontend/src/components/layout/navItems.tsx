@@ -14,6 +14,7 @@ import {
 } from '../ui/icons';
 
 export const VERSIONS_PATH_PATTERN = /^\/projects\/[^/]+\/versions(\/|$)/;
+export const PROJECTS_PATH_PATTERN = /^\/projects(\/[^/]+\/team)?\/?$/;
 
 export interface NavItem {
   label: string;
@@ -21,6 +22,7 @@ export interface NavItem {
   key?: string;
   /** Absent until the section has a page; the entry renders locked instead of linking nowhere. */
   to?: string;
+  matchPattern?: RegExp;
 }
 
 /**
@@ -30,9 +32,9 @@ export interface NavItem {
  */
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Inicio', icon: <HomeIcon />, to: '/app' },
-  { label: 'Proyectos', icon: <FolderIcon />, to: '/projects' },
+  { label: 'Proyectos', icon: <FolderIcon />, to: '/projects', matchPattern: PROJECTS_PATH_PATTERN },
   { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon />, to: '/editor' },
-  { label: 'Versionado', icon: <BranchIcon />, key: 'versions' },
+  { label: 'Versionado', icon: <BranchIcon />, to: '/versions', matchPattern: VERSIONS_PATH_PATTERN },
   { label: 'Simulaciones / Escenarios', icon: <FlaskIcon /> },
   { label: 'Comparar Escenarios', icon: <CompareIcon /> },
   { label: 'Reportes', icon: <ReportIcon /> },

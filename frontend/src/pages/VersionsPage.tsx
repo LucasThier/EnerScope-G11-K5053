@@ -95,10 +95,10 @@ export function VersionsPage() {
     return null;
   }
   if (errorStatus === 403) {
-    return <Navigate to="/projects" replace />;
+    return <Navigate to="/versions" replace />;
   }
   if (!projectsLoading && !projects.some((candidate) => candidate.id === projectId)) {
-    return <Navigate to="/projects" replace />;
+    return <Navigate to="/versions" replace />;
   }
   if (loading) {
     return <PageLoader />;
@@ -108,8 +108,8 @@ export function VersionsPage() {
     <div>
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link to="/projects" className="text-sm font-semibold text-brand-800 hover:underline">
-            ← Proyectos
+          <Link to="/versions" className="text-sm font-semibold text-brand-800 hover:underline">
+            ← Versionado
           </Link>
           <h1 className="mt-2 text-2xl font-semibold text-ink-800">Versionado</h1>
           <p className="mt-1 text-sm text-ink-500">{project?.name ?? 'el proyecto'}</p>

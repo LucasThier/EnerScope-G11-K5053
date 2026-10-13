@@ -35,6 +35,16 @@ function translate(message: string): string {
   return prefixed ? prefixed[1] : message;
 }
 
+const TRANSPORT_MESSAGES: RegExp[] = [
+  /^Network Error$/,
+  /^timeout of .* exceeded$/,
+  /^Request failed with status code \d+$/,
+];
+
+function isTransportMessage(message: string): boolean {
+  return TRANSPORT_MESSAGES.some((pattern) => pattern.test(message));
+}
+
 /**
  * Pulls a human-readable message out of a failed request, preferring the
  * backend's ApiResponse.message envelope and falling back to a default.
@@ -44,6 +54,9 @@ export function getErrorMessage(error: unknown, fallback = 'Algo salió mal'): s
     const data = error.response?.data as ApiResponse<unknown> | undefined;
     if (data?.message) {
       return translate(data.message);
+    }
+    if (!error.response || isTransportMessage(error.message)) {
+      return fallback;
     }
     return error.message || fallback;
   }

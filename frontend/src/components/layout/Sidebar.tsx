@@ -1,10 +1,9 @@
 import { useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { useActiveProject } from '../../hooks/useActiveProject';
 import { useAuth } from '../../hooks/useAuth';
 import { useOwnedOrganizations } from '../../hooks/useOwnedOrganizations';
 import { useSidebar } from '../../hooks/useSidebar';
-import { ADMIN_ITEMS, NAV_ITEMS, VERSIONS_PATH_PATTERN, type NavItem } from './navItems';
+import { ADMIN_ITEMS, NAV_ITEMS, type NavItem } from './navItems';
 import { LockIcon, PinIcon } from '../ui/icons';
 
 const FOCUSABLE = 'a[href], button:not(:disabled), [tabindex]:not([tabindex="-1"])';
@@ -30,16 +29,11 @@ export function Sidebar() {
 
   const showAdmin = user?.platformRole === 'ADMIN';
   const { owned } = useOwnedOrganizations();
-  const { activeProject } = useActiveProject();
-  const items = NAV_ITEMS.map((item) => {
-    if (item.key === 'team' && owned.length > 0) {
-      return { ...item, to: `/organizations/${owned[0].id}` };
-    }
-    if (item.key === 'versions') {
-      return { ...item, to: activeProject ? `/projects/${activeProject.id}/versions` : '/versions' };
-    }
-    return item;
-  });
+  const items = NAV_ITEMS.map((item) =>
+    item.key === 'team' && owned.length > 0
+      ? { ...item, to: `/organizations/${owned[0].id}` }
+      : item,
+  );
 
   useEffect(() => {
     if (!isVisible || (origin !== 'keyboard' && !isDrawer)) {
@@ -172,9 +166,9 @@ function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate: () => vo
     );
   }
 
-  if (item.key === 'versions') {
+  if (item.matchPattern) {
     const isActive =
-      VERSIONS_PATH_PATTERN.test(location.pathname) || location.pathname === item.to;
+      item.matchPattern.test(location.pathname) || location.pathname === item.to;
     return (
       <Link
         to={item.to}
