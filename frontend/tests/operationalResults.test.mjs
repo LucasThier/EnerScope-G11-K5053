@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 const source = await readFile(new URL('../src/utils/operationalResults.ts', import.meta.url), 'utf8');
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
-const { operationalNodes, operationalRows, operationalTotal, operationalNumber, operationalYear } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
+const { operationalDisplay, operationalNodes, operationalRows, operationalTotal, operationalNumber, operationalYear } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 const row = (nodeId, period, output) => ({ nodeId, period, output, input: 0, exported: 0, losses: 0, operatingHours: 8760, events: 0 });
 const evaluation = { snapshot: { configuration: { startYear: 2030, years: 2 }, physicalNodes: [{ id: 'a', name: 'Nombre histórico' }], rawMetrics: [row('a', 2, 40), row('b', 1, 900), row('a', 1, 60)] } };
 test('uses saved node names and falls back to identifiers without current scenario data', () => {
@@ -36,4 +36,22 @@ test('incomplete or duplicate annual periods cannot produce a horizon total', ()
 test('legacy evaluations without raw metrics retain an empty operational view', () => {
   assert.deepEqual(operationalNodes({ snapshot: {} }), []);
   assert.deepEqual(operationalRows({ snapshot: { rawMetrics: null } }, 'a'), []);
+});
+
+test('converts saved volumes and totals without changing hours or source metrics', () => {
+ const e = structuredClone(evaluation);
+ e.snapshot.configuration.conversions = [{ nodeId: 'a', metric: 'OUTPUT_VOLUME', unit: 'm³', factor: 2 }];
+ const { rows, units } = operationalDisplay(e, 'a');
+ assert.equal(operationalTotal(rows, 'output', 2), 200);
+ assert.equal(units.output, 'm³'); assert.equal(units.losses, 'm³');
+ assert.equal(rows[0].operatingHours, 8760); assert.equal(e.snapshot.rawMetrics[2].output, 60);
+ assert.equal(operationalDisplay(e, 'b').units.output, 'u. sim.');
+});
+test('different metric conversions preserve unknown losses and missing values', () => {
+ const e = structuredClone(evaluation);
+ e.snapshot.configuration.conversions = [{ nodeId: 'a', metric: 'OUTPUT_VOLUME', unit: 'm³', factor: 2 }, { nodeId: 'a', metric: 'EXPORTED_VOLUME', unit: 't', factor: 0.5 }];
+ e.snapshot.rawMetrics[2].exported = null;
+ const { rows, units } = operationalDisplay(e, 'a');
+ assert.equal(units.output, 'm³'); assert.equal(units.exported, 't'); assert.equal(units.losses, 'u. sim.');
+ assert.equal(rows[0].exported, null); assert.equal(rows[1].exported, 0);
 });

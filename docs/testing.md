@@ -1263,3 +1263,17 @@ Executes the actual V15 SQL resource against an isolated H2 table in PostgreSQL 
 ### Investment filter and duplicate actions (browser acceptance)
 
 `frontend/tests/economic-browser.mjs` additionally checks node/general filtering without dirtying the draft; saving hidden investments through the lower bar; editing node membership; empty matches; adding under the selected node; validating hidden invalid assets through the upper bar and clearing the filter; mobile width; and viewer restrictions on both action bars. Existing save/error/double-submit checks use the upper bar.
+
+### Economic result presentation — 2026-10-13
+
+Frontend total: 26 unit cases (20 economic editor/formatting, 6 operational).
+- economicDraft.test.mjs — unit: NPV display rounds upward without changing cash flow precision: positive/negative/integer VAN, missing values, and unchanged monetary precision.
+- economicDraft.test.mjs — unit: calculated annual IRR displays exactly two percentage decimals: fractional, zero, negative and missing rates.
+- Existing payback status test now expects capitalized Año.
+- results-browser.mjs — browser acceptance: rounded VAN/TIR and payback label; positive/negative bar tooltip on hover, keyboard focus and dismissal; no backend mutations.
+
+- results-browser.mjs — browser acceptance: cash-flow entry animation, tooltip follows pointer movement, reduced-motion disables animation; existing keyboard and responsive checks retained. Unit case count remains 26.
+
+- results-browser.mjs — browser acceptance: operational chart animates on tab entry and node change, reduced motion suppresses it, and hours appear next to the accumulated value. Unit test count remains 26.
+
+- operationalResults.test.mjs — unit: converts saved volumes and totals without changing hours or source metrics; different metric conversions preserve unknown losses and missing values. Total: 28 unit cases (20 economic, 8 operational). Browser acceptance verifies converted totals and units.

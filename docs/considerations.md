@@ -2105,3 +2105,11 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - 2026-10-12 — Investment node filtering is view-only: all/general/per-node options preserve the full draft for saving and validation. Adding under a node filter preselects that node. Failed simulation clears the filter to reveal invalid assets. Top and bottom action groups share handlers and busy/permission state.
 
 - 2026-10-13 — Investment filter header now hides its visible label while retaining its accessible name, centers the selector beside the section heading, and removes the visible investment-count/save hint. Filtering and persistence are unchanged.
+
+- 2026-10-13 — Economic result cards display VAN rounded toward positive infinity to whole currency units and annual IRR with two percentage decimals. Stored calculations and cash-flow precision are unchanged. Chart bars expose year and cash flow on hover or keyboard focus.
+
+- 2026-10-13 — Cash-flow bars animate from the zero baseline when economic results become active, respecting reduced-motion preferences. The tooltip follows the pointer, anchors to keyboard focus, stays within the viewport, and dismisses on scroll/resize/Escape.
+
+- 2026-10-13 — Operational bars animate from zero when entering the tab or changing nodes, respecting reduced motion. Summary units appear beside numeric totals. Simulator volumes remain generic until an explicit physical unit or commercial conversion is chosen; raw volumes must not be relabeled as commercial units.
+
+- 2026-10-13 — Operational displays apply immutable saved commercial conversions by node/metric. A unique common node conversion also covers unconfigured volume metrics; ambiguous or missing conversions retain simulator units. Hours/events are unchanged. Differing output/export units use explicitly labeled independent chart scales.

@@ -88,7 +88,7 @@ test('depreciation concepts cannot collide with operating expenses', () => {
 test('payback statuses distinguish no recovery, not applicable, insufficient data and failure', () => {
   for (const status of ['NOT_RECOVERED_WITHIN_HORIZON', 'NOT_APPLICABLE', 'INSUFFICIENT_DATA', 'NUMERICAL_FAILURE'])
     assert.ok(paybackText({ status, period: null, year: null, becomesNegativeAgain: false }).length);
-  assert.equal(paybackText({ status: 'RECOVERED', period: 2, year: 2032, becomesNegativeAgain: true }), 'Período 2 · año 2032');
+  assert.equal(paybackText({ status: 'RECOVERED', period: 2, year: 2032, becomesNegativeAgain: true }), 'Período 2 · Año 2032');
 });
 test('unsupported drivers remain read only and missing currency is never assumed', () => {
   const c = toConfiguration(draft());
@@ -122,4 +122,20 @@ test('asset validation identifies purchase range and service date independently'
   const errors = validateDraft(d, nodes).Inversion;
   assert.ok(errors.some(e => e.includes('Plant: compra y pago') && e.includes('2030 y 2035')));
   assert.ok(errors.some(e => e.includes('Plant: la puesta en servicio')));
+});
+
+test('NPV display rounds upward without changing cash flow precision', () => {
+  const plain = value => value.replace(/\s/g, ' ');
+  assert.equal(plain(money(953935.24, 'USD', true)), 'USD 953.936');
+  assert.equal(plain(money(-953935.24, 'USD', true)), '-USD 953.935');
+  assert.equal(plain(money(12, 'USD', true)), 'USD 12');
+  assert.equal(plain(money(12.24, 'USD')), 'USD 12,24');
+  assert.equal(money(null, 'USD', true), 'No disponible');
+  assert.equal(money(Infinity, 'USD', true), 'No disponible');
+});
+test('calculated annual IRR displays exactly two percentage decimals', () => {
+  assert.equal(irrText({ status: 'CALCULATED', rate: 0.325727 }), '32,57%');
+  assert.equal(irrText({ status: 'CALCULATED', rate: 0 }), '0,00%');
+  assert.equal(irrText({ status: 'CALCULATED', rate: -0.123456 }), '-12,35%');
+  assert.equal(irrText({ status: 'CALCULATED', rate: null }), 'No disponible');
 });

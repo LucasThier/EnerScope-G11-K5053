@@ -32,3 +32,27 @@ export function operationalTotal(rows: AnnualNodeMetrics[], field: OperationalFi
   const total = rows.reduce((sum, r) => sum + (r[field] as number), 0);
   return Number.isFinite(total) ? total : null;
 }
+
+// Use only the immutable evaluation's conversions, never current editor values.
+export function operationalDisplay(evaluation: Evaluation, nodeId: string) {
+  const conversions = (evaluation.snapshot.configuration?.conversions ?? []).filter(c => c.nodeId === nodeId &&
+    ['INPUT_VOLUME', 'OUTPUT_VOLUME', 'EXPORTED_VOLUME'].includes(c.metric) && c.unit.trim() && Number.isFinite(c.factor) && c.factor > 0);
+  const common = conversions.length && conversions.every(c => c.unit === conversions[0].unit && c.factor === conversions[0].factor) ? conversions[0] : undefined;
+  const metrics = { input: 'INPUT_VOLUME', output: 'OUTPUT_VOLUME', exported: 'EXPORTED_VOLUME', losses: '' };
+  const units: Record<OperationalField, string> = { input: 'u. sim.', output: 'u. sim.', exported: 'u. sim.', losses: 'u. sim.', operatingHours: 'h', events: 'eventos' };
+  const factors: Partial<Record<OperationalField, number>> = {};
+  for (const field of ['input', 'output', 'exported', 'losses'] as const) {
+    const matches = conversions.filter(c => c.metric === metrics[field]);
+    const conversion = matches.length ? (matches.every(c => c.unit === matches[0].unit && c.factor === matches[0].factor) ? matches[0] : undefined) : common;
+    if (conversion) { units[field] = conversion.unit; factors[field] = conversion.factor; }
+  }
+  const rows = operationalRows(evaluation, nodeId).map(row => {
+    const result = { ...row };
+    for (const field of ['input', 'output', 'exported', 'losses'] as const) {
+      const value = row[field];
+      if (value != null) { const converted = value * (factors[field] ?? 1); result[field] = Number.isFinite(converted) ? converted : null; }
+    }
+    return result;
+  });
+  return { rows, units };
+}

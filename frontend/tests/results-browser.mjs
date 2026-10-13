@@ -8,6 +8,7 @@ const source = await readFile(new URL('../src/utils/economicDraft.ts', import.me
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
 const { emptyDraft, toConfiguration } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 const configuration = toConfiguration({ ...emptyDraft(), startYear: '2030', years: '5', currency: 'USD', wacc: '10', entityName: 'Operadora de ejemplo', taxRate: '30' });
+configuration.conversions = [{ nodeId: 'n2', metric: 'OUTPUT_VOLUME', rawUnit: 'SIMULATOR_UNIT', unit: 'm³', factor: 2, annualQuantity: null }];
 const rawMetrics = [1, 2, 3, 4, 5].flatMap((period, i) => [
   { nodeId: 'n1', period, input: 0, output: 120000 - i * 8000, exported: 0, losses: 2000 + i * 100, operatingHours: 8200, events: 2 },
   { nodeId: 'n2', period, input: 100000 - i * 7000, output: 95000 - i * 7000, exported: 90000 - i * 7000, losses: 5000, operatingHours: 7900, events: 3 },
@@ -46,9 +47,36 @@ try {
   const base = (process.env.APP_URL || 'http://127.0.0.1:5173') + '/projects/p1/versions/v1/economics';
   await page.goto(base + '/results');
   await page.getByRole('heading', { name: 'VAN', exact: true }).waitFor();
+  await page.getByText('USD 24.185', { exact: true }).waitFor();
+  await page.getByText('20,00%', { exact: true }).waitFor();
+  await page.getByText('Período 3 · Año 2033', { exact: true }).waitFor();
+  const bars = page.locator('svg rect[tabindex="0"]');
+  assert.equal(await bars.first().evaluate(el => el.getAnimations().length), 1);
+  await bars.first().evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
+  await bars.first().hover({ position: { x: 5, y: 20 } });
+  const tooltipBefore = await page.getByRole('tooltip').boundingBox();
+  await bars.first().hover({ position: { x: 15, y: 50 } });
+  const tooltipAfter = await page.getByRole('tooltip').boundingBox();
+  assert.ok(Math.abs(tooltipAfter.x - tooltipBefore.x - 10) < 2);
+  assert.ok(Math.abs(tooltipAfter.y - tooltipBefore.y - 30) < 2);
+  assert.match(await page.getByRole('tooltip').innerText(), /Año 2030.*-USD\s100\.000,00/);
+  await bars.nth(1).hover();
+  assert.match(await page.getByRole('tooltip').innerText(), /Año 2031.*USD\s40\.000,00/);
+  await page.getByRole('heading', { name: 'VAN', exact: true }).hover();
+  assert.equal(await page.getByRole('tooltip').count(), 0);
+  await bars.first().focus();
+  await bars.first().press('Tab');
+  assert.match(await page.getByRole('tooltip').innerText(), /Año 2031/);
+  await bars.nth(1).evaluate(el => el.blur());
+  assert.equal(await page.getByRole('tooltip').count(), 0);
   await page.screenshot({ path: output + '/02-economic-results.png', fullPage: true });
   await page.getByRole('tab', { name: 'Operativos', exact: true }).click();
+  const operationalBars = page.locator('#panel-operational svg rect');
+  assert.equal(await operationalBars.first().evaluate(el => el.getAnimations().length), 1);
   await page.getByLabel('Nodo de la evaluación').selectOption('n2');
+  assert.equal(await operationalBars.first().evaluate(el => el.getAnimations().length), 1);
+  await page.getByText('39.500 h', { exact: true }).waitFor();
+  await page.getByText('810.000 m³', { exact: true }).waitFor();
   assert.equal(await page.getByRole('option', { name: 'Nombre actual diferente' }).count(), 0);
   await page.getByRole('rowheader', { name: '2031 / 1', exact: true }).waitFor();
   await page.screenshot({ path: output + '/01-operational-results.png', fullPage: true });
@@ -74,6 +102,13 @@ try {
   await page.getByRole('heading', { name: 'Sin datos operativos guardados' }).waitFor();
   await page.getByRole('tab', { name: 'Económicos', exact: true }).click();
   await page.getByRole('heading', { name: 'VAN', exact: true }).waitFor();
+  await page.goto(base + '/results');
+  await page.getByRole('heading', { name: 'VAN', exact: true }).waitFor();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByRole('tab', { name: 'Operativos', exact: true }).click();
+  assert.equal(await operationalBars.first().evaluate(el => el.getAnimations().length), 0);
+  await page.getByRole('tab', { name: 'Económicos', exact: true }).click();
+  assert.equal(await bars.first().evaluate(el => el.getAnimations().length), 0);
   assert.equal(mutations, 0); assert.deepEqual(errors, []);
   console.log('PASS: result tabs and keyboard, saved node names/year, node filtering, historical/missing metrics, legacy economics, viewer read-only, desktop/mobile; zero mutations. Screenshots: ' + output);
 } finally { await browser.close(); }

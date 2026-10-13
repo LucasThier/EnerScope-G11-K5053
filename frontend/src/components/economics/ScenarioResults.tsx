@@ -15,7 +15,7 @@ export function ScenarioResults({ evaluation }: { evaluation: Evaluation }) {
         setTab(tabs[next][0]); document.getElementById('tab-' + tabs[next][0])?.focus();
       }} className={'rounded-lg px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-brand-800 ' + (tab === key ? 'bg-brand-50 text-brand-800' : 'text-ink-600 hover:bg-ink-50')}>{label}</button>)}</div>
     </div>
-    <div role="tabpanel" id="panel-operational" aria-labelledby="tab-operational" hidden={tab !== 'operational'}><OperationalResults evaluation={evaluation} /></div>
-    <div role="tabpanel" id="panel-economic" aria-labelledby="tab-economic" hidden={tab !== 'economic'}><EconomicResults evaluation={evaluation} /></div>
+    <div role="tabpanel" id="panel-operational" aria-labelledby="tab-operational" hidden={tab !== 'operational'}><OperationalResults evaluation={evaluation} active={tab === 'operational'} /></div>
+    <div role="tabpanel" id="panel-economic" aria-labelledby="tab-economic" hidden={tab !== 'economic'}><EconomicResults evaluation={evaluation} active={tab === 'economic'} /></div>
   </div>;
 }
