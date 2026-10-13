@@ -1,28 +1,46 @@
 package org.enerscope.simulator.simNode;
 
-import org.enerscope.node.model.export.SeaportTerminal;
+import lombok.Getter;
+import lombok.Setter;
 import org.enerscope.node.model.transportation.PipelineConnection;
-import org.enerscope.simulator.ResultPerNode;
+import org.enerscope.simulator.auxiliary.ToDeliver;
+import org.enerscope.simulator.results.ResultPerNode;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Getter
+@Setter
 public class SimPipelineConnection extends SimBaseNode{
     private float transferCapacity;
     private float outputPriority;
-    private List<SimBaseNode> nodesBefore;
+    private SimBaseNode nodeBefore;
 
     public SimPipelineConnection(PipelineConnection pipelineConnection){
         super(pipelineConnection);
         this.transferCapacity = pipelineConnection.getTransferCapacity();
         this.outputPriority = pipelineConnection.getOutputPriority();
-        nodesBefore = new ArrayList<>();
-        //#############
+    }
+
+    @Override
+    protected void activeAction(int time){
+        ToDeliver totalArrived = nodeBefore.getToDeliver();
+
+        float capacity = Math.min(transferCapacity, transferCapacity - toDeliver.getAmount());
+        float toGather = totalArrived.getAmount();
+        maxPossibleProduced += transferCapacity;
+
+        if (toGather >= capacity){
+            toDeliver.mix(totalArrived.deliver(capacity));
+        } else {
+            toDeliver.mix(totalArrived.deliver(toGather));
+        }
+
     }
 
     @Override
     public void addPreviousNode(SimBaseNode simBaseNode){
-        nodesBefore.add(simBaseNode);
+        nodeBefore = simBaseNode;
     }
 
     @Override
@@ -39,7 +57,11 @@ public class SimPipelineConnection extends SimBaseNode{
 
     @Override
     public ResultPerNode createResult() {
-        // TODO: Averiguar donde se utiliza esto (2->PipelineConnection)
         return new ResultPerNode(this.id, PipelineConnection.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
+    }
+
+    @Override
+    public boolean readyToBeProcessed(int time) {
+        return nodeBefore.getLastSimulatedTime() == time;
     }
 }

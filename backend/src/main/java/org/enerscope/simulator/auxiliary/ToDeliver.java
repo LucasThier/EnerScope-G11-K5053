@@ -1,4 +1,4 @@
-package org.enerscope.simulator;
+package org.enerscope.simulator.auxiliary;
 
 import lombok.Getter;
 import lombok.Setter;

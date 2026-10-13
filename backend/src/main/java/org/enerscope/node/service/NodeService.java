@@ -22,6 +22,10 @@ import org.enerscope.node.model.export.SeaportTerminal;
 import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
 import org.enerscope.node.repository.*;
+import org.enerscope.probabilistic.ConstantValue;
+import org.enerscope.probabilistic.NormalDistributionCase;
+import org.enerscope.probabilistic.ProbabilisticDistribution;
+import org.enerscope.probabilistic.UniformDistributionCase;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -102,6 +106,15 @@ public class NodeService {
       return component;
    }
 
+   private ProbabilisticDistribution DTOtoEntity(ProbabilisticDistributionDTO data){
+      return switch (data.getType()) {
+         case "CONSTANT" -> new ConstantValue(data.getVal_a());
+         case "UNIFORM" -> new UniformDistributionCase(data.getVal_a(), data.getVal_b());
+         case "NORMAL" -> new NormalDistributionCase(data.getVal_a(), data.getVal_b());
+         default -> throw new IllegalArgumentException("Tipo de distribución no soportado: " + data.getType());
+      };
+   }
+
    public InvestmentCost DTOtoEntity(InvestmentCostDTO data) {
 
       List<InvestmentCostComponent> componentEntities = data.getComponents().stream()
@@ -120,7 +133,7 @@ public class NodeService {
             data.getWastePercentage(),
             this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()),
             (data.getIdentity() != null) ? data.getIdentity() : UUID.randomUUID(),
-            this.DTOtoEntity(data.getType()), data.getMaxCollectionCapacity(), data.getDeclineCurve(),
+            this.DTOtoEntity(data.getType()), data.getMaxCollectionCapacity(), this.DTOtoEntity(data.getDeclineCurve()),
             data.getGasRichness(), data.getDTMTime(), MoneyAmount.of(data.getDTMCost()), data.getSurface());
 
       Well saved = wellRepository.save(well);
@@ -219,7 +232,7 @@ public class NodeService {
             this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), data.getIdentity(),
             this.DTOtoEntity(data.getType()), data.getMaxProcessingCapacity(), data.getMTPARatio(),
             data.getIntermediateStorage(),
-            data.getVesselDepth(), MoneyAmount.of(data.getHiringCost()));
+            data.getVesselDepth(), MoneyAmount.of(data.getHiringCost()),data.getShipCapacity(), data.getGasConsumption());
 
       FLNGUnit saved = flngUnitRepository.save(flngUnit);
 
@@ -331,7 +344,11 @@ public class NodeService {
 
       // Update Well-specific fields
       well.setMaxCollectionCapacity(dto.getMaxCollectionCapacity());
-      well.setDeclineCurve(dto.getDeclineCurve());
+
+      if (dto.getDeclineCurve() != null) {
+         well.setDeclineCurve(DTOtoEntity(dto.getDeclineCurve()));
+      }
+
       well.setGasRichness(dto.getGasRichness());
       well.setDTMTime(dto.getDTMTime());
       well.setDTMCost(dto.getDTMCost() != null ? MoneyAmount.of(dto.getDTMCost()) : null);
@@ -502,6 +519,8 @@ public class NodeService {
       unit.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
       unit.setOperatingCosts(dto.getOperatingCosts() != null ? MoneyAmount.of(dto.getOperatingCosts()) : null);
       unit.setWastePercentage(dto.getWastePercentage());
+      unit.setShipCapacity(dto.getShipCapacity());
+      unit.setGasConsumption(dto.getShipCapacity());
 
       // Update related entities
       if (dto.getInvestmentCost() != null) {

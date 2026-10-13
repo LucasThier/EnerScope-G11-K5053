@@ -9,6 +9,7 @@ import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.repository.WellRepository;
+import org.enerscope.probabilistic.ConstantValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -105,7 +106,7 @@ class NodeServiceTest {
                 StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
 
         wellDTO.setMaxCollectionCapacity(1000.0f);
-        wellDTO.setDeclineCurve(0.05f);
+        wellDTO.setDeclineCurve(new ProbabilisticDistributionDTO("CONSTANT",0.05f,null));
         wellDTO.setGasRichness(0.3f);
         wellDTO.setDTMTime(15);
         wellDTO.setDTMCost(150.000f);
@@ -124,7 +125,7 @@ class NodeServiceTest {
         assertTrue(foundWell.isPresent());
         assertEquals("Test Well", foundWell.get().getName());
         assertEquals(1000.0f, foundWell.get().getMaxCollectionCapacity());
-        assertEquals(0.05f, foundWell.get().getDeclineCurve());
+        assertEquals(0.05f, foundWell.get().getDeclineCurve().generateValue());
     }
 
     @Test
@@ -137,7 +138,7 @@ class NodeServiceTest {
         Well well = new Well("Original", NodeStateEnum.PROPOSED, Instant.now(), 120,
                 MoneyAmount.of(1000), 30, MoneyAmount.of(500),
                 0.1f, null, null, originalIdentity, null,
-                10f, 0.5f, 0.5f, 5, MoneyAmount.of(50), 100f);
+                10f, new ConstantValue(0.5f), 0.5f, 5, MoneyAmount.of(50), 100f);
 
         WellDTO editDTO = new WellDTO();
         editDTO.setName("Edited");
@@ -146,7 +147,7 @@ class NodeServiceTest {
         editDTO.setMaintenanceIntervalInDays(30);
         editDTO.setWastePercentage(0.1f);
         editDTO.setMaxCollectionCapacity(10f);
-        editDTO.setDeclineCurve(0.5f);
+        editDTO.setDeclineCurve(new ProbabilisticDistributionDTO("CONSTANT",0.5f,null));
         editDTO.setGasRichness(0.5f);
         editDTO.setDTMTime(5);
         editDTO.setSurface(100f);

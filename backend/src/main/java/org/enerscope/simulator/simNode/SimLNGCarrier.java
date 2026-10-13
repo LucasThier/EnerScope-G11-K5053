@@ -1,17 +1,18 @@
 package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.export.LNGCarrier;
-import org.enerscope.simulator.ResultPerNode;
-import org.enerscope.simulator.ToDeliver;
+import org.enerscope.simulator.auxiliary.ISeaTerminal;
+import org.enerscope.simulator.results.ResultPerNode;
+import org.enerscope.simulator.auxiliary.ToDeliver;
 
-import static org.enerscope.simulator.FlagOfInactivity.OverLifeSpan;
+import static org.enerscope.simulator.auxiliary.FlagOfInactivity.OverLifeSpan;
 
 public class SimLNGCarrier extends SimBaseNode{
     private int exportFrequency;
     private float shipCapacity;
     private float fullLoadTime;
     private int timeToDestination;
-    private SimSeaportTerminal simSeaportTerminal;
+    private ISeaTerminal simSeaportTerminal;
     private boolean isInPort;
     private float amountToTake;
     private float amountInTank;
@@ -87,11 +88,21 @@ public class SimLNGCarrier extends SimBaseNode{
 
     @Override
     public void addPreviousNode(SimBaseNode simBaseNode){
-        simSeaportTerminal = (SimSeaportTerminal) simBaseNode;
+        if (simBaseNode instanceof SimSeaportTerminal){
+            simSeaportTerminal = (SimSeaportTerminal) simBaseNode;
+        } else if (simBaseNode instanceof SimFLNGUnit){
+            simSeaportTerminal = (SimFLNGUnit) simBaseNode;
+        }
     }
 
     @Override
     public ResultPerNode createResult() {
         return new ResultPerNode(this.id, LNGCarrier.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
+    }
+    @Override
+    public void reset() {
+        super.reset();
+        isInPort = false;
+        amountInTank = 0;
     }
 }

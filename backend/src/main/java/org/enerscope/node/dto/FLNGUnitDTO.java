@@ -19,4 +19,6 @@ public class FLNGUnitDTO extends BaseNodeDTO {
     private Float intermediateStorage;
     private Float vesselDepth;
     private Float hiringCost;
+    private Integer shipCapacity;
+    private Float gasConsumption;
 }

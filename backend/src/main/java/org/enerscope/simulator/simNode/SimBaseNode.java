@@ -3,9 +3,9 @@ package org.enerscope.simulator.simNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.BaseNode;
-import org.enerscope.simulator.FlagOfInactivity;
-import org.enerscope.simulator.ResultPerNode;
-import org.enerscope.simulator.ToDeliver;
+import org.enerscope.simulator.auxiliary.FlagOfInactivity;
+import org.enerscope.simulator.results.ResultPerNode;
+import org.enerscope.simulator.auxiliary.ToDeliver;
 
 import java.util.List;
 import java.util.UUID;
@@ -161,4 +161,13 @@ public abstract class  SimBaseNode {
     }
 
     public abstract ResultPerNode createResult();
+    public void reset(){
+        lastSimulatedTime = -1;
+        this.totalDeferred = 0;
+        this.totalProduced = 0;
+        this. maxPossibleProduced = 0;
+        this.active = true;
+        this.timeStartOfInactivity = 0;
+        this.toDeliver = new ToDeliver(0,0);
+    }
 }

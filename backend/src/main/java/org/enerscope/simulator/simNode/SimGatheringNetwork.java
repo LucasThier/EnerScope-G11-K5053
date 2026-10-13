@@ -3,7 +3,7 @@ package org.enerscope.simulator.simNode;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.extraction.GatheringNetwork;
-import org.enerscope.simulator.ResultPerNode;
+import org.enerscope.simulator.results.ResultPerNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,5 +56,11 @@ public class SimGatheringNetwork extends SimBaseNode{
         ResultPerNode resultPerNode = new ResultPerNode(this.id, GatheringNetwork.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
         resultPerNode.setExtra(totalLoss);
         return resultPerNode;
+    }
+
+    @Override
+    public void reset() {
+        super.reset();
+        totalLoss = 0;
     }
 }
