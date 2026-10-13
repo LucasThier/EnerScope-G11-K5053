@@ -2113,3 +2113,17 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - 2026-10-13 — Operational bars animate from zero when entering the tab or changing nodes, respecting reduced motion. Summary units appear beside numeric totals. Simulator volumes remain generic until an explicit physical unit or commercial conversion is chosen; raw volumes must not be relabeled as commercial units.
 
 - 2026-10-13 — Operational displays apply immutable saved commercial conversions by node/metric. A unique common node conversion also covers unconfigured volume metrics; ambiguous or missing conversions retain simulator units. Hours/events are unchanged. Differing output/export units use explicitly labeled independent chart scales.
+
+- 2026-10-13 — Economic results use grouped profitability and recovery cards, a horizon-aware recovery timeline (coincident markers merge), and collapsible annual accounting detail. Cash-flow axes cover positive/negative values and preserve pointer/keyboard tooltips and reduced-motion behavior. All figures still come from the saved backend evaluation.
+
+- 2026-10-13 — Economic context aligns left with the result heading. Profitability uses a single VAN pill label above its value, omits the repeated WACC and keeps its natural content height instead of stretching to the recovery card.
+
+- 2026-10-13 — Result tabs precede the content. Economic context and profitability share the first desktop row; recovery spans the next row at the cash-flow card width. On narrow screens the content stacks in reading order. Operational results retain their own title/date below the selector.
+
+- 2026-10-13 — The VAN heading is a sign-aware pill: VAN Positivo in green, VAN Negativo on red, VAN Nulo neutral for exact zero, and VAN neutral when unavailable. Classification uses the original value before display rounding.
+
+- 2026-10-13 — Economic results header places currency/WACC/horizon to the right of title/date; profitability now occupies the next full-width row, followed by recovery and cash flows. Header wraps on narrow screens.
+
+- 2026-10-13 — Operational annual node detail uses a native details/summary disclosure, closed by default, consistent with economic annual detail. Table values and node filtering are unchanged.
+
+- 2026-10-13 — Operational bars now use pointer-following tooltips like economic flows, with metric/year/value/unit, keyboard focus, Escape dismissal and scroll/resize cleanup. Zero metrics retain a one-pixel focusable bar; missing metrics remain absent.

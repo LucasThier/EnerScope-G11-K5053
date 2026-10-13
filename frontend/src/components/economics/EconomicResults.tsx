@@ -1,7 +1,8 @@
-import { money, percent, irrText, paybackText } from '../../utils/economicFormat';
+import { money, percent, dateTime } from '../../utils/economicFormat';
 import { useState } from 'react';
 import type { EconomicConfiguration, EconomicPeriod, Evaluation } from '../../types/economics';
 import { Alert } from '../ui/Alert';
+import { EconomicSummary } from './EconomicSummary';
 import { CashFlowChart } from './CashFlowChart';
 import { Card } from '../ui/Card';
 
@@ -53,20 +54,20 @@ export function EconomicResults({ evaluation, active = true }: { evaluation: Eva
     ['cashTimingAdjustment','Ajuste de caja'], ['cashFlow','Flujo de caja'], ['discountedCashFlow','Flujo descontado'],
   ] : [['taxableIncome','Ingresos gravados'], ['deductibleExpenses','Costos deducibles'], ['taxes','Impuestos'], ['cashFlow','Flujo de caja'], ['discountedCashFlow','Descontado']];
   return <div className="space-y-5">
-    <p className="text-base text-ink-500">Moneda: {configuration?.currency ?? 'No disponible'} · WACC: {percent(configuration?.wacc)}</p>
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[
-      ['VAN', money(result?.npv, currency, true)], ['TIR anual', irrText(indicators?.irr)],
-      ['Recupero simple', paybackText(indicators?.simplePayback)], ['Recupero descontado', paybackText(indicators?.discountedPayback)],
-    ].map(([label,value]) => <Card key={label}><h2 className="text-base font-medium text-ink-500">{label}</h2><p className="mt-3 text-lg font-semibold text-ink-800">{value}</p></Card>)}</div>
+    <EconomicSummary npv={result?.npv} indicators={indicators} configuration={configuration} heading={<div className="flex flex-wrap items-start justify-between gap-4"><div>
+      <h2 className="text-lg font-semibold text-ink-800">Resultados del escenario</h2>
+      <p className="mt-2 text-sm text-ink-500">Evaluación: {dateTime(evaluation.createdAt)}</p>
+      </div><div className="flex justify-start"><p className="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm text-ink-600">{configuration?.currency ?? 'Moneda no disponible'} · WACC {percent(configuration?.wacc)} · Horizonte {configuration?.years ?? '—'} años</p></div>
+    </div>} />
     {indicators?.origin === 'DERIVED_FROM_SNAPSHOT' && <Alert>Indicadores derivados de los flujos históricos guardados; no se ejecutó una nueva simulación.</Alert>}
     {(indicators?.simplePayback?.becomesNegativeAgain || indicators?.discountedPayback?.becomesNegativeAgain) && <Alert>Después del primer recupero, el acumulado vuelve a ser negativo dentro del horizonte. La fecha de primer recupero se conserva.</Alert>}
     {!!result?.pendingBalances?.length && <Alert>Esta evaluación tiene saldos pendientes fuera del horizonte. No se supone su cobro o pago al finalizar.</Alert>}
-    <Card><h2 className="mb-4 text-lg font-semibold">Flujo de caja anual</h2>
+    <Card><div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold">Flujo de caja anual</h2><p className="mt-1 text-sm text-ink-500">Inversión inicial y {configuration?.years ?? '—'} años operativos · {currency ?? 'Moneda no disponible'}</p></div><span className="flex items-center gap-2 text-xs text-ink-500"><span className="h-2 w-2 rounded-full bg-brand-800" />Flujo de caja</span></div>
       {!periods.length ? <p>No hay flujos anuales disponibles.</p> : <CashFlowChart key={evaluation.id} periods={periods} currency={currency} active={active} />}
     </Card>
-    <Card><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Flujos anuales · {currency ?? 'Moneda no disponible'}</h2><button className="text-sm font-semibold text-brand-800 underline" onClick={() => setBreakdown(!breakdown)}>{breakdown ? 'Ver resumen' : 'Ver desglose contable'}</button></div>
+    <Card><details><summary className="cursor-pointer font-semibold text-ink-800">Ver detalle anual</summary><div className="mt-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Flujos anuales · {currency ?? 'Moneda no disponible'}</h2><button className="text-sm font-semibold text-brand-800 underline" onClick={() => setBreakdown(!breakdown)}>{breakdown ? 'Ver resumen' : 'Ver desglose contable'}</button></div>
       <div className="overflow-x-auto"><table className="w-full text-right text-sm"><thead><tr><th className="p-3 text-left">Año / período</th>{columns.map(([key,label]) => <th className="p-3" key={key}>{label}</th>)}</tr></thead><tbody>{periods.map(p => <tr key={p.period} className="border-t border-ink-100"><th className="whitespace-nowrap p-3 text-left">{p.year} / {p.period === 0 ? 'Inicial' : p.period}</th>{columns.map(([key]) => <td className="whitespace-nowrap p-3 tabular-nums" key={key}>{money(p[key],currency)}</td>)}</tr>)}</tbody></table></div>
-      <p className="mt-3 text-xs text-ink-500">Los períodos de recupero corresponden al cierre anual, sin interpolación. El VAN se muestra redondeado hacia arriba a la unidad; los flujos conservan sus decimales.</p>
+      <p className="mt-3 text-xs text-ink-500">Los períodos de recupero corresponden al cierre anual, sin interpolación. El VAN se muestra redondeado hacia arriba a la unidad; los flujos conservan sus decimales.</p></div></details>
     </Card>
     <Card><details><summary className="cursor-pointer font-semibold">Ver configuración utilizada</summary><div className="mt-4">{configuration ? <ConfigurationSummary configuration={configuration} /> : <p>No hay configuración guardada disponible.</p>}</div></details></Card>
   </div>;

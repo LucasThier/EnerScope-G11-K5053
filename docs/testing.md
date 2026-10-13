@@ -1277,3 +1277,18 @@ Frontend total: 26 unit cases (20 economic editor/formatting, 6 operational).
 - results-browser.mjs — browser acceptance: operational chart animates on tab entry and node change, reduced motion suppresses it, and hours appear next to the accumulated value. Unit test count remains 26.
 
 - operationalResults.test.mjs — unit: converts saved volumes and totals without changing hours or source metrics; different metric conversions preserve unknown losses and missing values. Total: 28 unit cases (20 economic, 8 operational). Browser acceptance verifies converted totals and units.
+
+### Economic summary redesign — 2026-10-13
+
+Frontend total: 30 unit cases (20 economic editor/formatting, 8 operational, 2 chart).
+- economicChart.test.mjs — unit: cash flow scale contains mixed, positive, negative and zero flows with a finite baseline.
+- economicChart.test.mjs — unit: recovery timeline merges coincident recoveries and excludes unavailable or out of horizon markers.
+- results-browser.mjs — browser: grouped summary, collapsible accounting detail and preserved chart animation, tooltip, keyboard and responsive behavior.
+
+- results-browser.mjs — browser: ten-year evaluation has 11 bars; coincident recoveries share a marker; unavailable TIR and payback preserve explanations, negative VAN retains its minus sign, and no recovery marker is invented. Mobile overflow checked for both horizons.
+
+- results-browser.mjs — browser: positive VAN label, negative VAN label/red background, neutral zero label and missing VAN fallback. Unit case count remains 30.
+
+- results-browser.mjs — browser: operational annual detail starts collapsed, opens with a click, toggles with Enter and exposes historical node values on demand. Unit case count remains 30.
+
+- results-browser.mjs — browser: operational bar tooltip shows saved year, metric, converted value/unit; follows pointer movement, dismisses on leave, supports keyboard focus on exports and Escape dismissal. Unit case count remains 30.
