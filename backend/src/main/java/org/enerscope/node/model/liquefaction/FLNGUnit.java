@@ -31,7 +31,11 @@ public class FLNGUnit extends LiquefactionNode {
     @Column(name = "vessel_depth")
     private float vesselDepth;
 
-    private Float gasConsumption;
+    @Column(name = "gas_consumption")
+    private float gasConsumption;
+
+    @Column(name = "ship_capacity")
+    private int shipCapacity;
 
     @Embedded
     @AttributeOverride(name = "value", column = @Column(name = "hiringCost"))
@@ -44,7 +48,7 @@ public class FLNGUnit extends LiquefactionNode {
             NodeGraphData graphData, UUID identity, NodeTypeData type,
             float maxProcessingCapacity, float MTPARatio,
             float intermediateStorage, float vesselDepth,
-            MoneyAmount hiringCost) {
+            MoneyAmount hiringCost, int shipCapacity, float gasConsumption) {
         super(name, state, startupDate, lifespanInMonths, upkeepCosts,
                 maintenanceIntervalInDays, operatingCosts, wastePercentage,
                 investmentCost, graphData, identity, type);
@@ -53,5 +57,7 @@ public class FLNGUnit extends LiquefactionNode {
         this.intermediateStorage = intermediateStorage;
         this.vesselDepth = vesselDepth;
         this.hiringCost = hiringCost;
+        this.shipCapacity = shipCapacity;
+        this.gasConsumption = gasConsumption;
     }
 }

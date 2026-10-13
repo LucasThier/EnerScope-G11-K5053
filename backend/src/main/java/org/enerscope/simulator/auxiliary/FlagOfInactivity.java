@@ -1,4 +1,4 @@
-package org.enerscope.simulator;
+package org.enerscope.simulator.auxiliary;
 
 public enum FlagOfInactivity {
     Maintenance,
