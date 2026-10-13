@@ -239,6 +239,16 @@ export function EyeIcon(props: IconProps) {
   );
 }
 
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2 12s3.6-6.5 10-6.5c1.8 0 3.3.4 4.6 1M22 12s-1.5 2.7-4.1 4.5C16.4 17.6 14.3 18.5 12 18.5c-1.8 0-3.3-.4-4.6-1" />
+      <path d="M4.5 4.5 19.5 19.5" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    </Icon>
+  );
+}
+
 export function InfoIcon(props: IconProps) {
   return (
     <Icon {...props}>

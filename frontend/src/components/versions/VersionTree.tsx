@@ -69,7 +69,7 @@ function VersionTreeRow({
       >
         <span className="text-sm font-medium text-ink-800">{node.version.name}</span>
         {isRoot && (
-          <span className="inline-flex items-center rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-800">
+          <span className="inline-flex items-center rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-900">
             Base
           </span>
         )}
@@ -82,7 +82,7 @@ function VersionTreeRow({
             className={
               'inline-flex items-center rounded-full bg-danger-50 px-2 py-0.5 text-xs font-semibold ' +
               'text-danger-700 transition-colors hover:bg-danger-200 focus:outline-none ' +
-              'focus-visible:ring-2 focus-visible:ring-danger-400'
+              'focus-visible:ring-2 focus-visible:ring-danger-700'
             }
           >
             {conflictCount === 1 ? '1 conflicto' : `${conflictCount} conflictos`}

@@ -9,8 +9,8 @@ import { formatDate } from '../utils/date';
 import type { ProjectSummary } from '../types/project';
 
 const controlClasses =
-  'rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800 ' +
-  'focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
+  'rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 ' +
+  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60';
 
 export function VersionsIndexPage() {
   const searchId = useId();
@@ -58,7 +58,7 @@ export function VersionsIndexPage() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Buscar proyectos"
-                className={`w-full pl-9 placeholder:text-ink-400 ${controlClasses}`}
+                className={`w-full pl-9 placeholder:text-ink-500 ${controlClasses}`}
               />
             </div>
           </div>
@@ -127,7 +127,7 @@ function ProjectRow({
         className={
           'flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors ' +
           'hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset ' +
-          'focus-visible:ring-brand-400'
+          'focus-visible:ring-focus'
         }
       >
         <span className="min-w-0 flex-1">

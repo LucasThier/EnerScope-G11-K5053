@@ -26,7 +26,7 @@ function AppShell() {
   return (
     /* h-screen (not min-h-screen) so full-bleed pages like the editor can
        fill the remaining height; padded pages scroll inside PaddedMain. */
-    <div className="flex h-screen flex-col overflow-hidden bg-ink-50">
+    <div className="flex h-screen flex-col overflow-hidden bg-page">
       <TopBar />
       <div className="flex min-h-0 flex-1">
         <Sidebar />
@@ -43,7 +43,7 @@ function AppShell() {
         <div
           aria-hidden="true"
           className={
-            'fixed inset-x-0 bottom-0 top-16 z-30 bg-ink-800/40 transition-opacity duration-200 ' +
+            'fixed inset-x-0 bottom-0 top-16 z-30 bg-scrim/40 transition-opacity duration-200 ' +
             'motion-reduce:transition-none ' +
             (isDrawer && isVisible ? 'opacity-100' : 'pointer-events-none opacity-0')
           }

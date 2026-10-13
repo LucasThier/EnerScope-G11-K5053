@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/AuthProvider';
+import { ThemeProvider } from './hooks/ThemeProvider';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { RoleRoute } from './routes/RoleRoute';
 import { DashboardRedirect } from './routes/DashboardRedirect';
@@ -20,36 +21,45 @@ import { OrganizationOwnerRoute } from './routes/OrganizationOwnerRoute';
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
-              {/* Full-bleed pages */}
-              <Route path="/editor" element={<EditorPage />} />
-              {/* Regular padded pages */}
-              <Route element={<PaddedMain />}>
-                <Route path="/" element={<DashboardRedirect />} />
-                <Route path="/app" element={<WorkspacePage />} />
-                <Route path="/projects" element={<ProjectsPage />} />
-                <Route path="/projects/:projectId/team" element={<ProjectTeamPage />} />
-                <Route path="/projects/:projectId/versions" element={<VersionsPage />} />
-                <Route path="/versions" element={<VersionsIndexPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route element={<OrganizationOwnerRoute />}>
-                  <Route path="/organizations/:organizationId" element={<OrganizationTeamPage />} />
-                </Route>
-                <Route element={<RoleRoute role="ADMIN" />}>
-                  <Route path="/admin/users" element={<AdminUsersPage />} />
-                  <Route path="/admin/organizations" element={<AdminOrganizationsPage />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                {/* Full-bleed pages */}
+                <Route path="/editor" element={<EditorPage />} />
+                {/* Regular padded pages */}
+                <Route element={<PaddedMain />}>
+                  <Route path="/" element={<DashboardRedirect />} />
+                  <Route path="/app" element={<WorkspacePage />} />
+                  <Route path="/projects" element={<ProjectsPage />} />
+                  <Route path="/projects/:projectId/team" element={<ProjectTeamPage />} />
+                  <Route path="/projects/:projectId/versions" element={<VersionsPage />} />
+                  <Route path="/versions" element={<VersionsIndexPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route
+                    path="/settings"
+                    element={<Navigate to="/profile#configuracion" replace />}
+                  />
+                  <Route element={<OrganizationOwnerRoute />}>
+                    <Route
+                      path="/organizations/:organizationId"
+                      element={<OrganizationTeamPage />}
+                    />
+                  </Route>
+                  <Route element={<RoleRoute role="ADMIN" />}>
+                    <Route path="/admin/users" element={<AdminUsersPage />} />
+                    <Route path="/admin/organizations" element={<AdminOrganizationsPage />} />
+                  </Route>
                 </Route>
               </Route>
             </Route>
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

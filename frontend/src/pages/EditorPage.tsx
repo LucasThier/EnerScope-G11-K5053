@@ -55,14 +55,14 @@ function editStateFromDetail(detail: NodeDetail): EditState {
 const PANEL_WIDTH = 320;
 
 const selectClass =
-  'rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-700 shadow-sm ' +
-  'focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 disabled:opacity-50';
+  'rounded-lg border border-ink-200 bg-surface px-2.5 py-1.5 text-sm text-ink-700 shadow-sm ' +
+  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60 disabled:opacity-50';
 
 /** A labelled select for the toolbar. */
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-400">{label}</span>
+      <span className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500">{label}</span>
       {children}
     </label>
   );
@@ -72,7 +72,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function FloatingPanel({ style, children }: { style: CSSProperties; children: ReactNode }) {
   return (
     <div
-      className="absolute z-20 flex max-h-[calc(100%-2rem)] w-80 flex-col overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-xl ring-1 ring-black/5"
+      className="absolute z-20 flex max-h-[calc(100%-2rem)] w-80 flex-col overflow-hidden rounded-2xl border border-ink-100 bg-raised shadow-xl ring-1 ring-black/5"
       style={style}
     >
       {children}
@@ -385,7 +385,7 @@ export function EditorPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-end gap-3 border-b border-ink-100 bg-white px-4 py-2.5">
+      <div className="flex flex-wrap items-end gap-3 border-b border-ink-100 bg-surface px-4 py-2.5">
         <Field label="Organization">
           <div className="flex items-center gap-1">
             <select className={selectClass} value={orgId} onChange={(e) => setOrgId(e.target.value)}>
@@ -464,7 +464,10 @@ export function EditorPage() {
                 onClick={() => setMode(m)}
                 className={
                   'px-3 py-1.5 text-sm font-medium capitalize transition-colors ' +
-                  (mode === m ? 'bg-brand-500 text-white' : 'bg-white text-ink-600 hover:bg-ink-50')
+                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-inset ' +
+                  (mode === m
+                    ? 'bg-brand-800 text-on-accent focus-visible:ring-on-accent'
+                    : 'bg-surface text-ink-600 hover:bg-ink-50 focus-visible:ring-focus')
                 }
               >
                 {m}
@@ -482,7 +485,10 @@ export function EditorPage() {
                   onClick={() => setProjection(p)}
                   className={
                     'px-3 py-1.5 text-sm font-medium transition-colors ' +
-                    (projection === p ? 'bg-ink-700 text-white' : 'bg-white text-ink-600 hover:bg-ink-50')
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-inset ' +
+                    (projection === p
+                      ? 'bg-fill-neutral text-on-accent focus-visible:ring-on-accent'
+                      : 'bg-surface text-ink-600 hover:bg-ink-50 focus-visible:ring-focus')
                   }
                 >
                   {p === 'mercator' ? '2D' : 'Globe'}
@@ -522,7 +528,7 @@ export function EditorPage() {
       {/* Editor body — palette rail + canvas/map with floating menus on top */}
       <div className="relative flex min-h-0 flex-1">
         {!versionId ? (
-          <div className="flex h-full w-full items-center justify-center p-8 text-center text-sm text-ink-400">
+          <div className="flex h-full w-full items-center justify-center p-8 text-center text-sm text-ink-500">
             Pick an organization, project and version to start — or create a version to begin a new
             diagram.
           </div>
@@ -567,11 +573,11 @@ export function EditorPage() {
             {/* Rejected-connection warning */}
             {connectError && (
               <div className="absolute left-1/2 top-4 z-30 -translate-x-1/2">
-                <div className="flex items-center gap-3 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 shadow-md">
+                <div className="flex items-center gap-3 rounded-full border border-warn-200 bg-warn-50 px-4 py-2 text-sm text-warn-800 shadow-md">
                   <span>{connectError}</span>
                   <button
                     onClick={() => setConnectError(null)}
-                    className="rounded-full px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                    className="rounded-full px-2 py-0.5 text-xs font-semibold text-warn-700 hover:bg-warn-100"
                   >
                     Dismiss
                   </button>
@@ -589,7 +595,7 @@ export function EditorPage() {
                   </span>
                   <button
                     onClick={() => setConnectingFrom(null)}
-                    className="rounded-full px-2 py-0.5 text-xs font-semibold text-brand-700 hover:bg-brand-100"
+                    className="rounded-full px-2 py-0.5 text-xs font-semibold text-brand-900 hover:bg-brand-100"
                   >
                     Cancel (Esc)
                   </button>
@@ -651,7 +657,7 @@ export function EditorPage() {
                     }}
                   />
                 ) : (
-                  <div className="p-4 text-sm text-ink-400">
+                  <div className="p-4 text-sm text-ink-500">
                     Double-click empty canvas to add a node, or click a node to see its data.
                   </div>
                 )}

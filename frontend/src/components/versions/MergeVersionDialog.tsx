@@ -316,7 +316,7 @@ function ConflictItem({
         )}
       </span>
       {count > 1 && (
-        <span className="text-xs text-ink-400">{count} registros para este elemento.</span>
+        <span className="text-xs text-ink-500">{count} registros para este elemento.</span>
       )}
     </li>
   );

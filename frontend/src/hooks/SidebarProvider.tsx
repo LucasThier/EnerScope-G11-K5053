@@ -32,6 +32,10 @@ function hasOpenDialog(): boolean {
   return document.querySelector('[role="dialog"]') !== null;
 }
 
+function hasOpenMenu(): boolean {
+  return document.querySelector('[role="menu"]') !== null;
+}
+
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const [isPinned, setIsPinned] = useLocalPreference(PINNED_KEY, false);
@@ -238,7 +242,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
       return;
     }
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape' || hasOpenDialog()) {
+      if (event.key !== 'Escape' || hasOpenDialog() || hasOpenMenu()) {
         return;
       }
       event.stopPropagation();

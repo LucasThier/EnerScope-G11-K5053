@@ -106,7 +106,7 @@ export function Modal({ open, onClose, title, subtitle, size = 'md', children }:
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-800/40 p-4 py-8"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-scrim/40 p-4 py-8"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -120,7 +120,7 @@ export function Modal({ open, onClose, title, subtitle, size = 'md', children }:
         aria-labelledby={titleId}
         tabIndex={-1}
         className={
-          `w-full ${SIZES[size]} rounded-2xl border border-ink-100 bg-white ` +
+          `w-full ${SIZES[size]} rounded-2xl border border-ink-100 bg-raised ` +
           'shadow-md focus:outline-none'
         }
       >
@@ -137,7 +137,7 @@ export function Modal({ open, onClose, title, subtitle, size = 'md', children }:
             aria-label="Cerrar"
             className={
               'shrink-0 rounded-lg p-1 text-ink-500 transition-colors hover:bg-ink-50 hover:text-ink-700 ' +
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400'
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus'
             }
           >
             <CloseIcon className="h-5 w-5" />

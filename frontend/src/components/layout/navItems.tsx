@@ -7,7 +7,6 @@ import {
   FolderIcon,
   HomeIcon,
   ReportIcon,
-  SettingsIcon,
   TeamIcon,
   UsersIcon,
   ValueChainIcon,
@@ -39,7 +38,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Comparar Escenarios', icon: <CompareIcon /> },
   { label: 'Reportes', icon: <ReportIcon /> },
   { label: 'Gestión de organización', icon: <TeamIcon />, key: 'team' },
-  { label: 'Configuración', icon: <SettingsIcon /> },
 ];
 
 /** Platform administration, kept separate because it is not part of the project workspace. */

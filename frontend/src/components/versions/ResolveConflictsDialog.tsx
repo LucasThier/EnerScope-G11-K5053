@@ -163,7 +163,7 @@ export function ResolveConflictsDialog({
                         )}
                       </span>
                       {item.conflicts.length > 1 && (
-                        <span className="text-xs text-ink-400">
+                        <span className="text-xs text-ink-500">
                           {item.conflicts.length} registros para este elemento: la decisión se
                           aplica a todos.
                         </span>

@@ -93,7 +93,7 @@ export function Sidebar() {
       inert={!isVisible}
       onFocus={keepOpen}
       className={
-        'fixed bottom-0 left-0 top-16 z-40 flex w-72 flex-col border-r border-ink-100 bg-white ' +
+        'fixed bottom-0 left-0 top-16 z-40 flex w-72 flex-col border-r border-ink-100 bg-surface ' +
         'transition-[transform,box-shadow] duration-200 ease-out motion-reduce:transition-none ' +
         (isVisible ? 'translate-x-0 ' : '-translate-x-full ') +
         (isVisible && !pushes ? 'shadow-2xl' : 'shadow-none')
@@ -129,7 +129,7 @@ export function Sidebar() {
           }
           className={
             `${itemBase} w-full border font-medium ` +
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 ' +
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
             (isPinned
               ? 'border-ink-200 bg-ink-100 text-ink-700'
               : 'border-ink-100 text-ink-500 hover:bg-ink-50 hover:text-ink-700')

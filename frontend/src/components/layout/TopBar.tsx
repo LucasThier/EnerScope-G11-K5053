@@ -1,5 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { useSidebar } from '../../hooks/useSidebar';
+import { useTheme } from '../../hooks/useTheme';
 import { MenuIcon } from '../ui/icons';
 import { Logo } from '../ui/Logo';
 import { moduleTitleFor } from './navItems';
@@ -17,12 +18,13 @@ import { UserMenu } from './UserMenu';
  */
 export function TopBar() {
   const { isVisible, menuId, menuButtonRef, toggleFromButton } = useSidebar();
+  const { resolved } = useTheme();
   const { pathname } = useLocation();
   const moduleTitle = moduleTitleFor(pathname);
   const action = isVisible ? 'Ocultar menú' : 'Mostrar menú';
 
   return (
-    <header className="relative z-50 flex h-16 shrink-0 items-center gap-4 border-b border-ink-100 bg-white px-6">
+    <header className="relative z-50 flex h-16 shrink-0 items-center gap-4 border-b border-ink-100 bg-surface px-6">
       <button
         ref={menuButtonRef}
         type="button"
@@ -33,12 +35,12 @@ export function TopBar() {
         title={`${action} (Ctrl/⌘ B)`}
         className={
           '-ml-2 shrink-0 rounded-lg p-2 text-ink-500 transition-colors hover:bg-ink-50 ' +
-          'hover:text-ink-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400'
+          'hover:text-ink-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus'
         }
       >
         <MenuIcon />
       </button>
-      <Logo variant="mark" />
+      <Logo variant="mark" tone={resolved === 'dark' ? 'light' : 'dark'} />
       {moduleTitle && (
         <>
           <div className="hidden h-8 w-px bg-ink-100 sm:block" aria-hidden="true" />

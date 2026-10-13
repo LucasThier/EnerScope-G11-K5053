@@ -50,7 +50,7 @@ function ActionButton({
       onClick={onClick}
       className={
         'flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-ink-700 ' +
-        'transition-colors hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400'
+        'transition-colors hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus'
       }
     >
       <span className="text-ink-500">{icon}</span>
