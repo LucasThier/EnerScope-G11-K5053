@@ -21,6 +21,7 @@ import org.enerscope.node.model.enums.NodeTypeEnum;
 import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.node.model.extraction.Well;
+import org.enerscope.probabilistic.ConstantValue;
 import org.enerscope.version.model.ConflictEntityType;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.model.VersionConflict;
@@ -44,7 +45,7 @@ class VersionConflictDTOTest {
                 new NodeGraphData(new GraphPosition(1.0, 2.0), new GeographicalPosition(3.0, 4.0)),
                 identityId,
                 new NodeTypeData(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
-                10f, 0.5f, 0.5f, 5, MoneyAmount.of(50), 100f);
+                10f, new ConstantValue(0.5f), 0.5f, 5, MoneyAmount.of(50), 100f);
         ReflectionTestUtils.setField(well, "id", UUID.randomUUID());
         return well;
     }

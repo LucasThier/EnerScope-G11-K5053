@@ -1,44 +1,25 @@
 package org.enerscope.version.service;
 
 import org.enerscope.common.EntityNotFoundException;
-import org.enerscope.common.ForbiddenException;
-import org.enerscope.common.UnauthorizedException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.money.MoneyAmount;
-import org.enerscope.node.dto.BaseNodeDTO;
-import org.enerscope.node.dto.DiagramDTO;
-import org.enerscope.node.dto.GeographicalPositionDTO;
-import org.enerscope.node.dto.GraphPositionDTO;
-import org.enerscope.node.dto.NodeGraphDataDTO;
-import org.enerscope.node.dto.ConnectionDTO;
 import org.enerscope.node.dto.WellDTO;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.BaseNode;
-import org.enerscope.node.model.GeographicalPosition;
-import org.enerscope.node.model.GraphPosition;
 import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.NodeChange;
-import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.NodeGraphData;
-import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
 import org.enerscope.node.model.enums.NodeStateEnum;
-import org.enerscope.node.model.enums.NodeTypeEnum;
-import org.enerscope.node.model.enums.StructuralRoleEnum;
-import org.enerscope.node.model.enums.VerticalEnum;
+import org.enerscope.probabilistic.ConstantValue;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
@@ -46,8 +27,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -56,8 +35,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.junit.jupiter.params.provider.Arguments.arguments;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -157,7 +134,7 @@ class VersionServiceTest {
                                 nodeId, // identity
                                 new NodeTypeData(), // type
                                 100.0f, // maxCollectionCapacity
-                                0.5f, // decline_curve
+                                new ConstantValue(0.5f), // decline_curve
                                 0.8f, // gasRichness
                                 10, // DTMTime
                                 MoneyAmount.of(5000), // DTMCost
@@ -235,7 +212,7 @@ class VersionServiceTest {
                                 nodeId, // identity
                                 new NodeTypeData(), // type
                                 100.0f, // maxCollectionCapacity
-                                0.5f, // decline_curve
+                                new ConstantValue(0.5f), // decline_curve
                                 0.8f, // gasRichness
                                 10, // DTMTime
                                 MoneyAmount.of(5000), // DTMCost
@@ -315,7 +292,7 @@ class VersionServiceTest {
                                 nodeId, // identity
                                 new NodeTypeData(), // type
                                 100.0f, // maxCollectionCapacity
-                                0.5f, // decline_curve
+                                new ConstantValue(0.5f), // decline_curve
                                 0.8f, // gasRichness
                                 10, // DTMTime
                                 MoneyAmount.of(5000), // DTMCost
@@ -400,13 +377,13 @@ class VersionServiceTest {
                                 "Stale Well", NodeStateEnum.PROPOSED, Instant.now(), 120,
                                 MoneyAmount.of(1000000), 30, MoneyAmount.of(50000), 0.0f,
                                 new InvestmentCost(), new NodeGraphData(), identityId, new NodeTypeData(),
-                                100.0f, 0.5f, 0.8f, 10, MoneyAmount.of(5000), 500f);
+                                100.0f, new ConstantValue(0.5f), 0.8f, 10, MoneyAmount.of(5000), 500f);
 
                 Well currentNode = new Well(
                                 "Current Well", NodeStateEnum.PROPOSED, Instant.now(), 120,
                                 MoneyAmount.of(1000000), 30, MoneyAmount.of(50000), 0.0f,
                                 new InvestmentCost(), new NodeGraphData(), identityId, new NodeTypeData(),
-                                100.0f, 0.5f, 0.8f, 10, MoneyAmount.of(5000), 500f);
+                                100.0f, new ConstantValue(0.5f), 0.8f, 10, MoneyAmount.of(5000), 500f);
 
                 // Only currentNode is actually in this version's snapshot; staleNode is
                 // some other row (e.g. what the parent had before) that happens to
@@ -451,7 +428,7 @@ class VersionServiceTest {
                                 "Well", NodeStateEnum.PROPOSED, Instant.now(), 120,
                                 MoneyAmount.of(1000000), 30, MoneyAmount.of(50000), 0.0f,
                                 new InvestmentCost(), new NodeGraphData(), UUID.randomUUID(), new NodeTypeData(),
-                                100.0f, 0.5f, 0.8f, 10, MoneyAmount.of(5000), 500f);
+                                100.0f, new ConstantValue(0.5f), 0.8f, 10, MoneyAmount.of(5000), 500f);
                 // version's snapshot is empty - this identity was never part of it.
 
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
@@ -542,7 +519,7 @@ class VersionServiceTest {
                                 UUID.randomUUID(), // identity
                                 new NodeTypeData(), // type
                                 100.0f, // maxCollectionCapacity
-                                0.5f, // decline_curve
+                                new ConstantValue(0.5f), // decline_curve
                                 0.8f, // gasRichness
                                 10, // DTMTime
                                 MoneyAmount.of(5000), // DTMCost
@@ -590,7 +567,7 @@ class VersionServiceTest {
                                 UUID.randomUUID(),
                                 new NodeTypeData(),
                                 100.0f,
-                                0.5f,
+                                new ConstantValue(0.5f),
                                 0.8f,
                                 10,
                                 MoneyAmount.of(5000),
@@ -627,7 +604,7 @@ class VersionServiceTest {
                                 parentWell.getIdentityId(), // Same conceptual entity as parent well
                                 new NodeTypeData(),
                                 100.0f,
-                                0.5f,
+                                new ConstantValue(0.5f),
                                 0.8f,
                                 10,
                                 MoneyAmount.of(5000),
@@ -691,7 +668,7 @@ class VersionServiceTest {
                                 UUID.randomUUID(),
                                 new NodeTypeData(),
                                 100.0f,
-                                0.5f,
+                                new ConstantValue(0.5f),
                                 0.8f,
                                 10,
                                 MoneyAmount.of(5000),
@@ -763,7 +740,7 @@ class VersionServiceTest {
                                 UUID.randomUUID(),
                                 new NodeTypeData(),
                                 100.0f,
-                                0.5f,
+                                new ConstantValue(0.5f),
                                 0.8f,
                                 10,
                                 MoneyAmount.of(5000),
@@ -784,7 +761,7 @@ class VersionServiceTest {
                                 originalWell.getIdentityId(), // Same conceptual entity as originalWell
                                 new NodeTypeData(),
                                 100.0f,
-                                0.5f,
+                                new ConstantValue(0.5f),
                                 0.8f,
                                 10,
                                 MoneyAmount.of(5000),

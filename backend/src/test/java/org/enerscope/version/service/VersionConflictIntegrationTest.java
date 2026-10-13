@@ -10,13 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 import jakarta.persistence.EntityManager;
-import org.enerscope.node.dto.ConnectionDTO;
-import org.enerscope.node.dto.GeographicalPositionDTO;
-import org.enerscope.node.dto.GraphPositionDTO;
-import org.enerscope.node.dto.InvestmentCostDTO;
-import org.enerscope.node.dto.NodeGraphDataDTO;
-import org.enerscope.node.dto.NodeTypeDataDTO;
-import org.enerscope.node.dto.WellDTO;
+import org.enerscope.node.dto.*;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.enums.NodeStateEnum;
@@ -84,7 +78,7 @@ class VersionConflictIntegrationTest {
         dto.setType(new NodeTypeDataDTO(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
         dto.setIdentity(identity);
         dto.setMaxCollectionCapacity(10f);
-        dto.setDeclineCurve(0.5f);
+        dto.setDeclineCurve(new ProbabilisticDistributionDTO("CONSTANT",0.5f,null));
         dto.setGasRichness(0.5f);
         dto.setDTMTime(5);
         dto.setDTMCost(50f);

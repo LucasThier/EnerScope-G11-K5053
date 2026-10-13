@@ -1,8 +1,8 @@
 package org.enerscope.simulator.simNode;
 
 import org.enerscope.node.model.extraction.TreatmentPlant;
-import org.enerscope.simulator.ResultPerNode;
-import org.enerscope.simulator.ToDeliver;
+import org.enerscope.simulator.results.ResultPerNode;
+import org.enerscope.simulator.auxiliary.ToDeliver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,5 +60,12 @@ public class SimTreatmentPlant extends SimBaseNode{
         ResultPerNode resultPerNode = new ResultPerNode(this.id, TreatmentPlant.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
         resultPerNode.setExtra(totalDischarged);
         return resultPerNode;
+    }
+
+    @Override
+    public void reset() {
+        super.reset();
+        this.amountInIntermediateStorage = new ToDeliver(0,0);
+        totalDischarged = 0;
     }
 }
