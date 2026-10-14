@@ -162,6 +162,7 @@ class ProjectServiceTest {
                 UUID userId = UUID.randomUUID();
                 Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
                 User user = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+                authenticateAs(admin());
                 when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
                 when(userRepository.findById(userId)).thenReturn(Optional.of(user));
                 when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(false);
@@ -185,6 +186,7 @@ class ProjectServiceTest {
                 UUID userId = UUID.randomUUID();
                 Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
                 User user = new User("john@enerscope.org", "John", "Roe", "hashed");
+                authenticateAs(admin());
                 when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
                 when(userRepository.findById(userId)).thenReturn(Optional.of(user));
                 when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(false);
@@ -215,6 +217,7 @@ class ProjectServiceTest {
                 UUID projectId = UUID.randomUUID();
                 UUID userId = UUID.randomUUID();
                 Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                authenticateAs(admin());
                 when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
                 when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
@@ -228,6 +231,7 @@ class ProjectServiceTest {
                 UUID projectId = UUID.randomUUID();
                 UUID userId = UUID.randomUUID();
                 Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                authenticateAs(admin());
                 when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
                 when(userRepository.findById(userId)).thenReturn(
                                 Optional.of(new User("jane@enerscope.org", "Jane", "Doe", "hashed")));
@@ -236,6 +240,137 @@ class ProjectServiceTest {
                 assertThrows(IllegalArgumentException.class, () -> projectService.addMember(
                                 projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR)));
                 verify(projectMemberRepository, never()).save(any());
+        }
+
+        @Test
+        void addMemberRejectsUnauthenticatedCaller() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+                assertThrows(UnauthorizedException.class, () -> projectService.addMember(
+                                projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR)));
+                verify(userRepository, never()).findById(any());
+                verify(projectMemberRepository, never()).save(any());
+        }
+
+        @Test
+        void addMemberRejectsCallerWithoutManagePermission() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                User caller = new User("editor@enerscope.org", "Ed", "Itor", "hashed", PlatformRole.USER);
+                authenticateAs(caller);
+                when(projectRepository.findById(projectId)).thenReturn(
+                                Optional.of(new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"))));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(editorMembership(caller)));
+
+                assertThrows(ForbiddenException.class, () -> projectService.addMember(
+                                projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR)));
+                verify(userRepository, never()).findById(any());
+                verify(projectMemberRepository, never()).save(any());
+        }
+
+        @Test
+        void addMemberAllowsProjectAdminCaller() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User caller = new User("admin-caller@enerscope.org", "Ad", "Min", "hashed", PlatformRole.USER);
+                User newUser = new User("new@enerscope.org", "New", "User", "hashed");
+                authenticateAs(caller);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(adminMembership(caller)));
+                when(userRepository.findById(userId)).thenReturn(Optional.of(newUser));
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(false);
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                ProjectMember saved = projectService.addMember(
+                                projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR));
+
+                assertEquals(newUser, saved.getUser());
+        }
+
+        // ---- removeMember ---------------------------------------------------------
+
+        @Test
+        void removeMemberRemovesMembershipWhenCallerIsPlatformAdmin() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                authenticateAs(admin());
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, userId))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                projectService.removeMember(projectId, userId);
+
+                verify(projectMemberRepository).delete(any(ProjectMember.class));
+        }
+
+        @Test
+        void removeMemberRemovesMembershipWhenCallerIsProjectAdmin() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                User caller = new User("admin-caller@enerscope.org", "Ad", "Min", "hashed", PlatformRole.USER);
+                authenticateAs(caller);
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(adminMembership(caller)));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, userId))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                projectService.removeMember(projectId, userId);
+
+                verify(projectMemberRepository).delete(any(ProjectMember.class));
+        }
+
+        @Test
+        void removeMemberRejectsCallerWithoutManagePermission() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                User caller = new User("editor@enerscope.org", "Ed", "Itor", "hashed", PlatformRole.USER);
+                authenticateAs(caller);
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(editorMembership(caller)));
+
+                assertThrows(ForbiddenException.class, () -> projectService.removeMember(projectId, userId));
+                verify(projectMemberRepository, never()).delete(any());
+        }
+
+        @Test
+        void removeMemberRejectsUnauthenticatedCaller() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+
+                assertThrows(UnauthorizedException.class, () -> projectService.removeMember(projectId, userId));
+                verify(projectMemberRepository, never()).delete(any());
+        }
+
+        @Test
+        void removeMemberRejectsUnknownProject() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                when(projectRepository.existsById(projectId)).thenReturn(false);
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.removeMember(projectId, userId));
+                verify(projectMemberRepository, never()).delete(any());
+        }
+
+        @Test
+        void removeMemberRejectsMembershipNotFound() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                authenticateAs(admin());
+                when(projectRepository.existsById(projectId)).thenReturn(true);
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, userId))
+                                .thenReturn(Optional.empty());
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.removeMember(projectId, userId));
+                verify(projectMemberRepository, never()).delete(any());
         }
 
         // ---- listMembers ---------------------------------------------------------
@@ -394,6 +529,24 @@ class ProjectServiceTest {
 
         private User creator() {
                 return new User("owner@enerscope.org", "Owner", "User", "hashed", PlatformRole.USER);
+        }
+
+        private ProjectMember adminMembership(User user) {
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                ProjectMember member = new ProjectMember(user, project);
+                member.addRole(new ProjectMemberRole(
+                                ProjectMemberType.ADMIN.name(), ProjectMemberType.ADMIN,
+                                DEFAULT_PERMISSIONS_FOR_TEST.get(ProjectMemberType.ADMIN)));
+                return member;
+        }
+
+        private ProjectMember editorMembership(User user) {
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                ProjectMember member = new ProjectMember(user, project);
+                member.addRole(new ProjectMemberRole(
+                                ProjectMemberType.EDITOR.name(), ProjectMemberType.EDITOR,
+                                DEFAULT_PERMISSIONS_FOR_TEST.get(ProjectMemberType.EDITOR)));
+                return member;
         }
 
         private ProjectMember sampleMember(ProjectMemberType memberType) {

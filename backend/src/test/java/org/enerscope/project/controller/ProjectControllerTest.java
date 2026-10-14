@@ -2,6 +2,7 @@ package org.enerscope.project.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.enerscope.auth.filter.AuthFilter;
+import org.enerscope.common.ForbiddenException;
 import org.enerscope.config.SecurityConfig;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
@@ -38,6 +39,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -269,5 +271,56 @@ class ProjectControllerTest {
                 .andExpect(jsonPath("$.message").value("Validation error"));
 
         verify(projectService, never()).addMember(any(), any());
+    }
+
+    // ---- removeMember ------------------------------------------------------
+
+    @Test
+    void removeMemberReturnsNoContent() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/projects/" + projectId + "/members/" + userId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isNoContent());
+
+        verify(projectService).removeMember(projectId, userId);
+    }
+
+    @Test
+    void removeMemberRequiresAuthenticationWith401() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/projects/" + projectId + "/members/" + userId))
+                .andExpect(status().isUnauthorized());
+
+        verify(projectService, never()).removeMember(any(), any());
+    }
+
+    @Test
+    void removeMemberPropagatesForbiddenWith403() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new ForbiddenException("You are not allowed to manage members in this project"))
+                .when(projectService).removeMember(projectId, userId);
+
+        mockMvc.perform(delete("/projects/" + projectId + "/members/" + userId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void removeMemberPropagatesUnknownMembershipWith400() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new IllegalArgumentException("Membership not found"))
+                .when(projectService).removeMember(projectId, userId);
+
+        mockMvc.perform(delete("/projects/" + projectId + "/members/" + userId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Membership not found"));
     }
 }

@@ -21,6 +21,7 @@ import org.enerscope.version.service.VersionService;
 import org.enerscope.version.model.Version;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -81,6 +82,17 @@ public class ProjectController {
                 .map(this::toDTO)
                 .toList();
         return Responses.ok("Project members", members);
+    }
+
+    @DeleteMapping("/{projectId}/members/{userId}")
+    @Operation(summary = "Remove a member from a project",
+            description = "Remove a user's membership and roles from the project. Allowed for "
+                    + "platform admins and project admins (members with the MANAGE_PROJECT permission).")
+    public ResponseEntity<Void> removeMember(
+            @PathVariable UUID projectId,
+            @PathVariable UUID userId) {
+        projectService.removeMember(projectId, userId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping(value = "/{projectId}/version", consumes = MediaType.APPLICATION_JSON_VALUE)

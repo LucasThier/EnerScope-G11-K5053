@@ -90,6 +90,7 @@ class OrganizationServiceTest {
         UUID userId = UUID.randomUUID();
         Organization organization = new Organization("Acme");
         User user = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+        authenticateAs(admin());
         when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(organizationMemberRepository.existsByOrganizationIdAndUserId(orgId, userId)).thenReturn(false);
@@ -114,6 +115,7 @@ class OrganizationServiceTest {
         UUID userId = UUID.randomUUID();
         Organization organization = new Organization("Acme");
         User user = new User("john@enerscope.org", "John", "Roe", "hashed");
+        authenticateAs(admin());
         when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(organizationMemberRepository.existsByOrganizationIdAndUserId(orgId, userId)).thenReturn(false);
@@ -142,6 +144,7 @@ class OrganizationServiceTest {
     void addMemberRejectsUnknownUser() {
         UUID orgId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        authenticateAs(admin());
         when(organizationRepository.findById(orgId)).thenReturn(Optional.of(new Organization("Acme")));
         when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
@@ -154,6 +157,7 @@ class OrganizationServiceTest {
     void addMemberRejectsDuplicateMembership() {
         UUID orgId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        authenticateAs(admin());
         when(organizationRepository.findById(orgId)).thenReturn(Optional.of(new Organization("Acme")));
         when(userRepository.findById(userId)).thenReturn(
                 Optional.of(new User("jane@enerscope.org", "Jane", "Doe", "hashed")));
@@ -162,6 +166,56 @@ class OrganizationServiceTest {
         assertThrows(IllegalArgumentException.class, () -> organizationService.addMember(
                 orgId, new AddOrganizationMemberRequestDTO(userId, OrganizationMemberType.MEMBER)));
         verify(organizationMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void addMemberRejectsUnauthenticatedCaller() {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(organizationRepository.findById(orgId)).thenReturn(Optional.of(new Organization("Acme")));
+
+        assertThrows(UnauthorizedException.class, () -> organizationService.addMember(
+                orgId, new AddOrganizationMemberRequestDTO(userId, OrganizationMemberType.MEMBER)));
+        verify(userRepository, never()).findById(any());
+        verify(organizationMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void addMemberRejectsCallerWithoutManagePermission() {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        User plainMember = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+        authenticateAs(plainMember);
+        when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(orgId, plainMember.getId()))
+                .thenReturn(Optional.of(viewOnlyMembership(plainMember, organization)));
+
+        assertThrows(ForbiddenException.class, () -> organizationService.addMember(
+                orgId, new AddOrganizationMemberRequestDTO(userId, OrganizationMemberType.MEMBER)));
+        verify(userRepository, never()).findById(any());
+        verify(organizationMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void addMemberAllowsOrganizationOwner() {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        User owner = new User("owner@enerscope.org", "Ow", "Ner", "hashed", PlatformRole.USER);
+        User newUser = new User("new@enerscope.org", "New", "User", "hashed");
+        authenticateAs(owner);
+        when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(orgId, owner.getId()))
+                .thenReturn(Optional.of(ownerMembership(owner, organization)));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(newUser));
+        when(organizationMemberRepository.existsByOrganizationIdAndUserId(orgId, userId)).thenReturn(false);
+        when(organizationMemberRepository.save(any(OrganizationMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        OrganizationMember saved = organizationService.addMember(
+                orgId, new AddOrganizationMemberRequestDTO(userId, OrganizationMemberType.MEMBER));
+
+        assertEquals(newUser, saved.getUser());
     }
 
     // ---- listForCurrentUser --------------------------------------------------
@@ -272,6 +326,91 @@ class OrganizationServiceTest {
         ArgumentCaptor<RegisterRequestDTO> captor = ArgumentCaptor.forClass(RegisterRequestDTO.class);
         verify(userService).register(captor.capture());
         assertEquals("Senior Investment Analyst", captor.getValue().jobTitle());
+    }
+
+    // ---- removeMember ---------------------------------------------------------
+
+    @Test
+    void removeMemberRemovesMembershipWhenCallerIsPlatformAdmin() {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        User target = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+        authenticateAs(admin());
+        when(organizationRepository.existsById(orgId)).thenReturn(true);
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(orgId, userId))
+                .thenReturn(Optional.of(viewOnlyMembership(target, organization)));
+
+        organizationService.removeMember(orgId, userId);
+
+        verify(organizationMemberRepository).delete(any(OrganizationMember.class));
+    }
+
+    @Test
+    void removeMemberRemovesMembershipWhenCallerIsOwner() {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        User owner = new User("owner@enerscope.org", "Ow", "Ner", "hashed", PlatformRole.USER);
+        User target = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+        authenticateAs(owner);
+        when(organizationRepository.existsById(orgId)).thenReturn(true);
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(orgId, owner.getId()))
+                .thenReturn(Optional.of(ownerMembership(owner, organization)));
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(orgId, userId))
+                .thenReturn(Optional.of(viewOnlyMembership(target, organization)));
+
+        organizationService.removeMember(orgId, userId);
+
+        verify(organizationMemberRepository).delete(any(OrganizationMember.class));
+    }
+
+    @Test
+    void removeMemberRejectsCallerWithoutManagePermission() {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        User plainMember = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+        authenticateAs(plainMember);
+        when(organizationRepository.existsById(orgId)).thenReturn(true);
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(orgId, plainMember.getId()))
+                .thenReturn(Optional.of(viewOnlyMembership(plainMember, organization)));
+
+        assertThrows(ForbiddenException.class, () -> organizationService.removeMember(orgId, userId));
+        verify(organizationMemberRepository, never()).delete(any());
+    }
+
+    @Test
+    void removeMemberRejectsUnauthenticatedCaller() {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(organizationRepository.existsById(orgId)).thenReturn(true);
+
+        assertThrows(UnauthorizedException.class, () -> organizationService.removeMember(orgId, userId));
+        verify(organizationMemberRepository, never()).delete(any());
+    }
+
+    @Test
+    void removeMemberRejectsUnknownOrganization() {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(organizationRepository.existsById(orgId)).thenReturn(false);
+
+        assertThrows(IllegalArgumentException.class, () -> organizationService.removeMember(orgId, userId));
+        verify(organizationMemberRepository, never()).delete(any());
+    }
+
+    @Test
+    void removeMemberRejectsMembershipNotFound() {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        authenticateAs(admin());
+        when(organizationRepository.existsById(orgId)).thenReturn(true);
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(orgId, userId))
+                .thenReturn(Optional.empty());
+
+        assertThrows(IllegalArgumentException.class, () -> organizationService.removeMember(orgId, userId));
+        verify(organizationMemberRepository, never()).delete(any());
     }
 
     // ---- listMembers ---------------------------------------------------------

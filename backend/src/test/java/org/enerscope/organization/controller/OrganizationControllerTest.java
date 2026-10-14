@@ -42,6 +42,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -322,5 +323,56 @@ class OrganizationControllerTest {
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    // ---- removeMember -------------------------------------------------------
+
+    @Test
+    void removeMemberReturnsNoContent() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/organizations/" + orgId + "/members/" + userId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isNoContent());
+
+        verify(organizationService).removeMember(orgId, userId);
+    }
+
+    @Test
+    void removeMemberRequiresAuthenticationWith401() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/organizations/" + orgId + "/members/" + userId))
+                .andExpect(status().isUnauthorized());
+
+        verify(organizationService, never()).removeMember(any(), any());
+    }
+
+    @Test
+    void removeMemberPropagatesForbiddenWith403() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new ForbiddenException("You are not allowed to manage users in this organization"))
+                .when(organizationService).removeMember(orgId, userId);
+
+        mockMvc.perform(delete("/organizations/" + orgId + "/members/" + userId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void removeMemberPropagatesUnknownMembershipWith400() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new IllegalArgumentException("Membership not found"))
+                .when(organizationService).removeMember(orgId, userId);
+
+        mockMvc.perform(delete("/organizations/" + orgId + "/members/" + userId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Membership not found"));
     }
 }

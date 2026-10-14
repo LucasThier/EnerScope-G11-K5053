@@ -101,6 +101,7 @@ public class OrganizationService {
     public OrganizationMember addMember(UUID organizationId, AddOrganizationMemberRequestDTO data) {
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
+        assertCanManageUsers(organizationId);
         User user = userRepository.findById(data.userId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         if (organizationMemberRepository.existsByOrganizationIdAndUserId(organizationId, data.userId())) {
@@ -116,6 +117,23 @@ public class OrganizationService {
         OrganizationMember saved = organizationMemberRepository.save(member);
         logger.info("Added user {} to organization {} as {}", user.getMail(), organization.getName(), data.memberType());
         return saved;
+    }
+
+    /**
+     * Removes a user's membership (and roles) from an organization. Allowed for
+     * a platform ADMIN, or an org member holding
+     * {@link OrganizationMemberPermission#MANAGE_ORGANIZATION}.
+     */
+    public void removeMember(UUID organizationId, UUID userId) {
+        if (!organizationRepository.existsById(organizationId)) {
+            throw new IllegalArgumentException("Organization not found");
+        }
+        assertCanManageUsers(organizationId);
+        OrganizationMember member = organizationMemberRepository
+                .findByOrganizationIdAndUserId(organizationId, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Membership not found"));
+        organizationMemberRepository.delete(member);
+        logger.info("Removed user {} from organization {}", member.getUser().getMail(), organizationId);
     }
 
     /**

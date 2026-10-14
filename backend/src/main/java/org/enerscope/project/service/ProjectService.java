@@ -145,6 +145,7 @@ public class ProjectService {
         public ProjectMember addMember(UUID projectId, AddProjectMemberRequestDTO data) {
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                assertCanManageMembers(projectId);
                 User user = userRepository.findById(data.userId())
                                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
                 if (projectMemberRepository.existsByProjectIdAndUserId(projectId, data.userId())) {
@@ -154,6 +155,50 @@ public class ProjectService {
                 ProjectMember saved = attachMember(project, user, data.memberType());
                 logger.info("Added user {} to project {} as {}", user.getMail(), project.getName(), data.memberType());
                 return saved;
+        }
+
+        /**
+         * Ensures the current caller may manage the membership of the given
+         * project: a platform ADMIN, or a project member holding
+         * {@link ProjectMemberPermission#MANAGE_PROJECT}.
+         */
+        public void assertCanManageMembers(UUID projectId) {
+                Session session = AuthUtil.currentSession();
+                if (session == null) {
+                        throw new UnauthorizedException("Authentication required");
+                }
+                User caller = session.getUser();
+                if (caller.getPlatformRole() == PlatformRole.ADMIN) {
+                        return;
+                }
+                boolean canManage = projectMemberRepository
+                                .findByProjectIdAndUserId(projectId, caller.getId())
+                                .map(this::hasManagePermission)
+                                .orElse(false);
+                if (!canManage) {
+                        throw new ForbiddenException("You are not allowed to manage members in this project");
+                }
+        }
+
+        /**
+         * Removes a user's membership (and roles) from a project. Allowed for a
+         * platform ADMIN, or a project member holding
+         * {@link ProjectMemberPermission#MANAGE_PROJECT}.
+         */
+        public void removeMember(UUID projectId, UUID userId) {
+                if (!projectRepository.existsById(projectId)) {
+                        throw new IllegalArgumentException("Project not found");
+                }
+                assertCanManageMembers(projectId);
+                ProjectMember member = projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+                                .orElseThrow(() -> new IllegalArgumentException("Membership not found"));
+                projectMemberRepository.delete(member);
+                logger.info("Removed user {} from project {}", member.getUser().getMail(), projectId);
+        }
+
+        private boolean hasManagePermission(ProjectMember member) {
+                return member.getRoles().stream()
+                                .anyMatch(role -> role.getPermissions().contains(ProjectMemberPermission.MANAGE_PROJECT));
         }
 
         private ProjectMember attachMember(Project project, User user, ProjectMemberType memberType) {
