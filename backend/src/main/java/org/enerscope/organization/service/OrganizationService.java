@@ -99,6 +99,7 @@ public class OrganizationService {
     }
 
     public OrganizationMember addMember(UUID organizationId, AddOrganizationMemberRequestDTO data) {
+        assertCanManageUsers(organizationId);
         Organization organization = organizationRepository.findById(organizationId)
                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
         User user = userRepository.findById(data.userId())

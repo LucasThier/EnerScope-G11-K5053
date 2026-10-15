@@ -14,6 +14,7 @@ import org.enerscope.node.dto.NodeDetailDTO;
 import org.enerscope.node.dto.NodeGraphDataDTO;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.NodeConnection;
+import org.enerscope.project.service.ProjectAccessService;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.enerscope.version.dto.VersionDTO;
@@ -37,22 +38,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class VersionController {
 
     private final VersionService versionService;
-    /*
-     * create a new version.
-     */
-
-    @PostMapping(value = "/createtest", consumes = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(summary = "Create a new version", description = "Create a new Version with all required properties.")
-    public ResponseEntity<ApiResponse<Version>> createVersion(
-            @RequestBody VersionDTO versionDTO) {
-        Version version = versionService.saveVersion(versionDTO);
-        return Responses.ok("Version created successfully", version);
-    }
+    private final ProjectAccessService projectAccessService;
 
     @DeleteMapping(value = "/{id}")
     @Operation(summary = "Delete a version", description = "Delete an existing Version by its ID.")
     public ResponseEntity<ApiResponse<Void>> deleteVersion(
             @PathVariable UUID id) {
+        projectAccessService.assertCanManage(projectAccessService.resolveProjectIdForVersion(id));
         versionService.deleteVersion(id);
         return Responses.ok("Version deleted successfully");
     }
@@ -61,6 +53,7 @@ public class VersionController {
     @Operation(summary = "Get a version", description = "Retrieve an existing Version by its ID.")
     public ResponseEntity<ApiResponse<Version>> getVersion(
             @PathVariable UUID id) {
+        projectAccessService.assertCanView(projectAccessService.resolveProjectIdForVersion(id));
         Version version = versionService.getVersion(id);
 
         return Responses.ok("Version retrieved successfully", version);
@@ -71,6 +64,7 @@ public class VersionController {
     public ResponseEntity<ApiResponse<Version>> modifyVersion(
             @PathVariable UUID id,
             @RequestBody VersionDTO versionDTO) {
+        projectAccessService.assertCanEdit(projectAccessService.resolveProjectIdForVersion(id));
         Version version = versionService.modifyVersion(id, versionDTO);
 
         return Responses.ok("Version modified successfully", version);
@@ -80,6 +74,7 @@ public class VersionController {
     @Operation(summary = "Get the diagram of a version", description = "Return the nodes and connections the editor renders for a version.")
     public ResponseEntity<ApiResponse<DiagramDTO>> getDiagram(
             @PathVariable UUID versionId) {
+        projectAccessService.assertCanView(projectAccessService.resolveProjectIdForVersion(versionId));
         DiagramDTO diagram = versionService.getDiagram(versionId);
         return Responses.ok("Diagram retrieved successfully", diagram);
     }
@@ -89,6 +84,7 @@ public class VersionController {
     public ResponseEntity<ApiResponse<NodeDetailDTO>> getNodeDetail(
             @PathVariable UUID versionId,
             @PathVariable UUID nodeId) {
+        projectAccessService.assertCanView(projectAccessService.resolveProjectIdForVersion(versionId));
         NodeDetailDTO detail = versionService.getNodeDetail(versionId, nodeId);
         return Responses.ok("Node detail retrieved successfully", detail);
     }
@@ -99,6 +95,7 @@ public class VersionController {
             @PathVariable UUID versionId,
             @PathVariable UUID nodeId,
             @RequestBody NodeGraphDataDTO positionDTO) {
+        projectAccessService.assertCanEdit(projectAccessService.resolveProjectIdForVersion(versionId));
         BaseNode result = versionService.updateNodePosition(versionId, nodeId, positionDTO);
         return Responses.ok("Node position updated successfully", result);
     }
@@ -109,6 +106,7 @@ public class VersionController {
             @PathVariable UUID versionId,
             @PathVariable UUID nodeId,
             @RequestBody NodeBasicsDTO basics) {
+        projectAccessService.assertCanEdit(projectAccessService.resolveProjectIdForVersion(versionId));
         BaseNode result = versionService.updateNodeBasics(versionId, nodeId, basics);
         return Responses.ok("Node updated successfully", result);
     }
@@ -118,6 +116,7 @@ public class VersionController {
     public ResponseEntity<ApiResponse<BaseNode>> addNodeToVersion(
             @PathVariable UUID versionId,
             @RequestBody BaseNodeDTO nodeDTO) {
+        projectAccessService.assertCanEdit(projectAccessService.resolveProjectIdForVersion(versionId));
         BaseNode result = versionService.addNodeToVersion(versionId, nodeDTO);
         return Responses.ok("Node added to version successfully", result);
     }
@@ -127,6 +126,7 @@ public class VersionController {
     public ResponseEntity<ApiResponse<Object>> addConnectionToVersion(
             @PathVariable UUID versionId,
             @RequestBody ConnectionDTO connectionDTO) {
+        projectAccessService.assertCanEdit(projectAccessService.resolveProjectIdForVersion(versionId));
         Object result = versionService.addConnectionToVersion(versionId, connectionDTO);
         return Responses.ok("Connection added to version successfully", result);
     }
@@ -137,6 +137,7 @@ public class VersionController {
             @PathVariable UUID versionId,
             @PathVariable UUID nodeId,
             @RequestBody BaseNodeDTO nodeDTO) {
+        projectAccessService.assertCanEdit(projectAccessService.resolveProjectIdForVersion(versionId));
         BaseNode result = versionService.editNodeInVersion(versionId, nodeId, nodeDTO);
         return Responses.ok("Node edited in version successfully", result);
     }
@@ -147,6 +148,7 @@ public class VersionController {
             @PathVariable UUID versionId,
             @PathVariable UUID connectionId,
             @RequestBody ConnectionDTO connectionDTO) {
+        projectAccessService.assertCanEdit(projectAccessService.resolveProjectIdForVersion(versionId));
         NodeConnection result = versionService.editConnectionInVersion(versionId, connectionId, connectionDTO);
         return Responses.ok("Connection edited in version successfully", result);
     }
@@ -156,6 +158,7 @@ public class VersionController {
     public ResponseEntity<ApiResponse<Void>> deleteNodeFromVersion(
             @PathVariable UUID versionId,
             @PathVariable UUID nodeId) {
+        projectAccessService.assertCanEdit(projectAccessService.resolveProjectIdForVersion(versionId));
         versionService.deleteNodeFromVersion(versionId, nodeId);
         return Responses.ok("Node deleted from version successfully");
     }
@@ -165,6 +168,7 @@ public class VersionController {
     public ResponseEntity<ApiResponse<Void>> deleteConnectionFromVersion(
             @PathVariable UUID versionId,
             @PathVariable UUID connectionId) {
+        projectAccessService.assertCanEdit(projectAccessService.resolveProjectIdForVersion(versionId));
         versionService.deleteConnectionFromVersion(versionId, connectionId);
         return Responses.ok("Connection deleted from version successfully");
     }

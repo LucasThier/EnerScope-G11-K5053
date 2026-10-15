@@ -4,6 +4,7 @@ import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
+import org.enerscope.organization.repository.OrganizationMemberRepository;
 import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
@@ -51,21 +52,27 @@ public class ProjectService {
         private final ProjectRepository projectRepository;
         private final ProjectMemberRepository projectMemberRepository;
         private final OrganizationRepository organizationRepository;
+        private final OrganizationMemberRepository organizationMemberRepository;
         private final UserRepository userRepository;
         private final AppLogger logger;
         private final VersionService versionService;
+        private final ProjectAccessService projectAccessService;
 
         public ProjectService(ProjectRepository projectRepository,
                         ProjectMemberRepository projectMemberRepository,
                         OrganizationRepository organizationRepository,
+                        OrganizationMemberRepository organizationMemberRepository,
                         UserRepository userRepository,
-                        AppLogger logger, VersionService versionService) {
+                        AppLogger logger, VersionService versionService,
+                        ProjectAccessService projectAccessService) {
                 this.projectRepository = projectRepository;
                 this.projectMemberRepository = projectMemberRepository;
                 this.organizationRepository = organizationRepository;
+                this.organizationMemberRepository = organizationMemberRepository;
                 this.userRepository = userRepository;
                 this.logger = logger;
                 this.versionService = versionService;
+                this.projectAccessService = projectAccessService;
         }
 
         /**
@@ -99,6 +106,15 @@ public class ProjectService {
                 Organization organization = organizationRepository.findById(data.organizationId())
                                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
 
+                // Creating a project inside an organization requires belonging to it (any
+                // role) or platform-admin authority — otherwise any authenticated user
+                // could create projects inside organizations they have no relation to.
+                if (creator.getPlatformRole() != PlatformRole.ADMIN
+                                && !organizationMemberRepository.existsByOrganizationIdAndUserId(
+                                                data.organizationId(), creator.getId())) {
+                        throw new ForbiddenException("You are not allowed to create projects in this organization");
+                }
+
                 Project project = new Project(data.name(), data.description(), organization);
                 organization.addProject(project);
 
@@ -126,23 +142,14 @@ public class ProjectService {
 
         /**
          * Ensures the current caller may read the given project: a platform ADMIN,
-         * or any of its members regardless of permissions.
+         * an org OWNER of the owning organization, or any of its members.
          */
         public void assertCanViewProject(UUID projectId) {
-                Session session = AuthUtil.currentSession();
-                if (session == null) {
-                        throw new UnauthorizedException("Authentication required");
-                }
-                User caller = session.getUser();
-                if (caller.getPlatformRole() == PlatformRole.ADMIN) {
-                        return;
-                }
-                if (!projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())) {
-                        throw new ForbiddenException("You are not allowed to view this project");
-                }
+                projectAccessService.assertCanView(projectId);
         }
 
         public ProjectMember addMember(UUID projectId, AddProjectMemberRequestDTO data) {
+                projectAccessService.assertCanManage(projectId);
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
                 User user = userRepository.findById(data.userId())
@@ -177,6 +184,7 @@ public class ProjectService {
                 if (projectId == null || versionDTO == null) {
                         throw new IllegalArgumentException("data cannot be null");
                 }
+                projectAccessService.assertCanEdit(projectId);
 
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
@@ -197,6 +205,7 @@ public class ProjectService {
          */
         @Transactional(readOnly = true)
         public List<VersionSummaryDTO> listVersions(UUID projectId) {
+                projectAccessService.assertCanView(projectId);
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
 
@@ -207,5 +216,10 @@ public class ProjectService {
                                                 v.getParentVersion() == null ? null : v.getParentVersion().getId(),
                                                 v.getCreatedAt()))
                                 .toList();
+        }
+
+        /** Default permission set granted for a member type (see {@link #DEFAULT_PERMISSIONS}). */
+        public static Set<ProjectMemberPermission> defaultPermissionsFor(ProjectMemberType type) {
+                return DEFAULT_PERMISSIONS.get(type);
         }
 }

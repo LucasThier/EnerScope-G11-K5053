@@ -4,6 +4,7 @@ import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
+import org.enerscope.organization.repository.OrganizationMemberRepository;
 import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.dto.CreateProjectRequestDTO;
@@ -20,6 +21,7 @@ import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
 import org.enerscope.version.dto.VersionDTO;
+import org.enerscope.version.dto.VersionSummaryDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.service.VersionService;
 import org.junit.jupiter.api.AfterEach;
@@ -41,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -55,12 +58,16 @@ class ProjectServiceTest {
         @Mock
         private OrganizationRepository organizationRepository;
         @Mock
+        private OrganizationMemberRepository organizationMemberRepository;
+        @Mock
         private UserRepository userRepository;
 
         @Mock
         private VersionService versionService;
         @Mock
         private AppLogger logger;
+        @Mock
+        private ProjectAccessService projectAccessService;
 
         private static final java.util.Map<ProjectMemberType, Set<ProjectMemberPermission>>
                         DEFAULT_PERMISSIONS_FOR_TEST = java.util.Map.of(
@@ -75,8 +82,9 @@ class ProjectServiceTest {
         @BeforeEach
         void setUp() {
                 projectService = new ProjectService(
-                                projectRepository, projectMemberRepository, organizationRepository, userRepository,
-                                logger, versionService);
+                                projectRepository, projectMemberRepository, organizationRepository,
+                                organizationMemberRepository, userRepository,
+                                logger, versionService, projectAccessService);
         }
 
         @AfterEach
@@ -94,6 +102,8 @@ class ProjectServiceTest {
                 authenticateAs(creator);
                 when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
                 when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
+                when(organizationMemberRepository.existsByOrganizationIdAndUserId(orgId, creator.getId()))
+                                .thenReturn(true);
                 when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
                 when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -114,6 +124,8 @@ class ProjectServiceTest {
                 authenticateAs(creator);
                 when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
                 when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
+                when(organizationMemberRepository.existsByOrganizationIdAndUserId(orgId, creator.getId()))
+                                .thenReturn(true);
                 when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
                 when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -152,6 +164,40 @@ class ProjectServiceTest {
                                 new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid", orgId)));
                 verify(projectRepository, never()).save(any());
                 verify(projectMemberRepository, never()).save(any());
+        }
+
+        @Test
+        void createProjectRejectsNonMemberOfOrganizationWith403() {
+                UUID orgId = UUID.randomUUID();
+                Organization organization = new Organization("Acme");
+                User creator = creator();
+                authenticateAs(creator);
+                when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
+                when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
+                when(organizationMemberRepository.existsByOrganizationIdAndUserId(orgId, creator.getId()))
+                                .thenReturn(false);
+
+                assertThrows(ForbiddenException.class, () -> projectService.createProject(
+                                new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid", orgId)));
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void createProjectAllowsPlatformAdminRegardlessOfOrganizationMembership() {
+                UUID orgId = UUID.randomUUID();
+                Organization organization = new Organization("Acme");
+                User admin = admin();
+                authenticateAs(admin);
+                when(userRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+                when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
+                when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                Project saved = projectService.createProject(
+                                new CreateProjectRequestDTO("Grid Expansion", "Expands the regional grid", orgId));
+
+                assertEquals(organization, saved.getOrganization());
+                verify(organizationMemberRepository, never()).existsByOrganizationIdAndUserId(any(), any());
         }
 
         // ---- addMember -------------------------------------------------------
@@ -238,6 +284,19 @@ class ProjectServiceTest {
                 verify(projectMemberRepository, never()).save(any());
         }
 
+        @Test
+        void addMemberRejectsCallerWithoutManageAuthorityWith403() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                doThrow(new ForbiddenException("You are not allowed to manage this project"))
+                                .when(projectAccessService).assertCanManage(projectId);
+
+                assertThrows(ForbiddenException.class, () -> projectService.addMember(
+                                projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR)));
+                verify(projectRepository, never()).findById(any());
+                verify(projectMemberRepository, never()).save(any());
+        }
+
         // ---- listMembers ---------------------------------------------------------
 
         @Test
@@ -258,23 +317,20 @@ class ProjectServiceTest {
         @Test
         void listMembersReturnsMembersForProjectMember() {
                 UUID projectId = UUID.randomUUID();
-                User caller = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
-                authenticateAs(caller);
                 when(projectRepository.existsById(projectId)).thenReturn(true);
-                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(true);
                 when(projectMemberRepository.findByProjectIdWithUser(projectId))
                                 .thenReturn(List.of(sampleMember(ProjectMemberType.EDITOR)));
 
                 assertEquals(1, projectService.listMembers(projectId).size());
+                verify(projectAccessService).assertCanView(projectId);
         }
 
         @Test
         void listMembersRejectsCallerWhoIsNotAMember() {
                 UUID projectId = UUID.randomUUID();
-                User caller = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
-                authenticateAs(caller);
                 when(projectRepository.existsById(projectId)).thenReturn(true);
-                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(false);
+                doThrow(new ForbiddenException("You are not allowed to view this project"))
+                                .when(projectAccessService).assertCanView(projectId);
 
                 assertThrows(ForbiddenException.class, () -> projectService.listMembers(projectId));
                 verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
@@ -284,6 +340,8 @@ class ProjectServiceTest {
         void listMembersRejectsUnauthenticated() {
                 UUID projectId = UUID.randomUUID();
                 when(projectRepository.existsById(projectId)).thenReturn(true);
+                doThrow(new UnauthorizedException("Authentication required"))
+                                .when(projectAccessService).assertCanView(projectId);
 
                 assertThrows(UnauthorizedException.class, () -> projectService.listMembers(projectId));
                 verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
@@ -384,6 +442,46 @@ class ProjectServiceTest {
                                 () -> projectService.saveVersion(projectId, new VersionDTO("Baseline", null)));
                 verify(versionService, never()).saveVersion(any());
                 verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void saveVersionRejectsCallerWithoutEditAuthorityWith403() {
+                UUID projectId = UUID.randomUUID();
+                doThrow(new ForbiddenException("You are not allowed to edit this project"))
+                                .when(projectAccessService).assertCanEdit(projectId);
+
+                assertThrows(ForbiddenException.class,
+                                () -> projectService.saveVersion(projectId, new VersionDTO("Baseline", null)));
+                verify(projectRepository, never()).findById(any());
+                verify(versionService, never()).saveVersion(any());
+        }
+
+        // ---- listVersions ----------------------------------------------------
+
+        @Test
+        void listVersionsReturnsSummariesForAuthorizedCaller() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                Version version = new Version();
+                version.setName("Baseline");
+                project.addVersion(version);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+                List<VersionSummaryDTO> result = projectService.listVersions(projectId);
+
+                assertEquals(1, result.size());
+                assertEquals("Baseline", result.get(0).getName());
+                verify(projectAccessService).assertCanView(projectId);
+        }
+
+        @Test
+        void listVersionsRejectsCallerWithoutViewAuthorityWith403() {
+                UUID projectId = UUID.randomUUID();
+                doThrow(new ForbiddenException("You are not allowed to view this project"))
+                                .when(projectAccessService).assertCanView(projectId);
+
+                assertThrows(ForbiddenException.class, () -> projectService.listVersions(projectId));
+                verify(projectRepository, never()).findById(any());
         }
 
         // ---- helpers -------------------------------------------------------------

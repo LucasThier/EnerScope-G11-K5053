@@ -90,6 +90,7 @@ class OrganizationServiceTest {
         UUID userId = UUID.randomUUID();
         Organization organization = new Organization("Acme");
         User user = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+        authenticateAs(admin());
         when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(organizationMemberRepository.existsByOrganizationIdAndUserId(orgId, userId)).thenReturn(false);
@@ -114,6 +115,7 @@ class OrganizationServiceTest {
         UUID userId = UUID.randomUUID();
         Organization organization = new Organization("Acme");
         User user = new User("john@enerscope.org", "John", "Roe", "hashed");
+        authenticateAs(admin());
         when(organizationRepository.findById(orgId)).thenReturn(Optional.of(organization));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(organizationMemberRepository.existsByOrganizationIdAndUserId(orgId, userId)).thenReturn(false);
@@ -130,6 +132,7 @@ class OrganizationServiceTest {
     void addMemberRejectsUnknownOrganization() {
         UUID orgId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        authenticateAs(admin());
         when(organizationRepository.findById(orgId)).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class, () -> organizationService.addMember(
@@ -142,6 +145,7 @@ class OrganizationServiceTest {
     void addMemberRejectsUnknownUser() {
         UUID orgId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        authenticateAs(admin());
         when(organizationRepository.findById(orgId)).thenReturn(Optional.of(new Organization("Acme")));
         when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
@@ -154,12 +158,38 @@ class OrganizationServiceTest {
     void addMemberRejectsDuplicateMembership() {
         UUID orgId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
+        authenticateAs(admin());
         when(organizationRepository.findById(orgId)).thenReturn(Optional.of(new Organization("Acme")));
         when(userRepository.findById(userId)).thenReturn(
                 Optional.of(new User("jane@enerscope.org", "Jane", "Doe", "hashed")));
         when(organizationMemberRepository.existsByOrganizationIdAndUserId(orgId, userId)).thenReturn(true);
 
         assertThrows(IllegalArgumentException.class, () -> organizationService.addMember(
+                orgId, new AddOrganizationMemberRequestDTO(userId, OrganizationMemberType.MEMBER)));
+        verify(organizationMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void addMemberRejectsCallerWithoutManageAuthorityWith403() {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        User plainMember = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+        Organization organization = new Organization("Acme");
+        authenticateAs(plainMember);
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(orgId, plainMember.getId()))
+                .thenReturn(Optional.of(viewOnlyMembership(plainMember, organization)));
+
+        assertThrows(ForbiddenException.class, () -> organizationService.addMember(
+                orgId, new AddOrganizationMemberRequestDTO(userId, OrganizationMemberType.MEMBER)));
+        verify(organizationMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void addMemberRejectsUnauthenticatedCallerWith401() {
+        UUID orgId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        assertThrows(UnauthorizedException.class, () -> organizationService.addMember(
                 orgId, new AddOrganizationMemberRequestDTO(userId, OrganizationMemberType.MEMBER)));
         verify(organizationMemberRepository, never()).save(any());
     }
