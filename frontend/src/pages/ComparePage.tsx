@@ -36,8 +36,8 @@ const kpi = (pick: (k: SimulationKpis) => number | null) => (version: ComparedVe
 
 const INDICATORS: Indicator[] = [
   { key: 'deliveredP50', label: 'Volumen entregado (P50)', direction: 'higher', read: kpi((k) => k.deliveredP50), format: formatCompact },
-  { key: 'deliveredP10', label: 'Entregado, caso bajo (P10)', direction: 'higher', read: kpi((k) => k.deliveredP10), format: formatCompact },
-  { key: 'deliveredP90', label: 'Entregado, caso alto (P90)', direction: 'higher', read: kpi((k) => k.deliveredP90), format: formatCompact },
+  { key: 'deliveredP90', label: 'Entregado, caso conservador (P90)', direction: 'higher', read: kpi((k) => k.deliveredP90), format: formatCompact },
+  { key: 'deliveredP10', label: 'Entregado, caso optimista (P10)', direction: 'higher', read: kpi((k) => k.deliveredP10), format: formatCompact },
   { key: 'exportedP50', label: 'Exportado como GNL (P50)', direction: 'higher', read: kpi((k) => k.exportedP50), format: formatCompact },
   { key: 'domesticP50', label: 'Mercado interno (P50)', direction: 'higher', read: kpi((k) => k.domesticP50), format: formatCompact },
   { key: 'lossesP50', label: 'Pérdidas y consumos (P50)', direction: 'lower', read: kpi((k) => k.lossesP50), format: formatCompact },

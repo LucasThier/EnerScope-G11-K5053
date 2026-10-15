@@ -396,10 +396,13 @@ vertical and state next to its `capex`/`opex`/`upkeep`, so the run still reads
 correctly after the node is renamed or removed. Neither has a foreign key to
 `base_node` (V13): a run is history and must not block deleting a node.
 
-Percentiles are **statistical** — rounds are ranked by delivered volume (what
-reached LNG carriers and internal/industrial consumption), P10 is the low case
-and P90 the high one. The API derives KPIs, per-vertical roll-ups and per-node
-rows from these tables (`SimulationResultMapper`); nothing derived is stored.
+The stored percentiles are **statistical** — rounds are ranked by delivered
+volume (what reached LNG carriers and internal/industrial consumption), and
+`percentile10` holds the low round, `percentile90` the high one. The API reports
+them in the **reserves convention** instead: its P90 is the conservative case
+(read from `percentile10`) and its P10 the optimistic one (read from
+`percentile90`). The API derives KPIs, per-vertical roll-ups and per-node rows
+from these tables (`SimulationResultMapper`); nothing derived is stored.
 
 ## Session (non-persistent)
 

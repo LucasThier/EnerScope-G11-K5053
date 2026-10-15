@@ -61,7 +61,7 @@ Run everything with `cd backend && mvn test`.
 | `simulator.SimulatorRobustnessTest` | Unit | 11 |
 | `simulation.service.SimulationServiceTest` | Unit | 14 |
 | `simulation.service.CostCalculatorTest` | Unit | 11 |
-| `simulation.service.SimulationResultMapperTest` | Unit | 7 |
+| `simulation.service.SimulationResultMapperTest` | Unit | 9 |
 | `simulation.service.SimulationPersistenceTest` | Data | 2 |
 | `simulation.service.VersionComparisonServiceTest` | Unit | 14 |
 | `simulation.service.NodeFingerprintTest` | Unit | 6 |
@@ -70,12 +70,12 @@ Run everything with `cd backend && mvn test`.
 | `strategyCost.CostTest` | Unit | 8 |
 | `strategyCost.InvestmentCostTest` | Unit | 2 |
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| **Total** | | **556 [^p]** |
+| **Total** | | **558 [^p]** |
 
 [^p]: Two cases in `version.service.VersionServiceTest` are
 `@ParameterizedTest`s running over the eight mutating version entry points,
-so they count as 16 executions rather than 2. The 556 cases catalogued here
-therefore make 570 executions.
+so they count as 16 executions rather than 2. The 558 cases catalogued here
+therefore make 572 executions.
 
 > **This catalog has drifted from the code.** On 2026-10-05 `mvn test` ran
 > **587** executions, against the 447 above. The gap is not a mistake in the
@@ -96,6 +96,9 @@ therefore make 570 executions.
 > `simulator.ResultTest` no longer exist in the code, and `simulator.SimulatorTest`,
 > `simulator.ResultPerRoundTest`, `version.service.VersionConflictServiceTest` and
 > `version.service.VersionConflictIntegrationTest` have no entry.
+>
+> Later on 2026-10-15 the switch to the reserves percentile convention added two
+> `SimulationResultMapperTest` cases: `mvn test` runs **707** executions.
 
 ## `ApplicationContextTest` — Integration
 
@@ -845,6 +848,8 @@ shows.
 | Case | Verifies |
 | --- | --- |
 | `deliveredCountsExportsAndDomesticConsumptionOnly` | Delivered volume counts what reached LNG carriers and internal/industrial consumption, not what passed through intermediate nodes. |
+| `deliveredPercentilesFollowTheReservesConvention` | Delivered P90 is read from the engine's low round and P10 from its high round, so P90 ≤ P50 ≤ P10 (reserves convention). |
+| `nodePercentilesFollowTheReservesConvention` | A node's `producedP90` / `producedP10` come from the low / high round respectively. |
 | `lossesAddUpEveryNodesLossesInTheMedianRound` | Losses are the sum of every node's losses in the P50 round. |
 | `unitCostIsTheTotalCostOverTheMedianDeliveredVolume` | Unit cost is total cost / P50 delivered volume. |
 | `unitCostIsNullWhenNothingWasDelivered` | With nothing delivered the unit cost is `null` rather than a division by zero. |

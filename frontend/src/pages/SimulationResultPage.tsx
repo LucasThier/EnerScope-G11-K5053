@@ -148,7 +148,7 @@ export function SimulationResultPage() {
             hero
             label="Volumen entregado (P50)"
             value={formatCompact(kpis.deliveredP50)}
-            detail={`Rango P10–P90: ${formatCompact(kpis.deliveredP10)} – ${formatCompact(kpis.deliveredP90)} · media ${formatCompact(kpis.deliveredMean)}`}
+            detail={`Rango P90–P10: ${formatCompact(kpis.deliveredP90)} – ${formatCompact(kpis.deliveredP10)} · media ${formatCompact(kpis.deliveredMean)}`}
           />
         </div>
         <StatTile label="Exportado como GNL (P50)" value={formatCompact(kpis.exportedP50)} />
@@ -215,9 +215,9 @@ export function SimulationResultPage() {
               <tr className="border-b border-ink-100">
                 <th scope="col" className={headerCell}>Nodo</th>
                 <th scope="col" className={headerCell}>Vertical</th>
-                <th scope="col" className={`${headerCell} text-right`}>P10</th>
+                <th scope="col" className={`${headerCell} text-right`} title="Caso conservador">P90</th>
                 <th scope="col" className={`${headerCell} text-right`}>P50</th>
-                <th scope="col" className={`${headerCell} text-right`}>P90</th>
+                <th scope="col" className={`${headerCell} text-right`} title="Caso optimista">P10</th>
                 <th scope="col" className={headerCell}>Utilización</th>
                 <th scope="col" className={`${headerCell} text-right`}>Pérdidas</th>
                 <th scope="col" className={`${headerCell} text-right`}>CAPEX</th>
@@ -236,7 +236,7 @@ export function SimulationResultPage() {
                     </span>
                   </td>
                   <td className={bodyCell}>{VERTICAL_LABELS[node.vertical ?? 'UNKNOWN'] ?? node.vertical}</td>
-                  <td className={`${bodyCell} text-right tabular-nums`}>{formatCompact(node.producedP10)}</td>
+                  <td className={`${bodyCell} text-right tabular-nums`}>{formatCompact(node.producedP90)}</td>
                   <td className={`${bodyCell} text-right font-semibold tabular-nums`}>
                     {node.producedP50 == null ? (
                       <span title="El nodo forma parte de un ciclo y no se simuló">No simulado</span>
@@ -244,7 +244,7 @@ export function SimulationResultPage() {
                       formatCompact(node.producedP50)
                     )}
                   </td>
-                  <td className={`${bodyCell} text-right tabular-nums`}>{formatCompact(node.producedP90)}</td>
+                  <td className={`${bodyCell} text-right tabular-nums`}>{formatCompact(node.producedP10)}</td>
                   <td className={bodyCell}>
                     <UtilizationMeter ratio={node.utilizationP50} />
                   </td>
@@ -264,9 +264,11 @@ export function SimulationResultPage() {
       </Card>
 
       <p className="text-xs text-ink-500">
-        Los percentiles son estadísticos: P10 es el caso bajo y P90 el alto entre las rondas simuladas. Los
-        volúmenes están en las unidades del modelo (capacidad por hora × horas simuladas). Los costos no
-        incluyen el costo DTM, de tratamiento ni de contratación de buques.
+        Los percentiles siguen la convención de reservas: P90 es el caso conservador (lo alcanza el 90 % de
+        las rondas simuladas) y P10 el optimista (solo lo alcanza el 10 %). En la tabla por nodo, cada
+        percentil muestra lo que hizo el nodo en esa ronda de la cadena completa. Los volúmenes están en
+        las unidades del modelo (capacidad por hora × horas simuladas). Los costos no incluyen el costo
+        DTM, de tratamiento ni de contratación de buques.
       </p>
     </div>
   );

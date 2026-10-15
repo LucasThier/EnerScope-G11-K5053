@@ -1,8 +1,9 @@
 /**
  * Types mirroring the backend simulation DTOs (`org.enerscope.simulation.dto`).
  * Volumes are totals over the run's horizon in the model's own units (the
- * capacities are entered per hour). Percentiles are statistical: P10 is the low
- * case and P90 the high one.
+ * capacities are entered per hour). Percentiles follow the reserves convention:
+ * P90 is the conservative case (reached in 90 % of the rounds) and P10 the
+ * optimistic one, so `deliveredP90 <= deliveredP50 <= deliveredP10`.
  */
 
 export interface SimulationKpis {

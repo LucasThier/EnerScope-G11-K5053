@@ -7,7 +7,14 @@ import java.util.UUID;
  * One node's figures in a simulation run. Production fields are {@code null} for
  * a node the engine could not place in its execution order.
  *
+ * <p>Percentiles follow the reserves convention (P90 conservative, P10
+ * optimistic). Each one is the node's figure in the round picked by the whole
+ * chain's delivered volume, not a percentile of the node itself, so a node's
+ * {@code producedP90} can exceed its {@code producedP10}.</p>
+ *
+ * @param producedP10   volume the node put through in the optimistic (P10) round
  * @param producedP50   volume the node put through in the P50 round
+ * @param producedP90   volume the node put through in the conservative (P90) round
  * @param capacityP50   what it could have put through in that round (its capacity over the hours it was up)
  * @param utilizationP50 {@code producedP50 / capacityP50}, or {@code null} when the capacity is zero
  * @param lossesP50     the node's losses or process consumption in the P50 round

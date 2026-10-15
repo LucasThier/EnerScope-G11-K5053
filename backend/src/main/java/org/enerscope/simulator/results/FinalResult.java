@@ -16,6 +16,12 @@ import java.util.UUID;
  * percentiles, the mean delivered volume across rounds, and — snapshotted at run
  * time — the cost of the model that was simulated, so a run stays
  * self-consistent even if the version is edited afterwards.
+ *
+ * <p>The percentile lists are <em>statistical</em>, as the engine ranks rounds by
+ * delivered volume: {@code percentile10} is the low round and {@code percentile90}
+ * the high one (tables {@code final_result_p10/p90}). The API reports them in the
+ * reserves convention, where P90 is the conservative case, so it reads them
+ * swapped — see {@code SimulationResultMapper}.</p>
  */
 @Getter
 @Setter

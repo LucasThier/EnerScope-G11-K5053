@@ -2040,6 +2040,8 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     figure. Rounds are ranked by delivered volume and each percentile copies a
     *whole round*, so a node's P50 value is its value in the median round, not
     that node's own median. The results page says so in a footnote.
+    *(Superseded the same day: the API now reports the reserves convention —
+    see "Percentiles follow the reserves convention" below.)*
   - **Delivered** = what reached LNG carriers plus internal and industrial
     consumption (`ResultPerRound.SINK_CLASSES`); **exported** counts LNG
     carriers only. Volumes are in model units (capacity per hour × simulated
@@ -2117,3 +2119,22 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     test setup exists); a run cannot be exported; the decline/maintenance model
     is the engine's original one, not a calibrated one.
   - `mvn test` 583 (one red: the performance case) → 705, all green.
+- 2026-10-15 — **Percentiles follow the reserves convention.** P90 is now the
+  conservative case (the delivered volume reached in 90 % of the rounds) and P10
+  the optimistic one, so `deliveredP90 <= deliveredP50 <= deliveredP10`, as in
+  oil & gas reserves reporting.
+  - **The swap lives in one place, `SimulationResultMapper`** (`p90Round` reads
+    `FinalResult.percentile10`, `p10Round` reads `percentile90`). The engine
+    still ranks rounds the statistical way and `FinalResult` /
+    `final_result_p10/p90` keep storing them so — the low round in
+    `percentile10`. Translating at read time means runs stored before the
+    switch report correctly with **no migration**, which matters because the
+    next migration numbers already collide across branches (`cami-front-versionado`
+    has its own V13; `modulo-resultados-v2` and `vistas-resultados-v1` use V12–V15).
+  - Field names in the API (`deliveredP10/P90`, `producedP10/P90`) are
+    unchanged; their meaning is what changed. Anything reading them outside this
+    frontend must swap its interpretation.
+  - Each percentile is still a *whole round* picked by the chain's delivered
+    volume, so a single node's `producedP90` can exceed its `producedP10`.
+  - The UI shows P90 before P10 ("caso conservador" / "caso optimista") on the
+    results page, its per-node table and the comparison.

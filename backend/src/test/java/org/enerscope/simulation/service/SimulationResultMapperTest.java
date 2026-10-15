@@ -66,11 +66,30 @@ class SimulationResultMapperTest {
         SimulationKpisDTO kpis = mapper.toSummary(run(), UUID.randomUUID()).kpis();
 
         assertEquals(500, kpis.deliveredP50(), 0.001);
-        assertEquals(350, kpis.deliveredP10(), 0.001);
-        assertEquals(700, kpis.deliveredP90(), 0.001);
         assertEquals(300, kpis.exportedP50(), 0.001);
         assertEquals(200, kpis.domesticP50(), 0.001);
         assertEquals(480, kpis.deliveredMean(), 0.001);
+    }
+
+    @Test
+    void deliveredPercentilesFollowTheReservesConvention() {
+        // The fixture's low round (the engine's percentile10) delivered 350 and its
+        // high round (percentile90) 700: P90 is the conservative one, P10 the optimistic.
+        SimulationKpisDTO kpis = mapper.toSummary(run(), UUID.randomUUID()).kpis();
+
+        assertEquals(350, kpis.deliveredP90(), 0.001);
+        assertEquals(700, kpis.deliveredP10(), 0.001);
+        assertTrue(kpis.deliveredP90() <= kpis.deliveredP50() && kpis.deliveredP50() <= kpis.deliveredP10());
+    }
+
+    @Test
+    void nodePercentilesFollowTheReservesConvention() {
+        NodeResultDTO ship = mapper.toDetail(run(), UUID.randomUUID()).nodes().stream()
+                .filter(n -> n.nodeId().equals(carrier)).findFirst().orElseThrow();
+
+        assertEquals(200, ship.producedP90(), 0.001);
+        assertEquals(300, ship.producedP50(), 0.001);
+        assertEquals(400, ship.producedP10(), 0.001);
     }
 
     @Test
@@ -121,7 +140,8 @@ class SimulationResultMapperTest {
         assertEquals(600, pipe.producedP50(), 0.001);
         assertEquals(0.5, pipe.utilizationP50(), 0.0001);
         assertEquals(40, pipe.lossesP50(), 0.001);
-        assertNull(pipe.producedP10(), "the pipeline has no row in the P10 round of this fixture");
+        assertNull(pipe.producedP10(), "the pipeline has no row in the high round of this fixture");
+        assertNull(pipe.producedP90(), "the pipeline has no row in the low round of this fixture");
         assertEquals(new BigDecimal("315.00"), pipe.totalCost());
         assertEquals(4, detail.summary().nodeCount());
     }

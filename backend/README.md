@@ -279,8 +279,9 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   model never change it.
 - A run's KPIs: delivered volume (LNG carriers + internal + industrial
   consumption) at P10/P50/P90 and its mean, exported and domestic volume, losses,
-  CAPEX/OPEX/upkeep, total and unit cost (total / delivered P50). Percentiles are
-  statistical: **P10 is the low case**. The detail adds a row per node and a
+  CAPEX/OPEX/upkeep, total and unit cost (total / delivered P50). Percentiles
+  follow the reserves convention: **P90 is the conservative case** (reached in
+  90 % of the rounds) and P10 the optimistic one. The detail adds a row per node and a
   roll-up per vertical, plus warnings (`UNSIMULATED_NODES` for nodes on a cycle,
   `NO_SINKS` when the model has no LNG carrier or consumption node).
 - Costs over a horizon: a node operates `min(lifespan × 30, years × 365)` days;

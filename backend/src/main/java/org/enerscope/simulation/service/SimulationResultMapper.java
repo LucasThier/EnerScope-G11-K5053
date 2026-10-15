@@ -31,6 +31,14 @@ import java.util.function.Function;
  * Turns a stored {@link FinalResult} into the API's read models. Pure — no
  * repositories, no session — so the figures a comparison shows and the ones a
  * single run shows come from the same arithmetic.
+ *
+ * <p>Percentiles follow the reserves convention: P90 is the volume reached in
+ * 90 % of the rounds (the conservative case) and P10 the one only 10 % reach
+ * (the optimistic case). The engine ranks rounds the statistical way and stores
+ * them so — {@code percentile10} is the round 10 % of the way up the ranking —
+ * which is why {@link #p90Round} and {@link #p10Round} swap the two ends here,
+ * the one place every API figure comes from. Runs stored before the switch read
+ * correctly with no migration.</p>
  */
 @Component
 public class SimulationResultMapper {
@@ -53,9 +61,9 @@ public class SimulationResultMapper {
 
         SimulationKpisDTO kpis = new SimulationKpisDTO(
                 result.getMediaOutput(),
-                sumProduced(result.getPercentile10(), ResultPerRound.SINK_CLASSES),
+                sumProduced(p10Round(result), ResultPerRound.SINK_CLASSES),
                 deliveredP50,
-                sumProduced(result.getPercentile90(), ResultPerRound.SINK_CLASSES),
+                sumProduced(p90Round(result), ResultPerRound.SINK_CLASSES),
                 sumProduced(result.getPercentile50(), EXPORT_CLASSES),
                 sumProduced(result.getPercentile50(), DOMESTIC_CLASSES),
                 sumLosses(result.getPercentile50()),
@@ -70,9 +78,9 @@ public class SimulationResultMapper {
     }
 
     public SimulationDetailDTO toDetail(FinalResult result, UUID versionId) {
-        Map<UUID, ResultPerNode> p10 = byNode(result.getPercentile10());
+        Map<UUID, ResultPerNode> p10 = byNode(p10Round(result));
         Map<UUID, ResultPerNode> p50 = byNode(result.getPercentile50());
-        Map<UUID, ResultPerNode> p90 = byNode(result.getPercentile90());
+        Map<UUID, ResultPerNode> p90 = byNode(p90Round(result));
 
         List<NodeResultDTO> nodes = sortedByVertical(result.getNodeCosts()).stream().map(cost -> {
             ResultPerNode median = p50.get(cost.getNodeId());
@@ -115,6 +123,16 @@ public class SimulationResultMapper {
                     sum(group, NodeCostResult::getUpkeep), sum(group, NodeCostResult::total)));
         });
         return verticals;
+    }
+
+    /** The conservative round (reserves P90): the one 10 % of the way up the engine's ranking. */
+    static List<ResultPerNode> p90Round(FinalResult result) {
+        return result.getPercentile10();
+    }
+
+    /** The optimistic round (reserves P10): the one 90 % of the way up the engine's ranking. */
+    static List<ResultPerNode> p10Round(FinalResult result) {
+        return result.getPercentile90();
     }
 
     public static Map<UUID, ResultPerNode> byNode(List<ResultPerNode> rows) {
