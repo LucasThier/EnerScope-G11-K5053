@@ -119,9 +119,24 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `PATCH` | `/version/{id}` | admin / project editor | Rename a version or re-parent it |
 | `DELETE` | `/version/{id}` | admin / project editor | Delete a version and every version below it |
 | `POST` `PATCH` `DELETE` | `/version/{id}/node[/{nodeId}]` | admin / project editor | Add, edit or remove a node in a version |
+| `POST` | `/version/{versionId}/nodes/import` | admin / project editor | Import up to 10,000 typed nodes from a CSV file (max 5 MB) |
 | `POST` `PATCH` `DELETE` | `/version/{id}/connection[/{connectionId}]` | admin / project editor | Add, edit or remove a connection in a version |
 | `PATCH` | `/users/me/password` | bearer | Change your own password (requires the current one) |
 | `GET` | `/health` | public | Liveness probe |
+
+### Node CSV import (`POST /version/{versionId}/nodes/import`)
+
+Upload `multipart/form-data` with the CSV in the **`file`** field. The caller
+must have project edit permission. Include a `nodeKind` column with one of the
+supported node kinds (`WELL`, `GATHERING_NETWORK`, `TREATMENT_PLANT`,
+`PIPELINE`, `PIPELINE_CONNECTION`, `COMPRESSING_PLANT`,
+`GROUND_BASED_LIQUEFACTION_PLANT`, `FLNG_UNIT`, `LNG_CARRIER`,
+`SEAPORT_TERMINAL`, `INTERNAL_CONSUMPTION`, `INDUSTRIAL_CONSUMPTION`); other
+columns use node DTO property names. Nested `type`, `investmentCost`,
+`graphData` and `declineCurve` values are JSON objects inside quoted CSV cells.
+The upload is limited to 5 MB and 10,000 data rows, and any invalid row rolls
+back the entire import. Invalid input returns `400`; a request over the server
+multipart limit returns `413`.
 
 ### Bulk user registration (`POST /organizations/{id}/users/bulk`)
 

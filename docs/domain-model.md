@@ -185,7 +185,8 @@ both scoped to a `Version`.
 Abstract `@Entity` (JOINED inheritance) mapped to `base_node`, extended by every
 concrete node type (`Well`, `GatheringNetwork`, `TreatmentPlant`, `Pipeline`,
 `PipelineConnection`, `CompressingPlant`, `GroundBasedLiquefactionPlant`,
-`FLNGUnit`, `SeaportTerminal`, `LNGCarrier`).
+`FLNGUnit`, `SeaportTerminal`, `LNGCarrier`, `InternalConsumption` and
+`IndustrialConsumption`).
 
 | Field | Type | Notes |
 | --- | --- | --- |

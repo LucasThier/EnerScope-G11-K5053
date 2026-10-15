@@ -12,6 +12,7 @@ import org.enerscope.user.model.User;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.service.VersionConflictService;
+import org.enerscope.version.service.VersionNodeCsvImportService;
 import org.enerscope.version.service.VersionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -30,10 +32,12 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -66,6 +70,8 @@ class VersionControllerTest {
     private SessionService sessionService;
     @MockitoBean
     private VersionConflictService versionConflictService;
+    @MockitoBean
+    private VersionNodeCsvImportService versionNodeCsvImportService;
     // GlobalExceptionHandler (@ControllerAdvice) needs an AppLogger bean to load.
     @MockitoBean
     private AppLogger logger;
@@ -179,6 +185,102 @@ class VersionControllerTest {
                 .andExpect(status().isUnauthorized());
 
         verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @Test
+    void importNodesFromCsvReturnsImportedRowCount() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "nodes.csv", "text/csv", "nodeKind,name\nWELL,Sample\n".getBytes());
+        when(versionNodeCsvImportService.importNodes(eq(versionId), any())).thenReturn(1);
+
+        mockMvc.perform(multipart("/version/" + versionId + "/nodes/import")
+                        .file(file)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Imported 1 node successfully"))
+                .andExpect(jsonPath("$.data").value(1));
+    }
+
+    @Test
+    void importNodesFromCsvRequiresAuthenticationWith401() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "nodes.csv", "text/csv", "nodeKind,name\nWELL,Sample\n".getBytes());
+
+        mockMvc.perform(multipart("/version/" + UUID.randomUUID() + "/nodes/import")
+                        .file(file))
+                .andExpect(status().isUnauthorized());
+
+        verify(versionNodeCsvImportService, never()).importNodes(any(), any());
+    }
+
+    @Test
+    void importNodesFromCsvPropagatesEditPermissionFailureWith403() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "nodes.csv", "text/csv", "malformed csv".getBytes());
+        doThrow(new ForbiddenException("You are not allowed to edit this project"))
+                .when(versionNodeCsvImportService).importNodes(eq(versionId), any());
+
+        mockMvc.perform(multipart("/version/" + versionId + "/nodes/import")
+                        .file(file)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You are not allowed to edit this project"));
+    }
+
+    @Test
+    void importNodesFromCsvReturnsBadRequestForInvalidRows() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "nodes.csv", "text/csv", "nodeKind,name\nUNKNOWN,Sample\n".getBytes());
+        doThrow(new IllegalArgumentException("Unsupported nodeKind 'UNKNOWN'"))
+                .when(versionNodeCsvImportService).importNodes(eq(versionId), any());
+
+        mockMvc.perform(multipart("/version/" + versionId + "/nodes/import")
+                        .file(file)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Unsupported nodeKind 'UNKNOWN'"));
+    }
+
+    @Test
+    void importNodesFromCsvRejectsEmptyFiles() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile("file", "nodes.csv", "text/csv", new byte[0]);
+
+        mockMvc.perform(multipart("/version/" + versionId + "/nodes/import")
+                        .file(file)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("CSV file cannot be empty"));
+
+        verify(versionNodeCsvImportService, never()).importNodes(any(), any());
+    }
+
+    @Test
+    void importNodesFromCsvRejectsFilesOverFiveMegabytes() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "nodes.csv", "text/csv",
+                new byte[(int) VersionNodeCsvImportService.MAX_FILE_SIZE_BYTES + 1]);
+
+        mockMvc.perform(multipart("/version/" + versionId + "/nodes/import")
+                        .file(file)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("CSV file must be 5 MB or smaller"));
+
+        verify(versionNodeCsvImportService, never()).importNodes(any(), any());
+    }
+
+    @Test
+    void importNodesFromCsvRejectsMissingMultipartFile() throws Exception {
+        mockMvc.perform(multipart("/version/" + UUID.randomUUID() + "/nodes/import")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Required multipart field 'file' is missing"));
     }
 
     // ---- createVersion (detached) --------------------------------------------

@@ -34,6 +34,35 @@ EnerScope is a two-tier web application kept in a single repository (monorepo).
    caller when needed.
 5. Errors are normalised by `GlobalExceptionHandler`.
 
+### Version node CSV import
+
+`POST /version/{versionId}/nodes/import` accepts a multipart `file` CSV upload
+and is authenticated like the other `/version/**` routes. The CSV uses a
+`nodeKind` column with an uppercase snake-case discriminator; each row can
+contain a different node type. It imports the concrete `BaseNode` subclasses
+from `node.model.export`, `extraction`, `liquefaction` and `transportation`
+(including `PipelineConnection`, but not graph edges/`NodeConnection`).
+Supported values are `WELL`, `GATHERING_NETWORK`, `TREATMENT_PLANT`, `PIPELINE`,
+`PIPELINE_CONNECTION`, `COMPRESSING_PLANT`, `GROUND_BASED_LIQUEFACTION_PLANT`,
+`FLNG_UNIT`, `LNG_CARRIER`, `SEAPORT_TERMINAL`, `INTERNAL_CONSUMPTION` and
+`INDUSTRIAL_CONSUMPTION`.
+
+CSV headers otherwise use the DTO property names. The nested `type`,
+`investmentCost`, `graphData` and `declineCurve` values are JSON objects in
+their cells; quote/escape them as normal CSV fields. Columns for other node
+types may be present in the shared header but must be blank on rows that do not
+support them. Common required fields include `name`, `state`, `lifespanInMonths`,
+`maintenanceIntervalInDays`, `upkeepCosts`, `operatingCosts`, `wastePercentage`,
+a complete `type` object and `investmentCost.components`; required nullable
+fields specific to each node type must also be populated.
+The importer verifies edit permission before decoding/parsing, validates node
+type metadata, numeric fields and nested distribution/position data, and rejects
+malformed CSV quoting. A file is limited to 5 MB and 10,000 data rows. An upload
+is one transaction: an invalid row rejects the request and rolls back the
+batch. Invalid CSV/data returns `400`; missing multipart fields return `400`;
+requests over the framework upload limit return `413`, all in the `ApiResponse`
+envelope. The response's `data` is the number of imported nodes.
+
 ## Frontend
 
 - **React 19 + Vite + TypeScript**, styled exclusively with **Tailwind CSS**

@@ -4,6 +4,9 @@ import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.dto.WellDTO;
+import org.enerscope.node.dto.PipelineConnectionDTO;
+import org.enerscope.node.dto.InternalConsumptionDTO;
+import org.enerscope.node.dto.IndustrialConsumptionDTO;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.InvestmentCost;
@@ -12,6 +15,9 @@ import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.NodeGraphData;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
 import org.enerscope.node.model.enums.NodeStateEnum;
+import org.enerscope.node.model.transportation.PipelineConnection;
+import org.enerscope.node.model.export.InternalConsumption;
+import org.enerscope.node.model.export.IndustrialConsumption;
 import org.enerscope.probabilistic.ConstantValue;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
@@ -36,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -543,6 +550,91 @@ class VersionServiceTest {
                 assertEquals(ChangeTypeEnum.ADD, nodeChange.getChangeType());
 
                 verify(versionRepository, times(1)).save(version);
+        }
+
+        @Test
+        void addNodeToVersionSupportsPipelineConnectionAndConsumptionNodes() {
+                UUID versionId = UUID.randomUUID();
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(), new ArrayList<>());
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(versionRepository.save(any(Version.class))).thenReturn(version);
+
+                PipelineConnection pipelineConnection = mock(PipelineConnection.class);
+                when(pipelineConnection.getIdentityId()).thenReturn(UUID.randomUUID());
+                when(pipelineConnection.getType()).thenReturn(new NodeTypeData());
+                when(nodeService.savePipelineConnection(any(PipelineConnectionDTO.class))).thenReturn(pipelineConnection);
+                assertSame(pipelineConnection,
+                                versionService.addNodeToVersion(versionId, new PipelineConnectionDTO()));
+
+                InternalConsumption internalConsumption = mock(InternalConsumption.class);
+                when(internalConsumption.getIdentityId()).thenReturn(UUID.randomUUID());
+                when(internalConsumption.getType()).thenReturn(new NodeTypeData());
+                when(nodeService.saveInternalConsumption(any(InternalConsumptionDTO.class))).thenReturn(internalConsumption);
+                assertSame(internalConsumption,
+                                versionService.addNodeToVersion(versionId, new InternalConsumptionDTO()));
+
+                IndustrialConsumption industrialConsumption = mock(IndustrialConsumption.class);
+                when(industrialConsumption.getIdentityId()).thenReturn(UUID.randomUUID());
+                when(industrialConsumption.getType()).thenReturn(new NodeTypeData());
+                when(nodeService.saveIndustrialConsumption(any(IndustrialConsumptionDTO.class)))
+                                .thenReturn(industrialConsumption);
+                assertSame(industrialConsumption,
+                                versionService.addNodeToVersion(versionId, new IndustrialConsumptionDTO()));
+
+                assertEquals(3, version.getNodeSnapshot().size());
+                assertEquals(3, version.getNodeChanges().size());
+                verify(versionRepository, times(3)).save(version);
+        }
+
+        @Test
+        void editNodeInVersionSupportsPipelineConnectionAndConsumptionNodes() {
+                UUID versionId = UUID.randomUUID();
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(), new ArrayList<>());
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(versionRepository.save(any(Version.class))).thenReturn(version);
+
+                PipelineConnection pipelineConnection = mock(PipelineConnection.class);
+                addOwnedNode(version, pipelineConnection);
+                UUID pipelineConnectionId = UUID.randomUUID();
+                when(nodeRepository.findById(pipelineConnectionId)).thenReturn(Optional.of(pipelineConnection));
+                PipelineConnectionDTO pipelineConnectionDTO = new PipelineConnectionDTO();
+                when(nodeService.editPipelineConnection(pipelineConnection, pipelineConnectionDTO))
+                                .thenReturn(pipelineConnection);
+                assertSame(pipelineConnection, versionService.editNodeInVersion(
+                                versionId, pipelineConnectionId, pipelineConnectionDTO));
+
+                InternalConsumption internalConsumption = mock(InternalConsumption.class);
+                addOwnedNode(version, internalConsumption);
+                UUID internalConsumptionId = UUID.randomUUID();
+                when(nodeRepository.findById(internalConsumptionId)).thenReturn(Optional.of(internalConsumption));
+                InternalConsumptionDTO internalConsumptionDTO = new InternalConsumptionDTO();
+                when(nodeService.editInternalConsumption(internalConsumption, internalConsumptionDTO))
+                                .thenReturn(internalConsumption);
+                assertSame(internalConsumption, versionService.editNodeInVersion(
+                                versionId, internalConsumptionId, internalConsumptionDTO));
+
+                IndustrialConsumption industrialConsumption = mock(IndustrialConsumption.class);
+                addOwnedNode(version, industrialConsumption);
+                UUID industrialConsumptionId = UUID.randomUUID();
+                when(nodeRepository.findById(industrialConsumptionId)).thenReturn(Optional.of(industrialConsumption));
+                IndustrialConsumptionDTO industrialConsumptionDTO = new IndustrialConsumptionDTO();
+                when(nodeService.editIndustrialConsumption(industrialConsumption, industrialConsumptionDTO))
+                                .thenReturn(industrialConsumption);
+                assertSame(industrialConsumption, versionService.editNodeInVersion(
+                                versionId, industrialConsumptionId, industrialConsumptionDTO));
+
+                verify(versionRepository, times(3)).save(version);
+        }
+
+        private void addOwnedNode(Version version, BaseNode node) {
+                when(node.getIdentityId()).thenReturn(UUID.randomUUID());
+                version.getNodeSnapshot().add(node);
+                NodeChange addChange = new NodeChange();
+                addChange.setChangeType(ChangeTypeEnum.ADD);
+                addChange.setResultNode(node);
+                version.getNodeChanges().add(addChange);
         }
 
         @Test

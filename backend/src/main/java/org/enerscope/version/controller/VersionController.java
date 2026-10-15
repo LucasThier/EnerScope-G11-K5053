@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,7 +23,9 @@ import org.enerscope.version.dto.ConflictResolutionType;
 import org.enerscope.version.dto.VersionConflictDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.service.VersionConflictService;
+import org.enerscope.version.service.VersionNodeCsvImportService;
 import org.enerscope.version.service.VersionService;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -42,6 +46,7 @@ public class VersionController {
 
     private final VersionService versionService;
     private final VersionConflictService versionConflictService;
+    private final VersionNodeCsvImportService versionNodeCsvImportService;
     /*
      * create a new version.
      */
@@ -111,6 +116,27 @@ public class VersionController {
             @PathVariable UUID versionId) {
         DiagramDTO diagram = versionService.getDiagram(versionId);
         return Responses.ok("Diagram retrieved successfully", diagram);
+    }
+
+    @PostMapping(value = "/{versionId}/nodes/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Import nodes from CSV",
+            description = "Imports a CSV with a nodeKind column and rows for any supported node type. "
+                    + "Nested DTO fields (type, graphData, investmentCost, declineCurve) use JSON objects.")
+    public ResponseEntity<ApiResponse<Integer>> importNodesFromCsv(
+            @PathVariable UUID versionId,
+            @RequestPart("file") MultipartFile file) throws IOException {
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("CSV file cannot be empty");
+        }
+        if (file.getSize() > VersionNodeCsvImportService.MAX_FILE_SIZE_BYTES) {
+            throw new IllegalArgumentException("CSV file must be 5 MB or smaller");
+        }
+        int importedCount = versionNodeCsvImportService.importNodes(
+                versionId, file.getBytes());
+        String message = importedCount == 1
+                ? "Imported 1 node successfully"
+                : "Imported %d nodes successfully".formatted(importedCount);
+        return Responses.ok(message, importedCount);
     }
 
     @GetMapping(value = "/{versionId}/node/{nodeId}")

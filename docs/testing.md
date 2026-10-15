@@ -30,7 +30,8 @@ Run everything with `cd backend && mvn test`.
 | --- | --- | --- |
 | `ApplicationContextTest` | Integration | 1 |
 | `auth.controller.AuthControllerTest` | Web | 16 |
-| `common.CsvUtilTest` | Unit | 5 |
+| `common.CsvUtilTest` | Unit | 8 |
+| `common.GlobalExceptionHandlerTest` | Unit | 3 |
 | `jwt.JwtServiceTest` | Unit | 5 |
 | `util.AuthUtilTest` | Unit | 7 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 |
@@ -48,24 +49,27 @@ Run everything with `cd backend && mvn test`.
 | `project.controller.ProjectControllerTest` | Web | 27 |
 | `project.repository.ProjectRepositoryTest` | Data | 13 |
 | `project.repository.ProjectMemberRepositoryTest` | Data | 5 |
-| `version.service.VersionServiceTest` | Unit | 22 [^p] |
-| `version.controller.VersionControllerTest` | Web | 10 |
+| `version.service.VersionServiceTest` | Unit | 24 [^p] |
+| `version.controller.VersionControllerTest` | Web | 17 |
+| `version.service.VersionNodeCsvImportServiceTest` | Unit | 17 [^p] |
 | `node.service.NodeServiceTest` | Unit | 1 |
 | `node.controller.NodeControllerTest` | Unit | 1 |
 | `simulator.ResultMappingTest` | Data | 7 |
 | `strategyCost.CostTest` | Unit | 8 |
 | `strategyCost.InvestmentCostTest` | Unit | 2 |
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| **Total** | | **433 [^p]** |
+| **Total** | | **465 [^p]** |
 
 [^p]: Two cases in `version.service.VersionServiceTest` are
 `@ParameterizedTest`s running over the eight mutating version entry points,
-so they count as 16 executions rather than 2. The 433 cases catalogued here
-therefore make 447 executions.
+so they count as 16 executions rather than 2. `importsEveryNodeKindIntoVersion`
+in `VersionNodeCsvImportServiceTest` runs over 12 node types. The 465 cases
+catalogued here therefore make 490 executions.
 
-> **This catalog has drifted from the code.** On 2026-10-05 `mvn test` ran
-> **587** executions, against the 447 above. The gap is not a mistake in the
-> rows: it is tests merged since the catalog was last reconciled. Three classes
+> **This catalog has drifted from the code.** At the 2026-10-05 snapshot,
+> `mvn test` ran **587** executions, against the 447 cases then catalogued.
+> The importer and its hardening are now documented (32 catalogued cases,
+> 43 executions). Other drift is still to be reconciled. Three classes
 > have no entry (`organization.repository.OrganizationMemberRepositoryTest`,
 > `simulator.ResultTest` and `simulator.SimulatorTest`: 33 executions) and
 > eleven have grown past their recorded count (`user.*`, `organization.*`,
@@ -109,7 +113,8 @@ requires an ADMIN bearer token); `SessionService`, `UserService` and
 
 ## `common.CsvUtilTest` — Unit
 
-Covers the in-repo CSV reader/writer used by bulk registration.
+Covers the in-repo CSV reader/writer used by bulk registration and strict node
+CSV import.
 
 | Case | Verifies |
 | --- | --- |
@@ -118,6 +123,20 @@ Covers the in-repo CSV reader/writer used by bulk registration.
 | `skipsBlankLinesAndHandlesCrlfAndMissingTrailingNewline` | `\r\n` endings, fully blank lines skipped, and a final row without a trailing newline are handled. |
 | `parseEmptyContentReturnsNoRows` | `null`/empty input yields no rows. |
 | `writeQuotesOnlyWhenNecessaryAndRoundTrips` | The writer quotes only fields that need it (comma/quote), and output re-parses back to the original values. |
+| `strictParserRejectsUnterminatedQuotedFields` | Strict CSV parsing rejects a quoted field that never closes. |
+| `strictParserRejectsQuotesInsideUnquotedFields` | Strict CSV parsing rejects quotes embedded in an unquoted field. |
+| `strictParserSupportsMultilineQuotedFieldsAndEnforcesRowLimit` | Quoted newlines are preserved and the configured row limit is enforced. |
+
+## `common.GlobalExceptionHandlerTest` — Unit
+
+Multipart request failures are returned in the standard API envelope rather
+than becoming generic `500` responses.
+
+| Case | Verifies |
+| --- | --- |
+| `oversizedMultipartUploadReturns413WithApiResponse` | A request exceeding the server multipart limit returns `413` with an error envelope. |
+| `missingMultipartFieldReturns400WithFieldName` | A missing required multipart field returns `400` and names the field. |
+| `malformedMultipartRequestReturns400` | An invalid multipart request returns `400` instead of a generic server error. |
 
 ## `jwt.JwtServiceTest` — Unit
 
@@ -646,6 +665,8 @@ call touches neither the repositories nor `NodeService`.
 | `editNodeInVersion_WhenVersionNotFound_ShouldThrowVersionNotFoundException` | An unknown version id throws `VersionNotFoundException`. |
 | `editNodeInVersion_WhenNodeNotFound_ShouldThrowEntityNotFoundException` | A node absent from the version throws `EntityNotFoundException`. |
 | `addNodeToVersion_WithWellDTO_ShouldAddWellToVersion` | Adding a `WellDTO` saves the well, appends it to the snapshot and records an `ADD` change. |
+| `addNodeToVersionSupportsPipelineConnectionAndConsumptionNodes` | Adding a `PipelineConnectionDTO`, `InternalConsumptionDTO` or `IndustrialConsumptionDTO` dispatches to its matching save method and records each node in the snapshot. |
+| `editNodeInVersionSupportsPipelineConnectionAndConsumptionNodes` | Editing those same three node subtypes dispatches to the matching edit method when the version owns the node. |
 | `mutatingOperationsRejectCallerWithoutEditPermission` | **Parameterized over all eight mutating entry points** (`deleteVersion`, `modifyVersion`, `addNodeToVersion`, `addConnectionToVersion`, `editNodeInVersion`, `editConnectionInVersion`, `deleteNodeFromVersion`, `deleteConnectionFromVersion`): each requires `EDIT_PROJECT` on the owning project, and a refused call reads and writes nothing. |
 | `mutatingOperationsRejectUnauthenticatedCaller` | The same eight entry points, with no session: `UnauthorizedException`, and again nothing is read or written. |
 | `getVersionChecksViewPermissionAndReturnsTheVersion` | Reading a version runs the view check and returns it. |
@@ -673,9 +694,6 @@ version UUID, which is what made guarding them necessary.
 
 | Case | Verifies |
 | --- | --- |
-| `createVersionReturnsCreatedVersion` | `POST /projects/{projectId}/versions` with a valid body → `201` and an envelope with `success=true`, message `Version created`, and the created version's `name`. |
-| `createVersionRejectsBlankNameWithValidationError` | Blank `name` → `400` `Validation error`; `VersionService.createVersion` is never called. |
-| `createVersionRejectsUnknownProjectWith400` | When the service throws for an unknown project → `400` with the domain error message. |
 | `getVersionReturnsTheVersion` | `GET /version/{id}` → `200` with the envelope and the version's `name`. |
 | `getVersionPropagatesForbiddenWith403` | When the service refuses the caller → `403` carrying the domain message. |
 | `getVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
@@ -683,9 +701,42 @@ version UUID, which is what made guarding them necessary.
 | `deleteVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
 | `addNodeToVersionPropagatesForbiddenWith403` | `POST /version/{id}/node` for a caller without `EDIT_PROJECT` → `403`. |
 | `addNodeToVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+| `importNodesFromCsvReturnsImportedRowCount` | An authenticated multipart CSV upload → `200` with the imported row count in the `ApiResponse` envelope. |
+| `importNodesFromCsvRequiresAuthenticationWith401` | The same multipart upload without a token → `401`; the importer is never reached. |
+| `importNodesFromCsvPropagatesEditPermissionFailureWith403` | A caller without edit permission receives `403` and the importer’s authorization message. |
+| `importNodesFromCsvReturnsBadRequestForInvalidRows` | A malformed node row reported by the importer becomes a `400` API error. |
+| `importNodesFromCsvRejectsEmptyFiles` | An empty upload returns `400` without invoking the importer. |
+| `importNodesFromCsvRejectsFilesOverFiveMegabytes` | An upload over 5 MB returns `400` without invoking the importer. |
+| `importNodesFromCsvRejectsMissingMultipartFile` | A request without the required `file` part returns `400` with its name. |
 | `createDetachedVersionReturnsTheVersionForAPlatformAdmin` | `POST /version/createtest` → `200` with the created version. |
 | `createDetachedVersionPropagatesForbiddenWith403` | The same call for a non-admin → `403` with `Only platform admins can create detached versions`. |
 | `createDetachedVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+
+## `version.service.VersionNodeCsvImportServiceTest` — Unit
+
+CSV parsing and DTO dispatch for authenticated, version-scoped node imports.
+The single CSV uses `nodeKind` to distinguish node classes; nested DTO fields
+are JSON objects in their cells.
+
+| Case | Verifies |
+| --- | --- |
+| `importsEveryNodeKindIntoVersion` | Each of the 12 supported `nodeKind` values is converted to its matching DTO and added to the target version. |
+| `importsMixedKindsAndIgnoresEmptyColumnsForOtherKinds` | A mixed CSV creates multiple node DTO types, while blank columns belonging to other types are ignored. |
+| `mapsNestedJsonDtoFields` | Nested graph, type, investment-cost and probability-distribution JSON cells map to the Well DTO. |
+| `rejectsUnknownNodeKindWithSupportedKinds` | An unsupported discriminator is rejected with the accepted values and no node is added. |
+| `rejectsUnknownHeaders` | A misspelled header is rejected instead of silently dropping data. |
+| `rejectsRowsWithDifferentColumnCounts` | A row with the wrong number of fields is rejected with its record number. |
+| `rejectsValuesInColumnsNotSupportedByTheSelectedKind` | A non-empty field from another node type is rejected rather than ignored. |
+| `rejectsRowsMissingRequiredFields` | A row missing required common node fields is rejected before persistence. |
+| `rejectsMalformedNestedJson` | A nested DTO cell that is not a JSON object is rejected with its column name. |
+| `checksEditPermissionBeforeParsingCsv` | A caller without `EDIT_PROJECT` is rejected before malformed CSV is parsed or nodes are added. |
+| `rejectsMalformedCsvQuoting` | Quotes inside unquoted fields and non-whitespace after a closing quote are rejected. |
+| `rejectsInconsistentNodeTypeMetadata` | `type.nodeType`/`type.vertical` must agree with the row’s `nodeKind`. |
+| `rejectsMissingRequiredTypeSpecificFields` | Missing required DTO fields, including primitive fields that otherwise default to zero, are rejected. |
+| `rejectsInvalidDistributionParameters` | Unsupported or invalid uniform/normal distribution parameters are rejected. |
+| `rejectsInvalidUtf8` | Invalid UTF-8 input bytes are rejected rather than silently replaced. |
+| `rejectsImportsOverMaximumRowCount` | More than 10,000 data rows are rejected before node persistence. |
+| `rejectsFilesOverMaximumSize` | The service rejects CSV byte arrays larger than 5 MB. |
 
 ## `node.service.NodeServiceTest` — Unit
 

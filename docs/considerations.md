@@ -2002,3 +2002,20 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   - Anyone whose local database already ran an earlier copy of `V9` or `V11`
     needs a fresh one (`docker compose down -v`): Flyway rejects a migration
     whose checksum changed.
+- 2026-10-14 — Added a version-scoped CSV importer for all concrete `BaseNode`
+  subclasses in `export`, `extraction`, `liquefaction` and `transportation`.
+  One mixed CSV uses uppercase `nodeKind` values, DTO property headers and JSON
+  objects in cells for nested DTOs. The whole upload is transactional, so an
+  invalid row rolls back the batch. `PipelineConnection`, `InternalConsumption`
+  and `IndustrialConsumption` were also connected to version add/edit dispatch;
+  `INDUSTRIAL_CONSUMPTION` was added to `NodeTypeEnum` because that existing
+  model had no matching value. Graph edges (`NodeConnection`) are not part of
+  this node-only importer.
+- 2026-10-14 — Hardened node CSV import after review: the version edit
+  permission is checked before parsing; uploads are limited to 5 MB and 10,000
+  data rows; malformed quoting, UTF-8, field counts, DTO values, nested JSON,
+  enum/type mismatches and distribution/position ranges are rejected with
+  actionable `400` messages. The transaction rolls back the whole batch on any
+  row failure. Multipart size overflow returns an API-envelope `413`; a missing
+  file part and malformed multipart return `400`. The 5 MB multipart property
+  is shared by any other CSV upload endpoint.

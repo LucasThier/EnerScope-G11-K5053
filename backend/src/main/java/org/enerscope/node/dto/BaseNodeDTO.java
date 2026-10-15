@@ -31,11 +31,14 @@ import org.enerscope.node.dto.SeaportTerminalDTO;
         @JsonSubTypes.Type(value = TreatmentPlantDTO.class),
         @JsonSubTypes.Type(value = GatheringNetworkDTO.class),
         @JsonSubTypes.Type(value = PipelineDTO.class),
+        @JsonSubTypes.Type(value = PipelineConnectionDTO.class),
         @JsonSubTypes.Type(value = CompressingPlantDTO.class),
         @JsonSubTypes.Type(value = GroundBasedLiquefactionPlantDTO.class),
         @JsonSubTypes.Type(value = FLNGUnitDTO.class),
         @JsonSubTypes.Type(value = LNGCarrierDTO.class),
-        @JsonSubTypes.Type(value = SeaportTerminalDTO.class)
+        @JsonSubTypes.Type(value = SeaportTerminalDTO.class),
+        @JsonSubTypes.Type(value = InternalConsumptionDTO.class),
+        @JsonSubTypes.Type(value = IndustrialConsumptionDTO.class)
 })
 public class BaseNodeDTO {
 
