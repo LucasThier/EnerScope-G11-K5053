@@ -1,5 +1,5 @@
 import type { ProjectSummary } from '../../types/project';
-import { EyeIcon, PencilIcon, TeamIcon, TrashIcon } from '../ui/icons';
+import { EyeIcon, FlaskIcon, PencilIcon, TeamIcon, TrashIcon, ValueChainIcon } from '../ui/icons';
 import { RowButton } from '../ui/RowButton';
 import { formatDate } from '../../utils/date';
 
@@ -10,6 +10,10 @@ interface ProjectsTableProps {
   onEdit: (project: ProjectSummary) => void;
   onDelete: (project: ProjectSummary) => void;
   onManageMembers: (project: ProjectSummary) => void;
+  /** Opens the project's scenarios (versions, simulations and comparisons). */
+  onOpenScenarios: (project: ProjectSummary) => void;
+  /** Opens the project's value-chain editor. */
+  onOpenEditor: (project: ProjectSummary) => void;
 }
 
 const headerCell = 'px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
@@ -22,6 +26,8 @@ export function ProjectsTable({
   onEdit,
   onDelete,
   onManageMembers,
+  onOpenScenarios,
+  onOpenEditor,
 }: ProjectsTableProps) {
   return (
     <div className="overflow-x-auto">
@@ -60,6 +66,20 @@ export function ProjectsTable({
               <td className={`${bodyCell} whitespace-nowrap`}>{formatDate(project.lastModified)}</td>
               <td className={`${bodyCell} text-right`}>
                 <div className="flex justify-end gap-1">
+                  <RowButton
+                    label={`Abrir el editor de ${project.name}`}
+                    title="Editor de la cadena de valor"
+                    onClick={() => onOpenEditor(project)}
+                  >
+                    <ValueChainIcon className="h-4 w-4" />
+                  </RowButton>
+                  <RowButton
+                    label={`Ver los escenarios de ${project.name}`}
+                    title="Escenarios y simulaciones"
+                    onClick={() => onOpenScenarios(project)}
+                  >
+                    <FlaskIcon className="h-4 w-4" />
+                  </RowButton>
                   <RowButton
                     label={`Ver integrantes de ${project.name}`}
                     onClick={() => onView(project)}

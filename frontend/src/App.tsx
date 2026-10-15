@@ -15,6 +15,10 @@ import { ProfilePage } from './pages/ProfilePage';
 import { OrganizationTeamPage } from './pages/OrganizationTeamPage';
 import { ProjectTeamPage } from './pages/ProjectTeamPage';
 import { OrganizationOwnerRoute } from './routes/OrganizationOwnerRoute';
+import { ActiveProjectRedirect } from './routes/ActiveProjectRedirect';
+import { ScenariosPage } from './pages/ScenariosPage';
+import { SimulationResultPage } from './pages/SimulationResultPage';
+import { ComparePage } from './pages/ComparePage';
 
 export default function App() {
   return (
@@ -25,13 +29,22 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               {/* Full-bleed pages */}
-              <Route path="/editor" element={<EditorPage />} />
+              <Route path="/projects/:projectId/editor" element={<EditorPage />} />
+              <Route path="/editor" element={<ActiveProjectRedirect section="editor" />} />
               {/* Regular padded pages */}
               <Route element={<PaddedMain />}>
                 <Route path="/" element={<DashboardRedirect />} />
                 <Route path="/app" element={<WorkspacePage />} />
                 <Route path="/projects" element={<ProjectsPage />} />
                 <Route path="/projects/:projectId/team" element={<ProjectTeamPage />} />
+                <Route path="/projects/:projectId/scenarios" element={<ScenariosPage />} />
+                <Route
+                  path="/projects/:projectId/scenarios/:versionId/runs/:simulationId"
+                  element={<SimulationResultPage />}
+                />
+                <Route path="/projects/:projectId/compare" element={<ComparePage />} />
+                <Route path="/scenarios" element={<ActiveProjectRedirect section="scenarios" />} />
+                <Route path="/compare" element={<ActiveProjectRedirect section="compare" />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route element={<OrganizationOwnerRoute />}>
                   <Route path="/organizations/:organizationId" element={<OrganizationTeamPage />} />

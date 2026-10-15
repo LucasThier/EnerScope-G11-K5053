@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { useActiveProject } from '../../hooks/useActiveProject';
 import { useOwnedOrganizations } from '../../hooks/useOwnedOrganizations';
 import { useLocalPreference } from '../../hooks/useLocalPreference';
 import {
@@ -25,6 +26,10 @@ interface NavItem {
   key?: string;
   /** Absent until the section has a page; the entry renders locked instead of linking nowhere. */
   to?: string;
+  /** Match the path exactly, so a parent path does not light up on its children's pages. */
+  end?: boolean;
+  /** Project-scoped sections: the link goes to the active project's page, locked without one. */
+  projectSection?: 'editor' | 'scenarios' | 'compare';
 }
 
 const COLLAPSED_KEY = 'sidebarCollapsed';
@@ -36,10 +41,12 @@ const COLLAPSED_KEY = 'sidebarCollapsed';
  */
 const NAV_ITEMS: NavItem[] = [
   { label: 'Inicio', icon: <HomeIcon />, to: '/app' },
-  { label: 'Proyectos', icon: <FolderIcon />, to: '/projects' },
-  { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon />, to: '/editor' },
-  { label: 'Simulaciones / Escenarios', icon: <FlaskIcon /> },
-  { label: 'Comparar Escenarios', icon: <CompareIcon /> },
+  // `end`: the project-scoped sections live under /projects/:id/*, and would
+  // otherwise light this entry up next to their own.
+  { label: 'Proyectos', icon: <FolderIcon />, to: '/projects', end: true },
+  { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon />, projectSection: 'editor' },
+  { label: 'Simulaciones / Escenarios', icon: <FlaskIcon />, projectSection: 'scenarios' },
+  { label: 'Comparar Escenarios', icon: <CompareIcon />, projectSection: 'compare' },
   { label: 'Reportes', icon: <ReportIcon /> },
   { label: 'Gestión de organización', icon: <TeamIcon />, key: 'team' },
   { label: 'Configuración', icon: <SettingsIcon /> },
@@ -63,11 +70,18 @@ export function Sidebar() {
 
   const showAdmin = user?.platformRole === 'ADMIN';
   const { owned } = useOwnedOrganizations();
-  const items = NAV_ITEMS.map((item) =>
-    item.key === 'team' && owned.length > 0
-      ? { ...item, to: `/organizations/${owned[0].id}` }
-      : item,
-  );
+  const { activeProject } = useActiveProject();
+  const items = NAV_ITEMS.map((item) => {
+    if (item.key === 'team' && owned.length > 0) {
+      return { ...item, to: `/organizations/${owned[0].id}` };
+    }
+    // The project-scoped sections open the active project; with no project
+    // there is nothing to open, so they stay locked like any section without a page.
+    if (item.projectSection && activeProject) {
+      return { ...item, to: `/projects/${activeProject.id}/${item.projectSection}` };
+    }
+    return item;
+  });
 
   return (
     <aside
@@ -146,6 +160,7 @@ function NavItemLink({ item, isCollapsed }: { item: NavItem; isCollapsed: boolea
   return (
     <NavLink
       to={item.to}
+      end={item.end}
       title={isCollapsed ? item.label : undefined}
       className={({ isActive }) =>
         `${itemBase} ${padding} ` +

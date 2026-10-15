@@ -19,6 +19,22 @@ And the **Projects screen** (`/projects`): the table of the projects you belong
 to, with a client-side search and organization filter, and a "Nuevo proyecto"
 modal.
 
+And the **modelling-to-comparison flow**, scoped to a project (a version is an
+*escenario* in the UI):
+
+| Route | Page | What it does |
+| --- | --- | --- |
+| `/projects/:projectId/editor?version=` | `EditorPage` | Diagram/map editor of one scenario: add, edit and connect nodes; branch a new scenario ("+ Nuevo"); "Simular" runs it and opens the results |
+| `/projects/:projectId/scenarios` | `ScenariosPage` | The scenario tree with counts, rename/branch/merge/conflicts/delete, the runs of the selected scenario and a cost estimate of its current model |
+| `/projects/:projectId/scenarios/:versionId/runs/:simulationId` | `SimulationResultPage` | One run: delivered volume P10/P50/P90, costs, unit cost, costs and losses per vertical, and a per-node table |
+| `/projects/:projectId/compare?versions=a,b` | `ComparePage` | 2–6 scenarios side by side: KPIs with deltas against the first, cost per vertical, and what changed in the model |
+
+`/editor`, `/scenarios` and `/compare` redirect to the active project's page
+(`ActiveProjectRedirect`). The charts follow the rules recorded in
+`docs/considerations.md` (2026-10-15): one brand hue, thin bars with every value
+printed beside them, a tooltip on hover/focus, and deltas carrying an arrow and
+a sign, never color alone.
+
 - React 19 · Vite 7 · TypeScript
 - Tailwind CSS v4 (via `@tailwindcss/vite`)
 - React Router (route guards by auth + platform role)
@@ -69,7 +85,10 @@ frontend/
 │  │  ├─ session.ts        Token + current-user storage helper (LocalStorage)
 │  │  ├─ auth.ts           Auth endpoints (login/register/refresh/logout)
 │  │  ├─ organizations.ts  Organization endpoints (list, create, register user into org)
-│  │  ├─ projects.ts       Project endpoints (list with optional organization filter, create, members)
+│  │  ├─ projects.ts       Project endpoints (list with optional organization filter, create, members, versions)
+│  │  ├─ diagram.ts        Editor endpoints (diagram, nodes, connections, positions)
+│  │  ├─ versions.ts       Version endpoints (rename, delete, merge into parent, conflicts)
+│  │  ├─ simulations.ts    Simulation runs, cost estimate and version comparison
 │  │  └─ errors.ts         Extracts the ApiResponse message from a failed request
 │  ├─ hooks/
 │  │  ├─ useAuth.ts        AuthContext + useAuth() hook
@@ -78,6 +97,7 @@ frontend/
 │  │  ├─ ActiveProjectProvider.tsx  Loads projects, resolves the active one
 │  │  ├─ useLocalPreference.ts    Guarded LocalStorage-backed UI state
 │  │  ├─ useDismissable.ts        Popover open state (outside click / Escape)
+│  │  ├─ useDiagram.ts            Loads a version's diagram and wraps the editor's mutations
 │  │  └─ useOrganizations.ts      Loads/creates organizations for the pickers/pages
 │  ├─ components/
 │  │  ├─ ui/               Brand-styled primitives (Button, TextField, TextArea, Card, Modal, Alert, Logo, Avatar, icons, NodeGraph, …)
@@ -85,13 +105,19 @@ frontend/
 │  │  ├─ auth/             LoginForm, RegisterForm (single create-user form, optional org)
 │  │  ├─ organizations/    OrganizationPicker (select + inline create)
 │  │  ├─ projects/         ProjectsTable, NewProjectModal, ProjectMembersModal
+│  │  ├─ editor/           DiagramCanvas, MapView, NodePalette, NodeFormPanel, NodeDataPanel, nodeCatalog (labels, fields, defaults, allowed connections)
+│  │  ├─ scenarios/        Simulate/new/rename/delete/merge/conflict modals, SimulationRunsPanel, CostEstimateCard, scenarioTree, simulationCopy
+│  │  ├─ charts/           BarList, UtilizationMeter, StatTile
 │  │  └─ layout/           AppLayout (shell), TopBar, Sidebar, ProjectSwitcher, UserMenu
-│  ├─ pages/               LoginPage, AdminUsersPage, AdminOrganizationsPage, WorkspacePage, ProjectsPage
-│  ├─ routes/              ProtectedRoute, RoleRoute, DashboardRedirect
-│  ├─ utils/               date.ts (dd/mm/aaaa formatting)
+│  ├─ pages/               LoginPage, AdminUsersPage, AdminOrganizationsPage, WorkspacePage, ProjectsPage,
+│  │                        EditorPage, ScenariosPage, SimulationResultPage, ComparePage
+│  ├─ routes/              ProtectedRoute, RoleRoute, DashboardRedirect, ActiveProjectRedirect
+│  ├─ utils/               date.ts (dd/mm/aaaa formatting), number.ts (es-AR numbers, compact volumes, money, deltas)
 │  └─ types/
 │     ├─ auth.ts           Auth/organization types mirroring the backend DTOs
-│     └─ project.ts        Project types mirroring the backend DTOs
+│     ├─ project.ts        Project types mirroring the backend DTOs
+│     ├─ diagram.ts        Editor/version types (nodes, connections, node detail, VersionSummary)
+│     └─ simulation.ts     Simulation run, KPI, cost estimate and comparison types
 ```
 
 ## The application shell
@@ -100,9 +126,11 @@ frontend/
 
 - **Active project.** `ActiveProjectProvider` loads `GET /projects` and picks the
   active one in this order: a `projectId` in the URL (`/projects/:projectId/*`),
-  then the last selection from LocalStorage, then the first project. Project-
-  scoped routes do not exist yet, so the stored preference decides for now.
-  Read it with `useActiveProject()`; never fetch projects from a component.
+  then the last selection from LocalStorage, then the first project. Switching
+  project on a project-scoped page keeps the section (`editor`, `scenarios`,
+  `compare`) and swaps the id; anything deeper, such as a run, belonged to the
+  old project and is dropped. Read it with `useActiveProject()`;
+  never fetch projects from a component.
 - **Sidebar.** Lists every section of the product. Entries without a `to` render
   locked on purpose — the section exists in the design but has no page yet.
   A locked entry keeps full-contrast text and shows a padlock; it is set in a

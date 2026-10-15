@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { useOrganizations } from '../hooks/useOrganizations';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { projectsApi } from '../api/projects';
 import { getErrorMessage } from '../api/errors';
+import { useActiveProject } from '../hooks/useActiveProject';
 import { useDiagram } from '../hooks/useDiagram';
+import { NewScenarioModal } from '../components/scenarios/NewScenarioModal';
+import { SimulateModal } from '../components/scenarios/SimulateModal';
 import { DiagramCanvas } from '../components/editor/DiagramCanvas';
 import { MapView } from '../components/editor/MapView';
 import { NodeDataPanel } from '../components/editor/NodeDataPanel';
@@ -18,7 +21,6 @@ import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import type { NodeDetail, NodeType, VersionSummary } from '../types/diagram';
-import type { ProjectSummary } from '../types/project';
 
 type Mode = 'diagram' | 'map';
 type Projection = 'mercator' | 'globe';
@@ -32,26 +34,47 @@ interface EditState {
   initial: NodeFormInitial | null;
 }
 
+/**
+ * The backend stores these as 32-bit floats, so 0.01 comes back as
+ * 0.0099999997…; seven significant digits is all a float carries anyway.
+ */
+function tidy(value: number): number {
+  return Number.isFinite(value) ? Number(value.toPrecision(7)) : 0;
+}
+
 /** Builds the edit form's initial values from a loaded node detail. */
 function editStateFromDetail(detail: NodeDetail): EditState {
   const base: NodeBaseValues = {
     name: detail.name,
     state: detail.state,
-    upkeepCosts: detail.upkeepCosts,
-    operatingCosts: detail.operatingCosts,
+    upkeepCosts: tidy(detail.upkeepCosts),
+    operatingCosts: tidy(detail.operatingCosts),
     lifespanInMonths: detail.lifespanInMonths,
     maintenanceIntervalInDays: detail.maintenanceIntervalInDays,
-    wastePercentage: detail.wastePercentage,
+    maintenanceDuration: detail.maintenanceDuration ?? 0,
+    wastePercentage: tidy(detail.wastePercentage),
   };
   return {
     nodeId: detail.id,
     identity: detail.identity,
     graphData: detail.graphData ?? {},
-    initial: { type: detail.type.nodeType, base, typeFields: detail.attributes },
+    initial: {
+      type: detail.type.nodeType,
+      base,
+      typeFields: Object.fromEntries(
+        Object.entries(detail.attributes).map(([key, value]) => [key, tidy(value)]),
+      ),
+      declineCurve: detail.declineCurve && {
+        ...detail.declineCurve,
+        val_a: tidy(detail.declineCurve.val_a),
+        val_b: detail.declineCurve.val_b == null ? null : tidy(detail.declineCurve.val_b),
+      },
+      investmentCost: detail.investmentCost ?? [],
+    },
   };
 }
 
-const PANEL_WIDTH = 320;
+const PANEL_WIDTH = 360;
 
 const selectClass =
   'rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm text-ink-700 shadow-sm ' +
@@ -61,7 +84,7 @@ const selectClass =
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-400">{label}</span>
+      <span className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500">{label}</span>
       {children}
     </label>
   );
@@ -71,7 +94,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function FloatingPanel({ style, children }: { style: CSSProperties; children: ReactNode }) {
   return (
     <div
-      className="absolute z-20 flex max-h-[calc(100%-2rem)] w-80 flex-col overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-xl ring-1 ring-black/5"
+      className="absolute z-20 flex max-h-[calc(100%-2rem)] w-[360px] flex-col overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-xl ring-1 ring-black/5"
       style={style}
     >
       {children}
@@ -79,15 +102,28 @@ function FloatingPanel({ style, children }: { style: CSSProperties; children: Re
   );
 }
 
-/** The visual editor: pick org → project → version, then edit the diagram on a canvas or a map. */
+/**
+ * The visual editor of a project's scenarios: pick a version, then edit its
+ * diagram on a canvas or a map. Lives under the project
+ * (`/projects/:projectId/editor`), with the open version in `?version=` so the
+ * scenarios page and a shared link can open a specific one.
+ */
 export function EditorPage() {
-  const { organizations, createOrganization } = useOrganizations();
-  const [orgId, setOrgId] = useState('');
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [projectId, setProjectId] = useState('');
+  const { projectId = '' } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { projects } = useActiveProject();
+  const project = projects.find((p) => p.id === projectId) ?? null;
   const [versions, setVersions] = useState<VersionSummary[]>([]);
-  const [versionId, setVersionId] = useState('');
+  const [versionsLoaded, setVersionsLoaded] = useState(false);
   const [selectorError, setSelectorError] = useState<string | null>(null);
+  const [isNewScenarioOpen, setIsNewScenarioOpen] = useState(false);
+  const [isSimulateOpen, setIsSimulateOpen] = useState(false);
+
+  const requestedVersion = searchParams.get('version');
+  const versionId =
+    versions.find((v) => v.id === requestedVersion)?.id ?? versions[0]?.id ?? '';
+  const currentVersion = versions.find((v) => v.id === versionId) ?? null;
 
   const [mode, setMode] = useState<Mode>('diagram');
   const [projection, setProjection] = useState<Projection>('mercator');
@@ -129,7 +165,7 @@ export function EditorPage() {
       if (!canConnect(from.type.nodeType, to.type.nodeType)) {
         const fromLabel = specForType(from.type.nodeType)?.label ?? from.type.nodeType;
         const toLabel = specForType(to.type.nodeType)?.label ?? to.type.nodeType;
-        setConnectError(`A ${fromLabel} cannot connect to a ${toLabel}.`);
+        setConnectError(`Un nodo "${fromLabel}" no puede conectarse a "${toLabel}".`);
         return;
       }
       setConnectError(null);
@@ -233,7 +269,15 @@ export function EditorPage() {
   // Load full detail of the selected node so its data shows immediately.
   useEffect(() => {
     let cancelled = false;
-    if (!selectedNodeId) {
+    // Also skip while the diagram on screen is still the previous scenario's:
+    // right after switching, this effect runs (getNodeDetail changed) before
+    // the old diagram and selection are replaced, and asking the new version for
+    // the previous version's node answers 400 and flashes an error banner.
+    if (
+      !selectedNodeId ||
+      diagram?.versionId !== versionId ||
+      !diagram.nodes.some((n) => n.id === selectedNodeId)
+    ) {
       setSelectedDetail(null);
       return;
     }
@@ -243,7 +287,7 @@ export function EditorPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedNodeId, diagram, getNodeDetail]);
+  }, [selectedNodeId, diagram, versionId, getNodeDetail]);
 
   // Escape cancels a pending connection.
   useEffect(() => {
@@ -258,97 +302,28 @@ export function EditorPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [connectingFrom]);
 
-  // Default the org selection once organizations load.
-  useEffect(() => {
-    if (!orgId && organizations.length > 0) setOrgId(organizations[0].id);
-  }, [organizations, orgId]);
-
-  const loadProjects = useCallback(
-    (selectId?: string) => {
-      if (!orgId) return;
-      setSelectorError(null);
-      projectsApi
-        .list(orgId)
-        .then((res) => {
-          const list = res.data.data ?? [];
-          setProjects(list);
-          setProjectId(selectId ?? list[0]?.id ?? '');
-        })
-        .catch((err) => setSelectorError(getErrorMessage(err, 'Could not load projects')));
-    },
-    [orgId],
-  );
+  const loadVersions = useCallback(async () => {
+    if (!projectId) return;
+    setSelectorError(null);
+    try {
+      const res = await projectsApi.listVersions(projectId);
+      setVersions(res.data.data ?? []);
+    } catch (err) {
+      setSelectorError(getErrorMessage(err, 'No se pudieron cargar los escenarios'));
+    } finally {
+      setVersionsLoaded(true);
+    }
+  }, [projectId]);
 
   useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
-
-  const loadVersions = useCallback(
-    (selectId?: string) => {
-      if (!projectId) {
-        setVersions([]);
-        setVersionId('');
-        return;
-      }
-      projectsApi
-        .listVersions(projectId)
-        .then((res) => {
-          const list = res.data.data ?? [];
-          setVersions(list);
-          setVersionId(selectId ?? list[0]?.id ?? '');
-        })
-        .catch((err) => setSelectorError(getErrorMessage(err, 'Could not load versions')));
-    },
-    [projectId],
-  );
-
-  useEffect(() => {
-    loadVersions();
+    setVersionsLoaded(false);
+    void loadVersions();
   }, [loadVersions]);
 
-  async function handleCreateOrganization() {
-    const name = window.prompt('New organization name');
-    if (!name || !name.trim()) return;
-    try {
-      const created = await createOrganization(name.trim());
-      setOrgId(created.id);
-    } catch (err) {
-      setSelectorError(getErrorMessage(err, 'Could not create the organization'));
-    }
-  }
-
-  async function handleCreateProject() {
-    if (!orgId) {
-      setSelectorError('Create or pick an organization first.');
-      return;
-    }
-    const name = window.prompt('New project name');
-    if (!name || !name.trim()) return;
-    const description = window.prompt('Project description', '') ?? '';
-    try {
-      const res = await projectsApi.create({
-        name: name.trim(),
-        description: description.trim() || name.trim(),
-        organizationId: orgId,
-      });
-      loadProjects(res.data.data?.id);
-    } catch (err) {
-      setSelectorError(getErrorMessage(err, 'Could not create the project'));
-    }
-  }
-
-  async function handleCreateVersion() {
-    if (!projectId) return;
-    const name = window.prompt('New version name');
-    if (!name || !name.trim()) return;
-    try {
-      const parent = versionId || undefined;
-      await projectsApi.createVersion(projectId, { name: name.trim(), parentVersion: parent });
-      loadVersions();
-    } catch (err) {
-      setSelectorError(getErrorMessage(err, 'Could not create the version'));
-    }
-  }
+  const openVersion = useCallback(
+    (id: string) => setSearchParams(id ? { version: id } : {}, { replace: true }),
+    [setSearchParams],
+  );
 
   const selectedNode = useMemo(
     () => diagram?.nodes.find((n) => n.id === selectedNodeId) ?? null,
@@ -397,57 +372,24 @@ export function EditorPage() {
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Toolbar */}
       <div className="flex flex-wrap items-end gap-3 border-b border-ink-100 bg-white px-4 py-2.5">
-        <Field label="Organization">
-          <div className="flex items-center gap-1">
-            <select className={selectClass} value={orgId} onChange={(e) => setOrgId(e.target.value)}>
-              {organizations.length === 0 && <option value="">No organizations</option>}
-              {organizations.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-            <Button variant="ghost" onClick={handleCreateOrganization} className="px-2 py-1.5 text-xs">
-              +
-            </Button>
-          </div>
-        </Field>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="px-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-500">
+            Proyecto
+          </span>
+          <span className="truncate px-0.5 py-1.5 text-sm font-semibold text-ink-800">
+            {project?.name ?? 'Proyecto'}
+          </span>
+        </div>
 
-        <Field label="Project">
-          <div className="flex items-center gap-1">
-            <select
-              className={selectClass}
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={projects.length === 0}
-            >
-              {projects.length === 0 && <option value="">No projects</option>}
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            <Button
-              variant="ghost"
-              onClick={handleCreateProject}
-              disabled={!orgId}
-              className="px-2 py-1.5 text-xs"
-            >
-              +
-            </Button>
-          </div>
-        </Field>
-
-        <Field label="Version">
+        <Field label="Escenario">
           <div className="flex items-center gap-1">
             <select
               className={selectClass}
               value={versionId}
-              onChange={(e) => setVersionId(e.target.value)}
+              onChange={(e) => openVersion(e.target.value)}
               disabled={versions.length === 0}
             >
-              {versions.length === 0 && <option value="">No versions</option>}
+              {versions.length === 0 && <option value="">Sin escenarios</option>}
               {versions.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}
@@ -456,36 +398,37 @@ export function EditorPage() {
             </select>
             <Button
               variant="ghost"
-              onClick={handleCreateVersion}
+              onClick={() => setIsNewScenarioOpen(true)}
               disabled={!projectId}
               className="px-2 py-1.5 text-xs"
+              title="Nuevo escenario"
             >
-              +
+              + Nuevo
             </Button>
           </div>
         </Field>
 
         <div className="mx-1 h-8 w-px self-center bg-ink-100" />
 
-        <Field label="View">
+        <Field label="Vista">
           <div className="inline-flex overflow-hidden rounded-lg border border-ink-200 shadow-sm">
             {(['diagram', 'map'] as Mode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
                 className={
-                  'px-3 py-1.5 text-sm font-medium capitalize transition-colors ' +
-                  (mode === m ? 'bg-brand-500 text-white' : 'bg-white text-ink-600 hover:bg-ink-50')
+                  'px-3 py-1.5 text-sm font-medium transition-colors ' +
+                  (mode === m ? 'bg-brand-800 text-white' : 'bg-white text-ink-600 hover:bg-ink-50')
                 }
               >
-                {m}
+                {m === 'diagram' ? 'Diagrama' : 'Mapa'}
               </button>
             ))}
           </div>
         </Field>
 
         {mode === 'map' && (
-          <Field label="Projection">
+          <Field label="Proyección">
             <div className="inline-flex overflow-hidden rounded-lg border border-ink-200 shadow-sm">
               {(['mercator', 'globe'] as Projection[]).map((p) => (
                 <button
@@ -496,7 +439,7 @@ export function EditorPage() {
                     (projection === p ? 'bg-ink-700 text-white' : 'bg-white text-ink-600 hover:bg-ink-50')
                   }
                 >
-                  {p === 'mercator' ? '2D' : 'Globe'}
+                  {p === 'mercator' ? '2D' : 'Globo'}
                 </button>
               ))}
             </div>
@@ -505,6 +448,21 @@ export function EditorPage() {
 
         <div className="ml-auto flex items-center gap-2 self-center pt-3">
           {(loading || busy) && <Spinner className="h-4 w-4 text-brand-600" />}
+          <Link
+            to={`/projects/${projectId}/scenarios`}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-brand-800 hover:bg-brand-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          >
+            Escenarios
+          </Link>
+          <Button
+            variant="secondary"
+            onClick={() => setIsSimulateOpen(true)}
+            disabled={!versionId || (diagram?.nodes.length ?? 0) === 0}
+            className="text-sm"
+            title={(diagram?.nodes.length ?? 0) === 0 ? 'Agregá nodos para poder simular' : undefined}
+          >
+            Simular
+          </Button>
           <Button
             onClick={() => {
               if (panelMode === 'create') {
@@ -519,7 +477,7 @@ export function EditorPage() {
             disabled={!versionId}
             className="text-sm"
           >
-            {panelMode === 'create' ? 'Cancel' : '+ Add node'}
+            {panelMode === 'create' ? 'Cancelar' : '+ Agregar nodo'}
           </Button>
         </div>
       </div>
@@ -533,9 +491,15 @@ export function EditorPage() {
       {/* Editor body — palette rail + canvas/map with floating menus on top */}
       <div className="relative flex min-h-0 flex-1">
         {!versionId ? (
-          <div className="flex h-full w-full items-center justify-center p-8 text-center text-sm text-ink-400">
-            Pick an organization, project and version to start — or create a version to begin a new
-            diagram.
+          <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-8 text-center text-sm text-ink-500">
+            {versionsLoaded ? (
+              <>
+                <p>Este proyecto todavía no tiene escenarios. Creá uno para empezar a modelar.</p>
+                <Button onClick={() => setIsNewScenarioOpen(true)}>Crear el primer escenario</Button>
+              </>
+            ) : (
+              <Spinner className="h-6 w-6 text-brand-600" />
+            )}
           </div>
         ) : !diagram ? (
           <div className="flex h-full w-full items-center justify-center">
@@ -584,7 +548,7 @@ export function EditorPage() {
                     onClick={() => setConnectError(null)}
                     className="rounded-full px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
                   >
-                    Dismiss
+                    Cerrar
                   </button>
                 </div>
               </div>
@@ -595,14 +559,14 @@ export function EditorPage() {
               <div className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2">
                 <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-brand-200 bg-brand-50 px-4 py-2 text-sm text-brand-800 shadow-md">
                   <span>
-                    Connecting from <strong>{connectingNode?.name ?? 'node'}</strong> — click a target
-                    node
+                    Conectando desde <strong>{connectingNode?.name ?? 'nodo'}</strong>: hacé clic en
+                    el nodo destino
                   </span>
                   <button
                     onClick={() => setConnectingFrom(null)}
                     className="rounded-full px-2 py-0.5 text-xs font-semibold text-brand-700 hover:bg-brand-100"
                   >
-                    Cancel (Esc)
+                    Cancelar (Esc)
                   </button>
                 </div>
               </div>
@@ -617,8 +581,8 @@ export function EditorPage() {
                     busy={busy}
                     initialType={createType ?? undefined}
                     onClose={closePanel}
-                    onSubmit={(spec, base, typeFields) =>
-                      addNode(spec, base, typeFields, createPos.x, createPos.y)
+                    onSubmit={(spec, base, typeFields, extras) =>
+                      addNode(spec, base, typeFields, extras, createPos.x, createPos.y)
                     }
                   />
                 ) : panelMode === 'edit' && editState ? (
@@ -628,12 +592,13 @@ export function EditorPage() {
                       busy={busy}
                       initial={editState.initial}
                       onClose={closePanel}
-                      onSubmit={(spec, base, typeFields) =>
+                      onSubmit={(spec, base, typeFields, extras) =>
                         editNodeData(
                           editState.nodeId,
                           spec,
                           base,
                           typeFields,
+                          extras,
                           editState.graphData,
                           editState.identity,
                         )
@@ -662,8 +627,9 @@ export function EditorPage() {
                     }}
                   />
                 ) : (
-                  <div className="p-4 text-sm text-ink-400">
-                    Double-click empty canvas to add a node, or click a node to see its data.
+                  <div className="p-4 text-sm text-ink-500">
+                    Hacé doble clic en el lienzo vacío para agregar un nodo, o clic en un nodo para ver
+                    sus datos.
                   </div>
                 )}
               </FloatingPanel>
@@ -672,6 +638,31 @@ export function EditorPage() {
           </>
         )}
       </div>
+
+      <NewScenarioModal
+        open={isNewScenarioOpen}
+        onClose={() => setIsNewScenarioOpen(false)}
+        projectId={projectId}
+        versions={versions}
+        defaultParentId={versionId || null}
+        onCreated={(created) => {
+          void loadVersions().then(() => openVersion(created.id));
+        }}
+      />
+      {currentVersion && (
+        <SimulateModal
+          open={isSimulateOpen}
+          onClose={() => setIsSimulateOpen(false)}
+          versionId={currentVersion.id}
+          versionName={currentVersion.name}
+          onDone={(detail) => {
+            setIsSimulateOpen(false);
+            navigate(
+              `/projects/${projectId}/scenarios/${currentVersion.id}/runs/${detail.summary.id}`,
+            );
+          }}
+        />
+      )}
     </div>
   );
 }

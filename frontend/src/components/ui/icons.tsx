@@ -224,3 +224,48 @@ export function InfoIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** A version branching off another: the scenarios page's "branch" action. */
+export function BranchIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="6" cy="5" r="2" />
+      <circle cx="6" cy="19" r="2" />
+      <circle cx="18" cy="7" r="2" />
+      <path d="M6 7v10" />
+      <path d="M18 9c0 5-6 4-11.5 8.5" />
+    </Icon>
+  );
+}
+
+/** A branch folding back into its parent: "merge into parent". */
+export function MergeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="6" cy="5" r="2" />
+      <circle cx="6" cy="19" r="2" />
+      <circle cx="18" cy="17" r="2" />
+      <path d="M6 7v10" />
+      <path d="M6.5 7.5C8 12 12 15 16 16.5" />
+    </Icon>
+  );
+}
+
+export function AlertIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 4 2.5 20h19L12 4Z" />
+      <path d="M12 10v4.5" />
+      <path d="M12 17.5v.01" />
+    </Icon>
+  );
+}
+
+export function ArrowLeftIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M19 12H5" />
+      <path d="m11 6-6 6 6 6" />
+    </Icon>
+  );
+}

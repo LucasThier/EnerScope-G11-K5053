@@ -136,6 +136,8 @@ export function ProjectsPage() {
             onEdit={setEditing}
             onDelete={setDeleting}
             onManageMembers={(project) => navigate(`/projects/${project.id}/team`)}
+            onOpenScenarios={(project) => navigate(`/projects/${project.id}/scenarios`)}
+            onOpenEditor={(project) => navigate(`/projects/${project.id}/editor`)}
           />
         )}
       </Card>

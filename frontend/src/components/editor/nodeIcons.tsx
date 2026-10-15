@@ -101,6 +101,14 @@ const paths: Record<NodeType, ReactElement> = {
       <path d="M12 3c3 3 5 5.5 5 9a5 5 0 0 1-10 0c0-2 1-3.5 2.5-5C10 9 11 7 12 3Z" />
     </>
   ),
+  // A factory: industrial demand, as opposed to the flame of internal consumption.
+  INDUSTRIAL_CONSUMPTION: (
+    <>
+      <path d="M3 20V10l5 3V10l5 3V6h3v14H3Z" />
+      <path d="M16 6h4v14h-4" />
+      <path d="M7 17h2M11 17h2" />
+    </>
+  ),
 };
 
 export function NodeIcon({ type, className }: IconProps) {

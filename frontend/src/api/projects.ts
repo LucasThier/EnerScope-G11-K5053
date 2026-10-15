@@ -42,11 +42,14 @@ export const projectsApi = {
   listVersions: (projectId: string): Promise<AxiosResponse<ApiResponse<VersionSummary[]>>> =>
     client.get(`/projects/${projectId}/versions`),
 
-  /** Create a new version under a project. */
+  /**
+   * Create a new version under a project. With a parent, the new version starts
+   * as a copy of the parent's model (a branch).
+   */
   createVersion: (
     projectId: string,
     data: { name: string; parentVersion?: string | null },
-  ): Promise<AxiosResponse<ApiResponse<unknown>>> =>
+  ): Promise<AxiosResponse<ApiResponse<VersionSummary>>> =>
     client.post(`/projects/${projectId}/version`, data),
 
   addMember: (

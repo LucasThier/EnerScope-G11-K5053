@@ -26,7 +26,8 @@ export type NodeType =
   | 'FLNG_UNIT'
   | 'SEAPORT_TERMINAL'
   | 'LNG_CAMER'
-  | 'INTERNAL_CONSUMPTION';
+  | 'INTERNAL_CONSUMPTION'
+  | 'INDUSTRIAL_CONSUMPTION';
 
 /** Abstract diagram-canvas position (x/y in canvas units). */
 export interface GraphPosition {
@@ -75,6 +76,36 @@ export interface Diagram {
   connections: DiagramConnection[];
 }
 
+export type DistributionType = 'CONSTANT' | 'UNIFORM' | 'NORMAL';
+
+/**
+ * A probability distribution, as the backend's ProbabilisticDistributionDTO
+ * carries it: CONSTANT (val_a = value), UNIFORM (val_a = min, val_b = max) or
+ * NORMAL (val_a = mean, val_b = standard deviation).
+ */
+export interface Distribution {
+  type: DistributionType;
+  val_a: number;
+  val_b: number | null;
+}
+
+/** Mirrors backend CostBasisEnum (note the pre-existing spellings). */
+export type CostBasis =
+  | 'FLAT'
+  | 'PER_M'
+  | 'PER_KM'
+  | 'PER_KM2'
+  | 'PER_CONECTIONS_TOTAL'
+  | 'PER_CONECTIONS_INPUT'
+  | 'PER_CONECTIONES_OUTPUT';
+
+/** One component of a node's investment cost (its CAPEX). */
+export interface InvestmentComponent {
+  name: string;
+  amount: number;
+  costBasis: CostBasis;
+}
+
 /** Full detail of a node, for the edit form. */
 export interface NodeDetail {
   id: string;
@@ -87,13 +118,42 @@ export interface NodeDetail {
   operatingCosts: number;
   lifespanInMonths: number;
   maintenanceIntervalInDays: number;
+  /** Hours a maintenance stop lasts. */
+  maintenanceDuration: number;
   wastePercentage: number;
   attributes: Record<string, number>;
+  /** A well's decline curve, in percent per year; null for other node types. */
+  declineCurve: Distribution | null;
+  investmentCost: InvestmentComponent[];
 }
 
+/** A version (scenario) as lists show it. Mirrors backend VersionSummaryDTO. */
 export interface VersionSummary {
   id: string;
   name: string;
   parentVersionId: string | null;
   createdAt: string;
+  /** Active nodes; soft-deleted (REMOVED) ones are not counted. */
+  nodeCount: number;
+  connectionCount: number;
+  simulationCount: number;
+  lastSimulatedAt: string | null;
+}
+
+/** A conflict left by merging a sibling into the shared parent. Mirrors VersionConflictDTO. */
+export interface VersionConflict {
+  id: string;
+  mergedVersionId: string;
+  sourceVersionId: string;
+  conflictingVersionId: string;
+  conflictingVersionName: string;
+  entityType: 'NODE' | 'CONNECTION';
+  identityId: string;
+  mergedDescription: string | null;
+  conflictingDescription: string | null;
+  sourceChangeType: 'ADD' | 'EDIT' | 'DELETE' | null;
+  conflictingChangeType: 'ADD' | 'EDIT' | 'DELETE' | null;
+  mergedAt: string;
+  resolved: boolean;
+  resolvedAt: string | null;
 }

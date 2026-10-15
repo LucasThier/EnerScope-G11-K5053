@@ -126,9 +126,17 @@ export function ActiveProjectCard({ onNewProject }: ActiveProjectCardProps) {
         <Field label="Integrantes">{activeProject.memberCount}</Field>
         <Field label="Última modificación">{formatDate(activeProject.lastModified)}</Field>
       </dl>
-      <Button className="mt-4" onClick={openInProjects}>
-        Ver en Proyectos
-      </Button>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button onClick={() => navigate(`/projects/${activeProject.id}/scenarios`)}>
+          Escenarios y simulaciones
+        </Button>
+        <Button variant="ghost" onClick={() => navigate(`/projects/${activeProject.id}/editor`)}>
+          Abrir el editor
+        </Button>
+        <Button variant="ghost" onClick={openInProjects}>
+          Ver en Proyectos
+        </Button>
+      </div>
     </Card>
   );
 }

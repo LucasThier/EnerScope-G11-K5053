@@ -1,6 +1,6 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { NodeState, NodeType, Vertical } from '../../types/diagram';
-import { VERTICAL_COLORS } from './nodeCatalog';
+import { VERTICAL_COLORS, NODE_STATE_LABELS, nodeTypeLabel } from './nodeCatalog';
 import { NodeIcon } from './nodeIcons';
 
 export interface EnerNodeData {
@@ -19,10 +19,10 @@ interface StateStyle {
 }
 
 const STATE_STYLES: Record<NodeState, StateStyle> = {
-  RUNNING: { label: 'Running', bg: '#d6efc6', text: '#326626', border: 'solid' },
-  PROPOSED: { label: 'Proposed', bg: '#eaf6de', text: '#55a238', border: 'dashed' },
-  PENDING: { label: 'Pending', bg: '#fbf0d6', text: '#9a6f1c', border: 'dashed' },
-  REMOVED: { label: 'Removed', bg: '#f3dede', text: '#b04b4b', border: 'solid' },
+  RUNNING: { label: NODE_STATE_LABELS.RUNNING, bg: '#d6efc6', text: '#326626', border: 'solid' },
+  PROPOSED: { label: NODE_STATE_LABELS.PROPOSED, bg: '#eaf6de', text: '#3f8130', border: 'dashed' },
+  PENDING: { label: NODE_STATE_LABELS.PENDING, bg: '#fbf0d6', text: '#7a5816', border: 'dashed' },
+  REMOVED: { label: NODE_STATE_LABELS.REMOVED, bg: '#f3dede', text: '#a03f3f', border: 'solid' },
 };
 
 /** Custom diagram node: type icon, name, and a state dot, accented by vertical. */
@@ -78,7 +78,7 @@ export function EnerNode({ data, selected }: NodeProps) {
       </span>
       <div className="pointer-events-none z-[2] min-w-0 flex-1">
         <div className="truncate text-sm font-semibold text-ink-700" title={d.name}>
-          {d.name || '(unnamed)'}
+          {d.name || '(sin nombre)'}
         </div>
         <div className="flex items-center gap-1 text-[10px]">
           <span
@@ -87,7 +87,7 @@ export function EnerNode({ data, selected }: NodeProps) {
           >
             {st.label}
           </span>
-          <span className="truncate text-ink-400">{d.nodeType.replace(/_/g, ' ').toLowerCase()}</span>
+          <span className="truncate text-ink-500">{nodeTypeLabel(d.nodeType)}</span>
         </div>
       </div>
       <Handle

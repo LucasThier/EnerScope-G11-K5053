@@ -69,8 +69,10 @@ export function ActiveProjectProvider({ children }: { children: ReactNode }) {
     (projectId: string) => {
       setLastProjectId(projectId);
       if (routeMatch) {
-        const rest = routeMatch.params['*'] ?? '';
-        navigate(`/projects/${projectId}${rest ? `/${rest}` : ''}`);
+        // Keep the section (editor, scenarios, compare, team) but not what is
+        // under it: a scenario or run id belongs to the project being left.
+        const section = (routeMatch.params['*'] ?? '').split('/')[0];
+        navigate(`/projects/${projectId}${section ? `/${section}` : ''}`);
       }
     },
     [routeMatch, navigate, setLastProjectId],
