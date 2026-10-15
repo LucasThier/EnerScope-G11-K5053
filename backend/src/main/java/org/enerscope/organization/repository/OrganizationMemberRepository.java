@@ -26,4 +26,16 @@ public interface OrganizationMemberRepository extends JpaRepository<Organization
             ORDER BY m.createdAt
             """)
     List<OrganizationMember> findByOrganizationIdWithUser(@Param("organizationId") UUID organizationId);
+
+    /**
+     * Memberships of a user across every organization, with the organization
+     * and roles already fetched, for the "list a user's roles" screen.
+     */
+    @Query("""
+            SELECT DISTINCT m FROM OrganizationMember m
+            JOIN FETCH m.organization
+            LEFT JOIN FETCH m.roles
+            WHERE m.user.id = :userId
+            """)
+    List<OrganizationMember> findByUserIdWithOrganization(@Param("userId") UUID userId);
 }

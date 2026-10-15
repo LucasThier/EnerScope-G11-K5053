@@ -486,6 +486,7 @@ class ProjectServiceTest {
                 Version version = new Version();
                 version.setName("Baseline");
                 VersionDTO data = new VersionDTO("Baseline", null);
+                authenticateAs(admin());
                 when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
                 when(versionService.saveVersion(data)).thenReturn(version);
 
@@ -519,6 +520,98 @@ class ProjectServiceTest {
                                 () -> projectService.saveVersion(projectId, new VersionDTO("Baseline", null)));
                 verify(versionService, never()).saveVersion(any());
                 verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void saveVersionRejectsUnauthenticatedCaller() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+                assertThrows(UnauthorizedException.class,
+                                () -> projectService.saveVersion(projectId, new VersionDTO("Baseline", null)));
+                verify(versionService, never()).saveVersion(any());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void saveVersionRejectsCallerWithoutEditPermission() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User outsider = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
+                authenticateAs(outsider);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, outsider.getId()))
+                                .thenReturn(Optional.empty());
+
+                assertThrows(ForbiddenException.class,
+                                () -> projectService.saveVersion(projectId, new VersionDTO("Baseline", null)));
+                verify(versionService, never()).saveVersion(any());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void saveVersionAllowsProjectEditor() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User editor = new User("editor@enerscope.org", "Ed", "Itor", "hashed", PlatformRole.USER);
+                Version version = new Version();
+                version.setName("Baseline");
+                VersionDTO data = new VersionDTO("Baseline", null);
+                authenticateAs(editor);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, editor.getId()))
+                                .thenReturn(Optional.of(editorMembership(editor)));
+                when(versionService.saveVersion(data)).thenReturn(version);
+
+                Version saved = projectService.saveVersion(projectId, data);
+
+                assertEquals(version, saved);
+        }
+
+        // ---- listVersions ---------------------------------------------------------
+
+        @Test
+        void listVersionsReturnsForPlatformAdmin() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+                assertTrue(projectService.listVersions(projectId).isEmpty());
+        }
+
+        @Test
+        void listVersionsAllowsProjectMember() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User editor = new User("editor@enerscope.org", "Ed", "Itor", "hashed", PlatformRole.USER);
+                authenticateAs(editor);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, editor.getId())).thenReturn(true);
+
+                assertTrue(projectService.listVersions(projectId).isEmpty());
+        }
+
+        @Test
+        void listVersionsRejectsNonMember() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User outsider = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
+                authenticateAs(outsider);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, outsider.getId())).thenReturn(false);
+
+                assertThrows(ForbiddenException.class, () -> projectService.listVersions(projectId));
+        }
+
+        @Test
+        void listVersionsRejectsUnauthenticated() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+                assertThrows(UnauthorizedException.class, () -> projectService.listVersions(projectId));
         }
 
         // ---- helpers -------------------------------------------------------------

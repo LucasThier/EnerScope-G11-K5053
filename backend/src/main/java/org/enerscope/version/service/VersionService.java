@@ -3,6 +3,9 @@ package org.enerscope.version.service;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.node.repository.BaseNodeRepository;
 import org.enerscope.node.repository.NodeConnectionRepository;
+import org.enerscope.project.model.ProjectMember;
+import org.enerscope.project.model.enums.ProjectMemberPermission;
+import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
@@ -12,8 +15,14 @@ import org.springframework.stereotype.Service;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.enerscope.common.EntityNotFoundException;
+import org.enerscope.common.ForbiddenException;
+import org.enerscope.common.UnauthorizedException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.node.service.NodeService;
+import org.enerscope.session.model.Session;
+import org.enerscope.user.model.User;
+import org.enerscope.user.model.enums.PlatformRole;
+import org.enerscope.util.AuthUtil;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
@@ -90,6 +99,63 @@ public class VersionService {
     private final BaseNodeRepository nodeRepository;
     private final AppLogger logger;
     private final NodeService nodeService;
+    private final ProjectMemberRepository projectMemberRepository;
+
+    /**
+     * Ensures the current caller may read the given version: a platform
+     * ADMIN, or any member of the project the version belongs to. Versions
+     * have no role of their own — access is entirely delegated to the owning
+     * project, covering every vertical together.
+     */
+    private void assertCanViewVersion(UUID versionId) {
+        Session session = AuthUtil.currentSession();
+        if (session == null) {
+            throw new UnauthorizedException("Authentication required");
+        }
+        User caller = session.getUser();
+        if (caller.getPlatformRole() == PlatformRole.ADMIN) {
+            return;
+        }
+        UUID projectId = resolveProjectId(versionId);
+        if (!projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())) {
+            throw new ForbiddenException("You are not allowed to view this version");
+        }
+    }
+
+    /**
+     * Ensures the current caller may edit the given version: a platform
+     * ADMIN, or a member of the owning project holding
+     * {@link ProjectMemberPermission#EDIT_PROJECT} or
+     * {@link ProjectMemberPermission#MANAGE_PROJECT}.
+     */
+    private void assertCanEditVersion(UUID versionId) {
+        Session session = AuthUtil.currentSession();
+        if (session == null) {
+            throw new UnauthorizedException("Authentication required");
+        }
+        User caller = session.getUser();
+        if (caller.getPlatformRole() == PlatformRole.ADMIN) {
+            return;
+        }
+        UUID projectId = resolveProjectId(versionId);
+        boolean canEdit = projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())
+                .map(this::hasEditPermission)
+                .orElse(false);
+        if (!canEdit) {
+            throw new ForbiddenException("You are not allowed to edit this version");
+        }
+    }
+
+    private UUID resolveProjectId(UUID versionId) {
+        return versionRepository.findProjectIdByVersionId(versionId)
+                .orElseThrow(() -> new IllegalArgumentException("Version is not linked to any project"));
+    }
+
+    private boolean hasEditPermission(ProjectMember member) {
+        return member.getRoles().stream().anyMatch(role ->
+                role.getPermissions().contains(ProjectMemberPermission.EDIT_PROJECT)
+                        || role.getPermissions().contains(ProjectMemberPermission.MANAGE_PROJECT));
+    }
 
     @Transactional
     public Version saveVersion(VersionDTO data) {
@@ -154,8 +220,9 @@ public class VersionService {
 
     public void deleteVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
-        Version version = versionRepository.findById(id)
+        versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
+        assertCanEditVersion(id);
         // WE DELETE ALL OF THE SUB-VERSIONS, MAYBE CHANGE LATER
 
         deleteSubVersions(id);
@@ -189,8 +256,10 @@ public class VersionService {
 
     public Version getVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
-        return versionRepository.findById(id)
+        Version version = versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
+        assertCanViewVersion(id);
+        return version;
     }
 
     /**
@@ -203,6 +272,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        assertCanViewVersion(versionId);
 
         List<DiagramNodeDTO> nodes = (version.getNodeSnapshot() == null
                 ? List.<BaseNode>of()
@@ -231,6 +301,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        assertCanEditVersion(versionId);
 
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
@@ -272,6 +343,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        assertCanEditVersion(versionId);
 
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
@@ -304,6 +376,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        assertCanViewVersion(versionId);
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
         if (!version.getNodeSnapshot().contains(node)) {
@@ -480,6 +553,7 @@ public class VersionService {
 
         Version existingVersion = versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
+        assertCanEditVersion(id);
 
         if (data.getParentVersion() != null) {
             Version parentVerison = versionRepository.findById(data.getParentVersion())
@@ -503,6 +577,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        assertCanEditVersion(versionId);
 
         // A brand-new node gets a fresh cross-version identity. Only saveWell
         // defaulted this; centralise it here so every node type is covered and
@@ -546,6 +621,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        assertCanEditVersion(versionId);
 
         nodeRepository.findById(connectionDTO.getFromNodeId())
                 .orElseThrow(
@@ -576,6 +652,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        assertCanEditVersion(versionId);
 
         BaseNode originalNode = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
@@ -689,6 +766,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        assertCanEditVersion(versionId);
 
         NodeConnection originalConnection = connectionRepository.findById(connectionId)
                 .orElseThrow(() -> new EntityNotFoundException("Connection not found with id: " + connectionId));
@@ -774,6 +852,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        assertCanEditVersion(versionId);
 
         // Handle regular node deletion
         BaseNode nodeToDelete = nodeRepository.findById(nodeId)
@@ -834,6 +913,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        assertCanEditVersion(versionId);
 
         // Handle connection deletion
         NodeConnection connectionToDelete = connectionRepository.findById(connectionId)

@@ -1,6 +1,8 @@
 package org.enerscope.version.service;
 
 import org.enerscope.common.EntityNotFoundException;
+import org.enerscope.common.ForbiddenException;
+import org.enerscope.common.UnauthorizedException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.dto.BaseNodeDTO;
@@ -24,8 +26,19 @@ import org.enerscope.node.model.enums.NodeStateEnum;
 import org.enerscope.node.model.enums.NodeTypeEnum;
 import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
+import org.enerscope.organization.model.Organization;
+import org.enerscope.project.model.Project;
+import org.enerscope.project.model.ProjectMember;
+import org.enerscope.project.model.ProjectMemberRole;
+import org.enerscope.project.model.enums.ProjectMemberPermission;
+import org.enerscope.project.model.enums.ProjectMemberType;
+import org.enerscope.project.repository.ProjectMemberRepository;
+import org.enerscope.session.model.Session;
+import org.enerscope.user.model.User;
+import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,11 +47,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,6 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -69,6 +86,9 @@ class VersionServiceTest {
         @Mock
         private org.enerscope.node.service.NodeService nodeService;
 
+        @Mock
+        private ProjectMemberRepository projectMemberRepository;
+
         @InjectMocks
         private VersionService versionService;
 
@@ -80,7 +100,32 @@ class VersionServiceTest {
                                 connectionRepository,
                                 nodeRepository,
                                 logger,
-                                nodeService);
+                                nodeService,
+                                projectMemberRepository);
+        }
+
+        @AfterEach
+        void clearSecurityContext() {
+                SecurityContextHolder.clearContext();
+        }
+
+        private User admin() {
+                return new User("admin@enerscope.org", "Admin", "User", "hashed", PlatformRole.ADMIN);
+        }
+
+        private void authenticateAs(User caller) {
+                Session session = new Session("token", caller, Instant.now().plusSeconds(3600));
+                var auth = new UsernamePasswordAuthenticationToken(caller, null, List.of());
+                auth.setDetails(session);
+                SecurityContextHolder.getContext().setAuthentication(auth);
+        }
+
+        private ProjectMember editorMembership(User user, Project project) {
+                ProjectMember member = new ProjectMember(user, project);
+                member.addRole(new ProjectMemberRole(
+                                ProjectMemberType.EDITOR.name(), ProjectMemberType.EDITOR,
+                                Set.of(ProjectMemberPermission.EDIT_PROJECT, ProjectMemberPermission.VIEW_PROJECT)));
+                return member;
         }
 
         @Test
@@ -92,6 +137,7 @@ class VersionServiceTest {
                                 new ArrayList<>(),
                                 new ArrayList<>());
 
+                authenticateAs(admin());
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(existingVersion));
                 when(versionRepository.save(any(Version.class))).thenReturn(existingVersion);
 
@@ -147,6 +193,7 @@ class VersionServiceTest {
                 // Add the node to version's snapshot to simulate it being added in this version
                 version.getNodeSnapshot().add(originalNode);
 
+                authenticateAs(admin());
                 // Mock repository calls
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
                 when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(originalNode));
@@ -227,6 +274,7 @@ class VersionServiceTest {
                 previousEditChange.setResultNode(originalNode);
                 version.getNodeChanges().add(previousEditChange);
 
+                authenticateAs(admin());
                 // Mock repository calls
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
                 when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(originalNode));
@@ -300,6 +348,7 @@ class VersionServiceTest {
                 // Do NOT add the node to version's snapshot to simulate it coming from parent
                 // version.getNodeSnapshot().add(originalNode); // Intentionally left out
 
+                authenticateAs(admin());
                 // Mock repository calls
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
                 when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(originalNode));
@@ -383,6 +432,7 @@ class VersionServiceTest {
                                 new ArrayList<>(),
                                 new ArrayList<>());
 
+                authenticateAs(admin());
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
                 when(nodeRepository.findById(nodeId)).thenReturn(Optional.empty());
 
@@ -424,6 +474,7 @@ class VersionServiceTest {
                                 500f // surface
                 );
 
+                authenticateAs(admin());
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
                 when(nodeService.saveWell(any(WellDTO.class))).thenReturn(savedWell);
                 when(versionRepository.save(any(Version.class))).thenReturn(version);
@@ -469,6 +520,7 @@ class VersionServiceTest {
                 NodeConnection connection = new NodeConnection(UUID.randomUUID(), fromId, toId);
                 version.getConnectionSnapshot().add(connection);
 
+                authenticateAs(admin());
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
 
                 // When
@@ -503,6 +555,7 @@ class VersionServiceTest {
                                 1.0f, 1.0f, 0.5f, 1, MoneyAmount.of(1), 1.0f);
                 version.getNodeSnapshot().add(node);
 
+                authenticateAs(admin());
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
                 when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(node));
                 when(nodeRepository.save(any(BaseNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -538,6 +591,7 @@ class VersionServiceTest {
                                 10.0f, 0.2f, 0.5f, 5, MoneyAmount.of(7), 3.0f);
                 version.getNodeSnapshot().add(node);
 
+                authenticateAs(admin());
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
                 when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(node));
 
@@ -587,6 +641,7 @@ class VersionServiceTest {
                                 1.0f, 1.0f, 0.5f, 1, MoneyAmount.of(1), 1.0f);
                 version.getNodeSnapshot().add(node);
 
+                authenticateAs(admin());
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
                 when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(node));
                 when(nodeRepository.save(any(BaseNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -601,6 +656,239 @@ class VersionServiceTest {
                 assertEquals("New Name", result.getName());
                 assertEquals(NodeStateEnum.RUNNING, result.getState());
                 verify(nodeRepository, times(1)).save(node);
+        }
+
+        // ---- getVersion: view permission, delegated from the owning project -----
+
+        @Test
+        void getVersionReturnsVersionForPlatformAdmin() {
+                UUID versionId = UUID.randomUUID();
+                Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>());
+                authenticateAs(admin());
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+
+                assertSame(version, versionService.getVersion(versionId));
+                verify(versionRepository, never()).findProjectIdByVersionId(any());
+        }
+
+        @Test
+        void getVersionAllowsProjectMember() {
+                UUID versionId = UUID.randomUUID();
+                UUID projectId = UUID.randomUUID();
+                Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>());
+                User member = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+                authenticateAs(member);
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(versionRepository.findProjectIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, member.getId())).thenReturn(true);
+
+                assertSame(version, versionService.getVersion(versionId));
+        }
+
+        @Test
+        void getVersionRejectsCallerWhoIsNotAProjectMember() {
+                UUID versionId = UUID.randomUUID();
+                UUID projectId = UUID.randomUUID();
+                Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>());
+                User outsider = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
+                authenticateAs(outsider);
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(versionRepository.findProjectIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, outsider.getId())).thenReturn(false);
+
+                assertThrows(ForbiddenException.class, () -> versionService.getVersion(versionId));
+        }
+
+        @Test
+        void getVersionRejectsUnauthenticatedCaller() {
+                UUID versionId = UUID.randomUUID();
+                Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>());
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+
+                assertThrows(UnauthorizedException.class, () -> versionService.getVersion(versionId));
+        }
+
+        @Test
+        void getVersionRejectsUnknownVersion() {
+                UUID versionId = UUID.randomUUID();
+                when(versionRepository.findById(versionId)).thenReturn(Optional.empty());
+
+                assertThrows(VersionNotFoundException.class, () -> versionService.getVersion(versionId));
+        }
+
+        // ---- getDiagram: view permission ------------------------------------------
+
+        @Test
+        void getDiagramRejectsCallerWhoIsNotAProjectMember() {
+                UUID versionId = UUID.randomUUID();
+                UUID projectId = UUID.randomUUID();
+                Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>());
+                User outsider = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
+                authenticateAs(outsider);
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(versionRepository.findProjectIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, outsider.getId())).thenReturn(false);
+
+                assertThrows(ForbiddenException.class, () -> versionService.getDiagram(versionId));
+        }
+
+        @Test
+        void getDiagramRejectsUnauthenticatedCaller() {
+                UUID versionId = UUID.randomUUID();
+                Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>());
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+
+                assertThrows(UnauthorizedException.class, () -> versionService.getDiagram(versionId));
+        }
+
+        // ---- addNodeToVersion: edit permission, delegated from the project ------
+
+        @Test
+        void addNodeToVersionAllowsProjectEditor() {
+                UUID versionId = UUID.randomUUID();
+                UUID projectId = UUID.randomUUID();
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(), new ArrayList<>());
+                User editor = new User("editor@enerscope.org", "Ed", "Itor", "hashed", PlatformRole.USER);
+                WellDTO wellDTO = new WellDTO();
+                wellDTO.setName("Test Well");
+                wellDTO.setState(NodeStateEnum.PROPOSED);
+                Well savedWell = new Well(
+                                "Test Well", NodeStateEnum.PROPOSED, Instant.now(), 120,
+                                MoneyAmount.of(1000000), 30, MoneyAmount.of(50000), 0.0f,
+                                new InvestmentCost(), new NodeGraphData(), UUID.randomUUID(), new NodeTypeData(),
+                                100.0f, 0.5f, 0.8f, 10, MoneyAmount.of(5000), 500f);
+
+                authenticateAs(editor);
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(versionRepository.findProjectIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, editor.getId()))
+                                .thenReturn(Optional.of(editorMembership(editor,
+                                                new Project("Grid Expansion", "desc", new Organization("Acme")))));
+                when(nodeService.saveWell(any(WellDTO.class))).thenReturn(savedWell);
+                when(versionRepository.save(any(Version.class))).thenReturn(version);
+
+                BaseNode result = versionService.addNodeToVersion(versionId, wellDTO);
+
+                assertNotNull(result);
+        }
+
+        @Test
+        void addNodeToVersionRejectsCallerWhoIsNotAProjectMember() {
+                UUID versionId = UUID.randomUUID();
+                UUID projectId = UUID.randomUUID();
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(), new ArrayList<>());
+                User outsider = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
+                WellDTO wellDTO = new WellDTO();
+
+                authenticateAs(outsider);
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(versionRepository.findProjectIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, outsider.getId()))
+                                .thenReturn(Optional.empty());
+
+                assertThrows(ForbiddenException.class, () -> versionService.addNodeToVersion(versionId, wellDTO));
+                verify(versionRepository, never()).save(any());
+        }
+
+        @Test
+        void addNodeToVersionRejectsUnauthenticatedCaller() {
+                UUID versionId = UUID.randomUUID();
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(), new ArrayList<>());
+                WellDTO wellDTO = new WellDTO();
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+
+                assertThrows(UnauthorizedException.class, () -> versionService.addNodeToVersion(versionId, wellDTO));
+                verify(versionRepository, never()).save(any());
+        }
+
+        @Test
+        void addNodeToVersionRejectsWhenVersionHasNoProject() {
+                UUID versionId = UUID.randomUUID();
+                Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(), new ArrayList<>());
+                User member = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+                WellDTO wellDTO = new WellDTO();
+
+                authenticateAs(member);
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(versionRepository.findProjectIdByVersionId(versionId)).thenReturn(Optional.empty());
+
+                assertThrows(IllegalArgumentException.class,
+                                () -> versionService.addNodeToVersion(versionId, wellDTO));
+                verify(versionRepository, never()).save(any());
+        }
+
+        // ---- deleteVersion: edit permission ---------------------------------------
+
+        @Test
+        void deleteVersionAllowsPlatformAdmin() {
+                UUID versionId = UUID.randomUUID();
+                Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>());
+                authenticateAs(admin());
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(versionRepository.findByParentVersionId(versionId)).thenReturn(List.of());
+
+                versionService.deleteVersion(versionId);
+
+                verify(versionRepository).deleteAllById(any());
+        }
+
+        @Test
+        void deleteVersionAllowsProjectEditor() {
+                UUID versionId = UUID.randomUUID();
+                UUID projectId = UUID.randomUUID();
+                Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>());
+                User editor = new User("editor@enerscope.org", "Ed", "Itor", "hashed", PlatformRole.USER);
+                authenticateAs(editor);
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(versionRepository.findProjectIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, editor.getId()))
+                                .thenReturn(Optional.of(editorMembership(editor,
+                                                new Project("Grid Expansion", "desc", new Organization("Acme")))));
+                when(versionRepository.findByParentVersionId(versionId)).thenReturn(List.of());
+
+                versionService.deleteVersion(versionId);
+
+                verify(versionRepository).deleteAllById(any());
+        }
+
+        @Test
+        void deleteVersionRejectsCallerWhoIsNotAProjectMember() {
+                UUID versionId = UUID.randomUUID();
+                UUID projectId = UUID.randomUUID();
+                Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>());
+                User outsider = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
+                authenticateAs(outsider);
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                when(versionRepository.findProjectIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, outsider.getId()))
+                                .thenReturn(Optional.empty());
+
+                assertThrows(ForbiddenException.class, () -> versionService.deleteVersion(versionId));
+                verify(versionRepository, never()).deleteAllById(any());
+        }
+
+        @Test
+        void deleteVersionRejectsUnauthenticatedCaller() {
+                UUID versionId = UUID.randomUUID();
+                Version version = new Version("V1", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>());
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+
+                assertThrows(UnauthorizedException.class, () -> versionService.deleteVersion(versionId));
+                verify(versionRepository, never()).deleteAllById(any());
         }
 
 }

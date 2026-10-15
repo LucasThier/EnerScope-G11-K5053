@@ -142,6 +142,36 @@ public class ProjectService {
                 }
         }
 
+        /**
+         * Ensures the current caller may edit the given project's content: a
+         * platform ADMIN, or a project member holding
+         * {@link ProjectMemberPermission#EDIT_PROJECT} or
+         * {@link ProjectMemberPermission#MANAGE_PROJECT}.
+         */
+        public void assertCanEditProject(UUID projectId) {
+                Session session = AuthUtil.currentSession();
+                if (session == null) {
+                        throw new UnauthorizedException("Authentication required");
+                }
+                User caller = session.getUser();
+                if (caller.getPlatformRole() == PlatformRole.ADMIN) {
+                        return;
+                }
+                boolean canEdit = projectMemberRepository
+                                .findByProjectIdAndUserId(projectId, caller.getId())
+                                .map(this::hasEditPermission)
+                                .orElse(false);
+                if (!canEdit) {
+                        throw new ForbiddenException("You are not allowed to edit this project");
+                }
+        }
+
+        private boolean hasEditPermission(ProjectMember member) {
+                return member.getRoles().stream()
+                                .anyMatch(role -> role.getPermissions().contains(ProjectMemberPermission.EDIT_PROJECT)
+                                                || role.getPermissions().contains(ProjectMemberPermission.MANAGE_PROJECT));
+        }
+
         public ProjectMember addMember(UUID projectId, AddProjectMemberRequestDTO data) {
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
@@ -225,6 +255,7 @@ public class ProjectService {
 
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                assertCanEditProject(projectId);
 
                 Version version = versionService.saveVersion(versionDTO);
 
@@ -244,6 +275,7 @@ public class ProjectService {
         public List<VersionSummaryDTO> listVersions(UUID projectId) {
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                assertCanViewProject(projectId);
 
                 return project.getVersions().stream()
                                 .map(v -> new VersionSummaryDTO(

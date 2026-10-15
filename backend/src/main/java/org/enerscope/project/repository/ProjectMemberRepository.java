@@ -29,4 +29,16 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, UU
             ORDER BY m.createdAt
             """)
     List<ProjectMember> findByProjectIdWithUser(@Param("projectId") UUID projectId);
+
+    /**
+     * Memberships of a user across every project, with the project and roles
+     * already fetched, for the "list a user's roles" screen.
+     */
+    @Query("""
+            SELECT DISTINCT m FROM ProjectMember m
+            JOIN FETCH m.project
+            LEFT JOIN FETCH m.roles
+            WHERE m.user.id = :userId
+            """)
+    List<ProjectMember> findByUserIdWithProject(@Param("userId") UUID userId);
 }
