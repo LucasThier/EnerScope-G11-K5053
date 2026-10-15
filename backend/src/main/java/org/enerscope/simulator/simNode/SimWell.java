@@ -1,5 +1,7 @@
 package org.enerscope.simulator.simNode;
 
+import java.util.function.DoubleSupplier;
+
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.extraction.Well;
@@ -16,7 +18,12 @@ public class SimWell extends SimBaseNode{
     private float gasRichness;
     private int DTMTime;
     private float acumDecline;
+    private DoubleSupplier declineSampler;
+    private int appliedDeclineYear;
 
+    public void configureRandom(long seed) {
+        declineSampler = declineCurve == null ? () -> 0 : declineCurve.sampler(seed);
+    }
 
     public SimWell(Well well){
         super(well);
@@ -25,12 +32,16 @@ public class SimWell extends SimBaseNode{
         this.gasRichness = well.getGasRichness();
         this.DTMTime = well.getDTMTime();
         this.acumDecline = 0;
+        configureRandom(0L);
     }
 
     @Override
     protected void activeAction(int time){
-        if(time > 0 && time % (365*24) == 0){
+        int age = calendarControlled ? operatingAgeHours : time;
+        int year = Math.max(0, age / 8760);
+        while (appliedDeclineYear < year) {
             calculateTotalDecline();
+            appliedDeclineYear++;
         }
 
         if(acumDecline >= 100){
@@ -73,7 +84,10 @@ public class SimWell extends SimBaseNode{
     }
 
     private void calculateTotalDecline(){
-        acumDecline += declineCurve.generateValue();
+        double sample = declineSampler.getAsDouble();
+        if (!Double.isFinite(sample))
+            throw new IllegalArgumentException("Non-finite decline sample");
+        acumDecline = (float) Math.min(100, acumDecline + Math.max(0, Math.min(100, sample)));
     }
 
     @Override
@@ -103,6 +117,8 @@ public class SimWell extends SimBaseNode{
     @Override
     public void reset() {
         super.reset();
+        appliedDeclineYear = 0;
         this.acumDecline = 0;
+        configureRandom(0L);
     }
 }

@@ -33,7 +33,7 @@ public class ResultPerRound {
     }
 
     public float amountProduced(){
-        List<ResultPerNode> lngNodes = resultPerNodes.stream().filter(resultPerNode -> resultPerNode.getNodeClass() == LNGCarrier.class.getSimpleName()).toList();
+        List<ResultPerNode> lngNodes = resultPerNodes.stream().filter(resultPerNode -> LNGCarrier.class.getSimpleName().equals(resultPerNode.getNodeClass())).toList();
         return (float) lngNodes.stream().mapToDouble(value -> value.getTotalProduced()).sum();
     }
 }

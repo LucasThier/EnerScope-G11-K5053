@@ -26,7 +26,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @NoArgsConstructor
-@AllArgsConstructor
 @Getter
 @Setter
 @Entity
@@ -85,17 +84,17 @@ public class Version extends BaseEntity {
 
     public Version(String name, Version parentVersion, List<BaseNode> nodeSnapshot,
                    List<NodeConnection> connectionSnapshot, List<ConnectionChange> connectionChanges,
-                   List<NodeChange> nodeChanges, List<Result> results) {
+                   List<NodeChange> nodeChanges, List<FinalResult> results) {
         this(name, parentVersion, nodeSnapshot, connectionSnapshot, connectionChanges, nodeChanges);
-        this.results = orEmpty(results);
+        this.finalResults = orEmpty(results);
     }
 
     private static <T> List<T> orEmpty(List<T> values) {
         return values == null ? new ArrayList<>() : values;
     }
 
-    public void addResult(Result result){
-        if (this.results == null) this.results = new java.util.ArrayList<>();
-        this.results.add(result);
+    public void addResult(FinalResult result){
+        if (this.finalResults == null) this.finalResults = new java.util.ArrayList<>();
+        this.finalResults.add(result);
     }
 }

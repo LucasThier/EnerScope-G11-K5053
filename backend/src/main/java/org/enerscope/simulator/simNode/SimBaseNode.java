@@ -6,6 +6,7 @@ import org.enerscope.node.model.BaseNode;
 import org.enerscope.simulator.auxiliary.FlagOfInactivity;
 import org.enerscope.simulator.results.ResultPerNode;
 import org.enerscope.simulator.auxiliary.ToDeliver;
+import org.enerscope.simulator.auxiliary.ISeaTerminal;
 
 import java.util.List;
 import java.util.UUID;
@@ -161,7 +162,20 @@ public abstract class  SimBaseNode {
     }
 
     public abstract ResultPerNode createResult();
+
+    protected ToDeliver receive(ISeaTerminal source, float amount) {
+        ToDeliver received = source.deliver(amount);
+        measuredInput += received.getAmount();
+        return received;
+    }
+
     public void reset(){
+        measuredInput = measuredOutput = measuredExported = measuredLosses = 0;
+        measuredOperatingHours = measuredEvents = 0;
+        stepOutput = 0;
+        timeSinceLastMaintenance = 0;
+        flagOfInactivity = null;
+        operatingAgeHours = -1;
         lastSimulatedTime = -1;
         this.totalDeferred = 0;
         this.totalProduced = 0;
