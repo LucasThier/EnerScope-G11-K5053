@@ -107,7 +107,18 @@ public class NodeService {
    }
 
    private ProbabilisticDistribution DTOtoEntity(ProbabilisticDistributionDTO data){
-      return switch (data.getType()) {
+      // No curve is a valid answer: the simulator treats it as no decline.
+      if (data == null) {
+         return null;
+      }
+      if (data.getType() == null || data.getVal_a() == null) {
+         throw new IllegalArgumentException("A distribution needs a type and its first parameter");
+      }
+      boolean twoParameters = !"CONSTANT".equalsIgnoreCase(data.getType());
+      if (twoParameters && data.getVal_b() == null) {
+         throw new IllegalArgumentException("A " + data.getType() + " distribution needs two parameters");
+      }
+      return switch (data.getType().toUpperCase()) {
          case "CONSTANT" -> new ConstantValue(data.getVal_a());
          case "UNIFORM" -> new UniformDistributionCase(data.getVal_a(), data.getVal_b());
          case "NORMAL" -> new NormalDistributionCase(data.getVal_a(), data.getVal_b());
@@ -352,6 +363,9 @@ public class NodeService {
       well.setGasRichness(dto.getGasRichness());
       well.setDTMTime(dto.getDTMTime());
       well.setDTMCost(dto.getDTMCost() != null ? MoneyAmount.of(dto.getDTMCost()) : null);
+      if (dto.getSurface() != null) {
+         well.setSurface(dto.getSurface());
+      }
 
       return well;
    }
@@ -654,9 +668,7 @@ public class NodeService {
       if (dto.getType() != null) {
          internalConsumption.setType(DTOtoEntity(dto.getType()));
       }
-      if (dto.getIdentity() != null) {
-         internalConsumption.setIdentityId(dto.getIdentity());
-      }
+      // identityId is never written on edit; see editWell.
 
       // Update SeaportTerminal-specific fields
       internalConsumption.setConsumptionAutumn(dto.getConsumptionAutumn());
@@ -687,9 +699,7 @@ public class NodeService {
       if (dto.getType() != null) {
          industrialConsumption.setType(DTOtoEntity(dto.getType()));
       }
-      if (dto.getIdentity() != null) {
-         industrialConsumption.setIdentityId(dto.getIdentity());
-      }
+      // identityId is never written on edit; see editWell.
 
       // Update SeaportTerminal-specific fields
       industrialConsumption.setConsumption(dto.getConsumption());

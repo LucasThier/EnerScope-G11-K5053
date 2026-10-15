@@ -39,6 +39,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.enerscope.version.dto.VersionSummaryDTO;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -703,6 +705,43 @@ class ProjectServiceTest {
                                 () -> projectService.saveVersion(projectId, new VersionDTO("Baseline", null)));
                 verify(versionService, never()).saveVersion(any());
                 verify(projectRepository, never()).save(any());
+        }
+
+        // ---- listVersions --------------------------------------------------------
+
+        @Test
+        void listVersionsListsTheProjectsVersionsOldestFirst() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                Version newer = new Version("Rama", null, null, null, null, null);
+                ReflectionTestUtils.setField(newer, "createdAt",
+                                Instant.parse("2026-10-02T00:00:00Z"));
+                Version older = new Version("Base", null, null, null, null, null);
+                ReflectionTestUtils.setField(older, "createdAt",
+                                Instant.parse("2026-10-01T00:00:00Z"));
+                project.addVersion(newer);
+                project.addVersion(older);
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+
+                List<VersionSummaryDTO> versions = projectService.listVersions(projectId);
+
+                assertEquals(List.of("Base", "Rama"), versions.stream()
+                                .map(VersionSummaryDTO::getName).toList());
+        }
+
+        @Test
+        void listVersionsRequiresMembershipOfTheProject() {
+                // It used to run no check at all: anyone signed in could list the
+                // versions of any project by id.
+                UUID projectId = UUID.randomUUID();
+                User outsider = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
+                authenticateAs(outsider);
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, outsider.getId())).thenReturn(false);
+
+                assertThrows(ForbiddenException.class, () -> projectService.listVersions(projectId));
         }
 
         @Test

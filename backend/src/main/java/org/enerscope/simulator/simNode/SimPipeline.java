@@ -8,6 +8,7 @@ import org.enerscope.simulator.auxiliary.TransitBatch;
 import org.enerscope.simulator.results.ResultPerNode;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 
@@ -35,12 +36,23 @@ public class SimPipeline extends SimBaseNode{
     @Override
     protected void activeAction(int time){
         ToDeliver totalArrived = new ToDeliver(0,0);
-        List<TransitBatch> arrivedTransitQueue = inTransitQueue.stream().filter(aTransitBatch -> aTransitBatch.getTimeOfArrival() <= time).toList();
-        inTransitQueue.removeAll(arrivedTransitQueue);
+        // Loops instead of streams: this runs on every simulated hour.
+        List<TransitBatch> arrivedTransitQueue = new ArrayList<>();
+        double stillInTransit = 0;
+        Iterator<TransitBatch> pending = inTransitQueue.iterator();
+        while (pending.hasNext()) {
+            TransitBatch aTransitBatch = pending.next();
+            if (aTransitBatch.getTimeOfArrival() <= time) {
+                arrivedTransitQueue.add(aTransitBatch);
+                pending.remove();
+            } else {
+                stillInTransit += aTransitBatch.getToDeliver().getAmount();
+            }
+        }
         int a = Math.max(1,travelTimeInHours);
         float capacity = Math.min(maxFlowCapacity * a - toDeliver.getAmount() -
-                (float) inTransitQueue.stream().mapToDouble(inTransitBatch -> inTransitBatch.getToDeliver().getAmount()).sum(), maxFlowCapacity);
-        float toGather = (float) nodesBefore.stream().mapToDouble(simBaseNode -> simBaseNode.getToDeliver().getAmount()).sum();
+                (float) stillInTransit, maxFlowCapacity);
+        float toGather = (float) availableIn(nodesBefore);
         maxPossibleProduced += maxFlowCapacity;
 
         TransitBatch transitBatch =new TransitBatch();

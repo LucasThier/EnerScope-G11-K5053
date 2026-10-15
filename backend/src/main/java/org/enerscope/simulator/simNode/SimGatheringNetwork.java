@@ -13,7 +13,13 @@ import java.util.List;
 public class SimGatheringNetwork extends SimBaseNode{
     private float maxTransportCapacity;
     private float loss;
-    private List<SimWell> simWells;
+    /**
+     * Upstream nodes. Typed as {@link SimBaseNode} rather than {@code SimWell}:
+     * only {@code getToDeliver}/{@code deliver} are used, and the cast that was
+     * here turned any other upstream into a {@code ClassCastException} that
+     * aborted the whole simulation.
+     */
+    private List<SimBaseNode> simWells;
     private float totalLoss;
 
     public SimGatheringNetwork(GatheringNetwork gatheringNetwork){
@@ -27,7 +33,7 @@ public class SimGatheringNetwork extends SimBaseNode{
     @Override
     protected void activeAction(int time){
         float capacity = maxTransportCapacity - toDeliver.getAmount();
-        float toGather = (float) simWells.stream().mapToDouble(simWell -> simWell.getToDeliver().getAmount()).sum();
+        float toGather = (float) availableIn(simWells);
 
         maxPossibleProduced += maxTransportCapacity;
 
@@ -45,7 +51,7 @@ public class SimGatheringNetwork extends SimBaseNode{
 
     @Override
     public void addPreviousNode(SimBaseNode simBaseNode){
-        simWells.add((SimWell) simBaseNode);
+        simWells.add(simBaseNode);
     }
 
     @Override

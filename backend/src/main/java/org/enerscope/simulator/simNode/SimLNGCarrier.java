@@ -55,6 +55,10 @@ public class SimLNGCarrier extends SimBaseNode{
     @Override
     protected void activeAction(int time){
         toDeliver = new ToDeliver(0,0);
+        if (simSeaportTerminal == null) {
+            // Not fed by a seaport terminal or an FLNG unit: nothing to load.
+            return;
+        }
         if(!isInPort){
             if (simSeaportTerminal.shipAbleToDock()){
                 simSeaportTerminal.addBoat();

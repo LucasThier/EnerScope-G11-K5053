@@ -44,7 +44,7 @@ import java.util.List;
     @Override
     protected void activeAction(int time){
         float currentConsumption = getCurrentConsumption(time);
-        float toGather = (float) simBaseNodes.stream().mapToDouble(simWell -> simWell.getToDeliver().getAmount()).sum();
+        float toGather = (float) availableIn(simBaseNodes);
 
         maxPossibleProduced += currentConsumption;
 

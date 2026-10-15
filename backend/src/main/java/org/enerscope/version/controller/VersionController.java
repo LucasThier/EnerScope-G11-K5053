@@ -18,6 +18,7 @@ import org.enerscope.node.model.NodeConnection;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.enerscope.version.dto.VersionDTO;
+import org.enerscope.version.dto.VersionSummaryDTO;
 import org.enerscope.version.dto.ConflictResolutionType;
 import org.enerscope.version.dto.VersionConflictDTO;
 import org.enerscope.version.model.Version;
@@ -51,10 +52,10 @@ public class VersionController {
             description = "Creates a Version that hangs off no project. Restricted to platform admins: "
                     + "with no owning project there is no membership that could grant access to it. "
                     + "Versions that belong to a project are created with POST /projects/{id}/version.")
-    public ResponseEntity<ApiResponse<Version>> createVersion(
+    public ResponseEntity<ApiResponse<VersionSummaryDTO>> createVersion(
             @RequestBody VersionDTO versionDTO) {
         Version version = versionService.saveOrphanVersion(versionDTO);
-        return Responses.ok("Version created successfully", version);
+        return Responses.ok("Version created successfully", VersionSummaryDTO.from(version));
     }
 
     @DeleteMapping(value = "/{id}")
@@ -88,21 +89,21 @@ public class VersionController {
 
     @GetMapping(value = "/{id}")
     @Operation(summary = "Get a version", description = "Retrieve an existing Version by its ID.")
-    public ResponseEntity<ApiResponse<Version>> getVersion(
+    public ResponseEntity<ApiResponse<VersionSummaryDTO>> getVersion(
             @PathVariable UUID id) {
         Version version = versionService.getVersion(id);
 
-        return Responses.ok("Version retrieved successfully", version);
+        return Responses.ok("Version retrieved successfully", VersionSummaryDTO.from(version));
     }
 
     @PatchMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Modify a version", description = "Modify an existing Version by its ID.")
-    public ResponseEntity<ApiResponse<Version>> modifyVersion(
+    public ResponseEntity<ApiResponse<VersionSummaryDTO>> modifyVersion(
             @PathVariable UUID id,
             @RequestBody VersionDTO versionDTO) {
         Version version = versionService.modifyVersion(id, versionDTO);
 
-        return Responses.ok("Version modified successfully", version);
+        return Responses.ok("Version modified successfully", VersionSummaryDTO.from(version));
     }
 
     @GetMapping(value = "/{versionId}/diagram")
@@ -200,9 +201,9 @@ public class VersionController {
 
     @PatchMapping(value = "/merge/{subId}")
     @Operation(summary = "Merge subversion into parent version", description = "Merge a subversion into its parent version by replacing snapshots and reconciling changes")
-    public ResponseEntity<ApiResponse<Version>> mergeSubVersionIntoParent(
+    public ResponseEntity<ApiResponse<VersionSummaryDTO>> mergeSubVersionIntoParent(
             @PathVariable UUID subId) {
         Version version = versionService.mergeSubVersionIntoParent(subId);
-        return Responses.ok("Subversion merged into parent version successfully", version);
+        return Responses.ok("Subversion merged into parent version successfully", VersionSummaryDTO.from(version));
     }
 }

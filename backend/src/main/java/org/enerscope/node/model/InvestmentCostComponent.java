@@ -35,6 +35,8 @@ public class InvestmentCostComponent extends BaseEntity {
     public MoneyAmount CalculateCost(BaseNode baseNode) {
         if(this.amount != null){
             switch (costBasis) {
+                case FLAT:
+                    return new Flat().CalculateCost(baseNode, this.amount);
                 case PER_M:
                     return new Per_M().CalculateCost(baseNode, this.amount);
                 case PER_KM:

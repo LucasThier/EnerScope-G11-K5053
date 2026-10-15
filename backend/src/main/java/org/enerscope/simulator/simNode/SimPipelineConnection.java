@@ -22,6 +22,9 @@ public class SimPipelineConnection extends SimBaseNode{
 
     @Override
     protected void activeAction(int time){
+        if (nodeBefore == null) {
+            return;
+        }
         ToDeliver totalArrived = nodeBefore.getToDeliver();
 
         float capacity = Math.min(transferCapacity, transferCapacity - toDeliver.getAmount());
@@ -48,6 +51,6 @@ public class SimPipelineConnection extends SimBaseNode{
 
     @Override
     public boolean readyToBeProcessed(int time) {
-        return nodeBefore.getLastSimulatedTime() == time;
+        return nodeBefore != null && nodeBefore.getLastSimulatedTime() == time;
     }
 }

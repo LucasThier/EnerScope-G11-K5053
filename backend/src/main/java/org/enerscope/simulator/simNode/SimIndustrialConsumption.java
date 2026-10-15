@@ -20,7 +20,7 @@ public class SimIndustrialConsumption extends SimBaseNode{
 
     @Override
     protected void activeAction(int time){
-        float toGather = (float) simBaseNodes.stream().mapToDouble(simWell -> simWell.getToDeliver().getAmount()).sum();
+        float toGather = (float) availableIn(simBaseNodes);
 
         maxPossibleProduced += consumption;
 

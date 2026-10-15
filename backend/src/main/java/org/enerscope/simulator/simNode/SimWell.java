@@ -21,7 +21,10 @@ public class SimWell extends SimBaseNode{
     public SimWell(Well well){
         super(well);
         this.maxCollectionCapacity = well.getMaxCollectionCapacity();
-        this.declineCurve = well.getDeclineCurve();
+        // Each simulated well draws from its own copy: rounds run on separate
+        // threads and the entity's sampler is not thread-safe. No curve means the
+        // well does not decline.
+        this.declineCurve = well.getDeclineCurve() == null ? null : well.getDeclineCurve().independentCopy();
         this.gasRichness = well.getGasRichness();
         this.DTMTime = well.getDTMTime();
         this.acumDecline = 0;
@@ -71,7 +74,9 @@ public class SimWell extends SimBaseNode{
     }
 
     private void calculateTotalDecline(){
-        acumDecline += declineCurve.generateValue();
+        if (declineCurve != null) {
+            acumDecline += declineCurve.generateValue();
+        }
     }
 
     @Override

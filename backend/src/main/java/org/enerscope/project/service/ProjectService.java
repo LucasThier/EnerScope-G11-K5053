@@ -30,6 +30,7 @@ import org.enerscope.version.service.VersionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -332,21 +333,25 @@ public class ProjectService {
         }
 
         /**
-         * Lists the versions of a project as lightweight summaries. Runs in a
-         * read-only transaction so the lazy {@code versions} association is
-         * initialised before it is mapped.
+         * Lists the versions of a project as lightweight summaries, oldest first,
+         * so a parent always precedes its branches. Runs in a read-only
+         * transaction so the lazy {@code versions} association — and the
+         * snapshots and runs the counts read — are initialised before mapping.
+         *
+         * <p>Readable by any member of the project, like the rest of its
+         * contents. It used to run no check at all: anyone signed in could list
+         * the versions of any project by id.</p>
          */
         @Transactional(readOnly = true)
         public List<VersionSummaryDTO> listVersions(UUID projectId) {
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                accessGuard.assertCanViewProject(projectId);
 
                 return project.getVersions().stream()
-                                .map(v -> new VersionSummaryDTO(
-                                                v.getId(),
-                                                v.getName(),
-                                                v.getParentVersion() == null ? null : v.getParentVersion().getId(),
-                                                v.getCreatedAt()))
+                                .sorted(Comparator.comparing(Version::getCreatedAt,
+                                                Comparator.nullsLast(Comparator.naturalOrder())))
+                                .map(VersionSummaryDTO::from)
                                 .toList();
         }
 }

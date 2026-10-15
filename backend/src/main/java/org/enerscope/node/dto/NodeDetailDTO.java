@@ -1,5 +1,6 @@
 package org.enerscope.node.dto;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -34,8 +35,16 @@ public class NodeDetailDTO {
     private Double operatingCosts;
     private Integer lifespanInMonths;
     private Integer maintenanceIntervalInDays;
+    /** Hours a maintenance stop lasts. */
+    private Integer maintenanceDuration;
     private Double wastePercentage;
 
     // Type-specific fields keyed by the frontend field keys.
     private Map<String, Double> attributes;
+
+    /** A well's decline curve (percent per year); {@code null} for other types, or a well without one. */
+    private ProbabilisticDistributionDTO declineCurve;
+
+    /** The node's investment cost components, which make up its CAPEX. */
+    private List<InvestmentCostComponentDTO> investmentCost;
 }

@@ -18,7 +18,8 @@ class SimSeaportTerminal extends SimBaseNode implements ISeaTerminal {
     protected int shipCapacity;
     private ToDeliver amountInIntermediateStorage;
     protected int amountOfShip;
-    private List<SimGroundBasedLiquefactionPlant> simGroundBasedLiquefactionPlants;
+    /** Upstream nodes; any type is accepted, see {@code SimGatheringNetwork.simWells}. */
+    private List<SimBaseNode> simGroundBasedLiquefactionPlants;
 
     public SimSeaportTerminal(SeaportTerminal seaportTerminal){
         super(seaportTerminal);
@@ -32,7 +33,7 @@ class SimSeaportTerminal extends SimBaseNode implements ISeaTerminal {
     @Override
     protected void activeAction(int time){
 
-        float amountToTake =  (float) simGroundBasedLiquefactionPlants.stream().mapToDouble(SimBaseNode -> SimBaseNode.getToDeliver().getAmount()).sum();
+        float amountToTake =  (float) availableIn(simGroundBasedLiquefactionPlants);
         ToDeliver toProcess;
 
         float capacity = intermediateStorage - amountInIntermediateStorage.getAmount();
@@ -72,7 +73,7 @@ class SimSeaportTerminal extends SimBaseNode implements ISeaTerminal {
 
     @Override
     public void addPreviousNode(SimBaseNode simBaseNode){
-        simGroundBasedLiquefactionPlants.add((SimGroundBasedLiquefactionPlant) simBaseNode);
+        simGroundBasedLiquefactionPlants.add(simBaseNode);
     }
 
     @Override

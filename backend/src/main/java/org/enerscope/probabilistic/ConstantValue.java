@@ -16,4 +16,24 @@ public class ConstantValue extends ProbabilisticDistribution {
     public float generateValue() {
         return value;
     }
+
+    @Override
+    public String distributionType() {
+        return "CONSTANT";
+    }
+
+    @Override
+    public float firstParameter() {
+        return value;
+    }
+
+    @Override
+    public float secondParameter() {
+        return 0f;
+    }
+
+    @Override
+    public ProbabilisticDistribution independentCopy() {
+        return new ConstantValue(value);
+    }
 }

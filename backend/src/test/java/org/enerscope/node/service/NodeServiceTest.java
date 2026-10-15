@@ -7,7 +7,10 @@ import org.enerscope.node.model.enums.NodeStateEnum;
 import org.enerscope.node.model.enums.NodeTypeEnum;
 import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
+import org.enerscope.node.model.export.IndustrialConsumption;
+import org.enerscope.node.model.export.InternalConsumption;
 import org.enerscope.node.model.extraction.Well;
+import org.enerscope.probabilistic.UniformDistributionCase;
 import org.enerscope.node.repository.WellRepository;
 import org.enerscope.probabilistic.ConstantValue;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +21,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -157,6 +163,107 @@ class NodeServiceTest {
 
         assertEquals("Edited", edited.getName());
         assertEquals(originalIdentity, edited.getIdentityId());
+    }
+
+
+    /** A minimal valid well payload; the decline curve is set per test. */
+    private static WellDTO wellDTO(ProbabilisticDistributionDTO declineCurve) {
+        WellDTO dto = new WellDTO();
+        dto.setName("Pozo");
+        dto.setState(NodeStateEnum.PROPOSED);
+        dto.setLifespanInMonths(240);
+        dto.setUpkeepCosts(0f);
+        dto.setMaintenanceIntervalInDays(365);
+        dto.setOperatingCosts(0f);
+        dto.setWastePercentage(0f);
+        InvestmentCostDTO investment = new InvestmentCostDTO();
+        investment.setComponents(List.of());
+        dto.setInvestmentCost(investment);
+        dto.setType(new NodeTypeDataDTO(VerticalEnum.EXTRACTION, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
+        dto.setMaxCollectionCapacity(100f);
+        dto.setDeclineCurve(declineCurve);
+        dto.setGasRichness(0.5f);
+        dto.setDTMCost(0f);
+        dto.setSurface(1f);
+        return dto;
+    }
+
+    @Test
+    void saveWellWithoutADeclineCurveStoresNone() {
+        when(wellRepository.save(any(Well.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Used to throw a NullPointerException reading the missing curve's type.
+        assertNull(nodeService.saveWell(wellDTO(null)).getDeclineCurve());
+    }
+
+    @Test
+    void saveWellReadsTheDistributionTypeWhateverItsCase() {
+        when(wellRepository.save(any(Well.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Well well = nodeService.saveWell(wellDTO(new ProbabilisticDistributionDTO("uniform", 1f, 3f)));
+
+        UniformDistributionCase curve = assertInstanceOf(UniformDistributionCase.class, well.getDeclineCurve());
+        assertEquals(1f, curve.firstParameter());
+        assertEquals(3f, curve.secondParameter());
+    }
+
+    @Test
+    void saveWellRejectsATwoParameterDistributionGivenOnlyOne() {
+        assertThrows(IllegalArgumentException.class,
+                () -> nodeService.saveWell(wellDTO(new ProbabilisticDistributionDTO("NORMAL", 5f, null))));
+    }
+
+    @Test
+    void saveWellRejectsADistributionWithoutAType() {
+        assertThrows(IllegalArgumentException.class,
+                () -> nodeService.saveWell(wellDTO(new ProbabilisticDistributionDTO(null, 5f, null))));
+    }
+
+    @Test
+    void editWellUpdatesTheSurface() {
+        Well well = new Well("Original", NodeStateEnum.PROPOSED, Instant.now(), 120,
+                MoneyAmount.of(1000), 30, MoneyAmount.of(500),
+                0.1f, null, null, UUID.randomUUID(), null,
+                10f, new ConstantValue(0.5f), 0.5f, 5, MoneyAmount.of(50), 100f);
+        WellDTO edit = wellDTO(null);
+        edit.setSurface(42f);
+
+        // Every other well field was copied on edit; the surface was left behind,
+        // so a PER_KM2 investment kept pricing the old area.
+        assertEquals(42f, nodeService.editWell(well, edit).getSurface());
+    }
+
+    @Test
+    void editingAConsumptionNodeNeverChangesItsIdentity() {
+        UUID internalIdentity = UUID.randomUUID();
+        UUID industrialIdentity = UUID.randomUUID();
+        InternalConsumption internal = new InternalConsumption();
+        internal.setIdentityId(internalIdentity);
+        IndustrialConsumption industrial = new IndustrialConsumption();
+        industrial.setIdentityId(industrialIdentity);
+
+        InternalConsumptionDTO internalEdit = new InternalConsumptionDTO();
+        internalEdit.setName("Consumo");
+        internalEdit.setLifespanInMonths(240);
+        internalEdit.setMaintenanceIntervalInDays(365);
+        internalEdit.setWastePercentage(0f);
+        internalEdit.setConsumptionSummer(1f);
+        internalEdit.setConsumptionAutumn(2f);
+        internalEdit.setConsumptionWinter(9f);
+        internalEdit.setConsumptionSpring(4f);
+        internalEdit.setIdentity(UUID.randomUUID());
+        IndustrialConsumptionDTO industrialEdit = new IndustrialConsumptionDTO();
+        industrialEdit.setName("Industria");
+        industrialEdit.setLifespanInMonths(240);
+        industrialEdit.setMaintenanceIntervalInDays(365);
+        industrialEdit.setWastePercentage(0f);
+        industrialEdit.setConsumption(7f);
+        industrialEdit.setIdentity(UUID.randomUUID());
+
+        assertEquals(internalIdentity, nodeService.editInternalConsumption(internal, internalEdit).getIdentityId());
+        assertEquals(9f, internal.getConsumptionWinter());
+        assertEquals(industrialIdentity, nodeService.editIndustrialConsumption(industrial, industrialEdit).getIdentityId());
+        assertEquals(7f, industrial.getConsumption());
     }
 
 }

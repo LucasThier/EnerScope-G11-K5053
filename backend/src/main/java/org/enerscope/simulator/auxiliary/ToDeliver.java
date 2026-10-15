@@ -24,11 +24,20 @@ public class ToDeliver {
     }
 
     public void mix(List<ToDeliver> toDelivers) {
-        float totalAmountToAdd = (float) toDelivers.stream().mapToDouble(ToDeliver::getAmount).sum();
+        // Plain loops rather than streams: this runs for every node on every
+        // simulated hour, and the stream pipelines dominated the profile.
+        double amountSum = 0;
+        double contaminantSum = 0;
+        for (int i = 0; i < toDelivers.size(); i++) {
+            ToDeliver toDeliver = toDelivers.get(i);
+            amountSum += toDeliver.getAmount();
+            contaminantSum += toDeliver.getAmount() * (toDeliver.getContaminant() / 100);
+        }
+        float totalAmountToAdd = (float) amountSum;
 
         float currentContaminantAmount = this.amount * (this.contaminant / 100);
 
-        float addedContaminantAmount = (float) toDelivers.stream().mapToDouble(toDeliver -> toDeliver.getAmount() * (toDeliver.getContaminant() / 100)).sum();
+        float addedContaminantAmount = (float) contaminantSum;
 
         float combinedAmount = this.amount + totalAmountToAdd;
 

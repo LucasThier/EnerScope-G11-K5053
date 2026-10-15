@@ -3,6 +3,7 @@ package org.enerscope.simulator;
 import lombok.Getter;
 import lombok.Setter;
 import org.enerscope.node.model.BaseNode;
+import org.enerscope.node.model.enums.NodeStateEnum;
 import org.enerscope.node.model.export.IndustrialConsumption;
 import org.enerscope.node.model.export.InternalConsumption;
 import org.enerscope.node.model.export.LNGCarrier;
@@ -16,35 +17,82 @@ import org.enerscope.node.model.transportation.CompressingPlant;
 import org.enerscope.node.model.transportation.Pipeline;
 import org.enerscope.node.model.transportation.PipelineConnection;
 import org.enerscope.simulator.results.FinalResult;
+import org.enerscope.simulator.results.ResultPerNode;
 import org.enerscope.simulator.results.ResultPerRound;
 import org.enerscope.simulator.simNode.*;
 import org.enerscope.version.model.Version;
 
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 @Getter
 @Setter
 public class Simulator {
+
+    /** Monte Carlo rounds run by {@link #simulate(int)}. */
+    public static final int DEFAULT_ROUNDS = 10;
+
     private UUID versionID;
 
+    /**
+     * Execution order of a graph built from the version, kept for inspection.
+     * Each round of {@link #simulate(int, int)} runs on a fresh graph of its own,
+     * so this one is never mutated by a simulation.
+     */
     private List<SimBaseNode> executionOrder;
+
+    /**
+     * Nodes of the version that are not in {@link #executionOrder}: they sit on a
+     * cycle (or downstream of one), so a topological order cannot place them and
+     * they never produce. {@code REMOVED} nodes are not listed — they are left out
+     * on purpose, not because of the graph's shape.
+     */
+    private List<UUID> nodesOutsideExecutionOrder;
 
     private Version version;
     private List<ResultPerRound> resultsPerRound;
     private FinalResult finalResult;
 
-
-
-    Simulator(Version version){
-        executionOrder = new ArrayList<>();
-
+    public Simulator(Version version){
         this.version = version;
-        resultsPerRound = new ArrayList<>();
+        this.resultsPerRound = new ArrayList<>();
+        this.executionOrder = buildExecutionOrder();
+        Set<UUID> ordered = new HashSet<>();
+        executionOrder.forEach(node -> ordered.add(node.getId()));
+        this.nodesOutsideExecutionOrder = simulatedNodes().stream()
+                .map(BaseNode::getId)
+                .filter(id -> !ordered.contains(id))
+                .toList();
+    }
 
+    /**
+     * The nodes that take part in a simulation: every node in the version's
+     * snapshot except the soft-deleted ones. The editor deletes a node by setting
+     * it {@code REMOVED}, and a deleted node must not keep producing.
+     */
+    private List<BaseNode> simulatedNodes() {
+        List<BaseNode> nodes = new ArrayList<>();
+        for (BaseNode baseNode : version.getNodeSnapshot()) {
+            if (baseNode != null && baseNode.getState() != NodeStateEnum.REMOVED) {
+                nodes.add(baseNode);
+            }
+        }
+        return nodes;
+    }
+
+    /**
+     * Builds an independent graph of simulation nodes for the version and
+     * returns it in execution order. Every call creates new nodes, so separate
+     * rounds never share state.
+     */
+    private List<SimBaseNode> buildExecutionOrder() {
         Map<UUID, SimBaseNode> simNodesById = new HashMap<>();
         List<SimBaseNode> allNodes = new ArrayList<>();
 
-        version.getNodeSnapshot().forEach(baseNode -> {
+        simulatedNodes().forEach(baseNode -> {
             SimBaseNode simNode = transformNode(baseNode);
             if (simNode != null) {
                 simNodesById.put(baseNode.getId(), simNode);
@@ -71,8 +119,9 @@ public class Simulator {
             }
         });
 
-        this.executionOrder = computeTopologicalOrderWithPriority(allNodes, successors, inDegree);
+        return computeTopologicalOrderWithPriority(allNodes, successors, inDegree);
     }
+
     private List<SimBaseNode> computeTopologicalOrderWithPriority(List<SimBaseNode> allNodes, Map<SimBaseNode, List<SimBaseNode>> successors, Map<SimBaseNode, Integer> inDegree) {
 
         Queue<SimBaseNode> queue = new LinkedList<>();
@@ -104,41 +153,111 @@ public class Simulator {
 
         return sortedList;
     }
+
     public void simulate(int time){
-        int timeInHours = time * 24*365;
-        for(int amount = 0; amount < 10; amount ++){
-            for (int count = 0; count <= timeInHours; count ++){
-                int exactTime = count;
-                executionOrder.forEach(node -> node.simulate(exactTime));
-            }
-            ResultPerRound resultPerRound = new ResultPerRound();
-            resultPerRound.addAllResultPerNodes(executionOrder.stream().map(SimBaseNode::createResult).toList());
-            resultsPerRound.add(resultPerRound);
-            executionOrder.forEach(node -> node.reset());
+        simulate(time, DEFAULT_ROUNDS);
+    }
+
+    /**
+     * Runs {@code rounds} Monte Carlo rounds of {@code years} years each, hour by
+     * hour, and aggregates them into {@link #finalResult}.
+     *
+     * <p>Rounds are independent by construction — each one gets a graph of its
+     * own from {@link #buildExecutionOrder()} — so they run in parallel, one per
+     * available core. Before this change they ran in sequence on one shared graph
+     * reset between rounds, and {@code reset()} misses part of the state (the
+     * pipelines' in-transit batches, the maintenance counters), which leaked from
+     * one round into the next.</p>
+     */
+    public void simulate(int years, int rounds) {
+        if (years < 1) {
+            throw new IllegalArgumentException("The simulation horizon must be at least one year");
         }
+        if (rounds < 1) {
+            throw new IllegalArgumentException("A simulation needs at least one round");
+        }
+        int timeInHours = years * 24 * 365;
+
+        // Graphs are built here, on the calling thread: only the rounds themselves
+        // run on the pool, so the version's entities are never read concurrently.
+        List<List<SimBaseNode>> graphs = new ArrayList<>(rounds);
+        for (int round = 0; round < rounds; round++) {
+            graphs.add(buildExecutionOrder());
+        }
+
+        int threads = Math.max(1, Math.min(rounds, Runtime.getRuntime().availableProcessors()));
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<ResultPerRound>> futures = new ArrayList<>(rounds);
+            for (List<SimBaseNode> graph : graphs) {
+                futures.add(pool.submit(() -> runRound(graph, timeInHours)));
+            }
+            List<ResultPerRound> results = new ArrayList<>(rounds);
+            for (Future<ResultPerRound> future : futures) {
+                results.add(future.get());
+            }
+            this.resultsPerRound = results;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("The simulation was interrupted", e);
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException runtime) {
+                throw runtime;
+            }
+            throw new IllegalStateException("The simulation failed", cause);
+        } finally {
+            pool.shutdownNow();
+        }
+
         orderResults();
-        createFinalResult(time);
+        createFinalResult(years, rounds);
 
         version.addResult(finalResult);
     }
 
+    private static ResultPerRound runRound(List<SimBaseNode> graph, int timeInHours) {
+        for (int count = 0; count <= timeInHours; count++) {
+            for (SimBaseNode node : graph) {
+                node.simulate(count);
+            }
+        }
+        ResultPerRound resultPerRound = new ResultPerRound();
+        resultPerRound.addAllResultPerNodes(graph.stream().map(SimBaseNode::createResult).toList());
+        return resultPerRound;
+    }
+
     private void orderResults() {
-        List<ResultPerRound> resultsPerRoundOrder = this.resultsPerRound.stream().sorted(Comparator.comparingDouble(ResultPerRound::amountProduced)).toList();
+        List<ResultPerRound> resultsPerRoundOrder = this.resultsPerRound.stream().sorted(Comparator.comparingDouble(ResultPerRound::amountDelivered)).toList();
         this.resultsPerRound = resultsPerRoundOrder;
     }
 
-    private void createFinalResult(int time) {
+    private void createFinalResult(int time, int rounds) {
         FinalResult finalResult = new FinalResult(time);
+        finalResult.setRounds(rounds);
         finalResult.setMediaOutput(mediaOutput());
-        finalResult.setPercentile90(getPercentile(90).getResultPerNodes());
-        finalResult.setPercentile50(getPercentile(50).getResultPerNodes());
-        finalResult.setPercentile10(getPercentile(10).getResultPerNodes());
+        // Copies, not the rounds' own rows: with few rounds two percentiles can
+        // land on the same round, and one row cannot belong to two collections.
+        finalResult.setPercentile90(copyOf(getPercentile(90).getResultPerNodes()));
+        finalResult.setPercentile50(copyOf(getPercentile(50).getResultPerNodes()));
+        finalResult.setPercentile10(copyOf(getPercentile(10).getResultPerNodes()));
         this.finalResult = finalResult;
+    }
+
+    private static List<ResultPerNode> copyOf(List<ResultPerNode> results) {
+        List<ResultPerNode> copies = new ArrayList<>(results.size());
+        for (ResultPerNode result : results) {
+            ResultPerNode copy = new ResultPerNode(result.getNodeID(), result.getNodeClass(),
+                    result.getTotalProduced(), result.getTotalDeferred(), result.getMaxPossibleProduced());
+            copy.setExtra(result.getExtra());
+            copies.add(copy);
+        }
+        return copies;
     }
 
     private float mediaOutput(){
         int size = this.resultsPerRound.size();
-        float sum = (float) this.resultsPerRound.stream().mapToDouble(value -> value.amountProduced()).sum();
+        float sum = (float) this.resultsPerRound.stream().mapToDouble(ResultPerRound::amountDelivered).sum();
         return sum / size;
     }
 
@@ -194,5 +313,3 @@ public class Simulator {
     }
 
 }
-
-

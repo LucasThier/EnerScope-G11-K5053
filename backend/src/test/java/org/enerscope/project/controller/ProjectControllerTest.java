@@ -182,7 +182,11 @@ class ProjectControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Version created successfully"))
-                .andExpect(jsonPath("$.data.name").value("Baseline"));
+                .andExpect(jsonPath("$.data.name").value("Baseline"))
+                // A summary, not the entity: no snapshot, change log or results in the body.
+                .andExpect(jsonPath("$.data.nodeCount").value(0))
+                .andExpect(jsonPath("$.data.nodeSnapshot").doesNotExist())
+                .andExpect(jsonPath("$.data.finalResults").doesNotExist());
     }
 
     @Test

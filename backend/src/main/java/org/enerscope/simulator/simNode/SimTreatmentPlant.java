@@ -10,7 +10,8 @@ import java.util.List;
 public class SimTreatmentPlant extends SimBaseNode{
     private float maxTreatmentCapacity;
     private float intermediateStorage;
-    private List<SimGatheringNetwork> simGatheringNetworks;
+    /** Upstream nodes; any type is accepted, see {@code SimGatheringNetwork.simWells}. */
+    private List<SimBaseNode> simGatheringNetworks;
     private ToDeliver amountInIntermediateStorage;
     private float totalDischarged;
 
@@ -26,7 +27,7 @@ public class SimTreatmentPlant extends SimBaseNode{
 
     @Override
     protected void activeAction(int time){
-        float amountToTake =  (float) simGatheringNetworks.stream().mapToDouble(simGatheringNetwork -> simGatheringNetwork.getToDeliver().getAmount()).sum();
+        float amountToTake =  (float) availableIn(simGatheringNetworks);
         float capacity = maxTreatmentCapacity + intermediateStorage - amountInIntermediateStorage.getAmount();
         ToDeliver toProcess;
         maxPossibleProduced += maxTreatmentCapacity;
@@ -53,7 +54,7 @@ public class SimTreatmentPlant extends SimBaseNode{
 
     @Override
     public void addPreviousNode(SimBaseNode simBaseNode){
-        simGatheringNetworks.add((SimGatheringNetwork) simBaseNode);
+        simGatheringNetworks.add(simBaseNode);
     }
     @Override
     public ResultPerNode createResult() {

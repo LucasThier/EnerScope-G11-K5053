@@ -7,6 +7,7 @@ import org.enerscope.simulator.auxiliary.FlagOfInactivity;
 import org.enerscope.simulator.results.ResultPerNode;
 import org.enerscope.simulator.auxiliary.ToDeliver;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -111,8 +112,27 @@ public abstract class  SimBaseNode {
         return true;
     }
 
+    /**
+     * What the given nodes currently hold ready to deliver, summed. A plain loop
+     * instead of a stream because it runs for every node on every simulated hour.
+     */
+    protected static double availableIn(List<? extends SimBaseNode> nodes) {
+        double total = 0;
+        for (int i = 0; i < nodes.size(); i++) {
+            total += nodes.get(i).getToDeliver().getAmount();
+        }
+        return total;
+    }
+
+    // The two methods below are on the hot path too, so they use loops instead
+    // of streams; the selection and the order of the deliveries are unchanged.
     public ToDeliver takeEqualAmounts(List<? extends SimBaseNode> items, float capacity) {
-        List<? extends SimBaseNode> itemsThatProduced = items.stream().filter(item -> item.getToDeliver().getAmount() > 0).toList();
+        List<SimBaseNode> itemsThatProduced = new ArrayList<>(items.size());
+        for (SimBaseNode item : items) {
+            if (item.getToDeliver().getAmount() > 0) {
+                itemsThatProduced.add(item);
+            }
+        }
 
         if (itemsThatProduced.isEmpty() || capacity <= 0) {
             return new ToDeliver(0,0);
@@ -120,12 +140,22 @@ public abstract class  SimBaseNode {
 
         float quantityToTake = capacity / itemsThatProduced.size();
 
-        List<? extends SimBaseNode> withMore = itemsThatProduced.stream().filter(item -> item.getToDeliver().getAmount() >= quantityToTake).toList();
-
-        List<? extends SimBaseNode> withLess = itemsThatProduced.stream().filter(item -> item.getToDeliver().getAmount() < quantityToTake).toList();
+        List<SimBaseNode> withMore = new ArrayList<>(itemsThatProduced.size());
+        List<SimBaseNode> withLess = new ArrayList<>(itemsThatProduced.size());
+        for (SimBaseNode item : itemsThatProduced) {
+            float amount = item.getToDeliver().getAmount();
+            if (amount >= quantityToTake) {
+                withMore.add(item);
+            } else if (amount < quantityToTake) {
+                withLess.add(item);
+            }
+        }
 
         if (withLess.isEmpty()) {
-            List<ToDeliver> toDelivers = withMore.stream().map(simBaseNode -> simBaseNode.deliver(quantityToTake)).toList();
+            List<ToDeliver> toDelivers = new ArrayList<>(withMore.size());
+            for (SimBaseNode simBaseNode : withMore) {
+                toDelivers.add(simBaseNode.deliver(quantityToTake));
+            }
             ToDeliver toDeliver1 = new ToDeliver(0,0);
             toDeliver1.mix(toDelivers);
             return toDeliver1;
@@ -138,7 +168,10 @@ public abstract class  SimBaseNode {
     }
 
     public ToDeliver calculateAndTakeAll(List<? extends SimBaseNode> items) {
-        List<ToDeliver> toDelivers = items.stream().map(item -> item.deliver(item.getToDeliver().getAmount())).toList();
+        List<ToDeliver> toDelivers = new ArrayList<>(items.size());
+        for (SimBaseNode item : items) {
+            toDelivers.add(item.deliver(item.getToDeliver().getAmount()));
+        }
         ToDeliver toDeliver1 = new ToDeliver(0,0);
         toDeliver1.mix(toDelivers);
         return toDeliver1;

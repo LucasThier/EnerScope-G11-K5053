@@ -69,6 +69,13 @@ import org.enerscope.node.dto.GroundBasedLiquefactionPlantDTO;
 import org.enerscope.node.dto.FLNGUnitDTO;
 import org.enerscope.node.dto.LNGCarrierDTO;
 import org.enerscope.node.dto.SeaportTerminalDTO;
+import org.enerscope.node.dto.InternalConsumptionDTO;
+import org.enerscope.node.dto.IndustrialConsumptionDTO;
+import org.enerscope.node.dto.InvestmentCostComponentDTO;
+import org.enerscope.node.dto.ProbabilisticDistributionDTO;
+import org.enerscope.node.model.export.InternalConsumption;
+import org.enerscope.node.model.export.IndustrialConsumption;
+import org.enerscope.probabilistic.ProbabilisticDistribution;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.extraction.TreatmentPlant;
 import org.enerscope.node.model.extraction.GatheringNetwork;
@@ -244,6 +251,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        accessGuard.assertCanViewVersion(versionId);
 
         List<DiagramNodeDTO> nodes = (version.getNodeSnapshot() == null
                 ? List.<BaseNode>of()
@@ -272,6 +280,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        accessGuard.assertCanEditVersion(versionId);
 
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
@@ -313,6 +322,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        accessGuard.assertCanEditVersion(versionId);
 
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
@@ -345,6 +355,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        accessGuard.assertCanViewVersion(versionId);
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
         if (!version.getNodeSnapshot().contains(node)) {
@@ -363,15 +374,20 @@ public class VersionService {
                 type, toGraphDataDTO(node.getGraphData()),
                 money(node.getUpkeepCosts()), money(node.getOperatingCosts()),
                 node.getLifespanInMonths(), node.getMaintenanceIntervalInDays(),
+                node.getMaintenanceDuration(),
                 (double) node.getWastePercentage(),
-                typeAttributes(node));
+                typeAttributes(node),
+                node instanceof Well well ? toDistributionDTO(well.getDeclineCurve()) : null,
+                investmentComponents(node));
     }
 
     private Map<String, Double> typeAttributes(BaseNode node) {
         Map<String, Double> a = new LinkedHashMap<>();
         if (node instanceof Well w) {
             a.put("maxCollectionCapacity", (double) w.getMaxCollectionCapacity());
-            a.put("declineCurve", (double) w.getDeclineCurve().generateValue());
+            // The decline curve is a distribution, not a number: it travels in
+            // NodeDetailDTO.declineCurve. Sampling it here (as this used to) gave
+            // the edit form a different random value on every read.
             a.put("gasRichness", (double) w.getGasRichness());
             a.put("dtmTime", (double) w.getDTMTime());
             a.put("dtmCost", money(w.getDTMCost()));
@@ -418,8 +434,115 @@ public class VersionService {
             a.put("fullLoadTime", (double) l.getFullLoadTime());
             a.put("hiringCost", money(l.getHiringCost()));
             a.put("timeToDestination", (double) l.getTimeToDestination());
+        } else if (node instanceof InternalConsumption ic) {
+            a.put("consumptionSummer", (double) ic.getConsumptionSummer());
+            a.put("consumptionAutumn", (double) ic.getConsumptionAutumn());
+            a.put("consumptionWinter", (double) ic.getConsumptionWinter());
+            a.put("consumptionSpring", (double) ic.getConsumptionSpring());
+        } else if (node instanceof IndustrialConsumption ic) {
+            a.put("consumption", (double) ic.getConsumption());
         }
         return a;
+    }
+
+    private static ProbabilisticDistributionDTO toDistributionDTO(ProbabilisticDistribution distribution) {
+        if (distribution == null) {
+            return null;
+        }
+        boolean constant = "CONSTANT".equals(distribution.distributionType());
+        return new ProbabilisticDistributionDTO(distribution.distributionType(), distribution.firstParameter(),
+                constant ? null : distribution.secondParameter());
+    }
+
+    private static List<InvestmentCostComponentDTO> investmentComponents(BaseNode node) {
+        if (node.getInvestmentCost() == null || node.getInvestmentCost().getComponents() == null) {
+            return List.of();
+        }
+        return node.getInvestmentCost().getComponents().stream().map(component -> {
+            InvestmentCostComponentDTO dto = new InvestmentCostComponentDTO();
+            dto.setName(component.getName());
+            dto.setAmount(component.getAmount() == null ? 0f : component.getAmount().value().floatValue());
+            dto.setCostBasis(component.getCostBasis());
+            return dto;
+        }).toList();
+    }
+
+    /**
+     * Re-points every connection of the version whose endpoint names a node row
+     * that is no longer in the version's snapshot at the row the snapshot holds
+     * for the same {@code identityId}.
+     *
+     * <p>Connections reference nodes by row id within a version, while edits
+     * (clone-on-write) and merges swap rows by identity, so after either a
+     * connection can be left naming a row the version no longer has. The
+     * connection is cloned rather than changed in place — like a node, its row
+     * may still be shared with the parent or a sibling, whose snapshots must keep
+     * seeing their own endpoints. No {@code ConnectionChange} is recorded: both
+     * ends are still the same nodes by identity, so nothing about the model
+     * changed. An endpoint that cannot be resolved is left as it was.</p>
+     */
+    private void rewireConnections(Version version) {
+        Map<UUID, BaseNode> byId = new HashMap<>();
+        Map<UUID, BaseNode> byIdentity = new HashMap<>();
+        for (BaseNode node : version.getNodeSnapshot()) {
+            if (node == null) {
+                continue;
+            }
+            if (node.getId() != null) {
+                byId.put(node.getId(), node);
+            }
+            if (node.getIdentityId() != null) {
+                byIdentity.put(node.getIdentityId(), node);
+            }
+        }
+        List<NodeConnection> rewired = new ArrayList<>();
+        boolean changed = false;
+        for (NodeConnection connection : version.getConnectionSnapshot()) {
+            UUID from = resolveEndpoint(connection.getFromNodeId(), byId, byIdentity);
+            UUID to = resolveEndpoint(connection.getToNodeId(), byId, byIdentity);
+            if (from == null || to == null
+                    || (from.equals(connection.getFromNodeId()) && to.equals(connection.getToNodeId()))) {
+                rewired.add(connection);
+                continue;
+            }
+            NodeConnection clone = NodeCloner.cloneConnection(connection);
+            clone.setFromNodeId(from);
+            clone.setToNodeId(to);
+            connectionRepository.save(clone);
+            rewired.add(clone);
+            changed = true;
+        }
+        if (changed) {
+            version.getConnectionSnapshot().clear();
+            version.getConnectionSnapshot().addAll(rewired);
+            logger.debug("Rewired connections of version {} to its current node rows", version.getName());
+        }
+    }
+
+    /** The id of the row the version holds for the node {@code nodeId} names, or {@code null}. */
+    private UUID resolveEndpoint(UUID nodeId, Map<UUID, BaseNode> byId, Map<UUID, BaseNode> byIdentity) {
+        if (nodeId == null) {
+            return null;
+        }
+        if (byId.containsKey(nodeId)) {
+            return nodeId;
+        }
+        return nodeRepository.findById(nodeId)
+                .map(BaseNode::getIdentityId)
+                .map(byIdentity::get)
+                .map(BaseNode::getId)
+                .orElse(null);
+    }
+
+    /**
+     * Fields every node type shares but whose constructors in {@code NodeService}
+     * do not take, applied after a node is created or edited. Null leaves the
+     * current value.
+     */
+    private static void applySharedFields(BaseNode node, BaseNodeDTO dto) {
+        if (dto.getMaintenanceDuration() != null) {
+            node.setMaintenanceDuration(dto.getMaintenanceDuration());
+        }
     }
 
     private static Double money(MoneyAmount amount) {
@@ -564,9 +687,12 @@ public class VersionService {
             case FLNGUnitDTO dto -> nodeService.saveFLNGUnit(dto);
             case LNGCarrierDTO dto -> nodeService.saveLNGCarrier(dto);
             case SeaportTerminalDTO dto -> nodeService.saveSeaportTerminal(dto);
+            case InternalConsumptionDTO dto -> nodeService.saveInternalConsumption(dto);
+            case IndustrialConsumptionDTO dto -> nodeService.saveIndustrialConsumption(dto);
             default ->
                 throw new IllegalArgumentException("Unsupported node type: " + nodeDTO.getClass().getSimpleName());
         };
+        applySharedFields(savedNode, nodeDTO);
 
         // Guard against ending up with two rows for one identity in this version's
         // own snapshot (e.g. a caller reusing an explicit identity that's already
@@ -683,6 +809,11 @@ public class VersionService {
             editChange.setChangedNode(currentNode);
             editChange.setResultNode(editedNode);
             version.getNodeChanges().add(editChange);
+
+            // The clone has a new id, and this version's connections still name
+            // the row it replaced: left alone, the edited node would be cut off
+            // from the rest of the model (and simulate as producing nothing).
+            rewireConnections(version);
         }
 
         versionRepository.save(version);
@@ -703,6 +834,12 @@ public class VersionService {
     }
 
     private BaseNode editNodeByType(BaseNode originalNode, BaseNodeDTO nodeDTO) {
+        BaseNode edited = editNodeFieldsByType(originalNode, nodeDTO);
+        applySharedFields(edited, nodeDTO);
+        return edited;
+    }
+
+    private BaseNode editNodeFieldsByType(BaseNode originalNode, BaseNodeDTO nodeDTO) {
         if (nodeDTO instanceof WellDTO dto) {
             if (!(originalNode instanceof Well)) {
                 throw new IllegalArgumentException("Node type mismatch: expected Well");
@@ -748,6 +885,16 @@ public class VersionService {
                 throw new IllegalArgumentException("Node type mismatch: expected SeaportTerminal");
             }
             return nodeService.editSeaportTerminal((SeaportTerminal) originalNode, dto);
+        } else if (nodeDTO instanceof InternalConsumptionDTO dto) {
+            if (!(originalNode instanceof InternalConsumption)) {
+                throw new IllegalArgumentException("Node type mismatch: expected InternalConsumption");
+            }
+            return nodeService.editInternalConsumption((InternalConsumption) originalNode, dto);
+        } else if (nodeDTO instanceof IndustrialConsumptionDTO dto) {
+            if (!(originalNode instanceof IndustrialConsumption)) {
+                throw new IllegalArgumentException("Node type mismatch: expected IndustrialConsumption");
+            }
+            return nodeService.editIndustrialConsumption((IndustrialConsumption) originalNode, dto);
         } else {
             throw new IllegalArgumentException("Unsupported node DTO type: " + nodeDTO.getClass().getSimpleName());
         }
@@ -963,6 +1110,10 @@ public class VersionService {
                 applyNodeChangesToSnapshot(parentVersion.getNodeSnapshot(), subVersion.getNodeChanges()));
         parentVersion.setConnectionSnapshot(
                 applyConnectionChangesToSnapshot(parentVersion.getConnectionSnapshot(), subVersion.getConnectionChanges()));
+        // Node rows were swapped by identity above, and connections brought over
+        // from the subversion name the subversion's own rows: re-point both kinds
+        // at the rows the parent now holds.
+        rewireConnections(parentVersion);
 
         // Merge change lists
         List<NodeChange> nodechanges = new ArrayList<>(parentVersion.getNodeChanges());

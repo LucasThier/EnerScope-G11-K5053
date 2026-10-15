@@ -31,7 +31,7 @@ public abstract class SimBaseLiquefactionPlant extends SimBaseNode{
 
     @Override
     public void activeAction(int time) {
-        float amountToTake = (float) nodesBefore.stream().mapToDouble(simBaseNode -> simBaseNode.getToDeliver().getAmount()).sum();
+        float amountToTake = (float) availableIn(nodesBefore);
         ToDeliver toProcess;
         maxPossibleProduced += maxProcessingCapacity;
 
