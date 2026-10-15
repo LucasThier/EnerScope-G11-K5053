@@ -185,7 +185,8 @@ both scoped to a `Version`.
 Abstract `@Entity` (JOINED inheritance) mapped to `base_node`, extended by every
 concrete node type (`Well`, `GatheringNetwork`, `TreatmentPlant`, `Pipeline`,
 `PipelineConnection`, `CompressingPlant`, `GroundBasedLiquefactionPlant`,
-`FLNGUnit`, `SeaportTerminal`, `LNGCarrier`).
+`FLNGUnit`, `SeaportTerminal`, `LNGCarrier`, `InternalConsumption`,
+`IndustrialConsumption`).
 
 | Field | Type | Notes |
 | --- | --- | --- |
@@ -250,6 +251,15 @@ testing) and must be ignored on edit, or a client sending back whatever
 `identity` value its edit form happened to hold (a stale one, a copy-pasted
 placeholder, anything other than the node's actual current one) would
 silently reassign the node to a different conceptual identity mid-edit.
+
+**Connections follow the clone.** A clone has a new `id`, but the version's
+connections still name the original's. After cloning, and after a merge applies
+its changes, `VersionService.rewireConnections` finds every connection in the
+snapshot whose endpoint `id` is no longer one of the snapshot's nodes, resolves
+that endpoint by `identityId` to the row the version now holds, and replaces the
+connection with a clone pointing at it (same `identityId`, new `id`; the
+parent's row is left alone). Without it, an edited inherited node dropped out of
+the graph and simulated as disconnected.
 
 ## Merging is differential, not a wholesale snapshot replace
 
@@ -361,6 +371,35 @@ endpoint node can have different raw ids; if the endpoint's own conflict
 hasn't been resolved yet, the sibling has no matching node and the parent's
 raw id is used as a fallback — resolve node conflicts before their
 connections' for fully correct rewiring.
+
+## Simulation runs
+
+A **run** is one execution of the simulation engine over a version, stored as a
+`FinalResult` (`final_result`) on `Version.finalResults`. It is an immutable
+snapshot: editing the model afterwards never changes it.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID | |
+| `time` | int | Horizon in years (1–40) |
+| `rounds` | int | Monte Carlo rounds (1–50) |
+| `createdAt` | Instant | When it ran (`@PrePersist`) |
+| `mediaOutput` | float | Mean delivered volume over the rounds |
+| `percentile10/50/90` | `List<ResultPerNode>` | One row per simulated node, copied from the round at that percentile (join tables `final_result_p10/p50/p90`) |
+| `capex` / `opex` / `upkeep` | BigDecimal | Cost of the simulated model over the horizon |
+| `nodeCosts` | `List<NodeCostResult>` | Cost per node (`node_cost_result`, `final_result_id` FK, cascade delete) |
+
+`ResultPerNode` (`result_per_node`) holds a node's `totalProduced`,
+`totalDeferred` and `maxPossibleProduced` in one round, keyed by `node_id` and
+the engine's `nodeClass`. `NodeCostResult` copies the node's `name`, type,
+vertical and state next to its `capex`/`opex`/`upkeep`, so the run still reads
+correctly after the node is renamed or removed. Neither has a foreign key to
+`base_node` (V13): a run is history and must not block deleting a node.
+
+Percentiles are **statistical** — rounds are ranked by delivered volume (what
+reached LNG carriers and internal/industrial consumption), P10 is the low case
+and P90 the high one. The API derives KPIs, per-vertical roll-ups and per-node
+rows from these tables (`SimulationResultMapper`); nothing derived is stored.
 
 ## Session (non-persistent)
 

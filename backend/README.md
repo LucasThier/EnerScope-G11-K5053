@@ -58,6 +58,7 @@ defaults, so the app boots without any of them set.
 | `DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/enerscope` | JDBC URL |
 | `DATASOURCE_USERNAME` | `enerscope` | DB user |
 | `DATASOURCE_PASSWORD` | `enerscope` | DB password |
+| `DATASOURCE_INIT_SQL` | `SET jit = off` | SQL run on every new pooled connection. Turns PostgreSQL's JIT off: loading a version joins the 18 node tables and the JIT spent ~1 s compiling a 1 ms query. Set it to `SELECT 1` for a database that is not PostgreSQL |
 | `LOG_LEVEL_ROOT` | `INFO` | Root log level (framework included) |
 | `LOG_LEVEL_APP` | `INFO` | App log level (the `AppLogger` output) |
 | `JWT_SECRET` | dev placeholder | HMAC signing key (≥ 256 bits). **Change in prod.** |
@@ -114,12 +115,18 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `POST` | `/projects` | admin / org member | Create a project under an organization the caller belongs to |
 | `POST` | `/projects/{projectId}/members` | admin / project admin | Add a user to the project with a role (`ADMIN`/`EDITOR`) |
 | `POST` | `/projects/{projectId}/version` | admin / project editor | Create a version of a project, optionally under a parent version |
+| `GET` | `/projects/{projectId}/versions` | admin / project member | List the project's versions (oldest first) with node/connection/simulation counts |
+| `GET` | `/projects/{projectId}/comparison?versionIds=a,b` | admin / project member | Compare 2–6 versions: latest run's KPIs and costs, plus the model diff against the first |
 | `POST` | `/version/createtest` | admin | Create a version detached from every project |
 | `GET` | `/version/{id}` | admin / project member | Read a version |
 | `PATCH` | `/version/{id}` | admin / project editor | Rename a version or re-parent it |
 | `DELETE` | `/version/{id}` | admin / project editor | Delete a version and every version below it |
 | `POST` `PATCH` `DELETE` | `/version/{id}/node[/{nodeId}]` | admin / project editor | Add, edit or remove a node in a version |
 | `POST` `PATCH` `DELETE` | `/version/{id}/connection[/{connectionId}]` | admin / project editor | Add, edit or remove a connection in a version |
+| `POST` | `/version/{id}/simulations` | admin / project editor | Run the simulation (`{years, rounds?}`) and store the run with its costs → `201` |
+| `GET` | `/version/{id}/simulations[/{simulationId}]` | admin / project member | List the version's runs (newest first) or read one with its per-node results |
+| `DELETE` | `/version/{id}/simulations/{simulationId}` | admin / project editor | Delete a run |
+| `GET` | `/version/{id}/costs?years=20` | admin / project member | Estimate the model's CAPEX/OPEX/upkeep over a horizon without simulating |
 | `PATCH` | `/users/me/password` | bearer | Change your own password (requires the current one) |
 | `GET` | `/health` | public | Liveness probe |
 
@@ -257,6 +264,37 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   connection change log from the class diagram (`nodeSnapshot`,
   `connectionSnapshot`, `nodeChanges`, `connectionChanges`) are not modeled.
   Scenarios and project export are also out of scope for now.
+- Every version endpoint answers a `VersionSummaryDTO` (`id`, `name`,
+  `parentVersionId`, `createdAt`, `nodeCount`, `connectionCount`,
+  `simulationCount`, `lastSimulatedAt`), not the entity graph. The counts leave
+  out `REMOVED` nodes and their connections.
+
+### Simulations and comparison (`/version/{id}/simulations`, `/projects/{id}/comparison`)
+
+- `POST /version/{id}/simulations` runs the engine (`org.enerscope.simulator`)
+  over the version's active nodes for `years` (1–40) with `rounds` Monte Carlo
+  rounds (1–50, default 10), prices every node over the same horizon and stores
+  the result as a **run**. It runs synchronously inside the request: about a
+  second for a small model. A run is an immutable snapshot — later edits to the
+  model never change it.
+- A run's KPIs: delivered volume (LNG carriers + internal + industrial
+  consumption) at P10/P50/P90 and its mean, exported and domestic volume, losses,
+  CAPEX/OPEX/upkeep, total and unit cost (total / delivered P50). Percentiles are
+  statistical: **P10 is the low case**. The detail adds a row per node and a
+  roll-up per vertical, plus warnings (`UNSIMULATED_NODES` for nodes on a cycle,
+  `NO_SINKS` when the model has no LNG carrier or consumption node).
+- Costs over a horizon: a node operates `min(lifespan × 30, years × 365)` days;
+  OPEX = monthly cost × days / 30, upkeep = cost per stop × ⌊days / interval⌋,
+  CAPEX = the investment components once. DTM, treatment and ship hiring costs
+  are not priced yet.
+- `GET /projects/{id}/comparison?versionIds=a,b,…` compares 2–6 versions of the
+  project. Each version carries its counts and its **latest** run; every version
+  after the first carries the diff against it (nodes matched by `identityId`:
+  added / removed / modified with the changed fields, and connections added /
+  removed). Warnings: `MISSING_SIMULATIONS`, `DIFFERENT_HORIZONS`.
+
+See [`docs/considerations.md`](../docs/considerations.md) (2026-10-15) for the
+reasoning behind these choices.
 
 All of the above endpoints require a Bearer token like every non-`/auth`
 route.
@@ -296,12 +334,19 @@ backend/src/main/java/org/enerscope/
 │  ├─ model/                 Project, ProjectMember, ProjectMemberRole
 │  │  └─ enums/               ProjectMemberType, ProjectMemberPermission
 │  └─ dto/                   Create/Add request records + response records
-├─ version/                  Version feature (minimal slice, no node/connection snapshots yet)
+├─ version/                  Version feature (branches, clone-on-write edits, merge, conflicts)
 │  ├─ controller/            VersionController
 │  ├─ service/               VersionService
 │  ├─ repository/            VersionRepository
 │  ├─ model/                 Version
-│  └─ dto/                   Create request record + response record
+│  └─ dto/                   Create request record, VersionSummaryDTO, diagram DTOs
+├─ simulation/               Simulation runs, costs and version comparison
+│  ├─ controller/            SimulationController, ComparisonController
+│  ├─ service/               SimulationService, CostCalculator, SimulationResultMapper,
+│  │                         VersionComparisonService, NodeFingerprint
+│  ├─ repository/            FinalResultRepository
+│  └─ dto/                   Run request, summary/detail/KPI/node/vertical records, comparison records
+├─ simulator/                Simulation engine (hour-by-hour, Monte Carlo rounds, percentiles)
 ├─ session/                  Session feature
 │  ├─ model/                 Session (non-persistent)
 │  └─ service/               SessionService

@@ -44,24 +44,38 @@ Run everything with `cd backend && mvn test`.
 | `organization.controller.OrganizationControllerTest` | Web | 33 |
 | `organization.repository.OrganizationRepositoryTest` | Data | 16 |
 | `project.service.ProjectAccessGuardTest` | Unit | 22 |
-| `project.service.ProjectServiceTest` | Unit | 49 |
+| `project.service.ProjectServiceTest` | Unit | 51 |
 | `project.controller.ProjectControllerTest` | Web | 27 |
 | `project.repository.ProjectRepositoryTest` | Data | 13 |
 | `project.repository.ProjectMemberRepositoryTest` | Data | 5 |
 | `version.service.VersionServiceTest` | Unit | 22 [^p] |
 | `version.controller.VersionControllerTest` | Web | 10 |
-| `node.service.NodeServiceTest` | Unit | 1 |
+| `version.service.VersionServiceEditorTest` | Unit | 14 |
+| `version.dto.VersionSummaryDTOTest` | Unit | 3 |
+| `node.service.NodeServiceTest` | Unit | 9 |
 | `node.controller.NodeControllerTest` | Unit | 1 |
+| `node.dto.NodeDTODeserializationTest` | Unit | 9 |
+| `node.model.InvestmentCostComponentTest` | Unit | 2 |
+| `probabilistic.ProbabilisticDistributionTest` | Unit | 4 |
 | `simulator.ResultMappingTest` | Data | 7 |
+| `simulator.SimulatorRobustnessTest` | Unit | 11 |
+| `simulation.service.SimulationServiceTest` | Unit | 14 |
+| `simulation.service.CostCalculatorTest` | Unit | 11 |
+| `simulation.service.SimulationResultMapperTest` | Unit | 7 |
+| `simulation.service.SimulationPersistenceTest` | Data | 2 |
+| `simulation.service.VersionComparisonServiceTest` | Unit | 14 |
+| `simulation.service.NodeFingerprintTest` | Unit | 6 |
+| `simulation.controller.SimulationControllerTest` | Web | 11 |
+| `simulation.controller.ComparisonControllerTest` | Web | 5 |
 | `strategyCost.CostTest` | Unit | 8 |
 | `strategyCost.InvestmentCostTest` | Unit | 2 |
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| **Total** | | **433 [^p]** |
+| **Total** | | **556 [^p]** |
 
 [^p]: Two cases in `version.service.VersionServiceTest` are
 `@ParameterizedTest`s running over the eight mutating version entry points,
-so they count as 16 executions rather than 2. The 433 cases catalogued here
-therefore make 447 executions.
+so they count as 16 executions rather than 2. The 556 cases catalogued here
+therefore make 570 executions.
 
 > **This catalog has drifted from the code.** On 2026-10-05 `mvn test` ran
 > **587** executions, against the 447 above. The gap is not a mistake in the
@@ -72,6 +86,16 @@ therefore make 447 executions.
 > `project.*` and `version.service.VersionServiceTest`: 107 executions in
 > total). Reconciling them is its own task. `simulator.ResultMappingTest` was
 > added on 2026-10-05 and is counted correctly.
+>
+> On 2026-10-15 (`lucas-mvp`) `mvn test` ran **705** executions. The 123 cases
+> that branch added — the `simulation.*` classes, `simulator.SimulatorRobustnessTest`,
+> `version.service.VersionServiceEditorTest`, `version.dto.VersionSummaryDTOTest`,
+> `node.dto.*`, `node.model.*`, `probabilistic.*`, seven `NodeServiceTest` cases
+> (one of the nine already existed) and two `ProjectServiceTest` cases — are all
+> catalogued. The older drift remains: `simulator.ResultMappingTest` and
+> `simulator.ResultTest` no longer exist in the code, and `simulator.SimulatorTest`,
+> `simulator.ResultPerRoundTest`, `version.service.VersionConflictServiceTest` and
+> `version.service.VersionConflictIntegrationTest` have no entry.
 
 ## `ApplicationContextTest` — Integration
 
@@ -564,6 +588,8 @@ coverage and what matters here is that `createProject` runs it.
 | `deactivateProjectAllowsPlatformAdmin` | A platform ADMIN deletes without any membership lookup. |
 | `deactivateProjectRejectsProjectEditorWith403` | A member holding only `EDIT_PROJECT` is refused; the project stays active and nothing is saved. |
 | `deactivateProjectRejectsUnauthenticated` | No session throws `UnauthorizedException`; the project stays active. |
+| `listVersionsListsTheProjectsVersionsOldestFirst` | `listVersions` returns the project's versions as `VersionSummaryDTO`s ordered by creation date, whatever order the project holds them in. |
+| `listVersionsRequiresMembershipOfTheProject` | A signed-in user who is not on the project gets `ForbiddenException` (the call used to run no check at all). |
 
 ## `project.controller.ProjectControllerTest` — Web
 
@@ -576,7 +602,7 @@ non-`/auth` route); `ProjectService` is mocked.
 | `listProjectsReturnsSummaries` | `GET /projects` → `200` with `name`, `organizationName` and `memberCount` per row. |
 | `listProjectsForwardsOrganizationFilter` | `?organizationId=` reaches `ProjectService.listForCurrentUser` unchanged. |
 | `listProjectsRequiresAuthenticationWith401` | Without a Bearer token → `401`; the service is never called. |
-| `createVersionReturnsCreatedVersion` | `POST /projects/{id}/version` → `200` `Version created successfully` with the version's `name` (previously always `500`). |
+| `createVersionReturnsCreatedVersion` | `POST /projects/{id}/version` → `200` `Version created successfully` with the version's summary (`id`, `name`, counts) instead of the entity graph (previously always `500`). |
 | `createVersionRequiresAuthenticationWith401` | Without a Bearer token → `401`; `ProjectService.saveVersion` is never called. |
 | `createProjectReturnsCreatedProject` | `POST /projects` with a valid body → `201` and an envelope with `success=true`, message `Project created`, and the created project's `name`/`description`. |
 | `createProjectRejectsBlankFieldsWithValidationError` | Blank `name`/`description` → `400` `Validation error`; `ProjectService.createProject` is never called. |
@@ -689,13 +715,21 @@ version UUID, which is what made guarding them necessary.
 
 ## `node.service.NodeServiceTest` — Unit
 
-`NodeService` has eleven save methods; only `saveWell` is covered. The case
-builds a complete `WellDTO`, saves it through a mocked `WellRepository` that
-echoes its argument back, and reads it again through the same mock.
+`NodeService`'s mapping from DTOs to entities. A `WellDTO` is saved through a
+mocked `WellRepository` that echoes its argument back; the edit cases call the
+`edit*` methods directly on an entity.
 
 | Case | Verifies |
 | --- | --- |
 | `saveWellShouldReturnWell` | `saveWell` maps a complete `WellDTO` onto a persisted `Well`, preserving `name`, `maxCollectionCapacity` and `declineCurve`. |
+| `editWellShouldNeverChangeIdentityEvenIfDtoCarriesADifferentOne` | `editWell` keeps the well's `identityId` even when the DTO carries a different one — merges and conflicts match nodes by it. |
+| `saveWellWithoutADeclineCurveStoresNone` | A well saved without a decline curve stores none (no decline) instead of failing. |
+| `saveWellReadsTheDistributionTypeWhateverItsCase` | `"uniform"` and `"UNIFORM"` both map to a uniform distribution. |
+| `saveWellRejectsATwoParameterDistributionGivenOnlyOne` | A uniform or normal curve without `val_b` is rejected with `IllegalArgumentException`. |
+| `saveWellRejectsADistributionWithoutAType` | A curve with no `type` is rejected with `IllegalArgumentException`. |
+| `editWellUpdatesTheSurface` | `editWell` copies `surface`, which the per-km² investment basis reads. |
+| `editingAConsumptionNodeNeverChangesItsIdentity` | Editing an internal or industrial consumption node updates its demand and keeps its `identityId`. |
+| `editFLNGUnitTakesTheGasConsumptionFromItsOwnField` | `editFLNGUnit` sets the gas consumption from `gasConsumption` (it was copied from `shipCapacity`). |
 
 ## `node.controller.NodeControllerTest` — Unit
 
@@ -738,6 +772,234 @@ pass under either mapping and exist to show the pieces still work together.
 | `noJoinTableIsUsedForTheResultPerNodes` | The schema has no `result_result_per_nodes` table, which JPA creates by default for an unannotated `@OneToMany` and no migration provides. |
 | `removingAResultPerNodeFromItsResultDeletesItsRow` | Removing a row from the result's list deletes it (orphan removal) instead of trying to null the `NOT NULL` `result_id`. |
 | `deletingAVersionDeletesItsResultsAndTheirRows` | Deleting a version cascades to its results and their per-node rows. |
+
+## `simulator.SimulatorRobustnessTest` — Unit
+
+The simulation engine on small hand-built models of the kind the editor
+produces: removed nodes, missing optional data, unusual upstream types, cycles,
+several Monte Carlo rounds and maintenance stops. `roundsDoNotLeakStateIntoOneAnother`
+and `aNodeComesBackAfterEachMaintenanceStop` were checked by reverting their
+fixes and confirming they turn red.
+
+| Case | Verifies |
+| --- | --- |
+| `removedNodesAreLeftOutOfTheSimulation` | A `REMOVED` node gets no result and does not feed its consumers. |
+| `aWellWithoutADeclineCurveKeepsItsCapacity` | A well with no decline curve produces at full capacity for the whole horizon. |
+| `anyUpstreamTypeIsAcceptedInsteadOfFailingTheSimulation` | A gathering network, treatment plant or terminal fed by a node type it did not expect simulates instead of throwing `ClassCastException`. |
+| `aCarrierWithNoTerminalUpstreamStaysIdle` | An LNG carrier with no seaport terminal upstream stays idle instead of failing. |
+| `nodesOnACycleAreReportedAsOutsideTheExecutionOrder` | Nodes on a cycle are listed in `nodesOutsideExecutionOrder` and are not simulated. |
+| `roundsDoNotLeakStateIntoOneAnother` | With constant inputs every round delivers the same amount — each round runs on a fresh graph, so a pipeline's in-transit batches from one round never block the next. |
+| `percentilesNeverShareResultRows` | P10, P50 and P90 hold distinct row objects even when they come from the same round. |
+| `simulateRejectsAnEmptyHorizonOrNoRounds` | Zero years or zero rounds is rejected with `IllegalArgumentException`. |
+| `simulateAddsTheFinalResultToTheVersion` | The final result is added to the version's results. |
+| `aNodeComesBackAfterEachMaintenanceStop` | A well stopped for maintenance resumes when the stop ends and stops again only after another full interval (it used to stay stopped forever). |
+| `aLongerHorizonDeliversMore` | Three years deliver about three times what one year does. |
+
+## `simulation.service.SimulationServiceTest` — Unit
+
+Running, listing and deleting simulation runs and estimating costs, over mocked
+`VersionRepository`/`FinalResultRepository` and a mocked `ProjectAccessGuard`.
+The models are small real chains (`SimulationFixtures`), so the engine runs.
+
+| Case | Verifies |
+| --- | --- |
+| `runSimulationStoresTheRunWithTheCostOfTheModel` | A run is saved with its horizon, rounds, percentiles and the CAPEX/OPEX/upkeep of every simulated node. |
+| `runSimulationDefaultsToTheEngineRoundCount` | Without `rounds`, the engine default (10) is used. |
+| `runSimulationChecksTheEditPermissionAfterResolvingTheVersion` | Simulating requires edit permission on the version, checked once the version is found. |
+| `runSimulationAnswersNotFoundForAnUnknownVersionBeforeAuthorizing` | An unknown version answers not-found without reaching the guard. |
+| `runSimulationRejectsAHorizonOrRoundCountOutOfRange` | Years outside 1–40 or rounds outside 1–50 are rejected before anything runs. |
+| `runSimulationRejectsAVersionWithNothingLeftToSimulate` | A version whose nodes are all `REMOVED` is rejected with `IllegalArgumentException`. |
+| `runSimulationLeavesRemovedNodesOutOfTheCosts` | `REMOVED` nodes add no cost to the run. |
+| `listSimulationsReturnsTheNewestRunFirst` | Runs are listed newest first. |
+| `listSimulationsRequiresAccessToTheVersion` | Listing requires view access to the version. |
+| `getSimulationRefusesARunOfAnotherVersion` | Asking a version for a run it does not own throws `EntityNotFoundException`. |
+| `deleteSimulationRemovesTheRunFromTheVersion` | Deleting a run removes it from the version and keeps the others. |
+| `deleteSimulationRequiresTheEditPermission` | Deleting requires edit permission; the run stays when refused. |
+| `estimateCostsPricesTheCurrentModelWithoutSimulating` | The estimate prices the active nodes over the horizon, grouped by vertical with no losses, and stores no run. |
+| `estimateCostsRejectsAHorizonOutOfRange` | An estimate outside 1–40 years is rejected before the version is read. |
+
+## `simulation.service.CostCalculatorTest` — Unit
+
+The cost model of a node over a simulation horizon: OPEX for the days it
+operates, upkeep per maintenance stop in that time, CAPEX once.
+
+| Case | Verifies |
+| --- | --- |
+| `opexCoversOnlyTheDaysInsideTheHorizon` | The monthly operating cost is charged for the horizon's days when the lifespan is longer. |
+| `opexStopsWhenTheLifespanEnds` | A node whose lifespan ends inside the horizon is charged only until then. |
+| `aNodeWithNoLifespanCostsNothingToRun` | A lifespan of zero means no OPEX and no upkeep — the simulator stops such a node at hour zero. |
+| `upkeepChargesEachMaintenanceStopInsideTheOperatingTime` | Upkeep is the per-stop cost times the stops that fit in the operating days (3650 days / 365 = 10 stops). |
+| `noMaintenanceIntervalMeansNoUpkeep` | A node with no maintenance interval has no upkeep. |
+| `capexAddsTheInvestmentComponentsOnceWhateverTheHorizon` | CAPEX is the sum of the investment components and does not grow with the horizon. |
+| `aComponentThatDoesNotApplyToTheNodeAddsNothing` | A component whose basis cannot price the node (`PER_KM` on a well) adds nothing instead of failing. |
+| `aNodeWithoutInvestmentCostHasNoCapex` | No investment cost means zero CAPEX. |
+| `totalIsCapexPlusOpexPlusUpkeep` | The total is the sum of the three parts. |
+| `costOfAListCostsEveryNode` | Costing a list returns one entry per node. |
+| `rejectsAHorizonShorterThanOneYear` | A horizon under one year is rejected. |
+
+## `simulation.service.SimulationResultMapperTest` — Unit
+
+How a stored run becomes the KPIs, verticals and per-node rows the results page
+shows.
+
+| Case | Verifies |
+| --- | --- |
+| `deliveredCountsExportsAndDomesticConsumptionOnly` | Delivered volume counts what reached LNG carriers and internal/industrial consumption, not what passed through intermediate nodes. |
+| `lossesAddUpEveryNodesLossesInTheMedianRound` | Losses are the sum of every node's losses in the P50 round. |
+| `unitCostIsTheTotalCostOverTheMedianDeliveredVolume` | Unit cost is total cost / P50 delivered volume. |
+| `unitCostIsNullWhenNothingWasDelivered` | With nothing delivered the unit cost is `null` rather than a division by zero. |
+| `aNodeWithACostButNoProductionIsReportedAsUnsimulated` | A node with a cost row but no result (e.g. on a cycle) is listed with no production or utilization and raises `UNSIMULATED_NODES`. |
+| `nodesAreListedInValueChainOrderWithTheirUtilization` | Node rows follow the value-chain order and carry utilization = produced / possible. |
+| `verticalsGroupCostsAndLossesInValueChainOrder` | Costs and losses are grouped per vertical, in value-chain order. |
+
+## `simulation.service.SimulationPersistenceTest` — Data
+
+A run against the H2 schema Hibernate builds from the entities: the engine's
+output, the per-node costs and the three percentile tables survive a round
+trip, and deleting a run takes all of it along.
+
+| Case | Verifies |
+| --- | --- |
+| `aRunIsStoredWithItsPercentilesAndNodeCosts` | A stored run reloads with its rounds, horizon, percentile rows and per-node costs. |
+| `deletingARunRemovesEveryRowItOwns` | Deleting a run deletes its node costs and percentile rows. |
+
+## `simulation.service.VersionComparisonServiceTest` — Unit
+
+Comparing two to six versions of a project: each version's counts and latest
+run, the warnings, and the model diff against the first version.
+
+| Case | Verifies |
+| --- | --- |
+| `theFirstVersionIsTheBaselineAndHasNoDiff` | The first version requested is the baseline and carries no diff. |
+| `theDiffMatchesNodesByIdentityAndIgnoresRemovedOnes` | Nodes are matched by `identityId` across branch copies; added, removed and modified nodes are reported, and `REMOVED` nodes count as absent. |
+| `countsOnlyActiveNodesAndTheConnectionsBetweenThem` | Node and connection counts leave out removed nodes and their connections. |
+| `eachVersionCarriesItsLatestRun` | Each version carries the KPIs of its most recent run. |
+| `warnsWhenAVersionWasNeverSimulated` | A version with no runs raises `MISSING_SIMULATIONS`. |
+| `warnsWhenTheLatestRunsCoverDifferentHorizons` | Latest runs over different horizons raise `DIFFERENT_HORIZONS`. |
+| `keepsTheRequestedOrder` | Versions come back in the order requested. |
+| `rejectsFewerThanTwoDifferentVersions` | No ids, one id or the same id twice is rejected before any version is read. |
+| `rejectsMoreVersionsThanTheCap` | More than six versions is rejected. |
+| `rejectsAVersionThatBelongsToAnotherProject` | A version of another project is rejected with `does not belong to this project`. |
+| `checksAccessToTheProjectBeforeReadingAnyVersion` | View access to the project is checked before any version is loaded. |
+| `rejectsAnUnknownOrInactiveProject` | An unknown or inactive project is rejected with `IllegalArgumentException` before the guard runs. |
+| `answersNotFoundForAnUnknownVersion` | An unknown version id throws `VersionNotFoundException`. |
+| `identicalVersionsHaveAnEmptyDiff` | A branch with no edits has an empty diff. |
+
+## `simulation.service.NodeFingerprintTest` — Unit
+
+The field-by-field comparison the version diff uses to tell whether a node's
+parameters changed.
+
+| Case | Verifies |
+| --- | --- |
+| `branchCopiesOfTheSameNodeAreEqual` | A deep copy made by branching compares equal to its original. |
+| `positionsAreNotAChangeToTheModel` | Moving a node on the canvas or the map is not a change. |
+| `reportsEachChangedParameterByName` | Each changed field is reported by name. |
+| `moneyComparesByValueNotByScale` | `10` and `10.00` are the same amount. |
+| `declineCurvesCompareByKindAndParameters` | Decline curves compare by distribution type and parameters, not by instance. |
+| `investmentComponentsAreCompared` | A changed investment component is a change. |
+
+## `simulation.controller.SimulationControllerTest` — Web
+
+Exercises `SimulationController` through the real `SecurityConfig`/`AuthFilter`
+chain; `SimulationService` is mocked.
+
+| Case | Verifies |
+| --- | --- |
+| `runSimulationAnswers201WithTheRun` | `POST /version/{id}/simulations` → `201` with the run. |
+| `runSimulationRejectsAMissingHorizonWith400` | A body without `years` → `400` `Validation error`; the service is never called. |
+| `runSimulationRejectsAHorizonAboveTheCapWith400` | `years` above 40 → `400`. |
+| `runSimulationPropagatesForbiddenWith403` | A caller without edit permission → `403`. |
+| `runSimulationRequiresAuthenticationWith401` | No token → `401`; the service is never called. |
+| `listSimulationsReturnsTheRuns` | `GET /version/{id}/simulations` → `200` with the runs. |
+| `getSimulationAnswers404ForAnUnknownRun` | `GET /version/{id}/simulations/{runId}` for an unknown run → `404`. |
+| `deleteSimulationDelegatesToTheService` | `DELETE /version/{id}/simulations/{runId}` → `200` `Simulation deleted`, and the service deletes that run. |
+| `deleteSimulationPropagatesForbiddenWith403` | A refused delete → `403`. |
+| `estimateCostsDefaultsToTwentyYears` | `GET /version/{id}/costs` without `years` prices 20 years. |
+| `estimateCostsTakesTheHorizonFromTheQuery` | `?years=` reaches the service unchanged. |
+
+## `simulation.controller.ComparisonControllerTest` — Web
+
+Exercises `ComparisonController` through the real security chain;
+`VersionComparisonService` is mocked.
+
+| Case | Verifies |
+| --- | --- |
+| `compareTakesTheVersionsInTheOrderGiven` | `GET /projects/{id}/comparison?versionIds=a,b` → `200`, passing the ids in order. |
+| `compareWithoutVersionsLetsTheServiceAnswer400` | Without `versionIds` the request still reaches the service, whose validation message comes back as `400`. |
+| `compareRejectsAMalformedVersionIdWith400` | A non-UUID id → `400`. |
+| `comparePropagatesForbiddenWith403` | A caller without access → `403`. |
+| `compareRequiresAuthenticationWith401` | No token → `401`; the service is never called. |
+
+## `version.service.VersionServiceEditorTest` — Unit
+
+What the editor needs from `VersionService` to build models that can be
+simulated: access checks on the reads/writes that had none, the decline curve,
+investment components and maintenance duration in the node detail, the two
+consumption node types, and connections that survive clone-on-write edits and
+merges. The last two cases were checked by reverting `rewireConnections` and
+confirming they turn red.
+
+| Case | Verifies |
+| --- | --- |
+| `getDiagramRequiresAccessToTheVersion` | Reading the diagram requires view access. |
+| `getDiagramAnswersNotFoundBeforeAuthorizing` | An unknown version answers not-found without reaching the guard. |
+| `getNodeDetailRequiresAccessToTheVersion` | Reading a node's detail requires view access. |
+| `movingANodeRequiresTheEditPermission` | Moving a node requires edit permission. |
+| `renamingANodeRequiresTheEditPermission` | Renaming a node or changing its state requires edit permission. |
+| `theDetailCarriesTheDeclineCurveAsADistribution` | A well's detail carries its decline curve as type + parameters, not a sampled value. |
+| `theDetailCarriesTheInvestmentComponentsAndTheMaintenanceDuration` | The detail lists the investment components and the maintenance duration. |
+| `theDetailOfAConsumptionNodeListsItsDemand` | A consumption node's detail lists its demand fields. |
+| `addNodeToVersionCreatesAnInternalConsumptionNode` | An internal consumption payload creates that node in the version. |
+| `addNodeToVersionCreatesAnIndustrialConsumptionNode` | An industrial consumption payload creates that node in the version. |
+| `editNodeInVersionEditsAConsumptionNodeTheVersionOwns` | Editing a consumption node the version owns updates it in place. |
+| `editNodeInVersionRefusesAConsumptionPayloadForAnotherNodeType` | A consumption payload sent for a well is refused with `IllegalArgumentException`. |
+| `editingAnInheritedNodeKeepsItConnected` | Editing a node a branch inherited clones it and moves its connections onto the clone. |
+| `mergingRewiresTheParentsConnectionsToTheMergedRows` | After a merge, the parent's connections point at the merged node rows. |
+
+## `version.dto.VersionSummaryDTOTest` — Unit
+
+The summary every version endpoint returns instead of the entity graph.
+
+| Case | Verifies |
+| --- | --- |
+| `countsTheActiveModelAndItsRuns` | Node, connection and simulation counts and the last simulation date are filled from the version. |
+| `aRemovedNodeAndItsConnectionsAreNotCounted` | `REMOVED` nodes and the connections touching them are not counted. |
+| `aVersionWithNothingInItIsEmpty` | An empty version has zero counts and no last simulation. |
+
+## `node.dto.NodeDTODeserializationTest` — Unit
+
+How node payloads from the editor bind. `BaseNodeDTO` picks its subtype from
+`type.nodeType` (`BaseNodeDTODeserializer`), falling back to the fields present
+when the type is missing.
+
+| Case | Verifies |
+| --- | --- |
+| `aDeclineCurveObjectBindsWithItsTypeAndParameters` | `{"type":"UNIFORM","val_a":1.5,"val_b":3}` binds with its type and both parameters. |
+| `aBareNumberBindsAsAConstantDeclineCurve` | A bare number (`5`, `2.5`) binds as a constant curve. |
+| `aWellPayloadWithANumericDeclineCurveIsDeducedAsAWell` | A well payload with a numeric curve binds as a `WellDTO`, keeping `maintenanceDuration`. |
+| `consumptionPayloadsAreDeducedToTheirOwnTypes` | Internal and industrial consumption payloads bind to their own DTOs. |
+| `aGroundLiquefactionPlantIsNotMistakenForAnFLNGUnit` | A ground liquefaction plant binds as one, not as an FLNG unit (the old deduction answered "Malformed request body"). |
+| `anFLNGUnitIsReadAsOneWithItsShipCapacity` | An FLNG unit binds with its ship capacity. |
+| `withoutANodeTypeTheMostSpecificMatchWins` | Without `type.nodeType`, the most specific DTO whose fields match is chosen. |
+| `anUnknownNodeTypeIsRejected` | An unknown `nodeType` is rejected with `MismatchedInputException`. |
+| `aSubtypeStillBindsDirectly` | Reading straight into a subtype (`WellDTO`) still works. |
+
+## `node.model.InvestmentCostComponentTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+| `aFlatComponentCostsItsAmount` | A `FLAT` component costs its amount (it used to cost zero). |
+| `aBasisWithNoCalculatorCostsNothing` | A basis with no calculator (`PER_CONECTIONS_INPUT`) costs zero instead of failing. |
+
+## `probabilistic.ProbabilisticDistributionTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+| `aUniformDistributionSamplesWithinItsBounds` | A uniform curve samples within its bounds (sampling used to throw `ClassCastException`). |
+| `aNormalDistributionSamplesAroundItsMean` | A normal curve samples around its mean. |
+| `eachKindReportsItsTypeAndParameters` | Constant, uniform and normal report their type and parameters, which the node detail and the diff read. |
+| `anIndependentCopyKeepsTheParametersInANewInstance` | `independentCopy()` returns a new instance with the same parameters, so parallel rounds never share a sampler. |
 
 ## `strategyCost.CostTest` — Unit
 

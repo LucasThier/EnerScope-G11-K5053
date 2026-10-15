@@ -2002,3 +2002,118 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   - Anyone whose local database already ran an earlier copy of `V9` or `V11`
     needs a fresh one (`docker compose down -v`): Flyway rejects a migration
     whose checksum changed.
+- 2026-10-15 — **MVP flow: model → scenarios → simulate → compare (`lucas-mvp`).**
+  The editor, the version tree, the simulation engine, the cost model and a
+  version comparison are wired into one flow inside a project. In the UI a
+  version is called an **escenario**; the code and the API keep `version`.
+  - **Routes.** Everything hangs off the project:
+    `/projects/:projectId/editor?version=`, `/projects/:projectId/scenarios`,
+    `/projects/:projectId/scenarios/:versionId/runs/:simulationId` and
+    `/projects/:projectId/compare?versions=a,b`. `/editor`, `/scenarios` and
+    `/compare` redirect to the active project (`ActiveProjectRedirect`), or to
+    Proyectos when there is none. The editor dropped its own organization/project
+    pickers and follows `ActiveProjectProvider` — the follow-up the 2026-10-01
+    entry left open. It only keeps a scenario selector, "+ Nuevo" (branch) and
+    "Simular".
+  - **New endpoints.** Under `/version/{versionId}`: `POST /simulations`
+    (`{years, rounds?}` → `201`), `GET /simulations`, `GET|DELETE
+    /simulations/{id}`, `GET /costs?years=20` (estimate without simulating).
+    `GET /projects/{projectId}/comparison?versionIds=a,b,…` (2–6 versions; the
+    first is the baseline). All authenticated; simulating and deleting need edit
+    permission on the version, the rest view access.
+  - **A run is an immutable snapshot.** `FinalResult` stores the horizon, the
+    rounds, when it ran, the three percentiles and the CAPEX/OPEX/upkeep of every
+    simulated node (`node_cost_result`, with the node's name, type, vertical and
+    state copied). `V13` dropped `result_per_node`'s foreign key to `base_node`
+    and `node_cost_result` has none: a run is history and must neither block
+    deleting a node nor change when the model does. Editing a model never
+    updates its runs — simulate again.
+  - **Runs execute synchronously, inside the request and its transaction.**
+    Years are capped at 1–40 and rounds at 1–50. On the demo model (8 nodes,
+    4 cores) 20 years × 10 rounds answers in ~0.9 s and 40 × 50 in ~1.6 s. Rounds
+    run in parallel on a fixed pool, each on a graph of its own built on the
+    calling thread; each well samples its decline from its own copy of the
+    distribution (the samplers are not thread-safe). Much larger models will
+    want an asynchronous job with progress — not built.
+  - **Percentiles are statistical.** P10 is the low case and P90 the high one,
+    the opposite of the reserves convention where P90 is the conservative
+    figure. Rounds are ranked by delivered volume and each percentile copies a
+    *whole round*, so a node's P50 value is its value in the median round, not
+    that node's own median. The results page says so in a footnote.
+  - **Delivered** = what reached LNG carriers plus internal and industrial
+    consumption (`ResultPerRound.SINK_CLASSES`); **exported** counts LNG
+    carriers only. Volumes are in model units (capacity per hour × simulated
+    hours). **Unit cost** = total cost / delivered P50, `null` when nothing was
+    delivered.
+  - **Cost model over the horizon** (`CostCalculator`). A node operates
+    `min(lifespanInMonths × 30, years × 365)` days, matching where the simulator
+    stops it. OPEX = monthly operating cost × days / 30; upkeep = cost per stop ×
+    ⌊days / maintenance interval⌋; CAPEX = the investment components, once.
+    `REMOVED` nodes cost nothing. **Not priced:** `dtmCost`, `treatmentCost` and
+    ship `hiringCost` — the fields exist but no formula reads them yet. A
+    component whose basis cannot price the node (e.g. `PER_KM` on a well) adds
+    zero instead of failing the run. `BaseNode.CalculateTotalCost` (whole
+    lifespan, no horizon) is not used for runs.
+  - **Decline curves are additive percentage points of the initial capacity per
+    year**, as the engine already modelled them: a well drawing 5 %/year is dead
+    after 20 years, so a 40-year horizon delivers about what 20 years did. The
+    editor labels the field "%/año".
+  - **Comparison semantics.** Nodes are matched across versions by `identityId`
+    (the branch deep copy keeps it), `REMOVED` nodes count as absent, and a node
+    is "modified" when any modelling field differs (`NodeFingerprint`: reflection
+    over the entity, ignoring ids, `identityId` and `graphData`, comparing money
+    by value and curves by type + parameters). Connections compare as identity
+    pairs. Each version is represented by its **latest** run; warnings
+    `MISSING_SIMULATIONS` and `DIFFERENT_HORIZONS` flag comparisons that are not
+    like for like.
+  - **Engine bugs fixed on the way** (each has a test): rounds leaked state (a
+    pipeline's in-transit batches survived `reset()`, so every round after the
+    first delivered nothing); a node that started maintenance restarted the stop
+    every hour and never came back; Uniform/Normal sampling threw
+    `ClassCastException`; `FLAT` investment components cost zero;
+    `editFLNGUnit` copied `gasConsumption` from `shipCapacity`; gathering
+    networks, treatment plants and terminals threw `ClassCastException` on
+    upstream types they did not expect; a carrier with no terminal and a well
+    with no decline curve threw `NullPointerException`; `REMOVED` nodes were
+    simulated; nodes on a cycle were silently left out of the topological order
+    and the results (now reported as `UNSIMULATED_NODES`). The hot path lost its streams and per-hour list
+    allocations, which also brought the pre-existing `SimulatorTest` performance
+    case back under its 8 s budget.
+  - **Node payloads bind by `type.nodeType`** (`BaseNodeDTODeserializer`), no
+    longer by Jackson `DEDUCTION`: a ground liquefaction plant's fields are a
+    subset of an FLNG unit's, so deduction answered "Malformed request body".
+    Clients must send `type.nodeType`; without it the most specific DTO whose
+    fields match wins. A decline curve may be `{type, val_a, val_b}` or a bare
+    number (constant).
+  - **Clone-on-write edits keep their connections.** Editing a node a branch
+    inherited creates a new row; `VersionService.rewireConnections` now clones
+    the connections that still name rows outside the version's snapshot onto the
+    new rows (matched by identity). Merges run the same step. Before, an edited
+    node silently dropped out of the graph and simulated as disconnected.
+  - **Charts** (`components/charts`) use one hue (`brand-600`, 3.3:1 on
+    white, above the 3:1 floor for graphics) because every chart shows a single
+    measure; bars are ≤ 24 px with a 4 px rounded end, values are printed in ink
+    beside each bar (so the chart still reads as a list without the bars), the
+    tooltip on hover and keyboard focus only repeats them, and the per-node and
+    comparison tables carry the same numbers. Deltas in the comparison carry an
+    arrow and a sign, never color alone. Adding a second series means a categorical palette validated for
+    color-vision deficiency first, not a second brand shade.
+  - **Guards added** where there were none: `getDiagram`/`getNodeDetail` need
+    view access to the version, `updateNodePosition`/`updateNodeBasics` edit
+    permission, and `GET /projects/{id}/versions` membership of the project.
+  - **Version endpoints return `VersionSummaryDTO`** (`id`, `name`,
+    `parentVersionId`, `createdAt`, active node/connection counts,
+    `simulationCount`, `lastSimulatedAt`) instead of the entity graph.
+  - **PostgreSQL JIT is off for the app's connections**
+    (`spring.datasource.hikari.connection-init-sql`, `DATASOURCE_INIT_SQL`,
+    default `SET jit = off`). Loading a version joins the 18 node tables; the JIT
+    compiled that plan on every request (~1.1 s of a 1.3 ms query). The H2 test
+    profile overrides it with `SELECT 1`.
+  - The 2026-10-05 "to check when the `Probabilistica` work is merged" item is
+    settled: `FinalResult` names the `final_result_p90/p50/p10` join tables, and
+    runs were stored and read back on PostgreSQL with Flyway + `validate`.
+  - **Known gaps.** The `PIPELINE_CONECTION` node type (sic) is not offered in
+    the editor palette; Reportes is still locked; there are no frontend tests (no
+    test setup exists); a run cannot be exported; the decline/maintenance model
+    is the engine's original one, not a calibrated one.
+  - `mvn test` 583 (one red: the performance case) → 705, all green.

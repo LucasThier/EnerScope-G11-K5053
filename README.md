@@ -18,6 +18,12 @@ Monorepo for **EnerScope** — a web application with a Spring Boot backend and 
 React + Vite frontend. This initial scaffold covers **users, authentication and
 session management** (JWT based). Domain features are added on top of this base.
 
+The current MVP covers the whole modelling loop inside a project: draw the LNG
+value chain in the editor, branch it into **escenarios** (versions), simulate
+each one (Monte Carlo production plus CAPEX/OPEX/upkeep over a horizon), and
+compare two or more scenarios side by side. See `frontend/README.md` for the
+pages and `backend/README.md` for the endpoints.
+
 - **Domain:** `enerscope.org`
 - **Backend:** Java 21 · Spring Boot 3.5 · PostgreSQL · Flyway · JWT · Swagger
 - **Frontend:** React 19 · Vite · TypeScript · Tailwind CSS (no hand-written CSS)
@@ -26,8 +32,8 @@ session management** (JWT based). Domain features are added on top of this base.
 
 ```
 EnerScope/
-├─ backend/     Spring Boot API (auth, users, sessions, health)
-├─ frontend/    React + Vite client (auth portal: login/panels + API/session layer)
+├─ backend/     Spring Boot API (auth, organizations, projects, versions, nodes, simulation, comparison)
+├─ frontend/    React + Vite client (shell, projects, editor, scenarios, results, comparison)
 ├─ docs/        Architecture and technical documentation
 └─ README.md    This file
 ```
