@@ -133,6 +133,7 @@ CREATE TABLE  flng_unit (
     max_processing_capacity   REAL,
     mtpa_ratio                REAL,
     intermediate_storage      REAL,
+    gas_consumption            REAL,
     vessel_depth              REAL,
     hiring_cost        NUMERIC(19,2)              NOT NULL,
     -- Foreign keys (inherited from BaseNode)
