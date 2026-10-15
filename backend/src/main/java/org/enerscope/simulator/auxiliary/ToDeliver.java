@@ -31,8 +31,29 @@ public class ToDeliver {
         for (int i = 0; i < toDelivers.size(); i++) {
             ToDeliver toDeliver = toDelivers.get(i);
             amountSum += toDeliver.getAmount();
-            contaminantSum += toDeliver.getAmount() * (toDeliver.getContaminant() / 100);
+            contaminantSum += contaminantMass(toDeliver);
         }
+        mixSums(amountSum, contaminantSum);
+    }
+
+    /** The contaminant carried by a batch, as {@link #mix(List)} accumulates it. */
+    public static double contaminantMass(ToDeliver toDeliver) {
+        return toDeliver.getAmount() * (toDeliver.getContaminant() / 100);
+    }
+
+    /**
+     * A new batch holding what {@link #mix(List)} would give mixing batches with
+     * these accumulated sums into an empty one — the same float arithmetic, without
+     * the list. Callers that take from many nodes accumulate as they go instead of
+     * collecting every batch first, which used to allocate on every simulated hour.
+     */
+    public static ToDeliver ofMixture(double amountSum, double contaminantSum) {
+        ToDeliver mixture = new ToDeliver(0, 0);
+        mixture.mixSums(amountSum, contaminantSum);
+        return mixture;
+    }
+
+    private void mixSums(double amountSum, double contaminantSum) {
         float totalAmountToAdd = (float) amountSum;
 
         float currentContaminantAmount = this.amount * (this.contaminant / 100);

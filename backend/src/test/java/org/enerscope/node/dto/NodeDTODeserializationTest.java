@@ -9,8 +9,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * How node payloads from the editor bind. {@link BaseNodeDTO} picks its subtype
- * by deduction — from which fields are present — so these pin both the subtype
- * chosen and the shapes a decline curve may take.
+ * from {@code type.nodeType}, falling back to the fields present when the type
+ * is missing, so these pin both the subtype chosen and the shapes a decline
+ * curve may take.
  */
 class NodeDTODeserializationTest {
 

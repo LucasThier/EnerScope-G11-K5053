@@ -68,8 +68,17 @@ public abstract class  SimBaseNode {
         }
     }
 
+    /**
+     * Starts a maintenance stop when the interval has elapsed. Only an active
+     * node can start one: this runs before every simulated hour, and while the
+     * node was already stopped the elapsed counter (which only resets when the
+     * stop ends) still met the interval, so the stop restarted every hour and
+     * never ended — any node with a maintenance duration above zero stayed down
+     * from its first maintenance on. It also kept a node past its lifespan from
+     * being "revived" by a maintenance stop.
+     */
     protected void checkMaintenanceNeeded(int time){
-        if (timeSinceLastMaintenance/24 >= maintenanceIntervalInDays){
+        if (active && timeSinceLastMaintenance/24 >= maintenanceIntervalInDays){
             active = false;
             flagOfInactivity = FlagOfInactivity.Maintenance;
             timeStartOfInactivity = time;
@@ -127,6 +136,38 @@ public abstract class  SimBaseNode {
     // The two methods below are on the hot path too, so they use loops instead
     // of streams; the selection and the order of the deliveries are unchanged.
     public ToDeliver takeEqualAmounts(List<? extends SimBaseNode> items, float capacity) {
+        // Fast path for the common case — every node with something to give has
+        // at least its equal share — which takes that share from each, in list
+        // order, exactly as the general path below does, without its lists.
+        int producers = 0;
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).getToDeliver().getAmount() > 0) {
+                producers++;
+            }
+        }
+        if (producers == 0 || capacity <= 0) {
+            return new ToDeliver(0,0);
+        }
+        float share = capacity / producers;
+        boolean someHaveLess = false;
+        for (int i = 0; i < items.size() && !someHaveLess; i++) {
+            float amount = items.get(i).getToDeliver().getAmount();
+            someHaveLess = amount > 0 && amount < share;
+        }
+        if (!someHaveLess) {
+            double amountSum = 0;
+            double contaminantSum = 0;
+            for (int i = 0; i < items.size(); i++) {
+                SimBaseNode item = items.get(i);
+                if (item.getToDeliver().getAmount() > 0) {
+                    ToDeliver taken = item.deliver(share);
+                    amountSum += taken.getAmount();
+                    contaminantSum += ToDeliver.contaminantMass(taken);
+                }
+            }
+            return ToDeliver.ofMixture(amountSum, contaminantSum);
+        }
+
         List<SimBaseNode> itemsThatProduced = new ArrayList<>(items.size());
         for (SimBaseNode item : items) {
             if (item.getToDeliver().getAmount() > 0) {
@@ -152,13 +193,14 @@ public abstract class  SimBaseNode {
         }
 
         if (withLess.isEmpty()) {
-            List<ToDeliver> toDelivers = new ArrayList<>(withMore.size());
+            double amountSum = 0;
+            double contaminantSum = 0;
             for (SimBaseNode simBaseNode : withMore) {
-                toDelivers.add(simBaseNode.deliver(quantityToTake));
+                ToDeliver taken = simBaseNode.deliver(quantityToTake);
+                amountSum += taken.getAmount();
+                contaminantSum += ToDeliver.contaminantMass(taken);
             }
-            ToDeliver toDeliver1 = new ToDeliver(0,0);
-            toDeliver1.mix(toDelivers);
-            return toDeliver1;
+            return ToDeliver.ofMixture(amountSum, contaminantSum);
         } else {
             ToDeliver takenFromLess = calculateAndTakeAll(withLess);
             ToDeliver remainingTaken = takeEqualAmounts(withMore, capacity - takenFromLess.getAmount());
@@ -168,13 +210,21 @@ public abstract class  SimBaseNode {
     }
 
     public ToDeliver calculateAndTakeAll(List<? extends SimBaseNode> items) {
-        List<ToDeliver> toDelivers = new ArrayList<>(items.size());
-        for (SimBaseNode item : items) {
-            toDelivers.add(item.deliver(item.getToDeliver().getAmount()));
+        double amountSum = 0;
+        double contaminantSum = 0;
+        for (int i = 0; i < items.size(); i++) {
+            SimBaseNode item = items.get(i);
+            float available = item.getToDeliver().getAmount();
+            if (available == 0) {
+                // Delivering nothing changes nothing and adds nothing to the
+                // mixture, so the call (and the batch it allocates) is skipped.
+                continue;
+            }
+            ToDeliver taken = item.deliver(available);
+            amountSum += taken.getAmount();
+            contaminantSum += ToDeliver.contaminantMass(taken);
         }
-        ToDeliver toDeliver1 = new ToDeliver(0,0);
-        toDeliver1.mix(toDelivers);
-        return toDeliver1;
+        return ToDeliver.ofMixture(amountSum, contaminantSum);
     }
 
     public void addPreviousNode(SimBaseNode simBaseNode){}

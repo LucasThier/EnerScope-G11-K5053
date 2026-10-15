@@ -16,6 +16,7 @@ import org.enerscope.simulator.results.FinalResult;
 import org.enerscope.simulator.results.ResultPerNode;
 import org.enerscope.simulator.results.ResultPerRound;
 import org.enerscope.simulator.simNode.SimBaseNode;
+import org.enerscope.simulator.simNode.SimWell;
 import org.enerscope.version.model.Version;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -260,5 +261,43 @@ class SimulatorRobustnessTest {
         simulator.simulate(1, 1);
 
         assertEquals(List.of(simulator.getFinalResult()), version.getFinalResults());
+    }
+
+    @Test
+    void aNodeComesBackAfterEachMaintenanceStop() {
+        // Every 30 days of operation the well stops for 24 hours. Before the fix
+        // the stop restarted every hour and the well never came back, so a year
+        // produced 30 days' worth.
+        Well well = well(NodeStateEnum.RUNNING);
+        well.setMaintenanceIntervalInDays(30);
+        well.setMaintenanceDuration(24);
+        SimWell simWell = new SimWell(well);
+
+        for (int t = 0; t <= 24 * 365; t++) {
+            simWell.simulate(t);
+        }
+
+        // Cycles of 720 active hours plus a 25-hour stop (the hour that ends it
+        // is still a stopped one): 11 full cycles in 8761 hours, then 566 more.
+        assertEquals(100f * (11 * 720 + 566), simWell.createResult().getTotalProduced(), 1f);
+    }
+
+    @Test
+    void aLongerHorizonDeliversMore() {
+        Well well = well(NodeStateEnum.RUNNING);
+        well.setMaintenanceIntervalInDays(90);
+        GatheringNetwork network = gathering();
+        InternalConsumption consumption = consumption(1000f);
+        Version model = version(List.of(well, network, consumption),
+                List.of(connect(well, network), connect(network, consumption)));
+
+        Simulator oneYear = new Simulator(model);
+        oneYear.simulate(1, 1);
+        Simulator threeYears = new Simulator(model);
+        threeYears.simulate(3, 1);
+
+        float first = oneYear.getFinalResult().getMediaOutput();
+        float third = threeYears.getFinalResult().getMediaOutput();
+        assertTrue(third > 2.9f * first, "three years should deliver about three times one year: " + first + " vs " + third);
     }
 }

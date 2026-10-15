@@ -10,6 +10,7 @@ import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.node.model.export.IndustrialConsumption;
 import org.enerscope.node.model.export.InternalConsumption;
 import org.enerscope.node.model.extraction.Well;
+import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.probabilistic.UniformDistributionCase;
 import org.enerscope.node.repository.WellRepository;
 import org.enerscope.probabilistic.ConstantValue;
@@ -266,4 +267,28 @@ class NodeServiceTest {
         assertEquals(7f, industrial.getConsumption());
     }
 
+
+    @Test
+    void editFLNGUnitTakesTheGasConsumptionFromItsOwnField() {
+        // It was copied from shipCapacity, so saving an FLNG unit with 2 ships
+        // set its gas consumption to 2 % whatever the form said.
+        FLNGUnit unit = new FLNGUnit();
+        FLNGUnitDTO edit = new FLNGUnitDTO();
+        edit.setName("FLNG");
+        edit.setLifespanInMonths(240);
+        edit.setMaintenanceIntervalInDays(365);
+        edit.setWastePercentage(0f);
+        edit.setMaxProcessingCapacity(800f);
+        edit.setMTPARatio(90f);
+        edit.setIntermediateStorage(1000f);
+        edit.setVesselDepth(20f);
+        edit.setHiringCost(0f);
+        edit.setShipCapacity(2);
+        edit.setGasConsumption(7.5f);
+
+        nodeService.editFLNGUnit(unit, edit);
+
+        assertEquals(7.5f, unit.getGasConsumption());
+        assertEquals(2, unit.getShipCapacity());
+    }
 }

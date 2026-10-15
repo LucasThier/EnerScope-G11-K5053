@@ -36,14 +36,15 @@ public class SimPipeline extends SimBaseNode{
     @Override
     protected void activeAction(int time){
         ToDeliver totalArrived = new ToDeliver(0,0);
-        // Loops instead of streams: this runs on every simulated hour.
-        List<TransitBatch> arrivedTransitQueue = new ArrayList<>();
+        // Loops instead of streams: this runs on every simulated hour. Arrived
+        // batches are mixed in as they are found, in queue order — the same
+        // order the list they used to be collected into was mixed in.
         double stillInTransit = 0;
         Iterator<TransitBatch> pending = inTransitQueue.iterator();
         while (pending.hasNext()) {
             TransitBatch aTransitBatch = pending.next();
             if (aTransitBatch.getTimeOfArrival() <= time) {
-                arrivedTransitQueue.add(aTransitBatch);
+                totalArrived.mix(aTransitBatch.getToDeliver());
                 pending.remove();
             } else {
                 stillInTransit += aTransitBatch.getToDeliver().getAmount();
@@ -68,7 +69,6 @@ public class SimPipeline extends SimBaseNode{
         transitBatch.getToDeliver().setAmount(batchAmount - lost);
         inTransitQueue.add(transitBatch);
 
-        arrivedTransitQueue.forEach(aTransitBatch -> totalArrived.mix(aTransitBatch.getToDeliver()));
         float newCapacity = maxFlowCapacity - toDeliver.getAmount();
         if(totalArrived.getAmount() <= newCapacity){
             toDeliver.mix(totalArrived);

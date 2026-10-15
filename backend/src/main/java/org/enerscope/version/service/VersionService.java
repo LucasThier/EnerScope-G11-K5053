@@ -424,6 +424,8 @@ public class VersionService {
             a.put("intermediateStorage", (double) f.getIntermediateStorage());
             a.put("vesselDepth", (double) f.getVesselDepth());
             a.put("hiringCost", money(f.getHiringCost()));
+            a.put("gasConsumption", (double) f.getGasConsumption());
+            a.put("shipCapacity", (double) f.getShipCapacity());
         } else if (node instanceof SeaportTerminal s) {
             a.put("intermediateStorage", (double) s.getIntermediateStorage());
             a.put("portDepth", (double) s.getPortDepth());

@@ -217,8 +217,10 @@ public class Simulator {
     }
 
     private static ResultPerRound runRound(List<SimBaseNode> graph, int timeInHours) {
+        // An array rather than the list: this loop runs nodes × hours times.
+        SimBaseNode[] order = graph.toArray(new SimBaseNode[0]);
         for (int count = 0; count <= timeInHours; count++) {
-            for (SimBaseNode node : graph) {
+            for (SimBaseNode node : order) {
                 node.simulate(count);
             }
         }
