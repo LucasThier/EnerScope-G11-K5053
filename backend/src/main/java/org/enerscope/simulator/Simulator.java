@@ -32,7 +32,7 @@ public class Simulator {
     private Version version;
     private Result result;
 
-    Simulator(Version version){
+    Simulator(Version version) {
         simWells = new ArrayList<>();
         simGatheringNetworks = new ArrayList<>();
         simTreatmentPlants = new ArrayList<>();
@@ -61,9 +61,9 @@ public class Simulator {
         });
     }
 
-    public void simulate(int time){
-        int timeInHours = time * 24*365;
-        for (int count = 0; count <= timeInHours; count ++){
+    public void simulate(int time) {
+        int timeInHours = time * 24 * 365;
+        for (int count = 0; count <= timeInHours; count++) {
             int exactTime = count;
             simWells.forEach(simWell -> simWell.simulate(exactTime));
             simGatheringNetworks.forEach(simGatheringNetwork -> simGatheringNetwork.simulate(exactTime));
@@ -77,7 +77,9 @@ public class Simulator {
                         .toList();
 
                 if (readyNodes.isEmpty()) {
-                    throw new IllegalStateException("Bloqueo detectado: existen nodos pendientes pero ninguno está listo para procesarse en el tiempo " + exactTime);
+                    throw new IllegalStateException(
+                            "Bloqueo detectado: existen nodos pendientes pero ninguno está listo para procesarse en el tiempo "
+                                    + exactTime);
                 }
 
                 nodesToProcess = nodesToProcess.stream()
@@ -92,8 +94,6 @@ public class Simulator {
             simLNGCarriers.forEach(simLNGCarrier -> simLNGCarrier.simulate(exactTime));
         }
         createResult(time);
-
-        version.addResult(result);
     }
 
     private void createResult(int time) {
@@ -101,7 +101,8 @@ public class Simulator {
         result.addAllResultPerNodes(simWells.stream().map(SimWell::createResult).toList());
         result.addAllResultPerNodes(simGatheringNetworks.stream().map(SimGatheringNetwork::createResult).toList());
         result.addAllResultPerNodes(simTreatmentPlants.stream().map(SimTreatmentPlant::createResult).toList());
-        result.addAllResultPerNodes(simPipelineAndCompressionPlant.stream().map(simBaseNode -> simBaseNode.createResult()).toList());
+        result.addAllResultPerNodes(
+                simPipelineAndCompressionPlant.stream().map(simBaseNode -> simBaseNode.createResult()).toList());
         result.addAllResultPerNodes(simLiquefactionPlants.stream().map(SimLiquefactionPlant::createResult).toList());
         result.addAllResultPerNodes(simSeaportTerminals.stream().map(SimSeaportTerminal::createResult).toList());
         result.addAllResultPerNodes(simLNGCarriers.stream().map(SimLNGCarrier::createResult).toList());

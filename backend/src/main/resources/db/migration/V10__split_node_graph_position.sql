@@ -1,4 +1,4 @@
--- V7: Split NodeGraphData's single position into two independent positions:
+-- V10: Split NodeGraphData's single position into two independent positions:
 --   * graph position (graph_x / graph_y)  -> abstract diagram-canvas coordinates
 --   * geographical position (longitude / latitude) -> real-world coordinates (map/globe view)
 -- Replaces the previous x_position / y_position / coordinates columns.

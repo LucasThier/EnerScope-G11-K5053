@@ -56,12 +56,4 @@ public class Version extends BaseEntity {
     @JoinColumn(nullable = true)
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     private List<NodeChange> nodeChanges;
-
-    @JoinColumn(nullable = true)
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Result> results;
-
-    public void addResult(Result result){
-        this.results.add(result);
-    }
 }
