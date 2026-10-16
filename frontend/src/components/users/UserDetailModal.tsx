@@ -148,7 +148,7 @@ export function UserDetailModal({ user, onClose }: UserDetailModalProps) {
 }
 
 const BADGE_TONES = {
-  brand: 'bg-brand-100 text-brand-800',
+  brand: 'bg-brand-100 text-brand-900',
   neutral: 'bg-ink-100 text-ink-600',
 };
 

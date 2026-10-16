@@ -17,9 +17,9 @@ export function TextArea({ label, error, id, className = '', rows = 4, ...rest }
         id={textAreaId}
         rows={rows}
         className={
-          'resize-y rounded-lg border bg-white px-3 py-2 text-sm text-ink-800 placeholder:text-ink-400 ' +
-          'focus:outline-none focus:ring-2 focus:ring-brand-400/40 ' +
-          (error ? 'border-danger-400 focus:border-danger-400 ' : 'border-ink-200 focus:border-brand-500 ') +
+          'resize-y rounded-lg border bg-surface px-3 py-2 text-sm text-ink-800 placeholder:text-ink-500 ' +
+          'focus:outline-none focus:ring-2 focus:ring-focus/60 ' +
+          (error ? 'border-danger-400 focus:border-danger-400 ' : 'border-ink-200 focus:border-focus ') +
           className
         }
         aria-invalid={error ? true : undefined}

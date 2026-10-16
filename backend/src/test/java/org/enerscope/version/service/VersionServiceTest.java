@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -808,5 +809,19 @@ class VersionServiceTest {
                 assertEquals(ChangeTypeEnum.EDIT, mergedChange.getChangeType());
                 assertSame(originalWell, mergedChange.getChangedNode());
                 assertSame(editedWell, mergedChange.getResultNode());
+        }
+
+        @Test
+        void mergeSubVersionIntoParent_VersionHasNoParent_ThrowsIllegalArgumentException() {
+                UUID subId = UUID.randomUUID();
+                Version rootVersion = new Version("Root Version", null, new ArrayList<>(), new ArrayList<>(),
+                                new ArrayList<>(), new ArrayList<>());
+                when(versionRepository.findById(subId)).thenReturn(Optional.of(rootVersion));
+
+                IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                                () -> versionService.mergeSubVersionIntoParent(subId));
+
+                assertEquals("Version has no parent version to merge into", ex.getMessage());
+                verifyNoInteractions(versionConflictService);
         }
 }

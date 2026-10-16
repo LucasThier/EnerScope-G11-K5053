@@ -5,6 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>EnerScope</title>
     <meta name="description" content="EnerScope" />
+    <script>
+      (function () {
+        var preference = 'light';
+        try {
+          var stored = localStorage.getItem('theme');
+          if (stored !== null) {
+            var parsed = JSON.parse(stored);
+            if (parsed === 'light' || parsed === 'dark' || parsed === 'system') {
+              preference = parsed;
+            }
+          }
+        } catch (error) {
+          preference = 'light';
+        }
+        var dark = preference === 'dark';
+        if (preference === 'system') {
+          try {
+            dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          } catch (error) {
+            dark = false;
+          }
+        }
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,5 +1,5 @@
 import type { ProjectSummary } from '../../types/project';
-import { EyeIcon, PencilIcon, TeamIcon, TrashIcon } from '../ui/icons';
+import { BranchIcon, EyeIcon, PencilIcon, TeamIcon, TrashIcon } from '../ui/icons';
 import { RowButton } from '../ui/RowButton';
 import { formatDate } from '../../utils/date';
 
@@ -10,10 +10,11 @@ interface ProjectsTableProps {
   onEdit: (project: ProjectSummary) => void;
   onDelete: (project: ProjectSummary) => void;
   onManageMembers: (project: ProjectSummary) => void;
+  onViewVersions: (project: ProjectSummary) => void;
 }
 
 const headerCell = 'px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
-const bodyCell = 'px-4 py-3 text-sm text-ink-700 align-top';
+const bodyCell = 'px-4 py-3 h-14 align-middle text-sm text-ink-700';
 
 export function ProjectsTable({
   projects,
@@ -22,6 +23,7 @@ export function ProjectsTable({
   onEdit,
   onDelete,
   onManageMembers,
+  onViewVersions,
 }: ProjectsTableProps) {
   return (
     <div className="overflow-x-auto">
@@ -37,10 +39,10 @@ export function ProjectsTable({
             <th scope="col" className={headerCell}>
               Descripción
             </th>
-            <th scope="col" className={`${headerCell} text-right`}>
+            <th scope="col" className={`${headerCell} text-center`}>
               Integrantes
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={`${headerCell} whitespace-nowrap`}>
               Actualizado
             </th>
             <th scope="col" className={`${headerCell} text-right`}>
@@ -51,12 +53,19 @@ export function ProjectsTable({
         <tbody className="divide-y divide-ink-100">
           {projects.map((project) => (
             <tr key={project.id}>
-              <td className={`${bodyCell} font-semibold text-ink-800`}>{project.name}</td>
-              <td className={bodyCell}>{project.organizationName}</td>
-              <td className={`${bodyCell} max-w-md`}>
-                <span className="line-clamp-2">{project.description}</span>
+              <td
+                className={`${bodyCell} max-w-[14rem] truncate font-semibold text-ink-800`}
+                title={project.name}
+              >
+                {project.name}
               </td>
-              <td className={`${bodyCell} text-right tabular-nums`}>{project.memberCount}</td>
+              <td className={`${bodyCell} max-w-[12rem] truncate`} title={project.organizationName}>
+                {project.organizationName}
+              </td>
+              <td className={`${bodyCell} max-w-[20rem] truncate`} title={project.description}>
+                {project.description}
+              </td>
+              <td className={`${bodyCell} text-center tabular-nums`}>{project.memberCount}</td>
               <td className={`${bodyCell} whitespace-nowrap`}>{formatDate(project.lastModified)}</td>
               <td className={`${bodyCell} text-right`}>
                 <div className="flex justify-end gap-1">
@@ -65,6 +74,13 @@ export function ProjectsTable({
                     onClick={() => onView(project)}
                   >
                     <EyeIcon className="h-4 w-4" />
+                  </RowButton>
+                  <RowButton
+                    label={`Ver versiones del proyecto ${project.name}`}
+                    title="Ver versiones"
+                    onClick={() => onViewVersions(project)}
+                  >
+                    <BranchIcon className="h-4 w-4" />
                   </RowButton>
                   {(isPlatformAdmin || project.myRole === 'ADMIN') && (
                     <RowButton

@@ -97,3 +97,26 @@ export interface VersionSummary {
   parentVersionId: string | null;
   createdAt: string;
 }
+
+export type ConflictEntityType = 'NODE' | 'CONNECTION';
+
+export type ChangeType = 'ADD' | 'EDIT' | 'DELETE';
+
+export type ConflictDecision = 'ACCEPT' | 'REJECT';
+
+export interface VersionConflict {
+  id: string;
+  mergedVersionId: string;
+  sourceVersionId: string | null;
+  conflictingVersionId: string;
+  conflictingVersionName: string;
+  entityType: ConflictEntityType;
+  identityId: string;
+  mergedDescription: string | null;
+  conflictingDescription: string | null;
+  sourceChangeType: ChangeType | null;
+  conflictingChangeType: ChangeType | null;
+  mergedAt: string;
+  resolved: boolean;
+  resolvedAt: string | null;
+}

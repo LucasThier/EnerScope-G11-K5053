@@ -13,7 +13,7 @@ import java.util.List;
 @Setter
 public class ResultPerRound {
 
-    @Column(name = "year")
+    @Column(name = "`year`")
     private int year;
 
     // Foreign key on the child table (result_per_node.result_id, see V8). Without

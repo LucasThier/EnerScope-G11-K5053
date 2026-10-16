@@ -16,13 +16,13 @@ import type { ProjectSummary } from '../types/project';
 const ALL_ORGANIZATIONS = 'all';
 
 const controlClasses =
-  'rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-800 ' +
-  'focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
+  'rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 ' +
+  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60';
 
 export function ProjectsPage() {
   const searchId = useId();
   const organizationFilterId = useId();
-  const { projects, isLoading, error, reload } = useActiveProject();
+  const { projects, isLoading, error, reload, selectProject } = useActiveProject();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -89,7 +89,7 @@ export function ProjectsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar proyectos"
-              className={`w-full pl-9 placeholder:text-ink-400 ${controlClasses}`}
+              className={`w-full pl-9 placeholder:text-ink-500 ${controlClasses}`}
             />
           </div>
           <label htmlFor={organizationFilterId} className="sr-only">
@@ -136,6 +136,10 @@ export function ProjectsPage() {
             onEdit={setEditing}
             onDelete={setDeleting}
             onManageMembers={(project) => navigate(`/projects/${project.id}/team`)}
+            onViewVersions={(project) => {
+              selectProject(project.id);
+              navigate(`/projects/${project.id}/versions`);
+            }}
           />
         )}
       </Card>

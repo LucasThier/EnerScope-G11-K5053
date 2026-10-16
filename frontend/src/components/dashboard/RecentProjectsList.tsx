@@ -47,7 +47,7 @@ export function RecentProjectsList() {
                 className={
                   'flex w-full flex-wrap items-center justify-between gap-2 px-6 py-3 text-left ' +
                   'transition-colors hover:bg-ink-50 focus:outline-none focus-visible:ring-2 ' +
-                  'focus-visible:ring-inset focus-visible:ring-brand-400 ' +
+                  'focus-visible:ring-inset focus-visible:ring-focus ' +
                   (activeProject?.id === project.id ? 'bg-brand-50' : '')
                 }
               >

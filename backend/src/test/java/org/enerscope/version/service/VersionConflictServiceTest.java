@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -246,6 +247,88 @@ class VersionConflictServiceTest {
     void recordMergeConflicts_SourceWithoutChanges_DoesNotQuerySiblings() {
         assertTrue(service.recordMergeConflicts(version("parent"), version("source")).isEmpty());
         verify(versionRepository, never()).findByParentVersionId(any());
+    }
+
+    @Test
+    void recordMergeConflicts_PendingDuplicateAlreadyExists_UpdatesItInsteadOfInsertingANewRow() {
+        Version parent = version("parent");
+        Version source = version("source");
+        Version sibling = version("sibling");
+        UUID sharedIdentity = UUID.randomUUID();
+
+        Well mergedWell = well("Merged Well", sharedIdentity);
+        editNode(source, mergedWell);
+        parent.getNodeSnapshot().add(mergedWell);
+        sibling.getNodeSnapshot().add(well("Sibling Well", sharedIdentity));
+
+        VersionConflict existing = conflictFixture(parent, sibling, ConflictEntityType.NODE, sharedIdentity);
+        when(versionRepository.findByParentVersionId(parent.getId())).thenReturn(List.of(sibling));
+        when(conflictRepository.findPendingDuplicate(parent.getId(), source.getId(), sibling.getId(),
+                ConflictEntityType.NODE, sharedIdentity)).thenReturn(Optional.of(existing));
+        when(conflictRepository.save(existing)).thenReturn(existing);
+
+        List<VersionConflict> result = service.recordMergeConflicts(parent, source);
+
+        assertEquals(1, result.size());
+        assertEquals(existing, result.get(0));
+        verify(conflictRepository).save(existing);
+        verify(conflictRepository, never()).save(argThat(c -> c != existing));
+    }
+
+    @Test
+    void recordMergeConflicts_OnlyAResolvedRowExistsForTheIdentity_InsertsANewPendingRow() {
+        Version parent = version("parent");
+        Version source = version("source");
+        Version sibling = version("sibling");
+        UUID sharedIdentity = UUID.randomUUID();
+
+        Well mergedWell = well("Merged Well", sharedIdentity);
+        editNode(source, mergedWell);
+        parent.getNodeSnapshot().add(mergedWell);
+        sibling.getNodeSnapshot().add(well("Sibling Well", sharedIdentity));
+
+        when(versionRepository.findByParentVersionId(parent.getId())).thenReturn(List.of(sibling));
+        when(conflictRepository.findPendingDuplicate(parent.getId(), source.getId(), sibling.getId(),
+                ConflictEntityType.NODE, sharedIdentity)).thenReturn(Optional.empty());
+        when(conflictRepository.save(any(VersionConflict.class))).thenAnswer(i -> i.getArgument(0));
+
+        List<VersionConflict> result = service.recordMergeConflicts(parent, source);
+
+        assertEquals(1, result.size());
+        assertFalse(result.get(0).isResolved());
+        verify(conflictRepository).save(any(VersionConflict.class));
+    }
+
+    @Test
+    void recordMergeConflicts_TwoDifferentIdentitiesConflict_EachGetsItsOwnRowNotTheOthers() {
+        Version parent = version("parent");
+        Version source = version("source");
+        Version sibling = version("sibling");
+        UUID identityA = UUID.randomUUID();
+        UUID identityB = UUID.randomUUID();
+
+        Well mergedWellA = well("Merged A", identityA);
+        Well mergedWellB = well("Merged B", identityB);
+        editNode(source, mergedWellA);
+        editNode(source, mergedWellB);
+        parent.getNodeSnapshot().add(mergedWellA);
+        parent.getNodeSnapshot().add(mergedWellB);
+        sibling.getNodeSnapshot().add(well("Sibling A", identityA));
+        sibling.getNodeSnapshot().add(well("Sibling B", identityB));
+
+        VersionConflict existingForA = conflictFixture(parent, sibling, ConflictEntityType.NODE, identityA);
+        when(versionRepository.findByParentVersionId(parent.getId())).thenReturn(List.of(sibling));
+        when(conflictRepository.findPendingDuplicate(parent.getId(), source.getId(), sibling.getId(),
+                ConflictEntityType.NODE, identityA)).thenReturn(Optional.of(existingForA));
+        when(conflictRepository.findPendingDuplicate(parent.getId(), source.getId(), sibling.getId(),
+                ConflictEntityType.NODE, identityB)).thenReturn(Optional.empty());
+        when(conflictRepository.save(any(VersionConflict.class))).thenAnswer(i -> i.getArgument(0));
+
+        List<VersionConflict> result = service.recordMergeConflicts(parent, source);
+
+        assertEquals(2, result.size());
+        verify(conflictRepository).save(existingForA);
+        verify(conflictRepository).save(argThat(c -> c != existingForA && identityB.equals(c.getIdentityId())));
     }
 
     // ---------------------------------------------------------------

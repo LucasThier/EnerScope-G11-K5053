@@ -54,6 +54,30 @@ export function ValueChainIcon(props: IconProps) {
   );
 }
 
+export function BranchIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="6" cy="6" r="2.2" />
+      <circle cx="6" cy="18" r="2.2" />
+      <circle cx="18" cy="9" r="2.2" />
+      <path d="M6 8.2V15.8" />
+      <path d="M18 11.2A6 6 0 0 1 12 15.8h-3.8" />
+    </Icon>
+  );
+}
+
+export function MergeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="7" cy="5" r="2.2" />
+      <circle cx="7" cy="19" r="2.2" />
+      <path d="M7 7.2v9.6" />
+      <path d="M19 12H9.6" />
+      <path d="M13 8l-3.5 4 3.5 4" />
+    </Icon>
+  );
+}
+
 export function FlaskIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -126,18 +150,18 @@ export function ChevronDownIcon(props: IconProps) {
   );
 }
 
-export function ChevronsLeftIcon(props: IconProps) {
+export function MenuIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="m11 17-5-5 5-5M18 17l-5-5 5-5" />
+      <path d="M4 7h16M4 12h16M4 17h16" />
     </Icon>
   );
 }
 
-export function ChevronsRightIcon(props: IconProps) {
+export function PinIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <path d="m13 17 5-5-5-5M6 17l5-5-5-5" />
+      <path d="M9 4h6v5l2.5 4H6.5L9 9V4ZM12 13v7" />
     </Icon>
   );
 }
@@ -211,6 +235,16 @@ export function EyeIcon(props: IconProps) {
     <Icon {...props}>
       <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" />
       <circle cx="12" cy="12" r="3" />
+    </Icon>
+  );
+}
+
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2 12s3.6-6.5 10-6.5c1.8 0 3.3.4 4.6 1M22 12s-1.5 2.7-4.1 4.5C16.4 17.6 14.3 18.5 12 18.5c-1.8 0-3.3-.4-4.6-1" />
+      <path d="M4.5 4.5 19.5 19.5" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
     </Icon>
   );
 }

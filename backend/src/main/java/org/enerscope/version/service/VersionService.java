@@ -946,6 +946,9 @@ public class VersionService {
 
         Version subVersion = versionRepository.findById(subVersionId)
                 .orElseThrow(() -> new VersionNotFoundException(subVersionId));
+        if (subVersion.getParentVersion() == null) {
+            throw new IllegalArgumentException("Version has no parent version to merge into");
+        }
         Version parentVersion = versionRepository.findById(subVersion.getParentVersion().getId())
                 .orElseThrow(() -> new VersionNotFoundException(subVersion.getParentVersion().getId()));
 

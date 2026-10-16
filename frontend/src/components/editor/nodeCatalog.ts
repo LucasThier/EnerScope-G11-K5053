@@ -1,3 +1,4 @@
+import type { ResolvedTheme } from '../../hooks/useTheme';
 import type { NodeState, NodeType, StructuralRole, Vertical } from '../../types/diagram';
 
 /** A numeric, type-specific field of a node subtype. */
@@ -139,12 +140,37 @@ export function specForType(type: NodeType): NodeTypeSpec | undefined {
 }
 
 /** Palette colour per vertical (from the brand tokens). */
-export const VERTICAL_COLORS: Record<Vertical, string> = {
-  EXTRACTION: '#6dbe45',
-  TRANSPORTATION: '#3f8130',
-  LIQUEFACTION: '#55a238',
-  EXPORT: '#326626',
-  INTERNAL_CONSUMPTION: '#6f767f',
+export const VERTICAL_COLORS: Record<ResolvedTheme, Record<Vertical, string>> = {
+  light: {
+    EXTRACTION: '#6dbe45',
+    TRANSPORTATION: '#3f8130',
+    LIQUEFACTION: '#55a238',
+    EXPORT: '#326626',
+    INTERNAL_CONSUMPTION: '#6f767f',
+  },
+  dark: {
+    EXTRACTION: '#8fd86b',
+    TRANSPORTATION: '#71bd5e',
+    LIQUEFACTION: '#80c968',
+    EXPORT: '#63b05a',
+    INTERNAL_CONSUMPTION: '#9aa5b0',
+  },
+};
+
+export const FALLBACK_VERTICAL_COLOR: Record<ResolvedTheme, string> = {
+  light: '#6f767f',
+  dark: '#9aa5b0',
+};
+
+export function verticalColor(theme: ResolvedTheme, vertical: Vertical | undefined): string {
+  return (
+    (vertical ? VERTICAL_COLORS[theme][vertical] : undefined) ?? FALLBACK_VERTICAL_COLOR[theme]
+  );
+}
+
+export const CONNECTION_COLORS: Record<ResolvedTheme, string> = {
+  light: '#4b515a',
+  dark: '#93a1b0',
 };
 
 /**

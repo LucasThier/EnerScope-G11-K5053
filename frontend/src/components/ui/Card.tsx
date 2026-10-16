@@ -17,7 +17,7 @@ export function Card({ children, elevation = 'sm', padded = true, className = ''
   return (
     <div
       className={
-        `rounded-2xl border border-ink-100 bg-white ${padded ? 'p-6' : ''} ` +
+        `rounded-2xl border border-ink-100 bg-surface ${padded ? 'p-6' : ''} ` +
         `${ELEVATIONS[elevation]} ${className}`
       }
     >
