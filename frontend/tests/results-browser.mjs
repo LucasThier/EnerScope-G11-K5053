@@ -46,6 +46,7 @@ try {
     if (path.endsWith('/projects')) return ok([{ id: 'p1', name: 'Cadena de GNL · Demostración', organizationId: 'o1', organizationName: 'Demo', memberCount: 1 }]);
     if (path.endsWith('/members')) return ok([{ userId: user.id, active: true, permissions: ['VIEW_PROJECT'] }]);
     if (path.endsWith('/versions')) return ok([{ id: 'v1', name: 'Escenario base · Datos ilustrativos', nodes: [{ id: 'n1', name: 'Nombre actual diferente', type: 'WELL' }], lastModified: latest.createdAt }]);
+    if (path.endsWith('/evaluation-jobs')) return ok([]);
     if (path.endsWith('/draft')) return ok(null);
     if (path.endsWith('/configuration')) return ok({ ...configuration, startYear: 2040 });
     if (path.endsWith('/evaluations')) return ok([latest, historical, legacy]);

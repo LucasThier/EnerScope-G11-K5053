@@ -1,3 +1,22 @@
+export interface SimulationMetadata { rounds: number; seed: string; algorithm: string; calculationVersion: number }
+export interface NumericStatistics { count: number; mean: number | null; min: number | null; max: number | null; p10: number | null; p50: number | null; p90: number | null }
+export interface PaybackStatistics { denominator: number; recoveredProbability: number | null; recoveryPeriods: NumericStatistics; statuses: Record<string, number>; becomesNegativeAgainCount: number }
+export interface ProbabilisticSummary {
+  rounds: number; npv: NumericStatistics; positiveNpvProbability: number | null;
+  irr: NumericStatistics; irrStatuses: Record<string, number>;
+  simplePayback: PaybackStatistics; discountedPayback: PaybackStatistics;
+  cashFlows: { period: number; year: number; values: NumericStatistics }[];
+  operational: { nodeId: string; period: number; metric: Exclude<keyof AnnualNodeMetrics, 'nodeId' | 'period'>; values: NumericStatistics }[];
+}
+export interface EconomicJob {
+  id: string; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'INTERRUPTED';
+  rounds: number; completedRounds: number; seed: string; createdAt: string; startedAt: string | null;
+  finishedAt: string | null; errorMessage: string | null; evaluationId: string | null;
+}
+export interface EconomicRound {
+  round: number; seed: string; rawMetrics: AnnualNodeMetrics[]; result: Evaluation['snapshot']['result'];
+}
+export interface EconomicRoundSummary { round: number; seed: string; npv: number; indicators: Indicators }
 export interface Scenario {
   id: string; name: string; lastModified: string;
   nodes: { id: string; name: string; type: string }[];
@@ -51,7 +70,7 @@ export interface AnnualNodeMetrics {
 export interface PhysicalNodeSnapshot { id: string; name?: string | null }
 export interface Evaluation {
   id: string; createdAt: string;
-  snapshot: { schemaVersion: number; rawMetrics?: AnnualNodeMetrics[] | null; physicalNodes?: PhysicalNodeSnapshot[] | null; configuration: EconomicConfiguration | null;
+  snapshot: { simulation?: SimulationMetadata | null; summary?: ProbabilisticSummary | null; schemaVersion: number; rawMetrics?: AnnualNodeMetrics[] | null; physicalNodes?: PhysicalNodeSnapshot[] | null; configuration: EconomicConfiguration | null;
     result: { npv: number | null; indicators: Indicators | null; periods: EconomicPeriod[] | null;
       pendingBalances: unknown[] | null } | null };
 }

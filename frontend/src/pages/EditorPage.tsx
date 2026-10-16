@@ -1,3 +1,5 @@
+import { useActiveProject } from '../hooks/useActiveProject';
+import { useSearchParams } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useOrganizations } from '../hooks/useOrganizations';
 import { projectsApi } from '../api/projects';
@@ -18,7 +20,6 @@ import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Spinner } from '../components/ui/Spinner';
 import type { NodeDetail, NodeType, VersionSummary } from '../types/diagram';
-import type { ProjectSummary } from '../types/project';
 
 type Mode = 'diagram' | 'map';
 type Projection = 'mercator' | 'globe';
@@ -81,12 +82,24 @@ function FloatingPanel({ style, children }: { style: CSSProperties; children: Re
 
 /** The visual editor: pick org → project → version, then edit the diagram on a canvas or a map. */
 export function EditorPage() {
+  const { activeProject, isLoading } = useActiveProject();
+  if (isLoading) return <p role="status">Cargando proyectos…</p>;
+  return <EditorWorkspace key={activeProject?.id ?? 'empty'} />;
+}
+function EditorWorkspace() {
+  const { activeProject, projects: allProjects, selectProject, reload: reloadProjects } = useActiveProject();
+  const [searchParams] = useSearchParams();
+  const preferredVersion = searchParams.get('versionId');
   const { organizations, createOrganization } = useOrganizations();
-  const [orgId, setOrgId] = useState('');
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [projectId, setProjectId] = useState('');
-  const [versions, setVersions] = useState<VersionSummary[]>([]);
-  const [versionId, setVersionId] = useState('');
+  const [orgId, setOrgId] = useState(activeProject?.organizationId ?? '');
+  const projects = allProjects.filter(p => p.organizationId === orgId);
+  const projectId = activeProject?.organizationId === orgId ? activeProject.id : '';
+  const setProjectId = selectProject;
+  const [versionState, setVersionState] = useState<{ project: string; list: VersionSummary[]; selected: string }>({ project: '', list: [], selected: '' });
+  const versions = versionState.project === projectId ? versionState.list : [];
+  const versionId = versions.some(v => v.id === versionState.selected) ? versionState.selected : '';
+  const setVersionId = (id: string) => setVersionState(state => ({ ...state, selected: id }));
+  const versionRequest = useRef(0);
   const [selectorError, setSelectorError] = useState<string | null>(null);
 
   const [mode, setMode] = useState<Mode>('diagram');
@@ -263,48 +276,26 @@ export function EditorPage() {
     if (!orgId && organizations.length > 0) setOrgId(organizations[0].id);
   }, [organizations, orgId]);
 
-  const loadProjects = useCallback(
-    (selectId?: string) => {
-      if (!orgId) return;
-      setSelectorError(null);
-      projectsApi
-        .list(orgId)
-        .then((res) => {
-          const list = res.data.data ?? [];
-          setProjects(list);
-          setProjectId(selectId ?? list[0]?.id ?? '');
-        })
-        .catch((err) => setSelectorError(getErrorMessage(err, 'Could not load projects')));
-    },
-    [orgId],
-  );
-
+  const loadVersions = useCallback(async (selectId?: string) => {
+    const request = ++versionRequest.current;
+    setVersionState({ project: projectId, list: [], selected: '' });
+    setSelectorError(null);
+    if (!projectId) return;
+    try {
+      const res = await projectsApi.listVersions(projectId);
+      if (request !== versionRequest.current) return;
+      const list = res.data.data ?? [];
+      const preferred = selectId ?? preferredVersion;
+      setVersionState({ project: projectId, list, selected: list.find(v => v.id === preferred)?.id ?? list[0]?.id ?? '' });
+    } catch (err) {
+      if (request === versionRequest.current) setSelectorError(getErrorMessage(err, 'No se pudieron cargar las versiones.'));
+    }
+  }, [projectId, preferredVersion]);
+  const invalidateRequest = useCallback(() => { versionRequest.current++; }, []);
   useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
-
-  const loadVersions = useCallback(
-    (selectId?: string) => {
-      if (!projectId) {
-        setVersions([]);
-        setVersionId('');
-        return;
-      }
-      projectsApi
-        .listVersions(projectId)
-        .then((res) => {
-          const list = res.data.data ?? [];
-          setVersions(list);
-          setVersionId(selectId ?? list[0]?.id ?? '');
-        })
-        .catch((err) => setSelectorError(getErrorMessage(err, 'Could not load versions')));
-    },
-    [projectId],
-  );
-
-  useEffect(() => {
-    loadVersions();
-  }, [loadVersions]);
+    void loadVersions();
+    return invalidateRequest;
+  }, [loadVersions, invalidateRequest]);
 
   async function handleCreateOrganization() {
     const name = window.prompt('New organization name');
@@ -331,7 +322,8 @@ export function EditorPage() {
         description: description.trim() || name.trim(),
         organizationId: orgId,
       });
-      loadProjects(res.data.data?.id);
+      await reloadProjects();
+      if (res.data.data?.id) selectProject(res.data.data.id);
     } catch (err) {
       setSelectorError(getErrorMessage(err, 'Could not create the project'));
     }
@@ -343,8 +335,8 @@ export function EditorPage() {
     if (!name || !name.trim()) return;
     try {
       const parent = versionId || undefined;
-      await projectsApi.createVersion(projectId, { name: name.trim(), parentVersion: parent });
-      loadVersions();
+      const response = await projectsApi.createVersion(projectId, { name: name.trim(), parentVersion: parent });
+      void loadVersions(response.data.data?.id);
     } catch (err) {
       setSelectorError(getErrorMessage(err, 'Could not create the version'));
     }
@@ -399,7 +391,7 @@ export function EditorPage() {
       <div className="flex flex-wrap items-end gap-3 border-b border-ink-100 bg-white px-4 py-2.5">
         <Field label="Organization">
           <div className="flex items-center gap-1">
-            <select className={selectClass} value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+            <select className={selectClass} value={orgId} onChange={(e) => { setOrgId(e.target.value); const first = allProjects.find(p => p.organizationId === e.target.value); if (first) selectProject(first.id); }}>
               {organizations.length === 0 && <option value="">No organizations</option>}
               {organizations.map((o) => (
                 <option key={o.id} value={o.id}>

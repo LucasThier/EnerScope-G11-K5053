@@ -10,8 +10,11 @@ import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { EconomicEditor } from '../components/economics/EconomicEditor';
-import { ConfigurationSummary } from '../components/economics/EconomicResults';
+import { AdvancedEconomicEditor } from '../components/economics/AdvancedEconomicEditor';
 import { ScenarioResults } from '../components/economics/ScenarioResults';
+import { EconomicJobs } from '../components/economics/EconomicJobs';
+import { ProbabilisticResults } from '../components/economics/ProbabilisticResults';
+import { executionError } from '../utils/probabilisticResults';
 import { emptyDraft, fromConfiguration, toConfiguration, validateDraft } from '../utils/economicDraft';
 import type { EconomicDraft } from '../utils/economicDraft';
 import type { EconomicConfiguration, Evaluation, Scenario } from '../types/economics';
@@ -26,7 +29,7 @@ function EconomicsWorkspace({ projectId, versionId }: { projectId: string; versi
   const navigate = useNavigate();
   const base = `/projects/${projectId}/versions/${versionId}/economics`;
   const [scenario, setScenario] = useState<Scenario | null>(null);
-  const [configuration, setConfiguration] = useState<EconomicConfiguration | null>(null);
+  const [advanced, setAdvanced] = useState<EconomicConfiguration | null>(null);
   const [draft, setDraft] = useState<EconomicDraft>(emptyDraft);
   const [baseline, setBaseline] = useState('');
   const [editable, setEditable] = useState(false);
@@ -40,8 +43,11 @@ function EconomicsWorkspace({ projectId, versionId }: { projectId: string; versi
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [roundCount, setRoundCount] = useState('10');
+  const [seed, setSeed] = useState('');
+  const [jobsRefresh, setJobsRefresh] = useState(0);
   const inFlight = useRef(false);
-  const dirty = editable && !!baseline && JSON.stringify(draft) !== baseline;
+  const dirty = !!baseline && JSON.stringify(advanced ?? draft) !== baseline;
   const blocker = useBlocker(({ currentLocation, nextLocation }) =>
     (dirty || busy) && currentLocation.pathname.split('/economics')[0] !== nextLocation.pathname.split('/economics')[0]);
   useEffect(() => {
@@ -74,7 +80,8 @@ function EconomicsWorkspace({ projectId, versionId }: { projectId: string; versi
         const compatible = saved ? fromConfiguration(saved) : emptyDraft();
         const initial = compatible ? savedDraft?.draft ?? compatible : null;
         if (initial && savedDraft) setNotice('Borrador recuperado. Podés continuar editando; los resultados guardados conservan su configuración original.');
-        setScenario(selected); setConfiguration(saved); setEditable(initial !== null);
+        setScenario(selected); setEditable(initial !== null);
+        if (!initial && saved) { setAdvanced(saved); setBaseline(JSON.stringify(saved)); }
         if (initial) { setDraft(initial); setBaseline(JSON.stringify(initial)); }
         setEvaluations(history);
         setCanEdit(user?.platformRole === 'ADMIN' || !!members?.data.data?.some(m => m.userId === user?.id && m.active && m.permissions.includes('EDIT_PROJECT')));
@@ -92,23 +99,24 @@ function EconomicsWorkspace({ projectId, versionId }: { projectId: string; versi
     return () => { cancelled = true; };
   }, [projectId, versionId, evaluationId]);
   async function save(simulate: boolean) {
-    if (inFlight.current || !canEdit || !editable || (simulate && Object.values(validateDraft(draft, scenario?.nodes ?? [])).some(e => e.length))) return;
+    if (inFlight.current || !canEdit || (!editable && !advanced) || (!advanced && simulate && Object.values(validateDraft(draft, scenario?.nodes ?? [])).some(e => e.length))) return;
+    if (simulate) { const issue = executionError(roundCount, seed); if (issue) { setError(issue); return; } }
     inFlight.current = true; setBusy(true); setError(''); setNotice('');
     let saved = false;
     try {
-      if (!simulate) {
+      if (!simulate && !advanced) {
         await economicsApi.saveDraft(projectId, versionId, draft);
         setBaseline(JSON.stringify(draft));
         setNotice('Borrador guardado. Podés cerrar y continuar en otro momento, aunque haya datos pendientes.');
         return;
       }
-      const response = await economicsApi.save(projectId, versionId, toConfiguration(draft));
-      saved = true; setConfiguration(response); setBaseline(JSON.stringify(draft));
+      const response = await economicsApi.save(projectId, versionId, advanced ?? toConfiguration(draft));
+      saved = true; if (advanced) setAdvanced(response); setBaseline(JSON.stringify(advanced ? response : draft));
       if (simulate) {
-        const evaluation = await economicsApi.evaluate(projectId, versionId);
-        setEvaluations(old => [evaluation, ...old]); setDetail(evaluation);
-        setNotice('Evaluación guardada. Sus resultados corresponden a la configuración utilizada al simular.');
-        navigate(base + '/results');
+        const job = await economicsApi.submitJob(projectId, versionId, Number(roundCount), seed);
+        setSeed(job.seed); setJobsRefresh(n => n + 1);
+        setNotice('Simulación en segundo plano. Podés navegar y consultar su avance en el historial.');
+        navigate(base + '/history');
       } else setNotice('Configuración guardada. Los resultados existentes conservan sus datos históricos.');
     } catch (e) {
       setError((saved && simulate ? 'La configuración se guardó. No se pudo confirmar la evaluación; revisá el historial antes de volver a simular. ' : '') + getErrorMessage(e, 'No se pudo completar la operación.'));
@@ -120,17 +128,23 @@ function EconomicsWorkspace({ projectId, versionId }: { projectId: string; versi
   return <div className="space-y-5">
     <Link className="text-sm font-medium text-brand-800 underline" to={`/projects/${projectId}/versions`}>← Escenarios / {scenario.name}</Link>
     <header className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold text-ink-800">Evaluación del escenario</h1><span role="status" className="text-sm text-ink-500">{busy ? 'Guardando / simulando…' : dirty ? 'Cambios sin guardar' : 'Sin cambios pendientes'}</span></header>
-    <nav aria-label="Evaluación del escenario" className="flex flex-wrap gap-4 border-b border-ink-200">{[['configuration','Configuración'],['results','Resultados'],['history','Historial']].map(([key,label]) => <Link key={key} to={base + (key === 'configuration' ? '' : '/' + key)} aria-current={tab === key ? 'page' : undefined} className={'px-2 py-3 text-sm ' + (tab === key ? 'border-b-2 border-brand-800 font-semibold text-brand-800' : 'text-ink-600')}>{label}</Link>)}</nav>
+    <nav aria-label="Evaluación del escenario" className="flex flex-wrap gap-4 border-b border-ink-200">{[['configuration','Configuración'],['results','Resultados'],['history','Historial']].map(([key,label]) => <Link key={key} to={base + '/' + key} aria-current={tab === key ? 'page' : undefined} className={'px-2 py-3 text-sm ' + (tab === key ? 'border-b-2 border-brand-800 font-semibold text-brand-800' : 'text-ink-600')}>{label}</Link>)}</nav>
     {blocker.state === 'blocked' && <Alert>{busy ? 'Esperá a que termine la operación antes de salir.' : 'Tenés cambios sin guardar. ¿Querés salir y descartarlos?'} <Button variant="ghost" onClick={() => blocker.reset()}>Quedarme</Button>{!busy && <Button variant="secondary" onClick={() => blocker.proceed()}>Salir y descartar</Button>}</Alert>}
     {error && <Alert tone="error">{error}</Alert>}{notice && <Alert>{notice}</Alert>}
     {!canEdit && <Alert>Tenés acceso de consulta. No podés modificar la configuración ni ejecutar simulaciones.</Alert>}
+    {tab !== 'configuration' && <EconomicJobs projectId={projectId} versionId={versionId} canEdit={canEdit} refreshToken={jobsRefresh} />}
+    {tab === 'configuration' && (editable || advanced) && <p className="text-sm text-ink-600">Completá General, Inversión, Ingresos, Costos e Impuestos. Guardá los cambios o elegí Guardar y simular para calcular los resultados del escenario.</p>}
+    {tab === 'configuration' && (editable || advanced) && <Card><h2 className="mb-3 text-lg font-semibold">Ejecución probabilística</h2><div className="flex flex-wrap gap-4">
+      <label className="text-sm">Rondas (1–100)<input type="number" min="1" max="100" value={roundCount} disabled={!canEdit || busy} onChange={e => setRoundCount(e.target.value)} className="mt-1 block rounded-lg border border-ink-200 p-2" /></label>
+      <label className="text-sm">Semilla (opcional)<input type="text" inputMode="text" value={seed} disabled={!canEdit || busy} onChange={e => setSeed(e.target.value)} className="mt-1 block rounded-lg border border-ink-200 p-2" placeholder="Generar automáticamente" /></label>
+      </div><p className="mt-3 text-sm text-ink-600">La misma semilla y las mismas entradas permiten reproducir las rondas. La incertidumbre proviene de la simulación física.</p></Card>}
     {tab === 'configuration' ? editable ? <EconomicEditor draft={draft} nodes={scenario.nodes} onChange={d => { setDraft(d); setNotice(''); }} disabled={!canEdit} busy={busy} dirty={dirty} save={save} discard={() => { if (window.confirm('¿Descartar todos los cambios sin guardar?')) setDraft(JSON.parse(baseline) as EconomicDraft); }} /> :
-      <><Alert>Esta configuración utiliza opciones avanzadas. Se muestra en modo consulta para conservar sus reglas y tratamientos.</Alert>{configuration && <Card><ConfigurationSummary configuration={configuration} /></Card>}</> :
+      <>{advanced && <AdvancedEconomicEditor configuration={advanced} nodes={scenario.nodes} onChange={c => { setAdvanced(c); setNotice(''); }} disabled={!canEdit} busy={busy} dirty={dirty} save={save} discard={() => { if (window.confirm('¿Descartar todos los cambios sin guardar?')) setAdvanced(JSON.parse(baseline) as EconomicConfiguration); }} />}</> :
       tab === 'history' ? <Card><div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Evaluaciones guardadas</h2><Button variant="ghost" disabled={busy} onClick={() => { setError(''); void economicsApi.history(projectId, versionId).then(setEvaluations).catch(e => setError(getErrorMessage(e, 'No se pudo actualizar el historial.'))); }}>Actualizar</Button></div><p className="mb-4 text-sm text-ink-500">Cada evaluación conserva la configuración utilizada al simular.</p>
-        {!evaluations.length ? <p>Todavía no hay evaluaciones guardadas.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Fecha y hora','Moneda','WACC','VAN','TIR','Acción'].map(h => <th key={h} className="p-3">{h}</th>)}</tr></thead><tbody>{evaluations.map(e => <tr className="border-t border-ink-100" key={e.id}><td className="whitespace-nowrap p-3">{dateTime(e.createdAt)}</td><td className="p-3">{e.snapshot.configuration?.currency ?? '—'}</td><td className="p-3">{percent(e.snapshot.configuration?.wacc)}</td><td className="whitespace-nowrap p-3">{money(e.snapshot.result?.npv,e.snapshot.configuration?.currency)}</td><td className="p-3">{irrText(e.snapshot.result?.indicators?.irr)}</td><td className="p-3"><Link className="text-brand-800 underline" to={base + '/results/' + e.id} onClick={() => { setDetail(null); setDetailError(''); }}>Ver evaluación →</Link></td></tr>)}</tbody></table></div>}
+        {!evaluations.length ? <p>Todavía no hay evaluaciones guardadas.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Fecha y hora','Moneda','WACC','VAN / media','TIR / media calculable','Acción'].map(h => <th key={h} className="p-3">{h}</th>)}</tr></thead><tbody>{evaluations.map(e => <tr className="border-t border-ink-100" key={e.id}><td className="whitespace-nowrap p-3">{dateTime(e.createdAt)}</td><td className="p-3">{e.snapshot.configuration?.currency ?? '—'}</td><td className="p-3">{percent(e.snapshot.configuration?.wacc)}</td><td className="whitespace-nowrap p-3">{money(e.snapshot.summary?.npv.mean ?? e.snapshot.result?.npv,e.snapshot.configuration?.currency)}</td><td className="p-3">{e.snapshot.summary ? percent(e.snapshot.summary.irr.mean) : irrText(e.snapshot.result?.indicators?.irr)}</td><td className="p-3"><Link className="text-brand-800 underline" to={base + '/results/' + e.id} onClick={() => { setDetail(null); setDetailError(''); }}>Ver evaluación →</Link></td></tr>)}</tbody></table></div>}
       </Card> : tab === 'results' ? <>
         <Alert>Resultados guardados{evaluationId ? ' de la evaluación seleccionada' : ' de la evaluación más reciente'}. Los cambios actuales no modifican esta evaluación.</Alert>
-        {evaluationId && detailError ? <Alert tone="error">{detailError}</Alert> : selectedEvaluation ? <ScenarioResults key={selectedEvaluation.id} evaluation={selectedEvaluation} /> : <Card>{evaluationId ? 'Cargando evaluación…' : 'Todavía no hay resultados. Completá la configuración y ejecutá Guardar y simular.'}</Card>}
+        {evaluationId && detailError ? <Alert tone="error">{detailError}</Alert> : selectedEvaluation ? selectedEvaluation.snapshot.schemaVersion === 3 ? <ProbabilisticResults key={selectedEvaluation.id} evaluation={selectedEvaluation} projectId={projectId} versionId={versionId} /> : <ScenarioResults key={selectedEvaluation.id} evaluation={selectedEvaluation} /> : <Card>{evaluationId ? 'Cargando evaluación…' : 'Todavía no hay resultados. Completá la configuración y ejecutá Guardar y simular.'}</Card>}
       </> : <Alert>Sección no disponible.</Alert>}
   </div>;
 }

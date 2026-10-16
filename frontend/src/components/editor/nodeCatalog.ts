@@ -6,6 +6,8 @@ export interface NodeFieldSpec {
   label: string;
   /** Sent as an integer (backend `int`) rather than a float. */
   integer?: boolean;
+  /** Legacy API field, retained in payloads but excluded from operational panels. */
+  economic?: boolean;
 }
 
 export interface NodeTypeSpec {
@@ -33,7 +35,7 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
       { key: 'declineCurve', label: 'Decline curve' },
       { key: 'gasRichness', label: 'Gas richness (0-1)' },
       { key: 'dtmTime', label: 'DTM time', integer: true },
-      { key: 'dtmCost', label: 'DTM cost' },
+      { key: 'dtmCost', label: 'DTM cost', economic: true },
       { key: 'surface', label: 'Surface' },
     ],
   },
@@ -58,7 +60,7 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
       { key: 'maxTreatmentCapacity', label: 'Max treatment capacity' },
       { key: 'contaminantWaste', label: 'Contaminant waste' },
       { key: 'intermediateStorage', label: 'Intermediate storage' },
-      { key: 'treatmentCost', label: 'Treatment cost' },
+      { key: 'treatmentCost', label: 'Treatment cost', economic: true },
     ],
   },
   {
@@ -105,7 +107,7 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
       { key: 'mtpaRatio', label: 'MTPA ratio' },
       { key: 'intermediateStorage', label: 'Intermediate storage' },
       { key: 'vesselDepth', label: 'Vessel depth' },
-      { key: 'hiringCost', label: 'Hiring cost' },
+      { key: 'hiringCost', label: 'Hiring cost', economic: true },
     ],
   },
   {
@@ -128,11 +130,16 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
       { key: 'exportFrequency', label: 'Export frequency', integer: true },
       { key: 'shipCapacity', label: 'Ship capacity' },
       { key: 'fullLoadTime', label: 'Full load time' },
-      { key: 'hiringCost', label: 'Hiring cost' },
+      { key: 'hiringCost', label: 'Hiring cost', economic: true },
       { key: 'timeToDestination', label: 'Time to destination', integer: true },
     ],
   },
 ];
+
+/** Fields editable in the physical diagram and map. */
+export function operationalFields(spec: NodeTypeSpec): NodeFieldSpec[] {
+  return spec.fields.filter(field => !field.economic);
+}
 
 export function specForType(type: NodeType): NodeTypeSpec | undefined {
   return NODE_TYPE_SPECS.find((s) => s.type === type);

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { TextField } from '../ui/TextField';
-import { NODE_STATES, VERTICAL_COLORS, specForType } from './nodeCatalog';
+import { NODE_STATES, VERTICAL_COLORS, operationalFields, specForType } from './nodeCatalog';
 import type { DiagramNode, NodeDetail, NodeState } from '../../types/diagram';
 
 interface NodeDataPanelProps {
@@ -17,7 +17,7 @@ interface NodeDataPanelProps {
 }
 
 function fmt(n: number | null | undefined): string {
-  return n == null ? '—' : String(Number(n.toFixed(4)));
+  return n == null ? 'â€”' : String(Number(n.toFixed(4)));
 }
 
 /** Details of the selected node, with lightweight rename/state edit and delete. */
@@ -119,7 +119,7 @@ export function NodeDataPanel({
         </dd>
         <dt className="text-ink-400">Id</dt>
         <dd className="truncate text-ink-500" title={node.id}>
-          {node.id.slice(0, 8)}…
+          {node.id.slice(0, 8)}â€¦
         </dd>
       </dl>
 
@@ -127,17 +127,13 @@ export function NodeDataPanel({
         <div className="border-t border-ink-100 pt-3">
           <span className="text-xs font-semibold uppercase tracking-wide text-ink-400">Data</span>
           <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-            <dt className="text-ink-400">Upkeep cost</dt>
-            <dd className="text-ink-700">{fmt(detail.upkeepCosts)}</dd>
-            <dt className="text-ink-400">Operating cost</dt>
-            <dd className="text-ink-700">{fmt(detail.operatingCosts)}</dd>
             <dt className="text-ink-400">Lifespan (mo)</dt>
             <dd className="text-ink-700">{fmt(detail.lifespanInMonths)}</dd>
             <dt className="text-ink-400">Maint. (days)</dt>
             <dd className="text-ink-700">{fmt(detail.maintenanceIntervalInDays)}</dd>
             <dt className="text-ink-400">Waste %</dt>
             <dd className="text-ink-700">{fmt(detail.wastePercentage)}</dd>
-            {spec?.fields.map((f) => (
+            {spec && operationalFields(spec).map((f) => (
               <Fragment key={f.key}>
                 <dt className="text-ink-400">{f.label}</dt>
                 <dd className="text-ink-700">{fmt(detail.attributes[f.key])}</dd>
@@ -148,7 +144,7 @@ export function NodeDataPanel({
       )}
 
       <Button variant="secondary" onClick={() => onStartConnect(node.id)}>
-        Connect to another node…
+        Connect to another nodeâ€¦
       </Button>
 
       {removed ? (

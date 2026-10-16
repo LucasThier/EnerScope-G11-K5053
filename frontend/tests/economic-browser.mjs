@@ -59,6 +59,13 @@ await page.route('**/api/v1/**', async route => {
     }
     return configuration ? ok(configuration) : route.fulfill({ status: 404, json: { success: false, message: 'Economic configuration not found' } });
   }
+  if (path.endsWith('/evaluation-jobs')) {
+    if(method==='GET') return ok([]);
+    assert.ok(configuration, 'Configuration must be saved before submitting the job');
+    assert.deepEqual(route.request().postDataJSON(), { rounds: 10, seed: null });
+    simulations++; await new Promise(r=>setTimeout(r,150)); const e=evaluation(); history.unshift(e);
+    return route.fulfill({status:202,json:{success:true,data:{id:'job'+simulations,status:'QUEUED',rounds:10,completedRounds:0,seed:'42'},message:'Queued'}});
+  }
   if (path.endsWith('/evaluations')) {
     if (method === 'POST') { simulations++; await new Promise(r => setTimeout(r,150)); const e=evaluation(); history.unshift(e); return ok(e); }
     return ok(history);
@@ -68,7 +75,16 @@ await page.route('**/api/v1/**', async route => {
 });
 const base = (process.env.APP_URL || 'http://127.0.0.1:5173') + '/projects/p1/versions/v1/economics';
 try {
-  await page.goto(base);
+  await page.goto(base.replace('/versions/v1/economics', '/versions'));
+  await page.getByRole('link', { name: 'Base', exact: true }).click();
+  assert.equal(new URL(page.url()).pathname, '/projects/p1/versions/v1/economics/configuration');
+  for (const section of ['General', 'Inversion', 'Ingresos', 'Costos', 'Impuestos']) {
+    await page.getByRole('button', { name: section, exact: true }).click();
+  }
+  await page.getByRole('button', { name: 'General', exact: true }).click();
+  await page.getByRole('link', { name: '← Escenarios / Base' }).click();
+  await page.getByRole('link', { name: 'Configurar y simular →' }).click();
+  assert.equal(new URL(page.url()).pathname, '/projects/p1/versions/v1/economics/configuration');
   await page.getByLabel('WACC anual (%)', { exact: true }).fill('10');
   await page.getByRole('button', { name: 'Impuestos', exact: true }).click();
   await page.getByLabel('Nombre de la entidad').fill('Entidad de prueba');
@@ -81,15 +97,18 @@ try {
   assert.equal(await page.getByLabel('Nombre de la entidad').inputValue(),'Entidad de prueba');
   rejectSave = false;
   await page.getByRole('button',{ name:'Guardar y simular', exact:true }).first().evaluate(button => { button.click(); button.click(); });
-  await page.getByRole('heading',{name:'VAN',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Actualizar',exact:true}).click();
+  await page.getByRole('link',{name:'Ver evaluación →'}).first().click();
+  await page.getByRole('heading',{name:/VAN/}).first().waitFor();
   assert.equal(simulations,1);
   assert.equal(saves,2);
   const output = new URL('../node_modules/.cache/economic-ui/',import.meta.url);
   await mkdir(output,{recursive:true});
   await page.screenshot({path: fileURLToPath(new URL('results-desktop.png',output)),fullPage:true});
   await page.getByRole('link',{name:'Historial',exact:true}).click();
-  await page.getByRole('link',{name:'Ver evaluación →'}).click();
-  await page.getByRole('heading',{name:'VAN',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Actualizar',exact:true}).click();
+  await page.getByRole('link',{name:'Ver evaluación →'}).first().click();
+  await page.getByRole('heading',{name:/VAN/}).first().waitFor();
   assert.equal(simulations,1);
   await page.getByRole('link',{name:'Configuración',exact:true}).click();
   await page.getByLabel('WACC anual (%)',{exact:true}).fill('15');
@@ -110,10 +129,27 @@ try {
   await page.screenshot({path: fileURLToPath(new URL('configuration-mobile.png',output)),fullPage:true});
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   assert.equal(overflow,false,'Mobile must not overflow the page');
-  configuration = structuredClone(fixture); configuration.taxEntities[0].carryLosses = true;
+  configuration = JSON.parse(await readFile(new URL('../../backend/src/test/resources/economic-examples/economic-configuration.json', import.meta.url), 'utf8'));
+  const advancedBefore = structuredClone(configuration);
   await page.goto(base);
-  await page.getByText('Esta configuración utiliza opciones avanzadas.',{exact:false}).waitFor();
-  assert.equal(await page.getByRole('button',{name:'Guardar y simular'}).first().count(),0);
+  await page.getByLabel('WACC anual (%)', { exact: true }).fill('12');
+  for (const section of ['Inversión', 'Ingresos', 'Costos', 'Impuestos']) await page.getByRole('button', { name: section, exact: true }).click();
+  assert.equal(await page.getByLabel('Trasladar pérdidas', { exact: true }).count(), 2);
+  await page.getByLabel('Tasa de impuesto (%)', { exact: true }).first().fill('25');
+  await page.getByRole('button', { name: 'General', exact: true }).click();
+  await page.getByRole('button', { name: 'Guardar', exact: true }).first().click();
+  await page.getByText('Configuración guardada.', { exact: false }).waitFor();
+  const advancedExpected = structuredClone(advancedBefore);
+  advancedExpected.wacc = 0.12; advancedExpected.taxEntities[0].taxRate = 0.25;
+  assert.deepEqual(configuration, advancedExpected, 'Saving must preserve ownership, contracts, dates and fiscal policies');
+  await page.reload();
+  await page.getByLabel('WACC anual (%)', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('WACC anual (%)', { exact: true }).inputValue(), '12');
+  const advancedSimulations = simulations;
+  await page.getByRole('button', { name: 'Guardar y simular', exact: true }).first().click();
+  await page.getByRole('heading', { name: 'Evaluaciones guardadas' }).waitFor();
+  assert.equal(simulations, advancedSimulations + 1);
+  assert.deepEqual(configuration, advancedExpected);
   configuration = fixture;
   scenario.nodes.push({ id: 'ship', name: 'Buque de prueba', type: 'LNG_CAMER' });
   await page.goto(base);
@@ -165,7 +201,9 @@ try {
   await page.getByLabel('Importe (USD)', { exact: true }).fill('1000');
   await page.getByLabel('Vida útil (meses)', { exact: true }).fill('24');
   await page.getByRole('button', { name: 'Guardar y simular', exact: true }).first().evaluate(b => { b.click(); b.click(); });
-  await page.getByRole('heading', { name: 'VAN', exact: true }).waitFor();
+  await page.getByRole('button',{name:'Actualizar',exact:true}).click();
+  await page.getByRole('link',{name:'Ver evaluación →'}).first().click();
+  await page.getByRole('heading',{name:/VAN/}).first().waitFor();
   assert.equal(simulations, simulationsBeforeDraft + 1);
   assert.equal(savedDraft, null);
   // Filtering is presentation-only; both action bars operate on the complete draft.
@@ -214,5 +252,5 @@ try {
   assert.equal(await page.getByRole('button',{name:'Guardar y simular'}).first().isDisabled(),true);
   assert.equal(await page.getByRole('group', { name: 'Acciones inferiores' }).getByRole('button', { name: 'Guardar y simular' }).isDisabled(), true);
   assert.deepEqual(failures,[]);
-  console.log('PASS: save failure, single evaluation, immutable history, dirty navigation, project switching, advanced read-only, viewer permissions, desktop/mobile layout.');
+  console.log('PASS: save failure, single evaluation, immutable history, dirty navigation, project switching, advanced editing without data loss, viewer permissions, desktop/mobile layout.');
 } finally { await browser.close(); }

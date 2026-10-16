@@ -7,6 +7,7 @@ import {
   NODE_TYPE_SPECS,
   VERTICAL_COLORS,
   defaultBaseValues,
+  operationalFields,
   specForType,
   type NodeBaseValues,
   type NodeTypeSpec,
@@ -131,19 +132,9 @@ export function NodeFormPanel({
         </select>
       </div>
 
+      <p className="text-xs text-ink-500">La configuración económica se edita en Simulaciones / Escenarios.</p>
+
       <div className="grid grid-cols-2 gap-2">
-        <TextField
-          label="Upkeep cost"
-          type="number"
-          value={base.upkeepCosts}
-          onChange={(e) => setBase((b) => ({ ...b, upkeepCosts: num(e.target.value) }))}
-        />
-        <TextField
-          label="Operating cost"
-          type="number"
-          value={base.operatingCosts}
-          onChange={(e) => setBase((b) => ({ ...b, operatingCosts: num(e.target.value) }))}
-        />
         <TextField
           label="Lifespan (months)"
           type="number"
@@ -158,13 +149,13 @@ export function NodeFormPanel({
         />
       </div>
 
-      {spec && spec.fields.length > 0 && (
+      {spec && operationalFields(spec).length > 0 && (
         <div className="flex flex-col gap-2 border-t border-ink-100 pt-3">
           <span className="text-xs font-semibold uppercase tracking-wide text-ink-400">
             {spec.label} fields
           </span>
           <div className="grid grid-cols-2 gap-2">
-            {spec.fields.map((f) => (
+            {operationalFields(spec).map((f) => (
               <TextField
                 key={f.key}
                 label={f.label}
