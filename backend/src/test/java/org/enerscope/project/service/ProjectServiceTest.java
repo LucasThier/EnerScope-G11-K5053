@@ -652,6 +652,36 @@ class ProjectServiceTest {
                 verify(projectRepository).save(project);
         }
 
+
+        @Test
+        void saveVersionRejectsParentFromAnotherProject() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                assertThrows(IllegalArgumentException.class, () -> projectService.saveVersion(
+                        projectId, new VersionDTO("Copy", UUID.randomUUID())));
+                verify(versionService, never()).saveVersion(any());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void saveVersionAcceptsParentFromSameProject() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = new Version();
+                org.springframework.test.util.ReflectionTestUtils.setField(parent, "id", UUID.randomUUID());
+                project.addVersion(parent);
+                Version child = new Version();
+                VersionDTO data = new VersionDTO("Copy", parent.getId());
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(data)).thenReturn(child);
+                assertEquals(child, projectService.saveVersion(projectId, data));
+                assertTrue(project.getVersions().contains(child));
+                verify(projectRepository).save(project);
+        }
+
         @Test
         void saveVersionRejectsNullProjectId() {
                 assertThrows(IllegalArgumentException.class,

@@ -79,14 +79,17 @@ public class EconomicService {
         Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
         EconomicConfiguration c = configuration(versionId); validator.validate(c, nodeIds(version));
         validateExportNodes(c, version);
-        var operational = simulator.simulate(version, c);
+        var codec = new EconomicInputCodec(mapper);
+        long seed = new java.security.SecureRandom().nextLong();
+        var input = codec.freeze(version, c, 1, seed);
+        var operational = simulator.simulate(codec.thaw(input), c, org.enerscope.simulator.Simulator.seedForRound(seed, 0));
         EconomicResult result = engine.calculate(c, operational.metrics());
         if (result.indicators().irr().status() == org.enerscope.economic.model.enums.IrrStatus.NUMERICAL_FAILURE
                 || result.indicators().discountedPayback().status() == org.enerscope.economic.model.enums.PaybackStatus.NUMERICAL_FAILURE)
             logger.warn("Economic indicator numerical failure for version {}; evaluation remains available", versionId);
         // Node entities have no back-reference to versions; Jackson captures their concrete physical parameters.
-        Snapshot snapshot = new Snapshot(2, c, mapper.valueToTree(version.getNodeSnapshot()),
-                mapper.valueToTree(version.getConnectionSnapshot()), operational.rawMetrics(), result);
+        Snapshot snapshot = new Snapshot(2, c, codec.displayNodes(input),
+                input.connections(), operational.rawMetrics(), result, input.simulation(), null);
         EconomicEvaluation stored = evaluations.saveAndFlush(new EconomicEvaluation(version, json(snapshot)));
         logger.info("Economic evaluation {} completed for version {}", stored.getId(), versionId);
         return new EvaluationDTO(stored.getId(), stored.getCreatedAt(), snapshot);
@@ -105,14 +108,14 @@ public class EconomicService {
                 .orElseThrow(() -> new EntityNotFoundException("Economic evaluation not found")));
     }
 
-    private EconomicConfiguration configuration(UUID versionId) {
+    EconomicConfiguration configuration(UUID versionId) {
         return read(configurations.findByVersionId(versionId)
                 .orElseThrow(() -> new EntityNotFoundException("Economic configuration not found")).getConfigurationJson(), EconomicConfiguration.class);
     }
 
     private EvaluationDTO dto(EconomicEvaluation e) {
         Snapshot stored = read(e.getSnapshotJson(), Snapshot.class);
-        if (stored.result() == null || stored.result().indicators() == null) {
+        if (stored.schemaVersion() < 3 && (stored.result() == null || stored.result().indicators() == null)) {
             var result = stored.result();
             var config = stored.configuration();
             var periods = result == null ? null : result.periods();
@@ -125,7 +128,7 @@ public class EconomicService {
             if (result == null) result = new EconomicResult(null, null, null, null, null, null, derived);
             else result = result.withIndicators(derived);
             stored = new Snapshot(stored.schemaVersion(), config, stored.physicalNodes(),
-                    stored.physicalConnections(), stored.rawMetrics(), result);
+                    stored.physicalConnections(), stored.rawMetrics(), result, stored.simulation(), stored.summary());
         }
         return new EvaluationDTO(e.getId(), e.getCreatedAt(), stored);
     }
@@ -142,7 +145,7 @@ public class EconomicService {
         return true;
     }
 
-    private Version authorize(UUID projectId, UUID versionId, ProjectMemberPermission permission) {
+    Version authorize(UUID projectId, UUID versionId, ProjectMemberPermission permission) {
         var session = AuthUtil.currentSession();
         if (session == null || session.getUser() == null) throw new UnauthorizedException("Authentication required");
         var project = projects.findById(projectId).orElseThrow(() -> new EntityNotFoundException("Project not found"));
@@ -158,7 +161,7 @@ public class EconomicService {
 
     // Structural validation already requires a conversion for every variable rule,
     // including contract revenue. Check actual node classes, not editable type labels.
-    private void validateExportNodes(EconomicConfiguration configuration, Version version) {
+    void validateExportNodes(EconomicConfiguration configuration, Version version) {
         Set<UUID> carriers = new HashSet<>();
         if (version.getNodeSnapshot() != null) version.getNodeSnapshot().stream()
                 .filter(n -> n instanceof org.enerscope.node.model.export.LNGCarrier)
@@ -170,7 +173,7 @@ public class EconomicService {
         }
     }
 
-    private Set<UUID> nodeIds(Version version) {
+    Set<UUID> nodeIds(Version version) {
         Set<UUID> ids = new HashSet<>();
         if (version.getNodeSnapshot() != null) version.getNodeSnapshot().forEach(n -> ids.add(n.getId()));
         return ids;

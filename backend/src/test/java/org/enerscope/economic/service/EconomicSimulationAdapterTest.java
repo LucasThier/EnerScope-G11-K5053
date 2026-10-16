@@ -9,7 +9,7 @@ class EconomicSimulationAdapterTest {
     @Test void actualAnnualSimulationFeedsCompleteExampleAndRepeatsWithoutStateLeak() {
         var adapter=new EconomicSimulationAdapter();var version=version();
         var first=adapter.simulate(version,configuration());var second=adapter.simulate(version,configuration());
-        assertEquals(first,second); assertTrue(version.getResults().isEmpty());
+        assertEquals(first,second); assertTrue(version.getFinalResults().isEmpty());
         assertEquals(10,first.rawMetrics().size());
         var raw=first.rawMetrics().stream().filter(m->m.nodeId().equals(FIRST)&&m.period()==1).findFirst().orElseThrow();
         assertEquals(0,new BigDecimal("876000").compareTo(raw.output()));

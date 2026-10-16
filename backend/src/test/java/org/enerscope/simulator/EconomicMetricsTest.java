@@ -1,6 +1,7 @@
 package org.enerscope.simulator;
 
 import java.util.*;
+import org.enerscope.simulator.auxiliary.ToDeliver;
 import org.enerscope.economic.service.EconomicExample;
 import org.enerscope.node.model.*;
 import org.enerscope.node.model.extraction.Well;
@@ -61,7 +62,8 @@ class EconomicMetricsTest {
 
     @Test
     void simulatorRejectsRepeatedExecutionInsteadOfAccumulatingResults() {
-        var simulator=new Simulator(EconomicExample.version());simulator.simulate(8760);
+        var simulator = new Simulator(EconomicExample.version());
+        simulator.simulate(1);
         assertThrows(IllegalStateException.class,()->simulator.simulate(1));
         assertEquals(8760,simulator.getAnnualMetrics().getFirst().operatingHours().intValueExact());
     }
@@ -82,7 +84,7 @@ class EconomicMetricsTest {
             new NodeConnection(UUID.randomUUID(), EconomicExample.FIRST, internal.getId()),
             new NodeConnection(UUID.randomUUID(), EconomicExample.FIRST, industrial.getId())));
         var simulator = new Simulator(version);
-        simulator.simulate(8760);
+        simulator.simulate(1);
         for (var expected : Map.of(internal.getId(), 3, industrial.getId(), 5).entrySet()) {
             var metric = simulator.getAnnualMetrics().stream().filter(m -> m.nodeId().equals(expected.getKey())).findFirst().orElseThrow();
             assertEquals(expected.getValue() * 8760, metric.output().intValueExact());
@@ -94,6 +96,6 @@ class EconomicMetricsTest {
     @Test
     void simulatorRejectsInvalidHorizons() {
         assertThrows(IllegalArgumentException.class,()->new Simulator(EconomicExample.version()).simulate(0));
-        assertThrows(IllegalArgumentException.class,()->new Simulator(EconomicExample.version()).simulate(876001));
+        assertThrows(IllegalArgumentException.class,()->new Simulator(EconomicExample.version()).simulate(101));
     }
 }

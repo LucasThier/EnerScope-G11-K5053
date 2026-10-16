@@ -46,7 +46,7 @@ export const projectsApi = {
   createVersion: (
     projectId: string,
     data: { name: string; parentVersion?: string | null },
-  ): Promise<AxiosResponse<ApiResponse<unknown>>> =>
+  ): Promise<AxiosResponse<ApiResponse<{ id: string; name: string }>>> =>
     client.post(`/projects/${projectId}/version`, data),
 
   addMember: (

@@ -108,7 +108,7 @@ class EconomicServiceTest {
         var evaluation = service.evaluate(projectId, holder.version.getId());
         assertEquals(2, evaluation.snapshot().schemaVersion());
         assertEquals(new java.math.BigDecimal("0.1483447840"), evaluation.snapshot().result().indicators().irr().rate());
-        verify(simulator, times(1)).simulate(holder.version, configuration());
+        verify(simulator, times(1)).simulate(any(), eq(configuration()), anyLong());
         var captor = org.mockito.ArgumentCaptor.forClass(EconomicEvaluation.class);
         verify(evaluations).saveAndFlush(captor.capture());
         var stored = MAPPER.readTree(captor.getValue().getSnapshotJson());
@@ -130,11 +130,13 @@ class EconomicServiceTest {
 
     @Test void historyDerivesFromSnapshotWithoutSimulationConfigurationLookupOrWrites() {
         grant(ProjectMemberPermission.VIEW_PROJECT);
-        var entity = historical(tree -> {});
+        var metadata = new org.enerscope.economic.model.results.SimulationMetadata(1,"42","JAVA_RANDOM_V1",1);
+        var entity = historical(tree -> tree.set("simulation", MAPPER.valueToTree(metadata)));
         String original = entity.getSnapshotJson();
         var single = service.getEvaluation(projectId, holder.version.getId(), entity.getId());
         var listed = service.list(projectId, holder.version.getId()).getFirst();
         assertEquals(single.snapshot(), listed.snapshot());
+        assertEquals(metadata, single.snapshot().simulation());
         assertEquals(1, single.snapshot().schemaVersion());
         var indicators = single.snapshot().result().indicators();
         assertEquals(org.enerscope.economic.model.enums.IndicatorOrigin.DERIVED_FROM_SNAPSHOT, indicators.origin());

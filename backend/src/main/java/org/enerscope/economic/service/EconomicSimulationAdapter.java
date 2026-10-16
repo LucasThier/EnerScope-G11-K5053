@@ -16,13 +16,17 @@ public class EconomicSimulationAdapter {
     public record SimulationSnapshot(List<AnnualNodeMetrics> rawMetrics, List<OperationalMetric> metrics) {}
 
     public SimulationSnapshot simulate(Version source, EconomicConfiguration c) {
+        return simulate(source, c, 0L);
+    }
+
+    public SimulationSnapshot simulate(Version source, EconomicConfiguration c, long roundSeed) {
         // Isolate result attachment from the managed Version. Simulator state is rebuilt from physical nodes.
         Version isolated = new Version(source.getName(), null,
                 source.getNodeSnapshot() == null ? List.of() : List.copyOf(source.getNodeSnapshot()),
                 source.getConnectionSnapshot() == null ? List.of() : List.copyOf(source.getConnectionSnapshot()),
                 new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-        Simulator simulator = new Simulator(isolated, c.startYear() + 1);
-        simulator.simulate(c.years()*24*365);
+        Simulator simulator = new Simulator(isolated, c.startYear() + 1, roundSeed);
+        simulator.simulate(c.years());
         List<OperationalMetric> converted = new ArrayList<>();
         for (MetricConversion conversion : c.conversions()) {
             for (int t = 0; t <= c.years(); t++) {

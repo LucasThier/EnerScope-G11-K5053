@@ -322,6 +322,10 @@ public class ProjectService {
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
                 accessGuard.assertCanEditProject(projectId);
 
+                if (versionDTO.getParentVersion() != null && project.getVersions().stream()
+                                .noneMatch(v -> v.isActive() && versionDTO.getParentVersion().equals(v.getId()))) {
+                        throw new IllegalArgumentException("Parent version must belong to the selected project");
+                }
                 Version version = versionService.saveVersion(versionDTO);
 
                 project.addVersion(version);

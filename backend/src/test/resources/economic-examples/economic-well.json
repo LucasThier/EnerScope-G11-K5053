@@ -4,7 +4,7 @@
   "lifespanInMonths": 120,
   "startupDate": "2031-01-01T00:00:00Z",
   "maxCollectionCapacity": 100,
-  "declineCurve": 0,
+  "declineCurve": { "type": "CONSTANT", "val_a": 0, "val_b": 0 },
   "gasRichness": 0,
   "dtmtime": 0,
   "dtmcost": 0,
