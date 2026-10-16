@@ -103,6 +103,7 @@ export function EditorPage() {
   const [connectError, setConnectError] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<NodeDetail | null>(null);
   const canvasWrapRef = useRef<HTMLDivElement | null>(null);
+  const selectedIdentityRef = useRef<string | null>(null);
 
   const {
     diagram,
@@ -146,6 +147,18 @@ export function EditorPage() {
     setCreateType(null);
     setEditState(null);
   }, []);
+
+  // Clears the selected node and every panel derived from it (data panel,
+  // edit form, connect mode). Called synchronously alongside the state update
+  // that switches organization, project or version, so the node-detail effect
+  // never sees a selection that belongs to the context being left.
+  const clearNodeSelection = useCallback(() => {
+    closePanel();
+    setSelectedNodeId(null);
+    setSelectedDetail(null);
+    setConnectingFrom(null);
+    setConnectError(null);
+  }, [closePanel]);
 
   // Selecting a node shows its data panel — or completes a pending connection.
   const selectNode = useCallback(
@@ -222,22 +235,32 @@ export function EditorPage() {
     setConnectingFrom(nodeId);
   }, []);
 
-  // Reset per-diagram UI state when the open version changes.
+  // Safety net: reset per-diagram UI state when the open version changes.
+  // The actual fix lives where versionId/projectId/orgId are set — see
+  // clearNodeSelection — since by the time this effect runs, a sibling
+  // effect reading the still-stale selectedNodeId may already have fired.
   useEffect(() => {
-    setSelectedNodeId(null);
-    setSelectedDetail(null);
-    setConnectingFrom(null);
-    setConnectError(null);
-    setEditState(null);
-    setPanelMode('data');
-  }, [versionId]);
+    clearNodeSelection();
+  }, [versionId, clearNodeSelection]);
 
   // Load full detail of the selected node so its data shows immediately.
   useEffect(() => {
     let cancelled = false;
     if (!selectedNodeId) {
       setSelectedDetail(null);
+      selectedIdentityRef.current = null;
       return;
+    }
+    const nodes = diagram?.nodes ?? [];
+    const current = nodes.find((n) => n.id === selectedNodeId);
+    if (current) {
+      selectedIdentityRef.current = current.identity;
+    } else if (diagram && selectedIdentityRef.current) {
+      const replacement = nodes.find((n) => n.identity === selectedIdentityRef.current);
+      if (replacement) {
+        setSelectedNodeId(replacement.id);
+        return;
+      }
     }
     void getNodeDetail(selectedNodeId).then((d) => {
       if (!cancelled) setSelectedDetail(d);
@@ -269,6 +292,7 @@ export function EditorPage() {
     (selectId?: string) => {
       if (!orgId) return;
       setSelectorError(null);
+      clearNodeSelection();
       projectsApi
         .list(orgId)
         .then((res) => {
@@ -278,7 +302,7 @@ export function EditorPage() {
         })
         .catch((err) => setSelectorError(getErrorMessage(err, 'Could not load projects')));
     },
-    [orgId],
+    [orgId, clearNodeSelection],
   );
 
   useEffect(() => {
@@ -287,6 +311,7 @@ export function EditorPage() {
 
   const loadVersions = useCallback(
     (selectId?: string) => {
+      clearNodeSelection();
       if (!projectId) {
         setVersions([]);
         setVersionId('');
@@ -301,7 +326,7 @@ export function EditorPage() {
         })
         .catch((err) => setSelectorError(getErrorMessage(err, 'Could not load versions')));
     },
-    [projectId],
+    [projectId, clearNodeSelection],
   );
 
   useEffect(() => {
@@ -388,7 +413,14 @@ export function EditorPage() {
       <div className="flex flex-wrap items-end gap-3 border-b border-ink-100 bg-surface px-4 py-2.5">
         <Field label="Organization">
           <div className="flex items-center gap-1">
-            <select className={selectClass} value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+            <select
+              className={selectClass}
+              value={orgId}
+              onChange={(e) => {
+                clearNodeSelection();
+                setOrgId(e.target.value);
+              }}
+            >
               {organizations.length === 0 && <option value="">No organizations</option>}
               {organizations.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -407,7 +439,10 @@ export function EditorPage() {
             <select
               className={selectClass}
               value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={(e) => {
+                clearNodeSelection();
+                setProjectId(e.target.value);
+              }}
               disabled={projects.length === 0}
             >
               {projects.length === 0 && <option value="">No projects</option>}
@@ -433,7 +468,10 @@ export function EditorPage() {
             <select
               className={selectClass}
               value={versionId}
-              onChange={(e) => setVersionId(e.target.value)}
+              onChange={(e) => {
+                clearNodeSelection();
+                setVersionId(e.target.value);
+              }}
               disabled={versions.length === 0}
             >
               {versions.length === 0 && <option value="">No versions</option>}

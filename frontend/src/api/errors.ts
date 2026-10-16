@@ -24,6 +24,7 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
 const KNOWN_BACKEND_PREFIXES: [string, string][] = [
   ['Version not found with id:', 'La versión no existe o ya fue eliminada.'],
   ['Version conflict not found with id:', 'El conflicto no existe o ya fue resuelto.'],
+  ['Node with id', 'El nodo ya no existe en esta versión.'],
 ];
 
 function translate(message: string): string {
