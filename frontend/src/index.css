@@ -230,3 +230,33 @@ html[data-theme='dark'] {
   --color-hero-node: #454f5a;
   --color-hero-text: #aab6c2;
 }
+
+@theme {
+  --color-auth-page: #f5f7f9;
+  --color-auth-heading: #1d2b2b;
+  --color-auth-copy: #52616b;
+  --color-auth-accent: #1b5e20;
+  --color-auth-marker: #388e3c;
+  --color-auth-panel: #ffffff;
+  --color-auth-panel-ink: #1d2b2b;
+  --color-auth-panel-muted: #4f5d67;
+  --color-auth-control: #6d7982;
+  --color-auth-divider: #bcc6cb;
+  --color-auth-action: #1b5e20;
+  --color-auth-action-hover: #154c19;
+  --color-auth-action-text: #ffffff;
+  --color-auth-focus: #1b5e20;
+  --color-auth-error: #9f2434;
+  --color-auth-error-surface: #fff1f2;
+  --color-auth-shadow: #152c2626;
+  --color-auth-headline-accent: #1d2b2b;
+}
+
+html[data-theme='dark'] {
+  --color-auth-page: #1d2b2b;
+  --color-auth-heading: #f5f7f9;
+  --color-auth-copy: #bdc9cd;
+  --color-auth-accent: #66b86b;
+  --color-auth-headline-accent: #66b86b;
+  --color-auth-marker: #66b86b;
+}
