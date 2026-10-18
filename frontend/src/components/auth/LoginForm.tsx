@@ -50,8 +50,7 @@ export function LoginForm({ onSuccess, className = '' }: LoginFormProps) {
       const user = await login({ mail: mail.trim(), password });
       onSuccess?.(user);
     } catch (err) {
-      const message = getErrorMessage(err, 'Email o contraseña incorrectos');
-      setError(message === 'Invalid email or password' ? 'Email o contraseña incorrectos' : message);
+      setError(getErrorMessage(err, 'Email o contraseña incorrectos'));
     } finally {
       pending.current = false;
       setSubmitting(false);
@@ -62,9 +61,7 @@ export function LoginForm({ onSuccess, className = '' }: LoginFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className={`flex flex-col ${className}`} noValidate aria-busy={submitting}>
-      <div aria-live="polite" aria-atomic="true">
-        {error && <p id={`${id}-error`} role="alert" className="mb-6 rounded-xl border border-auth-error/40 bg-auth-error-surface px-4 py-3 text-sm leading-6 text-auth-error">{error}</p>}
-      </div>
+      {error && <p id={`${id}-error`} role="alert" className="mb-6 rounded-xl border border-auth-error/40 bg-auth-error-surface px-4 py-3 text-sm leading-6 text-auth-error">{error}</p>}
       <label htmlFor={`${id}-mail`} className="mb-2 text-sm font-semibold text-auth-panel-ink">Email</label>
       <input
         ref={mailRef}
@@ -104,7 +101,6 @@ export function LoginForm({ onSuccess, className = '' }: LoginFormProps) {
           type="button"
           aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
           aria-pressed={visible}
-          aria-controls={`${id}-password`}
           onClick={() => setVisible((value) => !value)}
           className="absolute top-1 right-1 flex h-12 w-12 items-center justify-center rounded-lg text-auth-panel-muted transition-colors hover:bg-auth-page/10 hover:text-auth-panel-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-auth-focus motion-reduce:transition-none"
         >
@@ -112,20 +108,19 @@ export function LoginForm({ onSuccess, className = '' }: LoginFormProps) {
         </button>
       </div>
       <details className="mt-1 text-sm">
-        <summary className="ml-auto flex min-h-11 w-fit cursor-pointer list-none items-center rounded-sm font-medium text-auth-action underline decoration-auth-action/40 underline-offset-4 hover:decoration-auth-action focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-auth-focus [&::-webkit-details-marker]:hidden">¿Olvidaste tu contraseña?</summary>
-        <p className="mt-2 rounded-xl border border-auth-divider bg-auth-panel/60 p-4 leading-6 text-auth-panel-muted">Contactá al administrador de tu organización para recibir ayuda con el acceso. La recuperación de contraseña por email todavía no está disponible.</p>
+        <summary className="ml-auto flex min-h-11 w-fit cursor-pointer list-none items-center rounded-sm font-medium text-auth-panel-ink-strong underline decoration-auth-panel-ink-strong/40 underline-offset-4 hover:decoration-auth-panel-ink-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-auth-focus [&::-webkit-details-marker]:hidden">¿Olvidaste tu contraseña?</summary>
+        <p className="mt-2 rounded-xl border border-auth-divider bg-auth-panel/60 p-4 leading-6 text-auth-panel-muted sm:text-auth-panel-ink-strong">Contactá al administrador de tu organización para recibir ayuda con el acceso. La recuperación de contraseña por email todavía no está disponible.</p>
       </details>
       <button
         type="submit"
-        aria-label={submitting ? 'Ingresando…' : 'Ingresar'}
         disabled={submitting}
         className="group mt-[clamp(0.5rem,2vh,1.25rem)] inline-flex min-h-14 w-full items-center justify-center gap-4 rounded-xl bg-auth-action px-6 py-4 text-base font-semibold text-auth-action-text transition-colors hover:bg-auth-action-hover focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-auth-focus disabled:cursor-wait disabled:opacity-75 motion-reduce:transition-none"
       >
-        <span role="status" aria-live="polite">{submitting ? 'Ingresando…' : 'Ingresar'}</span>
+        <span>{submitting ? 'Ingresando…' : 'Ingresar'}</span>
         {submitting ? (
-          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 motion-safe:animate-spin" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" opacity="0.3" /><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+          <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5 motion-safe:animate-spin" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.75" opacity="0.3" /><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" /></svg>
         ) : (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 transition-transform group-hover:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 transition-transform group-hover:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6" /></svg>
         )}
       </button>
     </form>

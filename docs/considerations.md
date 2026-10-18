@@ -2002,3 +2002,31 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   - Anyone whose local database already ran an earlier copy of `V9` or `V11`
     needs a fresh one (`docker compose down -v`): Flyway rejects a migration
     whose checksum changed.
+
+- 2026-10-17 — **The sign-in headline's second line is green in the light
+  theme.** `Una visión clara.` now takes `auth-accent` (`#1b5e20`) instead of
+  repeating the heading ink, so the accent that used to be carried by the lone
+  full stop carries the whole line. Nothing else about the headline moved: same
+  single `h1`, same text, same size, weight, tracking and line breaks.
+  - **`--color-auth-headline-accent` is gone.** It existed only to colour that
+    line, and once the line takes `auth-accent` the token was a second name for
+    a value `auth-accent` already held in both themes (`#1d2b2b`/`#66b86b` →
+    `#1b5e20`/`#66b86b`). That is the duplication this palette is trying to
+    avoid, and unlike `auth-focus` it carried no contract of its own, so it was
+    deleted rather than kept as an alias.
+  - **The dark theme is untouched by construction.** There the old token and
+    `auth-accent` were both `#66b86b`, so the line keeps its colour: screenshots
+    of the whole page before and after are pixel-identical at 768 and 1440 px
+    (0 of 768 000 and 0 of 1 296 000 pixels differ), and the computed styles of
+    the `h1` and both lines differ only by the absence of the deleted custom
+    property.
+  - **Contrast of the green over the photograph**, measured on the composited
+    pixels in the x-height band of the line, worst pixel against `#1b5e20`:
+    **7.27:1** at 390 px, **4.27:1** at 768 px, **3.70:1** at 1440 px. The bar is
+    3:1 — the line is 34–68 px bold, large text everywhere. The margin narrows
+    as the viewport widens because the veil over the photo thins out, so 1440 px
+    (and wider, where the headline keeps growing over the same veil) is the
+    width to re-measure if the artwork, the veils or the accent ever change.
+  - **The hero is `sr-only` below `lg` when the viewport is 850 px tall or
+    less**, so on a 390×844 phone the headline is not drawn at all; the 390 px
+    measurement above is at 390×900, where it is.

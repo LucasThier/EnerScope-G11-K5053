@@ -22,6 +22,14 @@ export interface NavItem {
   /** Absent until the section has a page; the entry renders locked instead of linking nowhere. */
   to?: string;
   matchPattern?: RegExp;
+  fullLabel?: string;
+  availability?: 'soon';
+  adminOnly?: boolean;
+}
+
+export interface NavGroup {
+  title: string;
+  items: NavItem[];
 }
 
 /**
@@ -29,21 +37,70 @@ export interface NavItem {
  * but locked: showing the full map of the product is intentional, linking to
  * pages that do not exist is not.
  */
-export const NAV_ITEMS: NavItem[] = [
-  { label: 'Inicio', icon: <HomeIcon />, to: '/app' },
-  { label: 'Proyectos', icon: <FolderIcon />, to: '/projects', matchPattern: PROJECTS_PATH_PATTERN },
-  { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon />, to: '/editor' },
-  { label: 'Versionado', icon: <BranchIcon />, to: '/versions', matchPattern: VERSIONS_PATH_PATTERN },
-  { label: 'Simulaciones / Escenarios', icon: <FlaskIcon /> },
-  { label: 'Comparar Escenarios', icon: <CompareIcon /> },
-  { label: 'Reportes', icon: <ReportIcon /> },
-  { label: 'Gestión de organización', icon: <TeamIcon />, key: 'team' },
-];
-
-/** Platform administration, kept separate because it is not part of the project workspace. */
-export const ADMIN_ITEMS: NavItem[] = [
-  { label: 'Gestión de usuarios', icon: <UsersIcon />, to: '/admin/users' },
-  { label: 'Gestión de organizaciones', icon: <BuildingIcon />, to: '/admin/organizations' },
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    title: 'Trabajo',
+    items: [
+      { label: 'Inicio', icon: <HomeIcon />, to: '/app' },
+      {
+        label: 'Proyectos',
+        icon: <FolderIcon />,
+        to: '/projects',
+        matchPattern: PROJECTS_PATH_PATTERN,
+      },
+      {
+        label: 'Cadena de valor',
+        fullLabel: 'Mapa de la Cadena de Valor',
+        icon: <ValueChainIcon />,
+        to: '/editor',
+      },
+      {
+        label: 'Versionado',
+        icon: <BranchIcon />,
+        to: '/versions',
+        matchPattern: VERSIONS_PATH_PATTERN,
+      },
+    ],
+  },
+  {
+    title: 'Análisis',
+    items: [
+      {
+        label: 'Simulaciones',
+        fullLabel: 'Simulaciones / Escenarios',
+        icon: <FlaskIcon />,
+        availability: 'soon',
+      },
+      { label: 'Comparaciones', icon: <CompareIcon />, availability: 'soon' },
+      { label: 'Reportes', icon: <ReportIcon />, availability: 'soon' },
+    ],
+  },
+  /** Platform administration, kept separate because it is not part of the project workspace. */
+  {
+    title: 'Administración',
+    items: [
+      {
+        label: 'Organización',
+        fullLabel: 'Gestión de organización',
+        icon: <TeamIcon />,
+        key: 'team',
+      },
+      {
+        label: 'Usuarios',
+        fullLabel: 'Gestión de usuarios',
+        icon: <UsersIcon />,
+        to: '/admin/users',
+        adminOnly: true,
+      },
+      {
+        label: 'Organizaciones',
+        fullLabel: 'Gestión de organizaciones',
+        icon: <BuildingIcon />,
+        to: '/admin/organizations',
+        adminOnly: true,
+      },
+    ],
+  },
 ];
 
 const MODULE_TITLES: { pattern: RegExp; title: string }[] = [
@@ -61,4 +118,29 @@ const MODULE_TITLES: { pattern: RegExp; title: string }[] = [
 
 export function moduleTitleFor(pathname: string): string | null {
   return MODULE_TITLES.find((entry) => entry.pattern.test(pathname))?.title ?? null;
+}
+
+export interface Crumb {
+  label: string;
+  to?: string;
+}
+
+const PROJECT_SCOPED = /^\/projects\/[^/]+\/(team|versions)(\/|$)/;
+
+export function breadcrumbsFor(pathname: string, projectName: string | null): Crumb[] {
+  const title = moduleTitleFor(pathname);
+  if (!title) {
+    return [];
+  }
+  if (PROJECT_SCOPED.test(pathname)) {
+    const trail: Crumb[] = [{ label: 'Proyectos', to: '/projects' }];
+    if (projectName) {
+      trail.push({ label: projectName });
+    }
+    return [...trail, { label: title }];
+  }
+  if (pathname.startsWith('/admin/')) {
+    return [{ label: 'Administración' }, { label: title }];
+  }
+  return [{ label: title }];
 }

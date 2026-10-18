@@ -2,6 +2,7 @@ import { AxiosError } from 'axios';
 import type { ApiResponse } from '../types/auth';
 
 const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
+  'Invalid email or password': 'Email o contraseña incorrectos',
   'The project would be left without an administrator':
     'El proyecto no puede quedarse sin administrador. Asigná primero el rol de Administrador a otra persona.',
   'User is already a member of this project': 'Esa persona ya integra el proyecto.',
