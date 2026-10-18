@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-type Tone = 'error' | 'success' | 'info';
+type Tone = 'error' | 'success' | 'info' | 'warning';
 
 interface AlertProps {
   tone?: Tone;
@@ -12,6 +12,7 @@ const tones: Record<Tone, string> = {
   error: 'bg-danger-50 text-danger-700 border-danger-200',
   success: 'bg-brand-50 text-brand-800 border-brand-200',
   info: 'bg-ink-50 text-ink-700 border-ink-200',
+  warning: 'bg-warn-50 text-warn-800 border-warn-200',
 };
 
 export function Alert({ tone = 'info', children, className = '' }: AlertProps) {

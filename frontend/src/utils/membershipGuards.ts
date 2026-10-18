@@ -1,4 +1,4 @@
-import type { OrganizationMemberSummary } from '../types/auth';
+import type { OrganizationMemberSummary, UserSummary } from '../types/auth';
 import type { ProjectMember } from '../types/project';
 
 export const LAST_OWNER_REASON = 'Es la única persona con rol Propietario.';
@@ -25,4 +25,22 @@ export function lastProjectAdminReason(
   }
   const admins = members.filter((other) => other.memberType === 'ADMIN' && other.active);
   return admins.length <= 1 ? LAST_PROJECT_ADMIN_REASON : null;
+}
+
+export function canManageOrganizationUsers(
+  caller: UserSummary | null,
+  members: OrganizationMemberSummary[],
+): boolean {
+  if (!caller) {
+    return false;
+  }
+  if (caller.platformRole === 'ADMIN') {
+    return true;
+  }
+  return members.some(
+    (member) =>
+      member.userId === caller.id &&
+      member.active &&
+      member.permissions.includes('MANAGE_ORGANIZATION'),
+  );
 }

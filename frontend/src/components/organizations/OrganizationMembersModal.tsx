@@ -2,14 +2,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
+import { UploadIcon } from '../ui/icons';
+import { ImportUsersCsvFlow } from '../import/ImportUsersCsvFlow';
 import { MembersTable } from '../members/MembersTable';
 import { MEMBER_TYPE_LABELS } from './memberTypeLabels';
 import { OrganizationRoleChangeConfirmation } from './OrganizationRoleChangeConfirmation';
 import { organizationsApi } from '../../api/organizations';
 import { getErrorMessage } from '../../api/errors';
 import { useAuth } from '../../hooks/useAuth';
+import { useCsvUserImport } from '../../hooks/useCsvUserImport';
 import { useMemberRoleChange } from '../../hooks/useMemberRoleChange';
-import { lastOwnerReason } from '../../utils/membershipGuards';
+import { canManageOrganizationUsers, lastOwnerReason } from '../../utils/membershipGuards';
 import type {
   OrganizationMemberSummary,
   OrganizationMemberType,
@@ -33,6 +36,7 @@ export function OrganizationMembersModal({
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<OrganizationMemberSummary | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const organizationId = organization?.id ?? null;
 
@@ -64,11 +68,35 @@ export function OrganizationMembersModal({
   });
   const cancelRoleChange = roleChange.cancel;
 
+  const reloadMembers = useCallback(async () => {
+    if (!organizationId) {
+      return;
+    }
+    try {
+      const res = await organizationsApi.members(organizationId);
+      setMembers(res.data.data ?? []);
+    } catch (err) {
+      setError(getErrorMessage(err, 'No se pudieron cargar los integrantes'));
+    }
+  }, [organizationId]);
+
+  const handleImported = useCallback(async () => {
+    await reloadMembers();
+    await onChanged();
+  }, [onChanged, reloadMembers]);
+
+  const importFlow = useCsvUserImport({
+    organizationId: organizationId ?? '',
+    onImported: handleImported,
+    onClose: () => setImporting(false),
+  });
+
   useEffect(() => {
     cancelRoleChange();
   }, [organizationId, cancelRoleChange]);
 
   useEffect(() => {
+    setImporting(false);
     if (!organizationId) {
       setMembers([]);
       setError(null);
@@ -104,18 +132,6 @@ export function OrganizationMembersModal({
     };
   }, [organizationId]);
 
-  async function reloadMembers() {
-    if (!organizationId) {
-      return;
-    }
-    try {
-      const res = await organizationsApi.members(organizationId);
-      setMembers(res.data.data ?? []);
-    } catch (err) {
-      setError(getErrorMessage(err, 'No se pudieron cargar los integrantes'));
-    }
-  }
-
   async function handleRemove() {
     if (!organizationId || !confirming) {
       return;
@@ -139,17 +155,22 @@ export function OrganizationMembersModal({
   return (
     <Modal
       open={organization !== null}
-      onClose={onClose}
+      onClose={importing ? importFlow.requestClose : onClose}
       title={
-        roleChange.pending
-          ? 'Cambiar el rol'
-          : confirming
-            ? 'Quitar de la organización'
-            : (organization?.name ?? '')
+        importing
+          ? 'Importar usuarios por CSV'
+          : roleChange.pending
+            ? 'Cambiar el rol'
+            : confirming
+              ? 'Quitar de la organización'
+              : (organization?.name ?? '')
       }
+      subtitle={importing ? (organization?.name ?? undefined) : undefined}
       size="lg"
     >
-      {roleChange.pending ? (
+      {importing ? (
+        <ImportUsersCsvFlow flow={importFlow} organizationName={organization?.name ?? ''} />
+      ) : roleChange.pending ? (
         <OrganizationRoleChangeConfirmation
           change={roleChange.pending}
           organizationName={organization?.name ?? ''}
@@ -204,6 +225,21 @@ export function OrganizationMembersModal({
       ) : (
         <div>
           {error && <Alert tone="error">{error}</Alert>}
+
+          {canManageOrganizationUsers(caller, members) && (
+            <div className="mb-4 flex justify-end">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  importFlow.reset();
+                  setImporting(true);
+                }}
+              >
+                <UploadIcon className="h-4 w-4" />
+                Importar CSV
+              </Button>
+            </div>
+          )}
 
           <div className="mt-1">
             {loading ? (

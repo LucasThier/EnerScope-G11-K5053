@@ -1,6 +1,7 @@
 import { client } from './client';
 import type {
   AddOrganizationMemberRequest,
+  BulkRegistrationResult,
   UpdateOrganizationMemberRoleRequest,
   ApiResponse,
   OrganizationMemberSummary,
@@ -66,4 +67,16 @@ export const organizationsApi = {
     data: RegisterOrganizationUserRequest,
   ): Promise<AxiosResponse<ApiResponse<OrganizationMemberSummary>>> =>
     client.post(`/organizations/${organizationId}/users`, data),
+
+  bulkRegisterUsers: (
+    organizationId: string,
+    file: File,
+  ): Promise<AxiosResponse<ApiResponse<BulkRegistrationResult>>> => {
+    const form = new FormData();
+    form.append('file', file);
+    return client.post(`/organizations/${organizationId}/users/bulk`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 180_000,
+    });
+  },
 };

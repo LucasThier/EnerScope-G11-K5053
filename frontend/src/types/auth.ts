@@ -117,6 +117,20 @@ export interface OrganizationMemberSummary {
   permissions: OrganizationMemberPermission[];
 }
 
+export interface FailedRegistration {
+  line: number;
+  mail: string;
+  reason: string;
+}
+
+export interface BulkRegistrationResult {
+  total: number;
+  created: number;
+  failed: number;
+  credentialsCsv: string;
+  failures: FailedRegistration[];
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
