@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { PlusIcon, SearchIcon } from '../components/ui/icons';
+import { FilterSelect } from '../components/ui/FilterSelect';
+import { SearchField } from '../components/ui/SearchField';
+import { PlusIcon } from '../components/ui/icons';
 import { DeleteProjectDialog } from '../components/projects/DeleteProjectDialog';
 import { EditProjectModal } from '../components/projects/EditProjectModal';
 import { NewProjectModal } from '../components/projects/NewProjectModal';
@@ -15,13 +17,8 @@ import type { ProjectSummary } from '../types/project';
 
 const ALL_ORGANIZATIONS = 'all';
 
-const controlClasses =
-  'rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 ' +
-  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60';
-
 export function ProjectsPage() {
   const searchId = useId();
-  const organizationFilterId = useId();
   const { projects, isLoading, error, reload, selectProject } = useActiveProject();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -78,36 +75,26 @@ export function ProjectsPage() {
 
       <Card padded={false} className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-ink-100 px-4 py-4">
-          <div className="relative min-w-56 flex-1">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-            <label htmlFor={searchId} className="sr-only">
-              Buscar proyectos
-            </label>
-            <input
-              id={searchId}
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar proyectos"
-              className={`w-full pl-9 placeholder:text-ink-500 ${controlClasses}`}
-            />
-          </div>
-          <label htmlFor={organizationFilterId} className="sr-only">
-            Filtrar por organización
-          </label>
-          <select
-            id={organizationFilterId}
+          <SearchField
+            id={searchId}
+            label="Buscar proyectos"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar proyectos"
+            wrapperClassName="min-w-56 flex-1"
+          />
+          <FilterSelect
+            label="Filtrar por organización"
             value={organizationId}
-            onChange={(e) => setOrganizationId(e.target.value)}
-            className={controlClasses}
-          >
-            <option value={ALL_ORGANIZATIONS}>Todas las organizaciones</option>
-            {organizations.map((organization) => (
-              <option key={organization.id} value={organization.id}>
-                {organization.name}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: ALL_ORGANIZATIONS, label: 'Todas las organizaciones' },
+              ...organizations.map((organization) => ({
+                value: organization.id,
+                label: organization.name,
+              })),
+            ]}
+            onChange={setOrganizationId}
+          />
         </div>
 
         {isLoading ? (

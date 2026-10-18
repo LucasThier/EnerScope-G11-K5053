@@ -182,3 +182,21 @@ export function breadcrumbsFor(pathname: string, projectName: string | null): Cr
   }
   return [{ label: title }];
 }
+
+export function documentSectionFor(
+  pathname: string,
+  projectName: string | null,
+  organizationName: string | null,
+): string | null {
+  const crumbs = breadcrumbsFor(pathname, projectName);
+  if (crumbs.length === 0) {
+    return null;
+  }
+  const section = crumbs[crumbs.length - 1].label;
+  const entity = ORGANIZATION_PATH_PATTERN.test(pathname)
+    ? organizationName
+    : PROJECT_SCOPED.test(pathname)
+      ? projectName
+      : null;
+  return entity ? `${section} · ${entity}` : section;
+}

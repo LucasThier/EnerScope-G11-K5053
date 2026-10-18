@@ -98,7 +98,7 @@ export function ProjectSwitcher() {
         aria-label={`Proyecto activo: ${activeProject.name}`}
         title={activeProject.name}
         className={
-          'flex h-10 max-w-[7.5rem] items-center gap-2 rounded-xl border border-ink-400 bg-nav px-2.5 ' +
+          'flex h-control-compact max-w-[7.5rem] items-center gap-2 rounded-control border border-control-border bg-nav px-2.5 ' +
           'transition-colors hover:bg-nav-hover focus:outline-none focus-visible:ring-2 ' +
           'focus-visible:ring-focus sm:max-w-[10rem] lg:max-w-[16rem]'
         }

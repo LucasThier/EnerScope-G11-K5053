@@ -1,5 +1,5 @@
 import { Alert } from '../ui/Alert';
-import { controlClasses } from '../ui/controlClasses';
+import { controlCompact } from '../ui/controlClasses';
 import { TrashIcon } from '../ui/icons';
 import { RowButton } from '../ui/RowButton';
 import type { RoleChangeError } from '../../hooks/useMemberRoleChange';
@@ -101,7 +101,7 @@ export function MembersTable<M extends MemberRow>({
                       aria-label={changeRoleLabel(fullName)}
                       aria-describedby={reason ? reasonId : undefined}
                       title={reason ?? changeRoleLabel(fullName)}
-                      className={controlClasses}
+                      className={controlCompact}
                     >
                       {roles.map((type) => (
                         <option key={type} value={type}>

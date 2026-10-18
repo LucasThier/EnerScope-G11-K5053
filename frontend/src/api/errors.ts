@@ -40,6 +40,10 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
   'Invalid last name (2-60 characters required)':
     'El apellido debe tener entre 2 y 60 caracteres.',
   'Invalid role (OWNER or MEMBER)': 'El rol debe ser Propietario (OWNER) o Miembro (MEMBER).',
+  'User is already a member of this organization': 'Esa persona ya integra la organización.',
+  'You are not allowed to look users up': 'No tenés permiso para buscar cuentas en la plataforma.',
+  'Only platform admins can list platform users':
+    'Sólo un administrador de plataforma puede ver el listado de cuentas.',
   'Internal error': 'El servidor tuvo un problema y no pudo completar la operación.',
   'Malformed request body': 'No se pudo interpretar el pedido.',
 };

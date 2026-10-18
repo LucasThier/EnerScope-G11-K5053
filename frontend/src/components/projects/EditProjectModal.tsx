@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
 import { TextArea } from '../ui/TextArea';
 import { TextField } from '../ui/TextField';
 import { projectsApi } from '../../api/projects';
@@ -113,14 +113,14 @@ export function EditProjectModal({ project, onClose, onUpdated }: EditProjectMod
           maxLength={DESCRIPTION_MAX}
         />
 
-        <div className="mt-2 flex justify-end gap-2">
+        <ModalFooter>
           <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
           <Button type="submit" loading={submitting}>
             Guardar cambios
           </Button>
-        </div>
+        </ModalFooter>
       </form>
     </Modal>
   );

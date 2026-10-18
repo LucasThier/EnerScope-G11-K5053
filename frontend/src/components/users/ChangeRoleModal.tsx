@@ -1,7 +1,8 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
+import { SelectField } from '../ui/SelectField';
 import { usersApi } from '../../api/users';
 import { getErrorMessage } from '../../api/errors';
 import type { PlatformRole, UserListItem } from '../../types/auth';
@@ -11,10 +12,6 @@ interface ChangeRoleModalProps {
   onClose: () => void;
   onChanged: () => Promise<void>;
 }
-
-const selectClasses =
-  'rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 ' +
-  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60';
 
 export function ChangeRoleModal({ user, onClose, onChanged }: ChangeRoleModalProps) {
   const selectId = useId();
@@ -64,34 +61,29 @@ export function ChangeRoleModal({ user, onClose, onChanged }: ChangeRoleModalPro
           <span className="text-ink-500">({user?.mail})</span>
         </p>
 
-        <div className="flex flex-col gap-2">
-          <label htmlFor={selectId} className="text-sm font-medium text-ink-600">
-            Rol de plataforma
-          </label>
-          <select
-            id={selectId}
-            value={role}
-            onChange={(e) => setRole(e.target.value as PlatformRole)}
-            className={selectClasses}
-          >
-            <option value="USER">Usuario</option>
-            <option value="ADMIN">Administrador</option>
-          </select>
-        </div>
+        <SelectField
+          id={selectId}
+          label="Rol de plataforma"
+          value={role}
+          onChange={(e) => setRole(e.target.value as PlatformRole)}
+        >
+          <option value="USER">Usuario</option>
+          <option value="ADMIN">Administrador</option>
+        </SelectField>
 
         <p className="text-sm text-ink-500">
           Un administrador de plataforma accede a todas las organizaciones y a todos los
           proyectos.
         </p>
 
-        <div className="mt-2 flex justify-end gap-2">
+        <ModalFooter>
           <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
           <Button type="submit" loading={submitting}>
             Guardar rol
           </Button>
-        </div>
+        </ModalFooter>
       </form>
     </Modal>
   );

@@ -17,7 +17,9 @@
  *   the form controls are white. That one step of separation is what makes a
  *   card read as a sheet, so it replaces a tinted card background — the card
  *   never carries the tint, the page does.
- * - Every border, icon and text colour comes from the ink ramp.
+ * - Every border, icon and text colour comes from the ink ramp, except the
+ *   border of a form control, which has its own token and its own contrast
+ *   contract (see --color-control-border).
  *
  * CONTRAST — every text/background pair in the app meets WCAG AA (4.5:1 for
  * body text). The ratios below are against white, so they are the budget you
@@ -100,6 +102,7 @@
   --color-raised: #ffffff;
   --color-on-accent: #ffffff;
   --color-focus: #1b5e20;
+  --color-control-border: #76838f; /* the resting border of a form control, the one border with a 3:1 contract of its own: 3.88:1 on a white surface, 3.61:1 on the page and 3.39:1 on the navigation rail, where ink-200's 1.48:1 left a control with no edge a low-vision reader could find */
   --color-fill-neutral: #2f3841;
   --color-fill-neutral-strong: #232b33;
   --color-scrim: #232b33;
@@ -166,7 +169,8 @@
 
   /* SHAPE AND ELEVATION. Two radius steps, two control heights and two shadows,
      named so a component can ask for the role instead of repeating the number.
-     Declared here and not applied yet: no component reads them today. */
+     The shared field, button, card and modal components read them, so a screen
+     asks for the role and never repeats the number. */
   --radius-control: 0.75rem; /* 12px — fields, buttons, error blocks, filter pills */
   --radius-card: 1rem; /* 16px — cards and modals */
   --spacing-control: 3rem; /* 48px — the height of a control in a form */
@@ -223,7 +227,7 @@ body {
  * between keep their jobs.
  *
  *   ink-100  borders and dividers
- *   ink-200  the border that identifies a control
+ *   ink-200  decorative borders: dividers, swatches, an alert's edge
  *   ink-300  dividers only — never text
  *   ink-400  placeholders, decorative icons, disabled labels (5.42:1)
  *   ink-500  <- the floor for secondary text, labels and metadata (7.60:1)
@@ -282,6 +286,7 @@ html[data-theme='dark'] {
   --color-raised: #232c35;
   --color-on-accent: #111820;
   --color-focus: #5fae6b;
+  --color-control-border: #76838f; /* the same mid ink grey in both themes: it is the only band that clears 3:1 against a near-white and a near-black control fill at once — 4.29:1 on a card and 3.65:1 on a modal's raised panel here, against ink-200's 2.22:1 */
   --color-fill-neutral: #cfd8e0;
   --color-fill-neutral-strong: #e4eaef;
   --color-scrim: #000000;

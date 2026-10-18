@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
+import { FilterSelect } from '../components/ui/FilterSelect';
 import { UploadIcon } from '../components/ui/icons';
 import { ImportUsersCsvFlow } from '../components/import/ImportUsersCsvFlow';
 import { MembersTable } from '../components/members/MembersTable';
@@ -20,14 +21,9 @@ import { useOwnedOrganizations } from '../hooks/useOwnedOrganizations';
 import { canManageOrganizationUsers, lastOwnerReason } from '../utils/membershipGuards';
 import type { OrganizationMemberSummary, OrganizationMemberType } from '../types/auth';
 
-const controlClasses =
-  'rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 ' +
-  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60';
-
 export function OrganizationTeamPage() {
   const { organizationId } = useParams();
   const navigate = useNavigate();
-  const switcherId = useId();
   const { user: caller } = useAuth();
   const { owned, reload: reloadOwned } = useOwnedOrganizations();
   const [members, setMembers] = useState<OrganizationMemberSummary[]>([]);
@@ -132,23 +128,15 @@ export function OrganizationTeamPage() {
             </Button>
           )}
           {owned.length > 1 && (
-            <div>
-              <label htmlFor={switcherId} className="sr-only">
-                Elegir organización
-              </label>
-              <select
-                id={switcherId}
-                value={organizationId}
-                onChange={(e) => navigate(`/organizations/${e.target.value}`)}
-                className={controlClasses}
-              >
-                {owned.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <FilterSelect
+              label="Elegir organización"
+              value={organizationId ?? ''}
+              options={owned.map((candidate) => ({
+                value: candidate.id,
+                label: candidate.name,
+              }))}
+              onChange={(next) => navigate(`/organizations/${next}`)}
+            />
           )}
         </div>
       </header>

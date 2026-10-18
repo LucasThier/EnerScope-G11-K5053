@@ -1,6 +1,8 @@
-import { useId } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
+import { Field } from '../ui/Field';
+import { useField } from '../ui/useField';
+import { controlFile } from '../ui/controlClasses';
 import { DownloadIcon } from '../ui/icons';
 import { ImportPreviewTable } from './ImportPreviewTable';
 import { countAlreadyExisting, type CsvUserImport } from '../../hooks/useCsvUserImport';
@@ -13,7 +15,7 @@ interface ImportUsersCsvFlowProps {
 }
 
 export function ImportUsersCsvFlow({ flow, organizationName }: ImportUsersCsvFlowProps) {
-  const fileInputId = useId();
+  const { fieldId, hintId, errorId, controlProps } = useField(undefined, {});
 
   if (flow.confirmingClose) {
     return (
@@ -147,36 +149,20 @@ export function ImportUsersCsvFlow({ flow, organizationName }: ImportUsersCsvFlo
         <span className="font-semibold text-ink-800">{organizationName}</span>.
       </p>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <label htmlFor={fileInputId} className="block text-sm font-medium text-ink-600">
-            Archivo CSV
-          </label>
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Archivo CSV" fieldId={fieldId} hintId={hintId} errorId={errorId}>
           <input
-            id={fileInputId}
+            {...controlProps}
             type="file"
             accept=".csv,text/csv"
             disabled={flow.stage === 'sending'}
             onChange={(event) => flow.selectFile(event.target.files?.[0] ?? null)}
-            className={
-              'mt-1 block w-full rounded-lg border border-ink-200 bg-surface text-sm text-ink-700 ' +
-              'file:mr-3 file:cursor-pointer file:rounded-l-lg file:border-0 file:bg-ink-50 ' +
-              'file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink-700 ' +
-              'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60 ' +
-              'disabled:cursor-not-allowed disabled:opacity-60'
-            }
+            className={`${controlFile} w-full`}
           />
-        </div>
-        <button
-          type="button"
-          onClick={flow.downloadTemplate}
-          className={
-            'mt-5 rounded-lg text-sm font-semibold text-brand-800 underline underline-offset-2 ' +
-            'hover:text-brand-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus'
-          }
-        >
+        </Field>
+        <Button variant="link" onClick={flow.downloadTemplate} className="mb-3">
           Descargar plantilla
-        </button>
+        </Button>
       </div>
 
       <p className="text-sm text-ink-500">

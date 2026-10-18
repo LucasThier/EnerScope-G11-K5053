@@ -1,5 +1,6 @@
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useTheme } from '../hooks/useTheme';
 import { LoginForm } from '../components/auth/LoginForm';
 import { LoginScene } from '../components/auth/LoginScene';
@@ -10,6 +11,8 @@ export function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const { resolved } = useTheme();
   const navigate = useNavigate();
+
+  useDocumentTitle('Ingresar');
 
   if (isLoading) return <PageLoader />;
   if (isAuthenticated) return <Navigate to="/" replace />;

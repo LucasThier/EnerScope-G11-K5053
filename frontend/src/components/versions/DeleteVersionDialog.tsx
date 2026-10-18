@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
 import { getErrorMessage, getErrorStatus } from '../../api/errors';
 import type { VersionSummary } from '../../types/diagram';
 
@@ -95,14 +95,14 @@ export function DeleteVersionDialog({
           Esta acción no se puede deshacer: las versiones y sus datos se borran definitivamente.
         </Alert>
 
-        <div className="mt-2 flex justify-end gap-2">
+        <ModalFooter>
           <Button type="button" variant="ghost" onClick={onClose} disabled={deleting}>
             Cancelar
           </Button>
           <Button type="button" variant="danger" onClick={handleConfirm} loading={deleting}>
             Eliminar versión
           </Button>
-        </div>
+        </ModalFooter>
       </div>
     </Modal>
   );

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
-import { UploadIcon } from '../ui/icons';
+import { Modal, ModalFooter } from '../ui/Modal';
+import { PlusIcon, UploadIcon } from '../ui/icons';
 import { ImportUsersCsvFlow } from '../import/ImportUsersCsvFlow';
 import { MembersTable } from '../members/MembersTable';
+import { AddOrganizationMemberCard } from './AddOrganizationMemberCard';
 import { MEMBER_TYPE_LABELS } from './memberTypeLabels';
 import { OrganizationRoleChangeConfirmation } from './OrganizationRoleChangeConfirmation';
 import { organizationsApi } from '../../api/organizations';
@@ -37,6 +38,7 @@ export function OrganizationMembersModal({
   const [confirming, setConfirming] = useState<OrganizationMemberSummary | null>(null);
   const [removing, setRemoving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   const organizationId = organization?.id ?? null;
 
@@ -97,6 +99,7 @@ export function OrganizationMembersModal({
 
   useEffect(() => {
     setImporting(false);
+    setAdding(false);
     if (!organizationId) {
       setMembers([]);
       setError(null);
@@ -155,21 +158,42 @@ export function OrganizationMembersModal({
   return (
     <Modal
       open={organization !== null}
-      onClose={importing ? importFlow.requestClose : onClose}
+      onClose={importing ? importFlow.requestClose : adding ? () => setAdding(false) : onClose}
       title={
         importing
           ? 'Importar usuarios por CSV'
-          : roleChange.pending
-            ? 'Cambiar el rol'
-            : confirming
-              ? 'Quitar de la organización'
-              : (organization?.name ?? '')
+          : adding
+            ? 'Agregar integrante'
+            : roleChange.pending
+              ? 'Cambiar el rol'
+              : confirming
+                ? 'Quitar de la organización'
+                : (organization?.name ?? '')
       }
-      subtitle={importing ? (organization?.name ?? undefined) : undefined}
+      subtitle={importing || adding ? (organization?.name ?? undefined) : undefined}
       size="lg"
     >
       {importing ? (
         <ImportUsersCsvFlow flow={importFlow} organizationName={organization?.name ?? ''} />
+      ) : adding ? (
+        <div className="flex flex-col gap-4">
+          <AddOrganizationMemberCard
+            organizationId={organizationId ?? ''}
+            onAdded={handleImported}
+            variant="plain"
+            lookup="list"
+            excludeUserIds={members.map((member) => member.userId)}
+          />
+          <p className="text-sm text-ink-500">
+            La persona tiene que tener una cuenta en la plataforma. Si todavía no la tiene,
+            creala desde «Gestión de usuarios» o sumá varias de una vez con «Importar CSV».
+          </p>
+          <div className="flex justify-end border-t border-ink-100 pt-4">
+            <Button variant="ghost" onClick={() => setAdding(false)}>
+              Volver a los integrantes
+            </Button>
+          </div>
+        </div>
       ) : roleChange.pending ? (
         <OrganizationRoleChangeConfirmation
           change={roleChange.pending}
@@ -208,7 +232,7 @@ export function OrganizationMembersModal({
             </Alert>
           )}
 
-          <div className="mt-2 flex justify-end gap-2">
+          <ModalFooter>
             <Button
               type="button"
               variant="ghost"
@@ -220,14 +244,18 @@ export function OrganizationMembersModal({
             <Button type="button" variant="danger" onClick={handleRemove} loading={removing}>
               Quitar integrante
             </Button>
-          </div>
+          </ModalFooter>
         </div>
       ) : (
         <div>
           {error && <Alert tone="error">{error}</Alert>}
 
           {canManageOrganizationUsers(caller, members) && (
-            <div className="mb-4 flex justify-end">
+            <div className="mb-4 flex flex-wrap justify-end gap-2">
+              <Button variant="secondary" onClick={() => setAdding(true)}>
+                <PlusIcon className="h-4 w-4" />
+                Agregar integrante
+              </Button>
               <Button
                 variant="secondary"
                 onClick={() => {

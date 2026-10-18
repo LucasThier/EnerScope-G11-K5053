@@ -1,7 +1,11 @@
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation, useMatch } from 'react-router-dom';
 import { ActiveProjectProvider } from '../../hooks/ActiveProjectProvider';
 import { SidebarProvider } from '../../hooks/SidebarProvider';
+import { useActiveProject, PROJECT_ROUTE_PATTERN } from '../../hooks/useActiveProject';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
+import { useOwnedOrganizations } from '../../hooks/useOwnedOrganizations';
 import { useSidebar } from '../../hooks/useSidebar';
+import { documentSectionFor } from './navItems';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 
@@ -22,6 +26,7 @@ export function AppLayout() {
 
 function AppShell() {
   const { isDrawer, isVisible, pushes } = useSidebar();
+  useRouteDocumentTitle();
 
   return (
     /* h-screen (not min-h-screen) so full-bleed pages like the editor can
@@ -67,4 +72,21 @@ function AppShell() {
       </div>
     </div>
   );
+}
+
+function useRouteDocumentTitle() {
+  const { pathname } = useLocation();
+  const { projects } = useActiveProject();
+  const { owned } = useOwnedOrganizations();
+  const projectMatch = useMatch(PROJECT_ROUTE_PATTERN);
+  const organizationMatch = useMatch('/organizations/:organizationId/*');
+
+  const projectName =
+    projects.find((project) => project.id === projectMatch?.params.projectId)?.name ?? null;
+  const organizationName =
+    owned.find(
+      (organization) => organization.id === organizationMatch?.params.organizationId,
+    )?.name ?? null;
+
+  useDocumentTitle(documentSectionFor(pathname, projectName, organizationName));
 }
