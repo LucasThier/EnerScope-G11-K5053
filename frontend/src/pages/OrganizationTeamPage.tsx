@@ -12,6 +12,7 @@ import { organizationsApi } from '../api/organizations';
 import { getErrorMessage } from '../api/errors';
 import { useMemberRoleChange } from '../hooks/useMemberRoleChange';
 import { useOwnedOrganizations } from '../hooks/useOwnedOrganizations';
+import { lastOwnerReason } from '../utils/membershipGuards';
 import type { OrganizationMemberSummary, OrganizationMemberType } from '../types/auth';
 
 const controlClasses =
@@ -142,6 +143,7 @@ export function OrganizationTeamPage() {
             roleLabels={MEMBER_TYPE_LABELS}
             onRemove={setRemoving}
             onChangeRole={roleChange.requestChange}
+            disabledReason={(member) => lastOwnerReason(members, member)}
             busyMemberId={roleChange.busyMemberId}
             roleError={roleChange.pending ? null : roleChange.error}
           />

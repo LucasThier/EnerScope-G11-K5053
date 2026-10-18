@@ -436,6 +436,34 @@ class OrganizationControllerTest {
     }
 
     @Test
+    void removeMemberRejectsALastOwnerRemovalWith400() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        doThrow(new IllegalArgumentException("The organization would be left without an owner"))
+                .when(organizationService).removeMember(orgId, memberId);
+
+        mockMvc.perform(delete("/organizations/" + orgId + "/members/" + memberId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("The organization would be left without an owner"));
+    }
+
+    @Test
+    void removeMemberRejectsACascadeThatOrphansAProjectWith400() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        doThrow(new IllegalArgumentException(
+                "A project in this organization would be left without an administrator"))
+                .when(organizationService).removeMember(orgId, memberId);
+
+        mockMvc.perform(delete("/organizations/" + orgId + "/members/" + memberId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("A project in this organization would be left without an administrator"));
+    }
+
+    @Test
     void removeMemberPropagatesForbiddenWith403() throws Exception {
         UUID orgId = UUID.randomUUID();
         UUID memberId = UUID.randomUUID();

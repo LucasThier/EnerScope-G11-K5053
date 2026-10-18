@@ -18,6 +18,8 @@ import { getErrorMessage, getErrorStatus } from '../api/errors';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useAuth } from '../hooks/useAuth';
 import { useMemberRoleChange } from '../hooks/useMemberRoleChange';
+import { canManageProject } from '../utils/projectPermissions';
+import { lastProjectAdminReason } from '../utils/membershipGuards';
 import type { ProjectMember, ProjectMemberType } from '../types/project';
 
 const countsAsAdmin = (member: ProjectMember) => member.memberType === 'ADMIN' && member.active;
@@ -120,7 +122,7 @@ export function ProjectTeamPage() {
   }
 
   const callerMembership = members.find((member) => member.userId === caller?.id);
-  const canManage = isPlatformAdmin || callerMembership?.memberType === 'ADMIN';
+  const canManage = canManageProject(callerMembership?.memberType, isPlatformAdmin);
   if (!error && !canManage) {
     return <Navigate to="/projects" replace />;
   }
@@ -159,6 +161,7 @@ export function ProjectTeamPage() {
             changeRoleLabel={(fullName) => `Cambiar el rol de ${fullName} en el proyecto`}
             onRemove={setRemoving}
             onChangeRole={roleChange.requestChange}
+            disabledReason={(member) => lastProjectAdminReason(members, member)}
             busyMemberId={roleChange.busyMemberId}
             roleError={roleChange.pending ? null : roleChange.error}
           />

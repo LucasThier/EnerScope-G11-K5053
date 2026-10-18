@@ -7,24 +7,34 @@ import {
   FolderIcon,
   HomeIcon,
   ReportIcon,
-  TeamIcon,
   UsersIcon,
   ValueChainIcon,
 } from '../ui/icons';
 
 export const VERSIONS_PATH_PATTERN = /^\/projects\/[^/]+\/versions(\/|$)/;
-export const PROJECTS_PATH_PATTERN = /^\/projects(\/[^/]+\/team)?\/?$/;
+export const PROJECTS_PATH_PATTERN = /^\/projects\/?$/;
+export const PROJECT_TEAM_PATH_PATTERN = /^\/projects\/[^/]+\/team(\/|$)/;
+export const VERSIONS_INDEX_PATH_PATTERN = /^\/versions\/?$/;
+export const ORGANIZATION_PATH_PATTERN = /^\/organizations\/[^/]+/;
+
+export type NavRequirement =
+  | 'platformAdmin'
+  | 'ownedOrganization'
+  | 'manageableProject'
+  | 'activeProject';
 
 export interface NavItem {
   label: string;
-  icon: ReactNode;
-  key?: string;
+  icon?: ReactNode;
+  id?: string;
   /** Absent until the section has a page; the entry renders locked instead of linking nowhere. */
   to?: string;
   matchPattern?: RegExp;
   fullLabel?: string;
   availability?: 'soon';
-  adminOnly?: boolean;
+  requires?: NavRequirement;
+  keepsOwnName?: boolean;
+  children?: NavItem[];
 }
 
 export interface NavGroup {
@@ -43,10 +53,21 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Inicio', icon: <HomeIcon />, to: '/app' },
       {
+        id: 'projects',
         label: 'Proyectos',
         icon: <FolderIcon />,
-        to: '/projects',
-        matchPattern: PROJECTS_PATH_PATTERN,
+        children: [
+          {
+            label: 'Todos los proyectos',
+            to: '/projects',
+            matchPattern: PROJECTS_PATH_PATTERN,
+          },
+          {
+            label: 'Equipo del proyecto',
+            matchPattern: PROJECT_TEAM_PATH_PATTERN,
+            requires: 'manageableProject',
+          },
+        ],
       },
       {
         label: 'Cadena de valor',
@@ -55,10 +76,21 @@ export const NAV_GROUPS: NavGroup[] = [
         to: '/editor',
       },
       {
+        id: 'versions',
         label: 'Versionado',
         icon: <BranchIcon />,
-        to: '/versions',
-        matchPattern: VERSIONS_PATH_PATTERN,
+        children: [
+          {
+            label: 'Todas las versiones',
+            to: '/versions',
+            matchPattern: VERSIONS_INDEX_PATH_PATTERN,
+          },
+          {
+            label: 'Versiones del proyecto',
+            matchPattern: VERSIONS_PATH_PATTERN,
+            requires: 'activeProject',
+          },
+        ],
       },
     ],
   },
@@ -80,24 +112,30 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Administración',
     items: [
       {
-        label: 'Organización',
-        fullLabel: 'Gestión de organización',
-        icon: <TeamIcon />,
-        key: 'team',
+        id: 'organizations',
+        label: 'Organizaciones',
+        icon: <BuildingIcon />,
+        children: [
+          {
+            label: 'Mi organización',
+            matchPattern: ORGANIZATION_PATH_PATTERN,
+            requires: 'ownedOrganization',
+            keepsOwnName: true,
+          },
+          {
+            label: 'Todas',
+            fullLabel: 'Todas las organizaciones',
+            to: '/admin/organizations',
+            requires: 'platformAdmin',
+          },
+        ],
       },
       {
         label: 'Usuarios',
         fullLabel: 'Gestión de usuarios',
         icon: <UsersIcon />,
         to: '/admin/users',
-        adminOnly: true,
-      },
-      {
-        label: 'Organizaciones',
-        fullLabel: 'Gestión de organizaciones',
-        icon: <BuildingIcon />,
-        to: '/admin/organizations',
-        adminOnly: true,
+        requires: 'platformAdmin',
       },
     ],
   },

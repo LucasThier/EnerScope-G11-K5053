@@ -5,6 +5,11 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
   'Invalid email or password': 'Email o contraseña incorrectos',
   'The project would be left without an administrator':
     'El proyecto no puede quedarse sin administrador. Asigná primero el rol de Administrador a otra persona.',
+  'The organization would be left without an owner':
+    'La organización no puede quedarse sin propietario. Asigná primero el rol de Propietario a otra persona.',
+  'A project in this organization would be left without an administrator':
+    'No se puede quitar a esa persona: algún proyecto de la organización quedaría sin administrador. ' +
+    'Asigná primero el rol de Administrador a otra persona en esos proyectos.',
   'User is already a member of this project': 'Esa persona ya integra el proyecto.',
   "User is not a member of the project's organization":
     'Esa persona no pertenece a la organización del proyecto.',

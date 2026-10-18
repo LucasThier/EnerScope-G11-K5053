@@ -1,10 +1,9 @@
-import { useEffect, useId, useMemo } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { useOwnedOrganizations } from '../../hooks/useOwnedOrganizations';
+import { useNavigationTree } from '../../hooks/useNavigationTree';
 import { useSidebar } from '../../hooks/useSidebar';
-import { NAV_GROUPS, type NavGroup, type NavItem } from './navItems';
-import { LockIcon } from '../ui/icons';
+import { type NavGroup, type NavItem } from './navItems';
+import { ChevronDownIcon, LockIcon } from '../ui/icons';
 
 const FOCUSABLE = 'a[href], button:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
@@ -14,15 +13,22 @@ const itemBase =
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus';
 
 export function Sidebar() {
-  const { user } = useAuth();
   const { origin, isVisible, pushes, isDrawer, menuId, panelRef, menuButtonRef, close, keepOpen } =
     useSidebar();
+  const { pathname } = useLocation();
+  const groups = useNavigationTree();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const showAdmin = user?.platformRole === 'ADMIN';
-  const { owned } = useOwnedOrganizations();
-  const ownedId = owned[0]?.id;
-
-  const groups = useMemo(() => visibleGroups(showAdmin, ownedId), [showAdmin, ownedId]);
+  const toggleModule = useCallback(
+    (item: NavItem) => {
+      const id = moduleKey(item);
+      setExpanded((current) => ({
+        ...current,
+        [id]: !(current[id] ?? containsActiveChild(item, pathname)),
+      }));
+    },
+    [pathname],
+  );
 
   useEffect(() => {
     if (!isVisible || (origin !== 'keyboard' && !isDrawer)) {
@@ -98,6 +104,8 @@ export function Sidebar() {
             key={group.title}
             group={group}
             isFirst={index === 0}
+            expanded={expanded}
+            onToggleModule={toggleModule}
             onNavigate={close}
           />
         ))}
@@ -106,24 +114,30 @@ export function Sidebar() {
   );
 }
 
-function visibleGroups(showAdmin: boolean, ownedId: string | undefined): NavGroup[] {
-  return NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items
-      .filter((item) => !item.adminOnly || showAdmin)
-      .map((item) =>
-        item.key === 'team' && ownedId ? { ...item, to: `/organizations/${ownedId}` } : item,
-      ),
-  })).filter((group) => group.items.length > 0);
+function moduleKey(item: NavItem): string {
+  return item.id ?? item.label;
+}
+
+function isItemActive(item: NavItem, pathname: string): boolean {
+  if (item.matchPattern) {
+    return item.matchPattern.test(pathname) || pathname === item.to;
+  }
+  return item.to !== undefined && pathname === item.to;
+}
+
+function containsActiveChild(item: NavItem, pathname: string): boolean {
+  return (item.children ?? []).some((child) => isItemActive(child, pathname));
 }
 
 interface GroupProps {
   group: NavGroup;
   isFirst: boolean;
+  expanded: Record<string, boolean>;
+  onToggleModule: (item: NavItem) => void;
   onNavigate: () => void;
 }
 
-function NavGroupBlock({ group, isFirst, onNavigate }: GroupProps) {
+function NavGroupBlock({ group, isFirst, expanded, onToggleModule, onNavigate }: GroupProps) {
   const titleId = useId();
 
   return (
@@ -136,8 +150,17 @@ function NavGroupBlock({ group, isFirst, onNavigate }: GroupProps) {
       </p>
       <ul aria-labelledby={titleId} className="flex flex-col gap-1">
         {group.items.map((item) => (
-          <li key={item.label}>
-            <NavItemRow item={item} onNavigate={onNavigate} />
+          <li key={moduleKey(item)}>
+            {item.children ? (
+              <NavModuleRow
+                item={item}
+                expandedState={expanded[moduleKey(item)]}
+                onToggle={() => onToggleModule(item)}
+                onNavigate={onNavigate}
+              />
+            ) : (
+              <NavItemRow item={item} onNavigate={onNavigate} />
+            )}
           </li>
         ))}
       </ul>
@@ -148,13 +171,72 @@ function NavGroupBlock({ group, isFirst, onNavigate }: GroupProps) {
 const restingTone = 'font-medium text-ink-500 hover:bg-nav-hover hover:text-ink-700';
 const activeTone = 'bg-nav-active font-semibold text-brand-900';
 
+const marker = (
+  <span
+    aria-hidden="true"
+    className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-900"
+  />
+);
+
+interface ModuleProps {
+  item: NavItem;
+  expandedState: boolean | undefined;
+  onToggle: () => void;
+  onNavigate: () => void;
+}
+
+function NavModuleRow({ item, expandedState, onToggle, onNavigate }: ModuleProps) {
+  const location = useLocation();
+  const panelId = useId();
+  const containsActive = containsActiveChild(item, location.pathname);
+  const open = expandedState ?? containsActive;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-label={item.fullLabel}
+        title={item.fullLabel ?? item.label}
+        className={`${itemBase} w-full text-left ${containsActive ? activeTone : restingTone}`}
+      >
+        {containsActive && marker}
+        <span className="shrink-0">{item.icon}</span>
+        <span className="truncate">{item.label}</span>
+        <ChevronDownIcon
+          className={
+            'ml-auto h-4 w-4 shrink-0 transition-transform duration-150 ease-out ' +
+            'motion-reduce:transition-none ' +
+            (open ? 'rotate-180' : 'rotate-0')
+          }
+        />
+      </button>
+      <ul
+        id={panelId}
+        className={
+          open ? 'mt-1 ml-5 flex flex-col gap-1 border-l border-ink-100 pl-3' : 'hidden'
+        }
+      >
+        {open &&
+          (item.children ?? []).map((child) => (
+            <li key={child.label}>
+              <NavItemRow item={child} onNavigate={onNavigate} />
+            </li>
+          ))}
+      </ul>
+    </>
+  );
+}
+
 function NavItemRow({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
   const location = useLocation();
   const fullName = item.fullLabel ?? item.label;
 
   const body = (
     <>
-      <span className="shrink-0">{item.icon}</span>
+      {item.icon && <span className="shrink-0">{item.icon}</span>}
       <span className="truncate">{item.label}</span>
     </>
   );
@@ -178,18 +260,11 @@ function NavItemRow({ item, onNavigate }: { item: NavItem; onNavigate: () => voi
     );
   }
 
-  const marker = (
-    <span
-      aria-hidden="true"
-      className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-900"
-    />
-  );
-
   const linkProps = {
     to: item.to,
     onClick: onNavigate,
     'aria-label': item.fullLabel,
-    title: item.fullLabel,
+    title: fullName,
   };
 
   if (item.matchPattern) {

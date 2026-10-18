@@ -9,6 +9,7 @@ import { organizationsApi } from '../../api/organizations';
 import { getErrorMessage } from '../../api/errors';
 import { useAuth } from '../../hooks/useAuth';
 import { useMemberRoleChange } from '../../hooks/useMemberRoleChange';
+import { lastOwnerReason } from '../../utils/membershipGuards';
 import type {
   OrganizationMemberSummary,
   OrganizationMemberType,
@@ -169,8 +170,9 @@ export function OrganizationMembersModal({
             de <span className="font-semibold text-ink-800">{organization?.name}</span>.
           </p>
           <p className="text-sm text-ink-700">
-            También se le quitan sus membresías en los proyectos de esta organización. Si era
-            el único administrador de alguno de ellos, ese proyecto queda sin administrador.
+            También se le quitan sus membresías en los proyectos de esta organización. Si es la
+            única persona con rol Administrador en alguno de ellos, la operación se rechaza y te
+            lo avisamos.
           </p>
           <p className="text-sm text-ink-500">
             La cuenta de plataforma no se toca: sigue pudiendo iniciar sesión y conserva sus
@@ -216,6 +218,7 @@ export function OrganizationMembersModal({
                 roleLabels={MEMBER_TYPE_LABELS}
                 onRemove={setConfirming}
                 onChangeRole={roleChange.requestChange}
+                disabledReason={(member) => lastOwnerReason(members, member)}
                 busyMemberId={roleChange.busyMemberId}
                 roleError={roleChange.error}
               />

@@ -195,6 +195,9 @@ public class OrganizationService {
             return member;
         }
 
+        if (newType != OrganizationMemberType.OWNER) {
+            assertNotLastOwner(organizationId, member);
+        }
         member.changeRole(newType, DEFAULT_PERMISSIONS.get(newType));
         OrganizationMember saved = organizationMemberRepository.save(member);
         logger.info("Changed the role of user {} in organization {} to {}",
@@ -236,7 +239,11 @@ public class OrganizationService {
                 .findByIdAndOrganizationId(memberId, organizationId)
                 .orElseThrow(() -> new EntityNotFoundException("Member not found"));
 
+        assertNotLastOwner(organizationId, member);
+
         User user = member.getUser();
+        assertNoProjectLeftWithoutAdmin(user.getId(), organizationId);
+
         List<ProjectMember> projectMemberships =
                 projectMemberRepository.findByUserInOrganization(user.getId(), organizationId);
         if (!projectMemberships.isEmpty()) {
@@ -337,6 +344,23 @@ public class OrganizationService {
     private void requireActiveOrganization(UUID organizationId) {
         if (!organizationRepository.existsByIdAndActiveTrue(organizationId)) {
             throw new IllegalArgumentException("Organization not found");
+        }
+    }
+
+    private void assertNotLastOwner(UUID organizationId, OrganizationMember member) {
+        boolean countsAsOwner = member.isActive()
+                && member.getUser().isActive()
+                && member.getRoles().stream()
+                        .anyMatch(role -> role.getMemberType() == OrganizationMemberType.OWNER);
+        if (countsAsOwner && organizationMemberRepository.countOwnersByOrganization(organizationId) <= 1) {
+            throw new IllegalArgumentException("The organization would be left without an owner");
+        }
+    }
+
+    private void assertNoProjectLeftWithoutAdmin(UUID userId, UUID organizationId) {
+        if (projectMemberRepository.countProjectsLeftWithoutAdmin(userId, organizationId) > 0) {
+            throw new IllegalArgumentException(
+                    "A project in this organization would be left without an administrator");
         }
     }
 
