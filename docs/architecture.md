@@ -69,14 +69,3 @@ See `AGENTS.md` for the full convention.
 | Filter | `<feature>/filter` | Servlet filters (e.g. `auth/filter/AuthFilter`) |
 | Config | `config` | Security, CORS, crypto, OpenAPI, JPA (flat, cross-cutting) |
 
-### Economic workspace
-
-The scenario list and economic configuration/results/history now use the existing
-Version hierarchy. A read-only version-summary endpoint supports selection.
-The frontend uses React Router's data router for navigation blocking, and a pure
-adapter converts the simple editor to the existing economic aggregate.
-All financial calculations remain in the backend. See [economic frontend](economic-frontend.md).
-
-The economic editor additionally reads/writes version-owned durable drafts through GET/PUT economics/draft. Draft storage never feeds the engine directly; configuration validation remains mandatory for simulation.
-
-The shared version-summary route serves the diagram and economic selectors, retaining VIEW_PROJECT checks and returning parentVersionId/createdAt together with lastModified and minimal node summaries. Both editors use the same data router so unsaved economic changes continue to block navigation.

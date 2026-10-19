@@ -1,4 +1,4 @@
-# Economic module: NPV, IRR and Payback
+# Economic module: probabilistic evaluations, NPV, IRR and Payback
 
 The economic module evaluates a **Version of a Project**. It consumes actual annual
 simulator quantities, generates auditable entries, computes income tax separately
@@ -21,7 +21,9 @@ cross-reference validation. There is no unvalidated arbitrary JSON calculation p
 `EconomicEvaluation` stores an independent immutable JSON snapshot: schema version,
 configuration, physical node/connection parameters, raw annual metrics, converted
 metrics, generated entries, tax ledgers, period results, outstanding balances, NPV
-and economic indicators. New evaluations use snapshot schema version 2.
+and economic indicators for individual realizations. Synchronous evaluations use
+schema version 2; completed probabilistic jobs use version 3 and store their rounds
+separately, as detailed below.
 Each evaluation gets a new UUID. Editing the configuration never rewrites history.
 Configurations are not automatically inherited by child versions. When explicitly
 copying a configuration, replace its node IDs with the destination version's IDs.
@@ -89,7 +91,7 @@ Each evaluation constructs fresh simulator state and does not attach transient
 results to the managed Version. Raw losses remain in the originating simulator unit;
 they are saved for audit, not converted across gas/liquid phases without a factor.
 
-The physical engine remains a simplified model: phases follow its existing ordering
+The physical engine remains a simplified model: nodes follow topological ordering
 and LNG exports are recognized at departure, not at destination arrival. Contracts
 using `OUTPUT_VOLUME` explicitly choose a sale at the producing node (as in the
 wellhead example). They do not imply that all intermediate nodes earn revenue.
@@ -230,17 +232,17 @@ one simulation, then the engine, then persists one independent evaluation. An
 unavailable indicator never invalidates NPV or prevents saving the evaluation.
 Numerical failures on new evaluations are logged through `AppLogger` as warnings.
 
-The **Guardar y simular** action calls the existing `POST /evaluations` endpoint
-and receive NPV, IRR and both Paybacks in one response. No screens, extra endpoints,
-tables or indicator-specific SQL migrations are introduced.
+The **Guardar y simular** action now calls `POST /evaluation-jobs`, returning a
+persisted job immediately. Each completed physical round has its own NPV, IRR and
+Paybacks. The compatibility `POST /evaluations` remains synchronous and single-round.
 
 ### Snapshot versions and historical reads
 
-New snapshots have `schemaVersion: 2`; their indicator block has
+Individual synchronous snapshots have `schemaVersion: 2`; their indicator block has
 `calculationVersion: 1` and `origin: "STORED"`. Indicators already present in a
 snapshot are returned as stored, without recalculation.
 
-When indicators are absent or null, both GET detail and GET list derive them in
+For schemas 1 and 2, when indicators are absent or null, both GET detail and GET list derive them in
 memory from the saved annual periods and **saved** WACC. They never invoke the
 simulator, fetch the current economic configuration, or update the historical JSON.
 `origin` becomes `DERIVED_FROM_SNAPSHOT`; `calculationVersion` identifies the
@@ -407,6 +409,186 @@ Invoke-RestMethod -Uri "$base/evaluations/$id" -Headers $headers
 Invoke-RestMethod -Uri "$base/evaluations" -Headers $headers
 ```
 
+
+## Probabilistic evaluations and background execution
+
+Physical inputs are uncertain; economic prices, costs, WACC and fiscal treatments
+remain fixed. A job defaults to **10 rounds**, accepts **1–100**, and freezes the
+saved configuration, physical node fields, distribution parameters and connections
+before returning HTTP 202. Later edits do not affect queued/running jobs.
+
+### Execution and reproducibility
+
+`Simulator.simulate(years)` executes exactly `years * 8760` hourly steps, indexed
+from zero with an exclusive upper bound. The adapter passes years once; it does
+not multiply that duration again. Annual economic periods remain distinct from
+hourly physical time. Each round creates fresh nodes, inventories, counters and
+random streams. Topological order rejects missing endpoints, duplicate edges and
+cycles before acceptance. Annual metrics are differences of cumulative counters,
+not differences of inventories.
+
+For wells, each completed 8,760-hour year of operating age triggers one decline
+sample. Samples are clipped to [0,100] percentage points, added to accumulated
+decline, and that accumulation is capped at 100%. The supported distributions are
+constant, normal (finite mean and strictly positive standard deviation) and uniform
+(finite minimum strictly below maximum). A missing legacy curve means zero decline.
+The worker never samples a shared JPA entity generator.
+
+`SimulationMetadata` saves the round count, signed 64-bit main seed **as text**,
+algorithm `JAVA_RANDOM_V1` and simulation `calculationVersion=1`. Each stored round
+also records its derived seed. Node seeds are reproducible from that round seed and
+the node UUID; no collection index participates in seed derivation. The frozen
+job retains explicit physical class names and complete distribution parameters.
+`Simulator.seedForRound` and `seedForNode` use the documented-in-code 64-bit mixer;
+sampling uses independent `java.util.Random` streams. Exact replay requires the same
+simulation version and frozen inputs, including UUIDs. Recreating nodes with new
+UUIDs is not an exact replay of nonconstant curves. Retrying uses the original UUIDs.
+
+### Classes, transactions and storage
+
+| Class | Responsibility |
+|---|---|
+| `EconomicInputCodec` / `FrozenEconomicInput` | Freeze concrete physical inputs with an allow-list; reconstruct fresh detached inputs; reject unsupported simulation versions |
+| `EconomicJobRequest` | Validate round limits and seed text; generate an omitted seed |
+| `EconomicJobService` | Authorize submission/read/retry, atomically claim a queue entry, persist round progress and publish a complete evaluation |
+| `EconomicJobWorker` | Poll and run one job outside HTTP/session/acceptance transactions; calculate economics once per physical round |
+| `EconomicJob` / `EconomicJobRepository` | Version-owned immutable input JSON, state, seed, progress, timestamps, error and final evaluation link |
+| `EconomicRound` / `EconomicRoundRepository` | Separate immutable full round JSON and small summary JSON; unique (job, round number) |
+| `EconomicRoundResult` | One-based round number, round seed, raw annual node metrics and complete `EconomicResult` |
+| `EconomicRoundSummary` | Round number, seed, NPV and indicators without loading its full detail |
+| `EconomicStatisticsCalculator` / `ProbabilisticSummary` | Pure aggregation of completed rounds, no simulator or database access |
+| `EconomicJobController` | Accepted jobs, progress/history, retry and per-round reads in the existing API envelope |
+
+States are `QUEUED → RUNNING → COMPLETED`, or `RUNNING → FAILED/INTERRUPTED`.
+At application readiness the worker marks prior QUEUED/RUNNING rows INTERRUPTED.
+A conditional database update claims only QUEUED rows, preventing duplicate claims.
+Round save and progress increment share a short transaction. Final evaluation
+creation and COMPLETED transition share another transaction after **all** rounds.
+A physical failure stops the job; already saved rounds are not published as a
+complete evaluation. An unavailable IRR is an indicator outcome, not a job failure.
+
+Deploy **one worker application instance** initially. Its scheduled task processes
+jobs serially, polling an empty queue every 1,000 ms by default
+(`economic.worker.poll-ms`). `economic.worker.enabled=false` disables that worker
+for isolated integration tests. This is not a multi-instance restart coordinator:
+startup interruption assumes no other instance is still executing jobs. Retry is
+allowed only for FAILED/INTERRUPTED and creates a new job from exactly the old
+input JSON and main seed, starting at round one.
+
+### Statistics and denominators
+
+All statistics follow complete economic/tax calculations **per round**, preserving
+each entity's losses and tax timing independently. Taxing average production can
+give different results and is explicitly tested.
+
+- Numeric summaries contain `count, mean, min, max, p10, p50, p90`. Means use
+  DECIMAL128; the underlying monetary round outputs retain their existing rounding.
+- Percentiles are ascending nearest rank: sort N values and select the one-based
+  position `ceil(p*N)`. P10 is low, P90 high. There is no interpolation.
+- NPV uses every completed round; `positiveNpvProbability` is the count of strictly
+  positive NPVs divided by total rounds. Zero is not positive.
+- IRR summarizes only `CALCULATED` rates; `irr.count` is the conditional denominator.
+  `irrStatuses` counts all observed states. There is no IRR calculated from a mean
+  flow. Unobserved states may be absent from the count map.
+- Each Payback gives `denominator`, `recoveredProbability`, `recoveryPeriods`,
+  `statuses` and `becomesNegativeAgainCount`. The probability denominator includes
+  RECOVERED and NOT_RECOVERED_WITHIN_HORIZON only; nonapplicable and unresolved
+  observations remain in the status counts. Recovery-period statistics use only
+  recovered rounds. A zero denominator produces null probability.
+- Empty numeric samples have count zero and null values, never manufactured zeros.
+- `cashFlows` summarizes annual consolidated cash by period/year. `operational`
+  summarizes each node, period and metric separately. Their bands are marginal
+  statistics and do not describe one physically coherent round. No production sum
+  across unrelated chain stages is shown.
+
+### Snapshot version 3 and API contract
+
+Completed jobs publish schema 3 snapshots with `configuration`, `physicalNodes`,
+`physicalConnections`, `simulation` and `summary`. Top-level `result` and
+`rawMetrics` are null: full detail lives in separately persisted rounds.
+The evaluation ID plus one-based round number identifies detail through the routes
+below; the job stores the evaluation link. Listing evaluations does not read full
+round JSON, and listing rounds reads only their small summaries.
+
+Versions 1 and 2 keep their individual-result presentation and historical indicator
+enrichment. They are never assigned fictitious probabilistic statistics. The
+synchronous compatibility endpoint still returns one schema 2 realization with
+its seed/version metadata and full result; it shares the seeded physical and
+economic core and runs only once.
+
+Additional routes under the existing economic base:
+
+| Method and suffix | Response | Permission |
+|---|---|---|
+| `POST /evaluation-jobs` | 202, `EconomicJobDTO` | EDIT_PROJECT |
+| `GET /evaluation-jobs` | Jobs newest first, progress/errors, no frozen input body | VIEW_PROJECT |
+| `GET /evaluation-jobs/{id}` | One job scoped to this version | VIEW_PROJECT |
+| `POST /evaluation-jobs/{id}/retry` | 202, new job from original inputs/seed | EDIT_PROJECT |
+| `GET /evaluations/{id}/rounds` | Small summaries of all completed rounds | VIEW_PROJECT |
+| `GET /evaluations/{id}/rounds/{round}` | Full selected round | VIEW_PROJECT |
+
+Submit body (both fields optional; omitted seed is generated):
+
+```json
+{"rounds":10,"seed":"42"}
+```
+
+The enveloped job data has `id,status,rounds,completedRounds,seed,createdAt,startedAt,
+finishedAt,errorMessage,evaluationId`; the final evaluation ID is null until
+completion. Invalid rounds/seed or an ineligible retry return 400. Authentication,
+project/admin authorization and existing error envelopes are unchanged.
+
+### Reproducible constant-distribution example
+
+The complete five-year example above is unchanged. The well request fixture now
+uses `"declineCurve":{"type":"CONSTANT","val_a":0,"val_b":0}`. With ten rounds all
+NPVs are **169.20 USD**, all IRRs **0.1483447840**, all simple recoveries period 4
+(2034), and all discounted recoveries period 5 (2035). Min/max/P10/P50/P90 equal
+the common observed value; positive NPV and recovery probabilities are 1, with
+denominator 10. Each round retains the original entity tax ledgers and movements.
+
+From the repository root:
+
+```powershell
+./docs/examples/run-economic-example.ps1 -ProjectId $projectId -AccessToken $token -Rounds 10 -Seed '42'
+# Compatibility: one synchronous realization
+./docs/examples/run-economic-example.ps1 -ProjectId $projectId -AccessToken $token -Synchronous
+```
+
+The script creates a new version and example wells, remaps their IDs, saves the
+configuration, submits a job and polls it. To use an already configured version:
+
+```powershell
+$base = "http://localhost:8080/api/v1/projects/$projectId/versions/$versionId/economics"
+$headers = @{ Authorization = "Bearer $token" }
+$job = (Invoke-RestMethod -Method Post -Uri "$base/evaluation-jobs" -Headers $headers -ContentType 'application/json' -Body '{"rounds":10,"seed":"42"}').data
+do {
+    Start-Sleep -Seconds 2
+    $job = (Invoke-RestMethod -Uri "$base/evaluation-jobs/$($job.id)" -Headers $headers).data
+} while ($job.status -in @('QUEUED','RUNNING'))
+if ($job.status -ne 'COMPLETED') { throw $job.errorMessage }
+$evaluationId = $job.evaluationId
+Invoke-RestMethod -Uri "$base/evaluations/$evaluationId" -Headers $headers
+Invoke-RestMethod -Uri "$base/evaluations/$evaluationId/rounds" -Headers $headers
+Invoke-RestMethod -Uri "$base/evaluations/$evaluationId/rounds/1" -Headers $headers
+```
+
+### Screens and scoped limitation
+
+Guardar y simular submits the asynchronous endpoint after saving the configuration.
+Rounds and seed are execution options. The page shows progress, allows navigation,
+polls every two seconds while visible and stops at completion/failure/interruption.
+Retry preserves frozen inputs and seed. Schema 3 opens a statistical summary; the
+round selector drives both existing economic and operational tabs together.
+Operational ranges retain node names and saved unit conversions. Old evaluations
+remain individual results; the UI never recomputes economic indicators.
+
+**Explicitly deferred by the user on 2026-10-14:** the physical well editor still
+uses the old numeric decline field and its detail contract does not expose the
+distribution parameters. This delivery does not change that editor. Configure
+physical distributions through the existing node API (as the fixture/script does)
+until that separate form/contract adaptation is implemented.
+
 ## Verification and migrations
 
 ```powershell
@@ -418,19 +600,25 @@ $env:ECONOMIC_TEST_DATABASE_URL = 'jdbc:postgresql://127.0.0.1:55439/enerscope_e
 mvn '-Dtest=PostgreSqlEconomicIT' test
 cd ../frontend
 npm ci
+npm test
 npm run build
+npm run lint
 ```
 
 `PostgreSqlEconomicIT` deliberately fails if the test database URL is absent. It is
 an explicit integration suite, not a silently skipped default test. It applies
 Flyway and uses Hibernate `validate`; test data is transactionally rolled back.
 
-V8 introduces version-owned economic tables and renames the legacy result year
-column to avoid the H2 reserved identifier. V9 adds the missing physical fields
-`base_node.maintenance_duration` and `flng_unit.gas_consumption`. Java mappings now
-use the existing `result.version_id`, `result_per_node.result_id` and `node_id` columns.
-Applied V1-V7 migrations are unchanged. Back up the database as usual before deployment;
-run the new migrations before starting the new backend binary.
+V11 introduces economic tables and renames the legacy result year column;
+V12 adds maintenance duration and FLNG gas consumption. V16 introduces economic
+jobs and rounds, and permits percentile result rows without a legacy Result owner.
+For this branch only, the user confirmed the probabilistic merge had not been
+applied to databases requiring preservation: the conflicting V8.5 was restored to
+the prior valid result schema, V1.5's filename was normalized, and the merge's V2
+syntax/duplicate FLNG column were reconciled with V12. These are not instructions
+to rewrite an applied database history. No Flyway repair or database reset is used.
+Verify from a fresh disposable PostgreSQL database before deployment; never point
+the integration suite at a production database.
 
 The editable integrated diagram is in `backend/docs/backend-class-diagram.drawio`.
 The Spanish PDF and its diagram pages are generated by `docs/tools/build-economic-document.py`

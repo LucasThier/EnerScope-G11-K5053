@@ -2092,7 +2092,14 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     needs a fresh one (`docker compose down -v`): Flyway rejects a migration
     whose checksum changed.
 
-- 2026-10-08 — Master integration retains the economic data router and adds diagram, profile and team routes. VersionQueryController is the single GET /projects/{projectId}/versions endpoint, with node summaries, parentVersionId and createdAt for both selectors. The redundant incoming V11__add_missing_node_columns migration is omitted: existing V12 already creates both columns, and economic V11/V12/V13 retain their names and contents. Axios remains pinned at 1.20.0. No local database is reset or migrated by this merge.
+- 2026-10-08 — Master integration retains the economic data router and adds diagram, 
+  profile and team routes. VersionQueryController is the single 
+  GET /projects/{projectId}/versions endpoint, with node summaries, 
+  parentVersionId and createdAt for both selectors. 
+  The redundant incoming V11__add_missing_node_columns migration is omitted: 
+  existing V12 already creates both columns, and economic V11/V12/V13 retain 
+  their names and contents. Axios remains pinned at 1.20.0. 
+  No local database is reset or migrated by this merge.
 
 - 2026-10-08 — Merge verification: 684 backend executions, 24 frontend cases, build/lint and both browser acceptance scripts passed. Windows locked the old target directory, which contained classes from other branches; backend tests therefore used a temporary POM with only the output directory changed and a clean isolated build directory. The original pom.xml is unchanged. Consumption nodes now use stepOutput and participate in annual metric capture alongside the existing economic simulator. No PostgreSQL migration was applied to the user database.
 
@@ -2127,3 +2134,31 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - 2026-10-13 — Operational annual node detail uses a native details/summary disclosure, closed by default, consistent with economic annual detail. Table values and node filtering are unchanged.
 
 - 2026-10-13 — Operational bars now use pointer-following tooltips like economic flows, with metric/year/value/unit, keyboard focus, Escape dismissal and scroll/resize cleanup. Zero metrics retain a one-pixel focusable bar; missing metrics remain absent.
+
+- 2026-10-14 - Physical uncertainty only; economics runs per round before statistics. Defaults: 10 rounds, range 1–100, ascending nearest-rank percentiles. Payback probabilities expose their applicable/determined denominator.
+
+- 2026-10-14 - Frozen inputs retain distribution parameters and 64-bit seed strings. Stable node/round seed derivation and fresh simulators avoid shared JPA random state. Exact replay requires the same simulation version and UUIDs.
+
+- 2026-10-14 - One worker application instance initially. Short transactions claim/save/publish; startup interrupts queued/running work. Retry copies frozen JSON/seed into a new job. Multi-instance startup recovery is not implemented.
+
+- 2026-10-14 - Schema 3 stores statistics separately from full round detail. Schemas 1/2 retain saved individual results and historical indicator enrichment without rewriting JSON.
+
+- 2026-10-14 - The user confirmed the probabilistic merge had not been applied to databases requiring preservation. Only conflicting incoming migration content was reconciled; V16 adds jobs/rounds. Validation used disposable PostgreSQL without repair/reset.
+
+- 2026-10-14 - Explicit user decision: exclude the physical well editor. Its numeric decline payload/detail contract remains incompatible with distributions. Use the existing node API with a distribution object until that separate adaptation.
+
+- 2026-10-14 — Economic configuration remains in Simulaciones / Escenarios. Physical node forms and detail panels exclude legacy monetary fields (upkeep, operating, DTM, treatment and hiring costs). Hidden values remain in the existing node payload contract; no automatic import into economic rules is introduced. The distribution editor remains outside this change.
+
+- 2026-10-14 — Scenario names and the explicit Configurar y simular action open the economic configuration tab via absolute project/version URLs. The five-section editor and asynchronous save-then-submit flow remain available; existing bare economics URLs still default to configuration.
+
+- 2026-10-14 — Advanced economic configurations now use a five-section full-configuration editor rather than a read-only summary. Field edits preserve shared ownership, contracts, timing, tax entities and unknown properties. Save validates the complete configuration through the existing API (no incomplete advanced draft); simple drafts retain their existing workflow.
+
+- Execution history is shown in Results/History rather than above Configuration, keeping the economic form visible when a scenario opens.
+
+- 2026-10-15 — Runtime upgrade from the October 12 database: restore its published V2/V8.5 migration contents and introduce distributions after existing history in V17. Legacy well decline values become CONSTANT distributions; retain the scalar audit column. V16 introduces evaluation jobs. Validate against a cloned database without Flyway repair, reset or disabling validation.
+
+- 2026-10-15 — V18 adds the missing FLNG ship_capacity column without removing existing columns. Local runtime now uses enerscope_run_oct15 (copy of enerscope_run_oct12), selected in ignored backend/.env. Original database and backend-api:before-oct15 image remain available. Starting the old API image against a new frontend yields Resource not found for /evaluation-jobs; rebuild the API after backend changes.
+
+- 2026-10-16 — Editor project selection shares ActiveProjectProvider with the header. Project changes remount editor state; version and diagram requests discard stale responses. Scenarios are project versions: New scenario creates an empty version or copies a parent from the same project, then opens economic configuration. ProjectService rejects foreign/inactive parent versions.
+
+- 2026-10-16 — Current checkout cannot clean-build the probabilistic backend because required physical distribution sources are absent. Local runtime was patched from the previously validated October 15 build, with ProjectService and its tests replaced; do not treat this as validation of the entire current checkout.

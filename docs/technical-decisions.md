@@ -82,3 +82,12 @@ Bearer security scheme, so protected endpoints can be exercised from the UI.
 ## Durable economic editor drafts
 
 Incomplete editor strings are persisted separately from the validated engine aggregate. Draft save validates structure and size only. GET/PUT economics/draft reuse VIEW_PROJECT/EDIT_PROJECT authorization. The simulation path publishes a fully validated configuration and clears the draft in the same transaction; historical results remain immutable.
+
+## Probabilistic economics 
+
+Compute fiscal results and indicators per physical realization before aggregation: 
+tax-loss rules make economics on average production incorrect. Use nearest-rank 
+ascending percentiles and explicit conditional denominators. Persist immutable job 
+inputs and separate round JSON, with atomic claims and startup interruption under a 
+single-worker-instance deployment. Preserve old individual snapshots unchanged; 
+see [economic module](economic-module.md).

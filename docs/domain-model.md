@@ -427,4 +427,14 @@ if the email is not already present.
 
 ## EconomicDraftEntity
 
-Version-owned editor draft, unique version_id, schema-versioned draft_json text and optimistic-lock revision. Raw strings preserve partial amounts and dates. V13 adds the table independently of economic_configuration and economic_evaluation.
+Version-owned editor draft, unique version_id, schema-versioned draft_json text 
+and optimistic-lock revision. Raw strings preserve partial amounts and dates. 
+V13 adds the table independently of economic_configuration and economic_evaluation.
+
+## Probabilistic economic jobs and rounds
+
+A Version has many EconomicJob records. Each holds immutable inputJson, rounds, seed, state, 
+completedRounds, lifecycle timestamps/error and an optional unique evaluationId. Each job owns
+up to rounds EconomicRound records, unique by (job, round number), with full snapshotJson and 
+small summaryJson. A completed job links one EconomicEvaluation; failed/interrupted jobs publish 
+none. FrozenEconomicInput and ProbabilisticSummary are value records, not shared physical JPA state.

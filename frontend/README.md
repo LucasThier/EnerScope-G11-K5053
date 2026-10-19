@@ -190,3 +190,24 @@ see the economic frontend guide for fixture screenshots and prerequisites.
 Guardar preserves incomplete economic drafts in the database. Guardar y simular 
 requires a complete configuration; the summary lists every pending section and 
 simulation attempts open the first invalid one.
+
+## Probabilistic evaluation results 
+
+Guardar y simular saves configuration and submits 1–100 rounds with an optional seed 
+string. Progress polls every two seconds while visible. A statistical summary opens 
+completed evaluations; one round selector drives both economic/operational tabs. 
+Old snapshots stay individual. Editors can repeat failed/interrupted jobs. 
+The physical well editor remains outside this delivery.
+
+Validation: npm test, npm run build and npm run lint. Browser scripts 
+tests/economic-browser.mjs, tests/results-browser.mjs and 
+tests/probabilistic-browser.mjs use local Vite and PLAYWRIGHT_MODULE pointing to 
+Playwright, with isolated HTTP fixtures. 
+See [economic module](../docs/economic-module.md).
+
+### Scenario creation
+
+In Simulaciones / Escenarios, users with edit permission can select Nuevo escenario, 
+enter a name, and optionally copy a version from the same project. Crear y configurar 
+opens the economic editor. Editar mapa opens that scenario’s physical graph. 
+Project selection is shared with the global header.

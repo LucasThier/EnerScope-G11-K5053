@@ -364,8 +364,34 @@ node identifiers, names and types. Requires VIEW_PROJECT through an active proje
 membership/role, or a platform administrator. Responses use ApiResponse.
 See [economic frontend](../docs/economic-frontend.md).
 
-Economic drafts: migration V13 adds economic_draft. GET/PUT /projects/{projectId}/versions/{versionId}/economics/draft reads/stores editor drafts with VIEW_PROJECT/EDIT_PROJECT checks. Drafts are structurally validated separately from simulation-ready configuration.
+Economic drafts: migration V13 adds economic_draft. 
+GET/PUT /projects/{projectId}/versions/{versionId}/economics/draft reads/stores 
+editor drafts with VIEW_PROJECT/EDIT_PROJECT checks. 
+Drafts are structurally validated separately from simulation-ready configuration.
 
-Version-conflict support from master uses V14__create_version_conflict_tables.sql on this branch (upstream calls it V12). Review Flyway history before switching an existing database between these branches.
+Version-conflict support from master uses V14__create_version_conflict_tables.sql on 
+this branch (upstream calls it V12). Review Flyway history before switching an existing
+database between these branches.
 
-V15 normalizes legacy export vertical values so existing export nodes remain readable after the enum rename. Apply through Flyway; no database reset is needed.
+V15 normalizes legacy export vertical values so existing export nodes remain readable 
+after the enum rename. Apply through Flyway; no database reset is needed.
+
+## Probabilistic economic evaluations
+
+POST /api/v1/projects/{projectId}/versions/{versionId}/economics/evaluation-jobs 
+accepts {"rounds":10,"seed":"42"} and returns 202 with persisted progress. 
+The worker uses economic.worker.enabled (default true) and 
+economic.worker.poll-ms (default 1000); deploy one worker instance. 
+POST /evaluations remains synchronous and single-round. 
+V16 adds jobs/rounds. See [economic module](../docs/economic-module.md) for migration 
+reconciliation, restart/retry, permissions and the example script. Use a disposable 
+ECONOMIC_TEST_DATABASE_URL for the explicit PostgreSqlEconomicIT suite.
+
+### Updating a running local instance
+
+After pulling backend changes, rebuild the API rather than only starting an old 
+container: `docker compose up -d --build --no-deps api`. Keep `DATASOURCE_DB` set to 
+the intended database in the local `.env`. The probabilistic frontend requires 
+the `/economics/evaluation-jobs` endpoints. Legacy scalar well declines are preserved 
+as constant distributions by V17; V18 adds the FLNG capacity column. Do not repair or 
+reset historical migrations to bypass incompatibilities.
