@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { diagramApi } from '../api/diagram';
 import { getErrorMessage } from '../api/errors';
 import {
@@ -56,26 +56,33 @@ export function useDiagram(versionId: string | null): UseDiagram {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const requestId = useRef(0);
   const reload = useCallback(async () => {
+    const request = ++requestId.current;
     if (!versionId) {
       setDiagram(null);
+      setLoading(false);
+      setError(null);
       return;
     }
     setLoading(true);
     setError(null);
     try {
       const res = await diagramApi.get(versionId);
+      if (request !== requestId.current) return;
       setDiagram(res.data.data ?? { versionId, nodes: [], connections: [] });
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not load the diagram'));
+      if (request === requestId.current) setError(getErrorMessage(err, 'Could not load the diagram'));
     } finally {
-      setLoading(false);
+      if (request === requestId.current) setLoading(false);
     }
   }, [versionId]);
 
+  const invalidateRequest = useCallback(() => { requestId.current++; }, []);
   useEffect(() => {
     void reload();
-  }, [reload]);
+    return invalidateRequest;
+  }, [reload, invalidateRequest]);
 
   const addNode = useCallback(
     async (
@@ -306,7 +313,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
   );
 
   return {
-    diagram,
+    diagram: diagram?.versionId === versionId ? diagram : null,
     loading,
     error,
     busy,
