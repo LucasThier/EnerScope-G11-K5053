@@ -119,6 +119,75 @@ class OrganizationControllerTest {
     }
 
     @Test
+    void listOrganizationsWithoutMineUsesTheUnfilteredListing() throws Exception {
+        when(organizationService.listForCurrentUser())
+                .thenReturn(List.of(new OrganizationDTO(
+                        UUID.randomUUID(), "Acme", Instant.now(), true, 4L)));
+
+        mockMvc.perform(get("/organizations")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].memberType").doesNotExist());
+
+        verify(organizationService, never()).listMineForCurrentUser();
+    }
+
+    @Test
+    void listOrganizationsExposesTheCallersMemberType() throws Exception {
+        when(organizationService.listForCurrentUser())
+                .thenReturn(List.of(
+                        new OrganizationDTO(UUID.randomUUID(), "Acme", Instant.now(), true, 4L,
+                                OrganizationMemberType.OWNER),
+                        new OrganizationDTO(UUID.randomUUID(), "Globex", Instant.now(), true, 1L,
+                                OrganizationMemberType.MEMBER),
+                        new OrganizationDTO(UUID.randomUUID(), "Initech", Instant.now(), true, 2L)));
+
+        mockMvc.perform(get("/organizations")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].memberType").value("OWNER"))
+                .andExpect(jsonPath("$.data[1].memberType").value("MEMBER"))
+                .andExpect(jsonPath("$.data[2].memberType").isEmpty());
+    }
+
+    @Test
+    void listOrganizationsWithMineTrueReturnsOnlyTheMemberships() throws Exception {
+        when(organizationService.listMineForCurrentUser())
+                .thenReturn(List.of(new OrganizationDTO(
+                        UUID.randomUUID(), "Acme", Instant.now(), true, 4L, OrganizationMemberType.MEMBER)));
+
+        mockMvc.perform(get("/organizations")
+                        .param("mine", "true")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("Acme"))
+                .andExpect(jsonPath("$.data[0].memberType").value("MEMBER"));
+
+        verify(organizationService, never()).listForCurrentUser();
+    }
+
+    @Test
+    void listOrganizationsWithMineFalseKeepsTheUnfilteredListing() throws Exception {
+        when(organizationService.listForCurrentUser()).thenReturn(List.of());
+
+        mockMvc.perform(get("/organizations")
+                        .param("mine", "false")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk());
+
+        verify(organizationService).listForCurrentUser();
+        verify(organizationService, never()).listMineForCurrentUser();
+    }
+
+    @Test
+    void listOrganizationsWithMineTrueRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(get("/organizations").param("mine", "true"))
+                .andExpect(status().isUnauthorized());
+
+        verify(organizationService, never()).listMineForCurrentUser();
+    }
+
+    @Test
     void updateOrganizationReturnsTheUpdatedOrganization() throws Exception {
         UUID orgId = UUID.randomUUID();
         when(organizationService.updateOrganization(eq(orgId), any(UpdateOrganizationRequestDTO.class)))

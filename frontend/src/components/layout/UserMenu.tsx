@@ -4,11 +4,12 @@ import { useAuth } from '../../hooks/useAuth';
 import { useDismissable } from '../../hooks/useDismissable';
 import { useTheme, type ThemePreference } from '../../hooks/useTheme';
 import { Avatar } from '../ui/Avatar';
-import { ChevronDownIcon, MonitorIcon, MoonIcon, SunIcon } from '../ui/icons';
+import { ChevronDownIcon, LogoutIcon, MonitorIcon, MoonIcon, SunIcon, UserIcon } from '../ui/icons';
 
 const ITEM_CLASSES =
-  'block w-full px-4 py-2.5 text-left text-sm text-ink-700 transition-colors hover:bg-nav-hover ' +
-  'focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus';
+  'flex min-h-control-compact w-full items-center gap-3 rounded-control px-3 text-left text-sm ' +
+  'font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
+  'motion-reduce:transition-none';
 
 const THEME_CHOICES: { value: ThemePreference; label: string; icon: ReactNode }[] = [
   { value: 'light', label: 'Claro', icon: <SunIcon className="h-4 w-4" /> },
@@ -38,6 +39,10 @@ export function UserMenu() {
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    close();
+  }, [pathname, close]);
+
   if (!user) {
     return null;
   }
@@ -61,7 +66,14 @@ export function UserMenu() {
     items[((index % count) + count) % count]?.focus();
   }
 
-  function handleMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  function handleTriggerKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === 'ArrowDown' && !isOpen) {
+      event.preventDefault();
+      toggle();
+    }
+  }
+
+  function handleMenuKeyDown(event: KeyboardEvent<HTMLElement>) {
     const current = itemRefs.current.indexOf(document.activeElement as HTMLButtonElement);
     const inThemeGroup = current >= 1 && current <= 3;
     switch (event.key) {
@@ -98,6 +110,7 @@ export function UserMenu() {
         closeAndFocusTrigger();
         break;
       case 'Tab':
+        triggerRef.current?.focus();
         close();
         break;
       default:
@@ -111,112 +124,117 @@ export function UserMenu() {
         ref={triggerRef}
         type="button"
         onClick={toggle}
+        onKeyDown={handleTriggerKeyDown}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        aria-label={`${user.firstName} ${user.lastName}, menú de usuario`}
+        aria-label={`${user.firstName} ${user.lastName}, ${subtitle}. Menú de usuario`}
         className={
-          'flex h-11 items-center gap-2 rounded-xl p-1 transition-colors hover:bg-nav-hover ' +
-          'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus lg:gap-3 lg:pr-3'
+          'flex h-11 items-center gap-1 rounded-full p-1 transition-colors hover:bg-nav-hover ' +
+          'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:pr-2 ' +
+          'motion-reduce:transition-none ' +
+          (isOpen ? 'bg-nav-hover' : '')
         }
       >
         <Avatar firstName={user.firstName} lastName={user.lastName} />
-        <span className="hidden max-w-[12rem] text-left lg:block">
-          <span className="block truncate text-sm font-semibold leading-tight text-ink-800">
-            {user.firstName} {user.lastName}
-          </span>
-          <span className="block truncate text-xs leading-tight text-ink-500">{subtitle}</span>
-        </span>
         <ChevronDownIcon
-          className={`hidden h-4 w-4 shrink-0 text-ink-500 transition-transform sm:block ${isOpen ? 'rotate-180' : ''}`}
+          className={`hidden h-4 w-4 shrink-0 text-ink-500 transition-transform motion-reduce:transition-none sm:block ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
 
       {isOpen && (
         <div
           id={menuId}
-          role="menu"
-          aria-label="Menú de usuario"
           onKeyDown={handleMenuKeyDown}
           className={
-            'absolute right-0 z-20 mt-2 w-72 max-w-[calc(100vw-1.5rem)] rounded-xl border ' +
-            'border-ink-100 bg-raised py-1 shadow-float'
+            'absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-1.5rem)] rounded-card border ' +
+            'border-ink-100 bg-raised shadow-float transition duration-150 ease-out ' +
+            'starting:-translate-y-1 starting:opacity-0 motion-reduce:transition-none ' +
+            'motion-reduce:starting:translate-y-0'
           }
         >
-          <div className="flex items-center gap-3 border-b border-ink-100 px-4 py-3">
-            <Avatar firstName={user.firstName} lastName={user.lastName} />
+          <div className="flex items-center gap-3 border-b border-ink-100 p-4">
+            <Avatar firstName={user.firstName} lastName={user.lastName} size="lg" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-ink-800">
+              <p className="truncate text-sm font-semibold text-ink-800" title={`${user.firstName} ${user.lastName}`}>
                 {user.firstName} {user.lastName}
               </p>
-              <p className="truncate text-xs text-ink-500">{user.mail}</p>
+              <p className="truncate text-xs text-ink-500" title={user.mail}>
+                {user.mail}
+              </p>
+              <p className="truncate text-xs text-ink-500">{subtitle}</p>
             </div>
           </div>
-          <button
-            ref={(el) => {
-              itemRefs.current[0] = el;
-            }}
-            type="button"
-            role="menuitem"
-            aria-current={pathname === '/profile' ? 'page' : undefined}
-            onClick={() => {
-              close();
-              navigate('/profile');
-            }}
-            className={ITEM_CLASSES}
-          >
-            Mi perfil
-          </button>
-          <hr className="my-1 border-t border-ink-100" />
-          <p
-            id={themeLabelId}
-            className="px-4 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500"
-          >
-            Tema
-          </p>
-          <div
-            role="group"
-            aria-labelledby={themeLabelId}
-            className="mx-4 mb-2 flex gap-1 rounded-xl border border-ink-100 bg-nav p-1"
-          >
-            {THEME_CHOICES.map((choice, index) => {
-              const isSelected = preference === choice.value;
-              return (
-                <button
-                  key={choice.value}
-                  ref={(el) => {
-                    itemRefs.current[index + 1] = el;
-                  }}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={isSelected}
-                  onClick={() => setPreference(choice.value)}
-                  className={
-                    'flex flex-1 flex-col items-center gap-1 rounded-lg px-1 py-2 text-[11px] ' +
-                    'transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
-                    (isSelected
-                      ? 'bg-nav-active font-semibold text-brand-900'
-                      : 'font-medium text-ink-500 hover:bg-nav-hover hover:text-ink-700')
-                  }
-                >
-                  {choice.icon}
-                  {choice.label}
-                </button>
-              );
-            })}
+          <div role="menu" aria-label="Menú de usuario" className="p-2">
+            <button
+              ref={(el) => {
+                itemRefs.current[0] = el;
+              }}
+              type="button"
+              role="menuitem"
+              aria-current={pathname === '/profile' ? 'page' : undefined}
+              onClick={() => {
+                close();
+                navigate('/profile');
+              }}
+              className={`${ITEM_CLASSES} text-ink-700 hover:bg-nav-hover`}
+            >
+              <UserIcon className="h-4 w-4 shrink-0 text-ink-500" />
+              Mi perfil
+            </button>
+            <hr className="my-2 border-t border-ink-100" />
+            <p
+              id={themeLabelId}
+              className="px-3 pb-1.5 pt-1 text-xs font-semibold text-ink-500"
+            >
+              Apariencia
+            </p>
+            <div
+              role="group"
+              aria-labelledby={themeLabelId}
+              className="mb-1 flex gap-1 rounded-control border border-ink-100 bg-nav p-1"
+            >
+              {THEME_CHOICES.map((choice, index) => {
+                const isSelected = preference === choice.value;
+                return (
+                  <button
+                    key={choice.value}
+                    ref={(el) => {
+                      itemRefs.current[index + 1] = el;
+                    }}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={isSelected}
+                    onClick={() => setPreference(choice.value)}
+                    className={
+                      'flex h-control-compact flex-1 items-center justify-center gap-1.5 rounded-lg px-1 text-xs ' +
+                      'transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
+                      'motion-reduce:transition-none ' +
+                      (isSelected
+                        ? 'bg-surface font-semibold text-brand-900 shadow-raise'
+                        : 'font-medium text-ink-500 hover:bg-nav-hover hover:text-ink-700')
+                    }
+                  >
+                    {choice.icon}
+                    {choice.label}
+                  </button>
+                );
+              })}
+            </div>
+            <hr className="my-2 border-t border-ink-100" />
+            <button
+              ref={(el) => {
+                itemRefs.current[4] = el;
+              }}
+              type="button"
+              role="menuitem"
+              onClick={() => void handleLogout()}
+              className={`${ITEM_CLASSES} text-danger-700 hover:bg-danger-50`}
+            >
+              <LogoutIcon className="h-4 w-4 shrink-0" />
+              Cerrar sesión
+            </button>
           </div>
-          <hr className="my-1 border-t border-ink-100" />
-          <button
-            ref={(el) => {
-              itemRefs.current[4] = el;
-            }}
-            type="button"
-            role="menuitem"
-            onClick={() => void handleLogout()}
-            className={ITEM_CLASSES}
-          >
-            Cerrar sesión
-          </button>
         </div>
       )}
     </div>

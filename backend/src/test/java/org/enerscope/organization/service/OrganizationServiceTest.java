@@ -45,6 +45,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -280,6 +281,90 @@ class OrganizationServiceTest {
     @Test
     void listForCurrentUserRejectsUnauthenticated() {
         assertThrows(UnauthorizedException.class, () -> organizationService.listForCurrentUser());
+    }
+
+    @Test
+    void listForCurrentUserFillsMemberTypeForRegularUser() {
+        User user = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+        authenticateAs(user);
+        OrganizationDTO mine = summary("Mine", 1L);
+        when(organizationRepository.findSummariesForMember(user.getId())).thenReturn(List.of(mine));
+        when(organizationRepository.findSummariesForMemberWithRole(user.getId()))
+                .thenReturn(List.of(mine.withMemberType(OrganizationMemberType.OWNER)));
+
+        List<OrganizationDTO> result = organizationService.listForCurrentUser();
+
+        assertEquals(OrganizationMemberType.OWNER, result.get(0).memberType());
+    }
+
+    @Test
+    void listForCurrentUserLeavesMemberTypeNullForAdminOutsideTheOrganization() {
+        User admin = admin();
+        authenticateAs(admin);
+        OrganizationDTO belongs = summary("Belongs", 2L);
+        OrganizationDTO other = summary("Other", 5L);
+        when(organizationRepository.findSummaries()).thenReturn(List.of(belongs, other));
+        when(organizationRepository.findSummariesForMemberWithRole(admin.getId()))
+                .thenReturn(List.of(belongs.withMemberType(OrganizationMemberType.MEMBER)));
+
+        List<OrganizationDTO> result = organizationService.listForCurrentUser();
+
+        assertEquals(2, result.size());
+        assertEquals(OrganizationMemberType.MEMBER, result.get(0).memberType());
+        assertNull(result.get(1).memberType());
+    }
+
+    @Test
+    void listForCurrentUserLeavesMemberTypeNullForAdminWithNoMembership() {
+        User admin = admin();
+        authenticateAs(admin);
+        when(organizationRepository.findSummaries()).thenReturn(List.of(summary("Acme", 3L)));
+        when(organizationRepository.findSummariesForMemberWithRole(admin.getId())).thenReturn(List.of());
+
+        List<OrganizationDTO> result = organizationService.listForCurrentUser();
+
+        assertEquals(1, result.size());
+        assertNull(result.get(0).memberType());
+    }
+
+    @Test
+    void listMineForCurrentUserReturnsTheCallersMembershipsForAdmin() {
+        User admin = admin();
+        authenticateAs(admin);
+        OrganizationDTO owned = summary("Owned", 1L).withMemberType(OrganizationMemberType.OWNER);
+        OrganizationDTO joined = summary("Joined", 4L).withMemberType(OrganizationMemberType.MEMBER);
+        when(organizationRepository.findSummariesForMemberWithRole(admin.getId()))
+                .thenReturn(List.of(owned, joined));
+
+        List<OrganizationDTO> result = organizationService.listMineForCurrentUser();
+
+        assertEquals(List.of(owned, joined), result);
+        verify(organizationRepository, never()).findSummaries();
+    }
+
+    @Test
+    void listMineForCurrentUserIsEmptyForAdminWithNoMembership() {
+        User admin = admin();
+        authenticateAs(admin);
+        when(organizationRepository.findSummariesForMemberWithRole(admin.getId())).thenReturn(List.of());
+
+        assertTrue(organizationService.listMineForCurrentUser().isEmpty());
+        verify(organizationRepository, never()).findSummaries();
+    }
+
+    @Test
+    void listMineForCurrentUserReturnsTheCallersMembershipsForRegularUser() {
+        User user = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+        authenticateAs(user);
+        OrganizationDTO joined = summary("Joined", 4L).withMemberType(OrganizationMemberType.MEMBER);
+        when(organizationRepository.findSummariesForMemberWithRole(user.getId())).thenReturn(List.of(joined));
+
+        assertEquals(List.of(joined), organizationService.listMineForCurrentUser());
+    }
+
+    @Test
+    void listMineForCurrentUserRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class, () -> organizationService.listMineForCurrentUser());
     }
 
     @Test

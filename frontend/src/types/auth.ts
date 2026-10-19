@@ -79,6 +79,7 @@ export interface OrganizationSummary {
   createdAt: string;
   active: boolean;
   memberCount: number;
+  memberType?: OrganizationMemberType | null;
 }
 
 export interface UpdateOrganizationRequest {

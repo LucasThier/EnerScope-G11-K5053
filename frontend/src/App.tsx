@@ -17,7 +17,9 @@ import { OrganizationTeamPage } from './pages/OrganizationTeamPage';
 import { ProjectTeamPage } from './pages/ProjectTeamPage';
 import { VersionsPage } from './pages/VersionsPage';
 import { VersionsIndexPage } from './pages/VersionsIndexPage';
+import { OrganizationMemberRoute } from './routes/OrganizationMemberRoute';
 import { OrganizationOwnerRoute } from './routes/OrganizationOwnerRoute';
+import { MyOrganizationsPage } from './pages/MyOrganizationsPage';
 
 export default function App() {
   return (
@@ -43,6 +45,9 @@ export default function App() {
                     path="/settings"
                     element={<Navigate to="/profile#configuracion" replace />}
                   />
+                  <Route element={<OrganizationMemberRoute />}>
+                    <Route path="/organizations" element={<MyOrganizationsPage />} />
+                  </Route>
                   <Route element={<OrganizationOwnerRoute />}>
                     <Route
                       path="/organizations/:organizationId"

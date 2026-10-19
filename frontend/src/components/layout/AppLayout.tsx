@@ -1,5 +1,6 @@
 import { Outlet, useLocation, useMatch } from 'react-router-dom';
 import { ActiveProjectProvider } from '../../hooks/ActiveProjectProvider';
+import { MyOrganizationsProvider } from '../../hooks/MyOrganizationsProvider';
 import { SidebarProvider } from '../../hooks/SidebarProvider';
 import { useActiveProject, PROJECT_ROUTE_PATTERN } from '../../hooks/useActiveProject';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
@@ -16,11 +17,13 @@ import { TopBar } from './TopBar';
  */
 export function AppLayout() {
   return (
-    <ActiveProjectProvider>
-      <SidebarProvider>
-        <AppShell />
-      </SidebarProvider>
-    </ActiveProjectProvider>
+    <MyOrganizationsProvider>
+      <ActiveProjectProvider>
+        <SidebarProvider>
+          <AppShell />
+        </SidebarProvider>
+      </ActiveProjectProvider>
+    </MyOrganizationsProvider>
   );
 }
 

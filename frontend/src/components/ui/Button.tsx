@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Spinner } from './Spinner';
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'link';
+type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'link' | 'on-dark';
 type Size = 'md' | 'compact';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -28,6 +28,9 @@ const variants: Record<Variant, string> = {
     'bg-fill-neutral text-on-accent hover:bg-fill-neutral-strong focus-visible:ring-focus',
   danger: 'bg-danger-600 text-on-accent hover:bg-danger-700 focus-visible:ring-danger-700',
   ghost: 'bg-transparent text-ink-600 hover:bg-ink-50 hover:text-ink-800 focus-visible:ring-focus',
+  'on-dark':
+    'bg-spotlight-action text-spotlight-action-text hover:bg-spotlight-action/90 ' +
+    'focus-visible:ring-white focus-visible:ring-offset-spotlight!',
   link:
     'bg-transparent p-0 text-brand-800 underline underline-offset-2 hover:text-brand-900 ' +
     'focus-visible:ring-focus focus-visible:ring-offset-0',

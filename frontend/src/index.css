@@ -115,6 +115,12 @@
   --color-nav-hover: #e0e7ee; /* the hover fill on that rail, one step further from the page in the same direction */
   --color-nav-active: #ddeedf; /* the fill behind the current section's row — the one place green is a surface, and never a large one */
 
+  --color-spotlight: #1d4541; /* the flat petrol plate behind the recent project on Inicio, identical in both themes */
+  --color-spotlight-text: #dcebe3; /* secondary text on that plate: its label and metadata captions */
+  --color-spotlight-action: #f1f7f2; /* the light button on that plate */
+  --color-spotlight-action-text: #1b5e20; /* the dark green label on that button */
+  --color-spotlight-end: #2e6a5f; /* the lighter petrol the plate's gradient reaches on the right, identical in both themes */
+
   --color-sample-light-page: #f5f7f9;
   --color-sample-light-surface: #ffffff;
   --color-sample-light-accent: #2e7d32;
@@ -298,6 +304,12 @@ html[data-theme='dark'] {
   --color-nav: #141a21;
   --color-nav-hover: #1f2731;
   --color-nav-active: #1b3a22;
+
+  --color-spotlight: #1d4541; /* unchanged in the dark theme: the plate keeps its petrol and stands off the page by luminance */
+  --color-spotlight-text: #dcebe3; /* unchanged */
+  --color-spotlight-action: #f1f7f2; /* unchanged */
+  --color-spotlight-action-text: #1b5e20; /* unchanged */
+  --color-spotlight-end: #2e6a5f; /* unchanged in the dark theme */
 
   --color-shadow: #00000059; /* a drop shadow does little over a dark ground; this is the deepest it goes */
 

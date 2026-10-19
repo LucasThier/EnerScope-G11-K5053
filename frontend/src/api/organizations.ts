@@ -13,8 +13,10 @@ import type { AxiosResponse } from 'axios';
 
 export const organizationsApi = {
   /** Organizations visible to the caller (all for admins, own for others). */
-  list: (): Promise<AxiosResponse<ApiResponse<OrganizationSummary[]>>> =>
-    client.get('/organizations'),
+  list: (params?: {
+    mine?: boolean;
+  }): Promise<AxiosResponse<ApiResponse<OrganizationSummary[]>>> =>
+    client.get('/organizations', { params }),
 
   create: (data: { name: string }): Promise<AxiosResponse<ApiResponse<OrganizationSummary>>> =>
     client.post('/organizations', data),

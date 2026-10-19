@@ -16,10 +16,17 @@ export const PROJECTS_PATH_PATTERN = /^\/projects\/?$/;
 export const PROJECT_TEAM_PATH_PATTERN = /^\/projects\/[^/]+\/team(\/|$)/;
 export const VERSIONS_INDEX_PATH_PATTERN = /^\/versions\/?$/;
 export const ORGANIZATION_PATH_PATTERN = /^\/organizations\/[^/]+/;
+export const MY_ORGANIZATIONS_PATH_PATTERN = /^\/organizations(\/|$)/;
+
+export const MY_ORGANIZATIONS = {
+  label: 'Mis organizaciones',
+  description: 'Revisá tus organizaciones y gestioná sus integrantes.',
+  to: '/organizations',
+};
 
 export type NavRequirement =
   | 'platformAdmin'
-  | 'ownedOrganization'
+  | 'organizationMember'
   | 'manageableProject'
   | 'activeProject';
 
@@ -117,9 +124,10 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: <BuildingIcon />,
         children: [
           {
-            label: 'Mi organización',
-            matchPattern: ORGANIZATION_PATH_PATTERN,
-            requires: 'ownedOrganization',
+            label: MY_ORGANIZATIONS.label,
+            to: MY_ORGANIZATIONS.to,
+            matchPattern: MY_ORGANIZATIONS_PATH_PATTERN,
+            requires: 'organizationMember',
             keepsOwnName: true,
           },
           {
@@ -148,6 +156,7 @@ const MODULE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/projects\/?$/, title: 'Proyectos' },
   { pattern: /^\/versions\/?$/, title: 'Versionado' },
   { pattern: /^\/editor(\/|$)/, title: 'Mapa de la Cadena de Valor' },
+  { pattern: /^\/organizations\/?$/, title: 'Mis organizaciones' },
   { pattern: /^\/organizations\/[^/]+/, title: 'Gestión de organización' },
   { pattern: /^\/admin\/users(\/|$)/, title: 'Gestión de usuarios' },
   { pattern: /^\/admin\/organizations(\/|$)/, title: 'Gestión de organizaciones' },
@@ -176,6 +185,9 @@ export function breadcrumbsFor(pathname: string, projectName: string | null): Cr
       trail.push({ label: projectName });
     }
     return [...trail, { label: title }];
+  }
+  if (ORGANIZATION_PATH_PATTERN.test(pathname)) {
+    return [{ label: MY_ORGANIZATIONS.label, to: MY_ORGANIZATIONS.to }, { label: title }];
   }
   if (pathname.startsWith('/admin/')) {
     return [{ label: 'Administración' }, { label: title }];

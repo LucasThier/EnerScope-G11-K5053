@@ -3,12 +3,11 @@ import { NAV_GROUPS, type NavGroup, type NavItem } from '../components/layout/na
 import { canManageProject } from '../utils/projectPermissions';
 import { useActiveProject } from './useActiveProject';
 import { useAuth } from './useAuth';
-import { useOwnedOrganizations } from './useOwnedOrganizations';
+import { useMyOrganizations } from './useMyOrganizations';
 
 interface NavContext {
   isPlatformAdmin: boolean;
-  ownedOrganizationId: string | null;
-  ownedCount: number;
+  belongsToOrganization: boolean;
   teamProjectId: string | null;
   versionsProjectId: string | null;
   projectName: string | null;
@@ -17,14 +16,13 @@ interface NavContext {
 
 export function useNavigationTree(): NavGroup[] {
   const { user } = useAuth();
-  const { owned, loading: loadingOwned } = useOwnedOrganizations();
+  const { belongsToOrganization: isMember, loading: loadingOwned } = useMyOrganizations();
   const { activeProject, isLoading: loadingProjects } = useActiveProject();
 
   const isPlatformAdmin = user?.platformRole === 'ADMIN';
   const project = loadingProjects ? null : activeProject;
 
-  const ownedOrganizationId = loadingOwned ? null : (owned[0]?.id ?? null);
-  const ownedCount = loadingOwned ? 0 : owned.length;
+  const belongsToOrganization = !loadingOwned && isMember;
   const teamProjectId =
     project !== null && canManageProject(project.myRole, isPlatformAdmin) ? project.id : null;
   const versionsProjectId = project?.id ?? null;
@@ -35,8 +33,7 @@ export function useNavigationTree(): NavGroup[] {
     () =>
       resolveGroups({
         isPlatformAdmin,
-        ownedOrganizationId,
-        ownedCount,
+        belongsToOrganization,
         teamProjectId,
         versionsProjectId,
         projectName,
@@ -44,8 +41,7 @@ export function useNavigationTree(): NavGroup[] {
       }),
     [
       isPlatformAdmin,
-      ownedOrganizationId,
-      ownedCount,
+      belongsToOrganization,
       teamProjectId,
       versionsProjectId,
       projectName,
@@ -94,14 +90,8 @@ function resolveLeaf(item: NavItem, context: NavContext): NavItem | null {
   switch (item.requires) {
     case 'platformAdmin':
       return context.isPlatformAdmin ? item : null;
-    case 'ownedOrganization':
-      return context.ownedOrganizationId === null
-        ? null
-        : {
-            ...item,
-            label: context.ownedCount > 1 ? 'Mis organizaciones' : 'Mi organización',
-            to: `/organizations/${context.ownedOrganizationId}`,
-          };
+    case 'organizationMember':
+      return context.belongsToOrganization ? item : null;
     case 'manageableProject':
       return context.teamProjectId === null
         ? null
