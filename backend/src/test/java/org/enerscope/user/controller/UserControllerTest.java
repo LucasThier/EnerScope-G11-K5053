@@ -7,6 +7,8 @@ import org.enerscope.config.SecurityConfig;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.session.model.Session;
 import org.enerscope.session.service.SessionService;
+import org.enerscope.user.dto.AssignRoleRequestDTO;
+import org.enerscope.user.dto.RemoveRoleRequestDTO;
 import org.enerscope.user.dto.RoleLevel;
 import org.enerscope.user.dto.UpdatePlatformRoleRequestDTO;
 import org.enerscope.user.dto.UserRoleDTO;
@@ -32,8 +34,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -175,5 +179,138 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.message").value("Validation error"));
 
         verify(userRoleService, never()).assignPlatformRole(any(), any());
+    }
+
+    // ---- assignRole (generic) ------------------------------------------------
+
+    @Test
+    void assignRoleReturnsCreated() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+
+        mockMvc.perform(post("/users/" + userId + "/roles")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new AssignRoleRequestDTO(RoleLevel.ORGANIZATION, orgId, "OWNER"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(userRoleService).assignRole(userId, RoleLevel.ORGANIZATION, orgId, "OWNER");
+    }
+
+    @Test
+    void assignRoleRequiresAuthenticationWith401() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+
+        mockMvc.perform(post("/users/" + userId + "/roles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new AssignRoleRequestDTO(RoleLevel.ORGANIZATION, orgId, "OWNER"))))
+                .andExpect(status().isUnauthorized());
+
+        verify(userRoleService, never()).assignRole(any(), any(), any(), any());
+    }
+
+    @Test
+    void assignRoleRejectsInvalidBodyWithValidationError() throws Exception {
+        UUID userId = UUID.randomUUID();
+
+        mockMvc.perform(post("/users/" + userId + "/roles")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation error"));
+
+        verify(userRoleService, never()).assignRole(any(), any(), any(), any());
+    }
+
+    @Test
+    void assignRolePropagatesForbiddenWith403() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new ForbiddenException("You are not allowed to manage users in this organization"))
+                .when(userRoleService).assignRole(userId, RoleLevel.ORGANIZATION, orgId, "OWNER");
+
+        mockMvc.perform(post("/users/" + userId + "/roles")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new AssignRoleRequestDTO(RoleLevel.ORGANIZATION, orgId, "OWNER"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void assignRolePropagatesUnknownResourceWith400() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new IllegalArgumentException("Organization not found"))
+                .when(userRoleService).assignRole(userId, RoleLevel.ORGANIZATION, orgId, "OWNER");
+
+        mockMvc.perform(post("/users/" + userId + "/roles")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new AssignRoleRequestDTO(RoleLevel.ORGANIZATION, orgId, "OWNER"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Organization not found"));
+    }
+
+    // ---- removeRole (generic) ------------------------------------------------
+
+    @Test
+    void removeRoleReturnsNoContent() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/users/" + userId + "/roles")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new RemoveRoleRequestDTO(RoleLevel.PROJECT, projectId))))
+                .andExpect(status().isNoContent());
+
+        verify(userRoleService).removeRole(userId, RoleLevel.PROJECT, projectId);
+    }
+
+    @Test
+    void removeRoleRequiresAuthenticationWith401() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/users/" + userId + "/roles")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new RemoveRoleRequestDTO(RoleLevel.PROJECT, projectId))))
+                .andExpect(status().isUnauthorized());
+
+        verify(userRoleService, never()).removeRole(any(), any(), any());
+    }
+
+    @Test
+    void removeRolePropagatesForbiddenWith403() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new ForbiddenException("You are not allowed to manage members in this project"))
+                .when(userRoleService).removeRole(userId, RoleLevel.PROJECT, projectId);
+
+        mockMvc.perform(delete("/users/" + userId + "/roles")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new RemoveRoleRequestDTO(RoleLevel.PROJECT, projectId))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void removeRolePropagatesUnknownResourceWith400() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new IllegalArgumentException("Membership not found"))
+                .when(userRoleService).removeRole(userId, RoleLevel.PROJECT, projectId);
+
+        mockMvc.perform(delete("/users/" + userId + "/roles")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new RemoveRoleRequestDTO(RoleLevel.PROJECT, projectId))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Membership not found"));
     }
 }

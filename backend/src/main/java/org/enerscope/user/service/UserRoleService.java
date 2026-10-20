@@ -2,10 +2,16 @@ package org.enerscope.user.service;
 
 import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
+import org.enerscope.organization.dto.AddOrganizationMemberRequestDTO;
 import org.enerscope.organization.model.OrganizationMember;
+import org.enerscope.organization.model.enums.OrganizationMemberType;
 import org.enerscope.organization.repository.OrganizationMemberRepository;
+import org.enerscope.organization.service.OrganizationService;
+import org.enerscope.project.dto.AddProjectMemberRequestDTO;
 import org.enerscope.project.model.ProjectMember;
+import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.project.repository.ProjectMemberRepository;
+import org.enerscope.project.service.ProjectService;
 import org.enerscope.session.model.Session;
 import org.enerscope.user.dto.RoleLevel;
 import org.enerscope.user.dto.UserRoleDTO;
@@ -35,13 +41,19 @@ public class UserRoleService {
     private final UserRepository userRepository;
     private final OrganizationMemberRepository organizationMemberRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final OrganizationService organizationService;
+    private final ProjectService projectService;
 
     public UserRoleService(UserRepository userRepository,
             OrganizationMemberRepository organizationMemberRepository,
-            ProjectMemberRepository projectMemberRepository) {
+            ProjectMemberRepository projectMemberRepository,
+            OrganizationService organizationService,
+            ProjectService projectService) {
         this.userRepository = userRepository;
         this.organizationMemberRepository = organizationMemberRepository;
         this.projectMemberRepository = projectMemberRepository;
+        this.organizationService = organizationService;
+        this.projectService = projectService;
     }
 
     /**
@@ -102,5 +114,59 @@ public class UserRoleService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         target.updatePlatformRole(role);
         return userRepository.save(target);
+    }
+
+    /**
+     * Assigns a role to a user at any level, in one place. Dispatches to the
+     * level's own service so every existing rule (who may assign what,
+     * duplicate memberships, unknown resources) is enforced exactly once —
+     * this method only validates the level/resource shape and translates the
+     * free-form {@code roleType} into that level's enum.
+     */
+    public void assignRole(UUID userId, RoleLevel level, UUID resourceId, String roleType) {
+        switch (level) {
+            case PLATFORM -> {
+                if (resourceId != null) {
+                    throw new IllegalArgumentException("A platform role takes no resourceId");
+                }
+                assignPlatformRole(userId, PlatformRole.valueOf(roleType));
+            }
+            case ORGANIZATION -> {
+                requireResourceId(level, resourceId);
+                organizationService.addMember(resourceId,
+                        new AddOrganizationMemberRequestDTO(userId, OrganizationMemberType.valueOf(roleType)));
+            }
+            case PROJECT -> {
+                requireResourceId(level, resourceId);
+                projectService.addMember(resourceId,
+                        new AddProjectMemberRequestDTO(userId, ProjectMemberType.valueOf(roleType)));
+            }
+        }
+    }
+
+    /**
+     * Removes a user's role at any level except {@link RoleLevel#PLATFORM}:
+     * every user must have exactly one platform role, so it can only be
+     * reassigned (see {@link #assignRole}), never removed outright.
+     */
+    public void removeRole(UUID userId, RoleLevel level, UUID resourceId) {
+        switch (level) {
+            case PLATFORM -> throw new IllegalArgumentException(
+                    "The platform role cannot be removed, only reassigned");
+            case ORGANIZATION -> {
+                requireResourceId(level, resourceId);
+                organizationService.removeMember(resourceId, userId);
+            }
+            case PROJECT -> {
+                requireResourceId(level, resourceId);
+                projectService.removeMember(resourceId, userId);
+            }
+        }
+    }
+
+    private void requireResourceId(RoleLevel level, UUID resourceId) {
+        if (resourceId == null) {
+            throw new IllegalArgumentException(level + " roles require a resourceId");
+        }
     }
 }
