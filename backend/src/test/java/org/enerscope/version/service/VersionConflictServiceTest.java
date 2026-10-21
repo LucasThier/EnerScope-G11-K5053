@@ -73,12 +73,15 @@ class VersionConflictServiceTest {
     @Mock
     private AppLogger logger;
 
+    @Mock
+    private VersionAccessGuard accessGuard;
+
     private VersionConflictService service;
 
     @BeforeEach
     void setUp() {
         service = new VersionConflictService(versionRepository, conflictRepository, nodeRepository,
-                connectionRepository, logger);
+                connectionRepository, logger, accessGuard);
     }
 
     private Version version(String name) {
