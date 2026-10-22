@@ -40,6 +40,7 @@ public class VersionConflictService {
     private final BaseNodeRepository nodeRepository;
     private final NodeConnectionRepository connectionRepository;
     private final AppLogger logger;
+    private final VersionAccessGuard accessGuard;
 
     /**
      * Called right after {@code sourceVersion} was merged into
@@ -126,6 +127,7 @@ public class VersionConflictService {
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
+        accessGuard.assertCanViewVersion(versionId);
         return conflictRepository.findByConflictingVersionId(versionId).stream()
                 .map(VersionConflictDTO::from)
                 .toList();
@@ -150,6 +152,7 @@ public class VersionConflictService {
         Objects.requireNonNull(decision, "Resolution decision cannot be null");
         VersionConflict conflict = conflictRepository.findById(conflictId)
                 .orElseThrow(() -> new EntityNotFoundException("Version conflict not found with id: " + conflictId));
+        accessGuard.assertCanManageVersion(conflict.getConflictingVersion().getId());
 
         if (conflict.getEntityType() == ConflictEntityType.NODE) {
             resolveNodeConflict(conflict, decision);

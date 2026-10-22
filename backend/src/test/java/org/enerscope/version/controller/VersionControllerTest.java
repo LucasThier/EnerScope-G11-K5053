@@ -6,12 +6,19 @@ import org.enerscope.common.ForbiddenException;
 import org.enerscope.config.SecurityConfig;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.node.dto.WellDTO;
+import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.session.model.Session;
 import org.enerscope.session.service.SessionService;
 import org.enerscope.user.model.User;
+import org.enerscope.version.dto.AddVersionMemberRoleRequestDTO;
 import org.enerscope.version.dto.VersionDTO;
+import org.enerscope.version.dto.VersionMemberCandidateDTO;
 import org.enerscope.version.model.Version;
+import org.enerscope.version.model.VersionMember;
+import org.enerscope.version.model.VersionMemberRole;
+import org.enerscope.version.model.enums.VersionMemberType;
 import org.enerscope.version.service.VersionConflictService;
+import org.enerscope.version.service.VersionMemberService;
 import org.enerscope.version.service.VersionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,6 +74,8 @@ class VersionControllerTest {
     private SessionService sessionService;
     @MockitoBean
     private VersionConflictService versionConflictService;
+    @MockitoBean
+    private VersionMemberService versionMemberService;
     // GlobalExceptionHandler (@ControllerAdvice) needs an AppLogger bean to load.
     @MockitoBean
     private AppLogger logger;
@@ -233,5 +242,111 @@ class VersionControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Version has no parent version to merge into"));
+    }
+
+    // ---- version members -------------------------------------------------------
+
+    private VersionMember sampleMember(UUID versionId) {
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+        Version version = sampleVersion();
+        VersionMember member = new VersionMember(user, version);
+        member.addRole(new VersionMemberRole("EDITOR", VersionMemberType.EDITOR,
+                VersionMember.defaultPermissionsFor(VersionMemberType.EDITOR), VerticalEnum.EXTRACTION));
+        return member;
+    }
+
+    @Test
+    void addVersionMemberReturnsTheCreatedMembership() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(versionMemberService.addRole(eq(versionId), any())).thenReturn(sampleMember(versionId));
+
+        mockMvc.perform(post("/version/" + versionId + "/members")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new AddVersionMemberRoleRequestDTO(
+                                userId, VersionMemberType.EDITOR, VerticalEnum.EXTRACTION))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.userMail").value("jane@enerscope.org"))
+                .andExpect(jsonPath("$.data.roles[0].memberType").value("EDITOR"))
+                .andExpect(jsonPath("$.data.roles[0].vertical").value("EXTRACTION"));
+    }
+
+    @Test
+    void addVersionMemberPropagatesForbiddenWith403() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        when(versionMemberService.addRole(eq(versionId), any()))
+                .thenThrow(new ForbiddenException("You are not allowed to manage this version"));
+
+        mockMvc.perform(post("/version/" + versionId + "/members")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new AddVersionMemberRoleRequestDTO(
+                                UUID.randomUUID(), VersionMemberType.SIMULATOR, null))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You are not allowed to manage this version"));
+    }
+
+    @Test
+    void addVersionMemberRequiresAuthenticationWith401() throws Exception {
+        mockMvc.perform(post("/version/" + UUID.randomUUID() + "/members")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new AddVersionMemberRoleRequestDTO(
+                                UUID.randomUUID(), VersionMemberType.SIMULATOR, null))))
+                .andExpect(status().isUnauthorized());
+
+        verify(versionMemberService, never()).addRole(any(), any());
+    }
+
+    @Test
+    void listVersionMembersReturnsEveryMember() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        when(versionMemberService.listMembers(versionId)).thenReturn(java.util.List.of(sampleMember(versionId)));
+
+        mockMvc.perform(get("/version/" + versionId + "/members")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].userMail").value("jane@enerscope.org"));
+    }
+
+    @Test
+    void removeVersionMemberRoleReturnsOk() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/version/" + versionId + "/members/" + memberId + "/roles/" + roleId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        verify(versionMemberService).removeRole(versionId, memberId, roleId);
+    }
+
+    @Test
+    void removeVersionMemberRolePropagatesForbiddenWith403() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new ForbiddenException("You are not allowed to manage this version"))
+                .when(versionMemberService).removeRole(versionId, memberId, roleId);
+
+        mockMvc.perform(delete("/version/" + versionId + "/members/" + memberId + "/roles/" + roleId)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void listVersionMemberCandidatesReturnsCandidates() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(versionMemberService.listMemberCandidates(versionId, null)).thenReturn(
+                java.util.List.of(new VersionMemberCandidateDTO(userId, "Jane", "Doe", "jane@enerscope.org")));
+
+        mockMvc.perform(get("/version/" + versionId + "/member-candidates")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].mail").value("jane@enerscope.org"));
     }
 }
