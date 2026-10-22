@@ -1,7 +1,8 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
+import { SelectField } from '../ui/SelectField';
 import { TextArea } from '../ui/TextArea';
 import { TextField } from '../ui/TextField';
 import { projectsApi } from '../../api/projects';
@@ -17,10 +18,6 @@ interface NewProjectModalProps {
 const NAME_MIN = 2;
 const NAME_MAX = 120;
 const DESCRIPTION_MAX = 500;
-
-const selectClasses =
-  'rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 ' +
-  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60 disabled:opacity-60';
 
 interface FieldErrors {
   name?: string;
@@ -105,35 +102,23 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
           maxLength={NAME_MAX}
         />
 
-        <div className="flex flex-col gap-2">
-          <label htmlFor={organizationSelectId} className="text-sm font-medium text-ink-600">
-            Organización
-          </label>
-          <select
-            id={organizationSelectId}
-            value={organizationId}
-            disabled={loadingOrganizations}
-            onChange={(e) => setOrganizationId(e.target.value)}
-            aria-invalid={fieldErrors.organizationId ? true : undefined}
-            className={
-              fieldErrors.organizationId
-                ? selectClasses.replace('border-ink-200', 'border-danger-400')
-                : selectClasses
-            }
-          >
-            <option value="">
-              {loadingOrganizations ? 'Cargando organizaciones…' : 'Elegí una organización'}
+        <SelectField
+          id={organizationSelectId}
+          label="Organización"
+          error={fieldErrors.organizationId}
+          value={organizationId}
+          disabled={loadingOrganizations}
+          onChange={(e) => setOrganizationId(e.target.value)}
+        >
+          <option value="">
+            {loadingOrganizations ? 'Cargando organizaciones…' : 'Elegí una organización'}
+          </option>
+          {organizations.map((organization) => (
+            <option key={organization.id} value={organization.id}>
+              {organization.name}
             </option>
-            {organizations.map((organization) => (
-              <option key={organization.id} value={organization.id}>
-                {organization.name}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.organizationId && (
-            <span className="text-xs text-danger-600">{fieldErrors.organizationId}</span>
-          )}
-        </div>
+          ))}
+        </SelectField>
 
         <TextArea
           label="Descripción"
@@ -144,14 +129,14 @@ export function NewProjectModal({ open, onClose, onCreated }: NewProjectModalPro
           maxLength={DESCRIPTION_MAX}
         />
 
-        <div className="mt-2 flex justify-end gap-2">
+        <ModalFooter>
           <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
           <Button type="submit" loading={submitting}>
             Crear proyecto
           </Button>
-        </div>
+        </ModalFooter>
       </form>
     </Modal>
   );

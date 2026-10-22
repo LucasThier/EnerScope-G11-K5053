@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTheme } from '../../hooks/useTheme';
 import { Button } from '../ui/Button';
+import { SelectField } from '../ui/SelectField';
 import { TextField } from '../ui/TextField';
 import { NodeIcon } from './nodeIcons';
 import {
@@ -33,9 +34,6 @@ interface NodeFormPanelProps {
   ) => Promise<void>;
   onClose: () => void;
 }
-
-const selectClass =
-  'rounded-lg border border-ink-200 bg-surface px-3 py-2.5 text-sm text-ink-800 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60';
 
 /** Create or edit a node. On edit the type is fixed; on create it is chosen. */
 export function NodeFormPanel({
@@ -81,32 +79,27 @@ export function NodeFormPanel({
           </span>
           {mode === 'create' ? 'Add node' : 'Edit node'}
         </h3>
-        <Button variant="ghost" onClick={onClose} className="px-2 py-1 text-xs">
+        <Button variant="link" onClick={onClose} className="text-xs">
           Close
         </Button>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="node-form-type" className="text-sm font-medium text-ink-600">
-          Type
-        </label>
-        <select
-          id="node-form-type"
-          value={type}
-          disabled={mode === 'edit'}
-          onChange={(e) => {
-            setType(e.target.value as NodeType);
-            setTypeFields({});
-          }}
-          className={selectClass + (mode === 'edit' ? ' opacity-60' : '')}
-        >
-          {NODE_TYPE_SPECS.map((s) => (
-            <option key={s.type} value={s.type}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectField
+        id="node-form-type"
+        label="Type"
+        value={type}
+        disabled={mode === 'edit'}
+        onChange={(e) => {
+          setType(e.target.value as NodeType);
+          setTypeFields({});
+        }}
+      >
+        {NODE_TYPE_SPECS.map((s) => (
+          <option key={s.type} value={s.type}>
+            {s.label}
+          </option>
+        ))}
+      </SelectField>
 
       <TextField
         label="Name"
@@ -115,23 +108,18 @@ export function NodeFormPanel({
         placeholder="e.g. North Well 1"
       />
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="node-form-state" className="text-sm font-medium text-ink-600">
-          State
-        </label>
-        <select
-          id="node-form-state"
-          value={base.state}
-          onChange={(e) => setBase((b) => ({ ...b, state: e.target.value as NodeState }))}
-          className={selectClass}
-        >
-          {stateOptions.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectField
+        id="node-form-state"
+        label="State"
+        value={base.state}
+        onChange={(e) => setBase((b) => ({ ...b, state: e.target.value as NodeState }))}
+      >
+        {stateOptions.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </SelectField>
 
       <div className="grid grid-cols-2 gap-2">
         <TextField

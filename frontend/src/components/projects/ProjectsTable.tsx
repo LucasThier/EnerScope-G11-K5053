@@ -2,6 +2,7 @@ import type { ProjectSummary } from '../../types/project';
 import { BranchIcon, EyeIcon, PencilIcon, TeamIcon, TrashIcon } from '../ui/icons';
 import { RowButton } from '../ui/RowButton';
 import { formatDate } from '../../utils/date';
+import { canManageProject } from '../../utils/projectPermissions';
 
 interface ProjectsTableProps {
   projects: ProjectSummary[];
@@ -82,7 +83,7 @@ export function ProjectsTable({
                   >
                     <BranchIcon className="h-4 w-4" />
                   </RowButton>
-                  {(isPlatformAdmin || project.myRole === 'ADMIN') && (
+                  {canManageProject(project.myRole, isPlatformAdmin) && (
                     <RowButton
                       label={`Administrar los integrantes de ${project.name}`}
                       title="Administrar integrantes"

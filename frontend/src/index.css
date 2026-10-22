@@ -17,7 +17,9 @@
  *   the form controls are white. That one step of separation is what makes a
  *   card read as a sheet, so it replaces a tinted card background — the card
  *   never carries the tint, the page does.
- * - Every border, icon and text colour comes from the ink ramp.
+ * - Every border, icon and text colour comes from the ink ramp, except the
+ *   border of a form control, which has its own token and its own contrast
+ *   contract (see --color-control-border).
  *
  * CONTRAST — every text/background pair in the app meets WCAG AA (4.5:1 for
  * body text). The ratios below are against white, so they are the budget you
@@ -100,6 +102,7 @@
   --color-raised: #ffffff;
   --color-on-accent: #ffffff;
   --color-focus: #1b5e20;
+  --color-control-border: #76838f; /* the resting border of a form control, the one border with a 3:1 contract of its own: 3.88:1 on a white surface, 3.61:1 on the page and 3.39:1 on the navigation rail, where ink-200's 1.48:1 left a control with no edge a low-vision reader could find */
   --color-fill-neutral: #2f3841;
   --color-fill-neutral-strong: #232b33;
   --color-scrim: #232b33;
@@ -108,12 +111,79 @@
   --color-hero-node: #454f5a;
   --color-hero-text: #aab6c2;
 
+  --color-nav: #ecf0f5; /* the navigation rail and the mobile drawer: one step under the page, so the chrome recedes and the content reads first */
+  --color-nav-hover: #e0e7ee; /* the hover fill on that rail, one step further from the page in the same direction */
+  --color-nav-active: #ddeedf; /* the fill behind the current section's row — the one place green is a surface, and never a large one */
+
+  --color-spotlight: #1d4541; /* the flat petrol plate behind the recent project on Inicio, identical in both themes */
+  --color-spotlight-text: #dcebe3; /* secondary text on that plate: its label and metadata captions */
+  --color-spotlight-action: #f1f7f2; /* the light button on that plate */
+  --color-spotlight-action-text: #1b5e20; /* the dark green label on that button */
+  --color-spotlight-end: #2e6a5f; /* the lighter petrol the plate's gradient reaches on the right, identical in both themes */
+
   --color-sample-light-page: #f5f7f9;
   --color-sample-light-surface: #ffffff;
   --color-sample-light-accent: #2e7d32;
   --color-sample-dark-page: #0f141a;
   --color-sample-dark-surface: #232c35;
   --color-sample-dark-accent: #a5e8ad;
+
+  /* SIGN-IN SCREEN. The login is a photograph with a translucent panel over it,
+     so it needs a handful of colours the rest of the app has no use for. Two
+     things to know before changing any of them:
+
+     - The panel is a FIXED LIGHT SURFACE in both themes (`color-scheme: light`
+       on the section). Only the cover behind it — page, heading, copy, accent —
+       follows the theme; everything that lands inside the panel keeps its light
+       value in the dark block below, restated there rather than inherited so
+       the dark theme still reads as one list.
+     - auth-focus is the focus indicator and carries its own 3:1 contract, so it
+       stays a token of its own even though it happens to equal auth-action in
+       both themes. Every element that draws it sits inside the light panel. */
+  --color-auth-page: #f5f7f9; /* the cover behind the panel, and the colour of the veils over the photo */
+  --color-auth-heading: #1d2b2b; /* the display headline over the photo */
+  --color-auth-copy: #52616b; /* the subtitle under the headline */
+  --color-auth-accent: #1b5e20; /* the accent inside the headline, now its whole second line */
+  --color-auth-panel: #ffffff; /* the panel's own white, drawn at 70-95% as glass */
+  --color-auth-panel-ink: #1d2b2b; /* text and field labels inside the panel */
+  --color-auth-panel-ink-strong: #16201f; /* small text on the glass panel, where the photograph showing through eats the ink's contrast */
+  --color-auth-panel-muted: #4f5d67; /* secondary text, placeholders and the eye icon */
+  --color-auth-control: #6d7982; /* resting border of the panel's fields (4.46:1 on white) */
+  --color-auth-divider: #bcc6cb; /* the rule above "¿Necesitás una cuenta?" */
+  --color-auth-action: #1b5e20; /* primary button fill */
+  --color-auth-action-hover: #154c19; /* primary button hover, one step below brand-900 */
+  --color-auth-action-text: #ffffff; /* the label on the primary button */
+  --color-auth-focus: #1b5e20; /* keyboard focus outline, only ever on the light panel */
+  --color-auth-error: #9f2434; /* error text and the error block's border */
+  --color-auth-error-surface: #fff1f2; /* the error block's fill */
+  --color-auth-shadow: #152c2626; /* the tinted colour of the panel's long shadow */
+
+  /* The cover does not only change colour between themes — it changes
+     treatment. Over the pale photo the veil has to stay thin or the headline
+     floats on milk, and the halo under the subtitle has to be wide and faint
+     or it reads as a box; over the night photo both close up and go nearly
+     opaque, because the picture underneath is busy. That difference lives here
+     as tokens, restated in the dark block like every other one, so a component
+     never has to branch on the resolved theme to draw it. */
+  --color-auth-veil-top: color-mix(in oklab, var(--color-auth-page) 80%, transparent); /* the veil where it meets the top edge */
+  --color-auth-veil-mid: color-mix(in oklab, var(--color-auth-page) 65%, transparent); /* ...and 55% down, before it runs out */
+  --color-auth-subtitle: var(--color-auth-heading); /* over the pale photo the subtitle takes the headline's ink */
+  --color-auth-subtitle-halo: color-mix(in oklab, var(--color-auth-page) 35%, transparent);
+  --auth-subtitle-halo-inset: -2.5rem -8rem; /* how far past the text the halo reaches: vertical, then horizontal */
+  --auth-subtitle-halo-radius: 50%; /* an ellipse, so the wide halo has no edge to see */
+  --auth-subtitle-halo-blur: 64px;
+
+  /* SHAPE AND ELEVATION. Two radius steps, two control heights and two shadows,
+     named so a component can ask for the role instead of repeating the number.
+     The shared field, button, card and modal components read them, so a screen
+     asks for the role and never repeats the number. */
+  --radius-control: 0.75rem; /* 12px — fields, buttons, error blocks, filter pills */
+  --radius-card: 1rem; /* 16px — cards and modals */
+  --spacing-control: 3rem; /* 48px — the height of a control in a form */
+  --spacing-control-compact: 2.5rem; /* 40px — the height of a control inside a table row */
+  --color-shadow: #152c2626; /* every elevation shadow is tinted, never a neutral grey */
+  --shadow-raise: 0 1px 2px -1px var(--color-shadow), 0 4px 12px -6px var(--color-shadow); /* a card off the page */
+  --shadow-float: 0 20px 80px -24px var(--color-shadow); /* a modal or popover above everything */
 }
 
 /* Base page surface. Kept minimal — everything else is Tailwind utilities. */
@@ -163,7 +233,7 @@ body {
  * between keep their jobs.
  *
  *   ink-100  borders and dividers
- *   ink-200  the border that identifies a control
+ *   ink-200  decorative borders: dividers, swatches, an alert's edge
  *   ink-300  dividers only — never text
  *   ink-400  placeholders, decorative icons, disabled labels (5.42:1)
  *   ink-500  <- the floor for secondary text, labels and metadata (7.60:1)
@@ -222,6 +292,7 @@ html[data-theme='dark'] {
   --color-raised: #232c35;
   --color-on-accent: #111820;
   --color-focus: #5fae6b;
+  --color-control-border: #76838f; /* the same mid ink grey in both themes: it is the only band that clears 3:1 against a near-white and a near-black control fill at once — 4.29:1 on a card and 3.65:1 on a modal's raised panel here, against ink-200's 2.22:1 */
   --color-fill-neutral: #cfd8e0;
   --color-fill-neutral-strong: #e4eaef;
   --color-scrim: #000000;
@@ -229,4 +300,45 @@ html[data-theme='dark'] {
   --color-hero-line: #2f3841;
   --color-hero-node: #454f5a;
   --color-hero-text: #aab6c2;
+
+  --color-nav: #141a21;
+  --color-nav-hover: #1f2731;
+  --color-nav-active: #1b3a22;
+
+  --color-spotlight: #1d4541; /* unchanged in the dark theme: the plate keeps its petrol and stands off the page by luminance */
+  --color-spotlight-text: #dcebe3; /* unchanged */
+  --color-spotlight-action: #f1f7f2; /* unchanged */
+  --color-spotlight-action-text: #1b5e20; /* unchanged */
+  --color-spotlight-end: #2e6a5f; /* unchanged in the dark theme */
+
+  --color-shadow: #00000059; /* a drop shadow does little over a dark ground; this is the deepest it goes */
+
+  /* SIGN-IN SCREEN. Only the cover inverts. The panel is a fixed light surface
+     in both themes (`color-scheme: light` on the section), so every token that
+     lands inside it keeps its light value — restated here in full rather than
+     left to inherit, so this block is the whole dark theme and not most of it. */
+  --color-auth-page: #1d2b2b; /* the cover, a green-tinted charcoal of its own */
+  --color-auth-heading: #f5f7f9;
+  --color-auth-copy: #bdc9cd;
+  --color-auth-accent: #66b86b; /* the accent inverts with the cover, like every other accent */
+  --color-auth-panel: #ffffff; /* from here down: inside the light panel, unchanged */
+  --color-auth-panel-ink: #1d2b2b;
+  --color-auth-panel-ink-strong: #16201f;
+  --color-auth-panel-muted: #4f5d67;
+  --color-auth-control: #6d7982;
+  --color-auth-divider: #bcc6cb;
+  --color-auth-action: #1b5e20;
+  --color-auth-action-hover: #154c19;
+  --color-auth-action-text: #ffffff;
+  --color-auth-focus: #1b5e20;
+  --color-auth-error: #9f2434;
+  --color-auth-error-surface: #fff1f2;
+  --color-auth-shadow: #152c2626;
+  --color-auth-veil-top: color-mix(in oklab, var(--color-auth-page) 95%, transparent); /* the night photo needs the veil nearly solid */
+  --color-auth-veil-mid: color-mix(in oklab, var(--color-auth-page) 90%, transparent);
+  --color-auth-subtitle: var(--color-auth-copy); /* here the subtitle steps back to the copy grey instead */
+  --color-auth-subtitle-halo: color-mix(in oklab, var(--color-auth-page) 95%, transparent);
+  --auth-subtitle-halo-inset: -0.75rem -2rem; /* tight and almost opaque, not the wide wash of the light theme */
+  --auth-subtitle-halo-radius: 1.5rem;
+  --auth-subtitle-halo-blur: 24px;
 }

@@ -54,10 +54,10 @@ export function AppearanceSettings() {
             <label
               key={option.value}
               className={
-                'flex cursor-pointer items-center gap-4 rounded-xl border px-4 py-3 transition-colors ' +
+                'flex cursor-pointer items-center gap-4 rounded-control border px-4 py-3 transition-colors ' +
                 (isSelected
                   ? 'border-brand-800 bg-brand-50'
-                  : 'border-ink-200 hover:bg-ink-50')
+                  : 'border-control-border hover:bg-ink-50')
               }
             >
               <input

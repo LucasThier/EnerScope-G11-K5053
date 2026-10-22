@@ -7,6 +7,11 @@ done).
 
 Run everything with `cd backend && mvn test`.
 
+The automated suite is **backend only**. The frontend has no test runner, so what
+stands in for it is the by-hand checklist at the end of this file,
+[*Manual verification (frontend)*](#manual-verification-frontend) — keep that in
+sync too when a screen changes.
+
 ## Conventions
 
 - Tests live next to the code under `backend/src/test/java`, mirroring the class
@@ -26,6 +31,10 @@ Run everything with `cd backend && mvn test`.
 
 ## Summary
 
+Counts below are the number of `@Test` methods in each class, taken from the
+source on this branch. No class uses `@ParameterizedTest`, `@RepeatedTest` or
+`@Disabled` any more, so **cases and executions are the same number**.
+
 | Test class | Type | Cases |
 | --- | --- | --- |
 | `ApplicationContextTest` | Integration | 1 |
@@ -35,43 +44,51 @@ Run everything with `cd backend && mvn test`.
 | `util.AuthUtilTest` | Unit | 7 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 |
 | `money.MoneyAmountTest` | Unit | 7 |
-| `user.service.UserServiceTest` | Unit | 53 |
+| `user.service.UserServiceTest` | Unit | 58 |
 | `user.service.PasswordGeneratorTest` | Unit | 4 |
-| `user.controller.UserControllerTest` | Web | 26 |
-| `user.repository.UserRepositoryTest` | Data | 13 |
-| `organization.service.OrganizationServiceTest` | Unit | 56 |
+| `user.controller.UserControllerTest` | Web | 30 |
+| `user.repository.UserRepositoryTest` | Data | 22 |
+| `organization.service.OrganizationServiceTest` | Unit | 77 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 13 |
-| `organization.controller.OrganizationControllerTest` | Web | 33 |
+| `organization.controller.OrganizationControllerTest` | Web | 41 |
 | `organization.repository.OrganizationRepositoryTest` | Data | 16 |
-| `project.service.ProjectAccessGuardTest` | Unit | 22 |
-| `project.service.ProjectServiceTest` | Unit | 49 |
-| `project.controller.ProjectControllerTest` | Web | 27 |
-| `project.repository.ProjectRepositoryTest` | Data | 13 |
-| `project.repository.ProjectMemberRepositoryTest` | Data | 5 |
-| `version.service.VersionServiceTest` | Unit | 22 [^p] |
-| `version.controller.VersionControllerTest` | Web | 10 |
-| `node.service.NodeServiceTest` | Unit | 1 |
+| `organization.repository.OrganizationMemberRepositoryTest` | Data | 17 |
+| `project.service.ProjectAccessGuardTest` | Unit | 26 |
+| `project.service.ProjectServiceTest` | Unit | 80 |
+| `project.controller.ProjectControllerTest` | Web | 43 |
+| `project.repository.ProjectRepositoryTest` | Data | 17 |
+| `project.repository.ProjectMemberRepositoryTest` | Data | 21 |
+| `version.service.VersionServiceTest` | Unit | 15 |
+| `version.service.VersionConflictServiceTest` | Unit | 20 |
+| `version.service.VersionConflictIntegrationTest` | Integration | 11 |
+| `version.repository.VersionConflictRepositoryTest` | Data | 6 |
+| `version.dto.VersionConflictDTOTest` | Unit | 1 |
+| `version.controller.VersionControllerTest` | Web | 11 |
+| `node.service.NodeServiceTest` | Unit | 2 |
 | `node.controller.NodeControllerTest` | Unit | 1 |
-| `simulator.ResultMappingTest` | Data | 7 |
+| `simulator.ResultPerRoundTest` | Unit | 12 |
+| `simulator.SimulatorTest` | Unit | 15 |
 | `strategyCost.CostTest` | Unit | 8 |
 | `strategyCost.InvestmentCostTest` | Unit | 2 |
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| **Total** | | **433 [^p]** |
+| **Total** | | **621** |
 
-[^p]: Two cases in `version.service.VersionServiceTest` are
-`@ParameterizedTest`s running over the eight mutating version entry points,
-so they count as 16 executions rather than 2. The 433 cases catalogued here
-therefore make 447 executions.
-
-> **This catalog has drifted from the code.** On 2026-10-05 `mvn test` ran
-> **587** executions, against the 447 above. The gap is not a mistake in the
-> rows: it is tests merged since the catalog was last reconciled. Three classes
-> have no entry (`organization.repository.OrganizationMemberRepositoryTest`,
-> `simulator.ResultTest` and `simulator.SimulatorTest`: 33 executions) and
-> eleven have grown past their recorded count (`user.*`, `organization.*`,
-> `project.*` and `version.service.VersionServiceTest`: 107 executions in
-> total). Reconciling them is its own task. `simulator.ResultMappingTest` was
-> added on 2026-10-05 and is counted correctly.
+> **Reconciled on 2026-10-18, by reading the sources rather than by running the
+> suite.** The catalog had drifted badly after several merges: seven classes had
+> no entry at all (`organization.repository.OrganizationMemberRepositoryTest`,
+> `simulator.ResultPerRoundTest`, `simulator.SimulatorTest`,
+> `version.dto.VersionConflictDTOTest`,
+> `version.repository.VersionConflictRepositoryTest`,
+> `version.service.VersionConflictIntegrationTest` and
+> `version.service.VersionConflictServiceTest`), thirteen had grown or shrunk
+> past their recorded count, and one (`simulator.ResultMappingTest`) was
+> catalogued but is **not present on this branch** — see the note where its
+> section used to be. Every row and every case below now matches a method that
+> exists in `backend/src/test/java`.
+>
+> **Not verified:** `mvn test` was not run as part of this pass, so the 621
+> above is a static count of `@Test` methods, not an observed execution count.
+> If a run reports a different number, trust the run and reconcile again.
 
 ## `ApplicationContextTest` — Integration
 
@@ -227,6 +244,11 @@ Registration, login and password logic.
 | `reactivateUserRejectsUnknownUser` | An unknown id throws; nothing is saved. |
 | `reactivateUserRejectsANonAdminCallerWith403` | A regular user is refused before any lookup. |
 | `reactivateUserRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+| `getDetailAssemblesIdentityAndBothMembershipLists` | `getDetail` combines the user row with `findOrganizationMembershipsForUser` and `findProjectMembershipsForUser` into one `UserDetailDTO`. |
+| `getDetailReturnsTheDetailOfASuspendedAccount` | A deactivated account still has a detail, reported with `active=false` — the screen needs to show who it is in order to offer reactivation. |
+| `getDetailThrowsEntityNotFoundForAnUnknownUser` | An unknown id throws `EntityNotFoundException("User not found")` and neither membership query runs. |
+| `getDetailRejectsANonAdminCallerWith403` | A regular user is refused before the user is even looked up. |
+| `getDetailRejectsUnauthenticated` | No session throws `UnauthorizedException`; nothing is read. |
 
 ## `user.service.PasswordGeneratorTest` — Unit
 
@@ -267,6 +289,15 @@ address here is prefixed `count-` for that reason.
 | `searchIgnoresCase` | `LOWER()` on both sides, so a typed address matches whatever case it was stored in. |
 | `searchNeverMatchesPartially` | Neither a local part nor a bare domain matches — this is what keeps the endpoint from enumerating the roster. |
 | `searchSkipsASuspendedAccount` | A deactivated account is not found, which is what makes the `404` indistinguishable from an unknown address. |
+| `organizationMembershipsCarryTheOrganizationAndTheRole` | `findOrganizationMembershipsForUser` projects the organization's name and the membership's `memberType`. |
+| `organizationMembershipsIncludeASuspendedOrganizationMarked` | A membership in a deactivated organization is still returned, flagged with `organizationActive=false`, rather than hidden. |
+| `organizationMembershipsExcludeOtherUsers` | The query is scoped to the requested user. |
+| `organizationMembershipsAreEmptyForAUserInNoOrganization` | No memberships yields an empty list, not a null. |
+| `projectMembershipsCarryTheProjectAndTheOrganization` | `findProjectMembershipsForUser` projects the project name, its organization's name and `active` flag, and the membership's `memberType`. |
+| `projectMembershipsExcludeADeactivatedProject` | A membership in a logically deleted project is left out entirely — unlike a suspended organization, a deleted project is not something the detail should offer. |
+| `projectMembershipsIncludeAProjectOfASuspendedOrganizationMarked` | A project of a suspended organization is returned with `organizationActive=false`. |
+| `projectMembershipsExcludeOtherUsers` | The query is scoped to the requested user. |
+| `projectMembershipsAreEmptyForAUserInNoProject` | No memberships yields an empty list. |
 
 ## `user.controller.UserControllerTest` — Web
 
@@ -301,6 +332,10 @@ chain; `UserService` is mocked.
 | `deleteUserRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
 | `reactivateUserReturnsOk` | `POST /users/{id}/reactivate` → `200` `User reactivated`, and the service is asked to reactivate that id. |
 | `reactivateUserRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+| `getUserDetailReturnsTheFullDetail` | `GET /users/{id}` → `200` with the identity fields, `active`, and both membership lists (`organizations[].organizationName`, `projects`) in the envelope. |
+| `getUserDetailAnswers404WithAFixedMessage` | An unknown id → `404` `User not found` — the same message whatever the id, so the endpoint does not confirm which addresses exist. |
+| `getUserDetailPropagatesForbiddenWith403` | A non-admin caller → `403`. |
+| `getUserDetailRequiresAuthenticationWith401` | No token → `401`; `UserService.getDetail` is never called. |
 
 ## `organization.service.OrganizationBulkRegistrationServiceTest` — Unit
 
@@ -378,13 +413,34 @@ Organization creation and member addition (with role/permission derivation).
 | `removeMemberDeletesTheMembership` | The membership row is deleted and drops out of `Organization.members`. |
 | `removeMemberAlsoRemovesTheirProjectMembershipsInThatOrganization` | The user's `ProjectMember` rows in that organization's projects go with it, loaded and passed to `deleteAll` so the roles cascade. |
 | `removeMemberTouchesNoProjectMembershipWhenTheUserIsInNone` | With no project memberships to remove, `deleteAll` is never called. |
-| `removeMemberAllowsAnOwnerToRemoveThemselves` | An OWNER removing their own membership is allowed — no last-owner guard, because an organization with no owner is the state it is created in. |
+| `removeMemberAllowsAnOwnerToRemoveThemselves` | An OWNER may remove their own membership **as long as another active owner remains** (the case stubs the owner count at 2). Self-removal is not a special path: it goes through the same last-owner guard as removing anybody else. |
 | `removeMemberAllowsPlatformAdmin` | A platform ADMIN removes without any membership lookup. |
 | `removeMemberRejectsAPlainMemberWith403` | A member holding only `VIEW_ORGANIZATION` is refused; nothing is deleted. |
 | `removeMemberRejectsUnauthenticated` | No session throws `UnauthorizedException`; nothing is deleted. |
 | `removeMemberRejectsUnknownOrganization` | An unknown organization id throws `IllegalArgumentException`. |
-| `removeMemberRejectsUnknownMember` | An unknown member id throws `IllegalArgumentException`; nothing is deleted. |
-| `removeMemberRejectsAMemberOfAnotherOrganization` | A member id belonging to a different organization answers the same `Member not found` as one that does not exist, so an owner cannot probe which membership ids exist elsewhere. |
+| `removeMemberRejectsUnknownMember` | An unknown member id throws `EntityNotFoundException("Member not found")` — a `404`, not a `400`; nothing is deleted. |
+| `removeMemberRejectsAMemberOfAnotherOrganization` | A member id belonging to a different organization raises the same `EntityNotFoundException("Member not found")` as one that does not exist, so an owner cannot probe which membership ids exist elsewhere. |
+| `changeMemberRoleDemotesAnOwnerToMember` | Demoting replaces the whole role: one role row survives, with `memberType`/`name` `MEMBER` and `VIEW_ORGANIZATION` as its only permission, and the member is saved. |
+| `changeMemberRolePromotesAMemberToOwner` | Promoting gives a single OWNER role carrying both `MANAGE_ORGANIZATION` and `VIEW_ORGANIZATION`. |
+| `changeMemberRoleCollapsesSeveralRolesIntoOne` | A membership that somehow holds two roles ends up with exactly one after the change, without the old permissions. |
+| `changeMemberRoleToTheCurrentRoleIsANoOp` | Asking for the role the member already has returns the member untouched and saves nothing — so a double click cannot trip the last-owner guard. |
+| `changeMemberRoleRejectsAPlainMemberWith403` | A caller holding only `VIEW_ORGANIZATION` is refused before the target membership is even looked up. |
+| `changeMemberRoleAllowsAnOrganizationOwner` | An OWNER (via `MANAGE_ORGANIZATION`) may change roles, not just a platform admin. |
+| `changeMemberRoleRejectsUnauthenticated` | No session throws `UnauthorizedException`; nothing is saved. |
+| `changeMemberRoleRejectsAMemberOfAnotherOrganizationWithTheSameMessageAsAMissingOne` | A foreign membership id and an unknown one both raise `EntityNotFoundException("Member not found")` with the identical message. |
+| `changeMemberRoleRejectsADeactivatedOrganization` | A suspended organization is refused before the membership is looked up. |
+| `changeMemberRoleRejectsAMissingRole` | A null `memberType` throws before anything is read or written. |
+| `changeMemberRoleLeavesProjectMembershipsAlone` | Changing an organization role touches `ProjectMemberRepository` not at all: the two role scopes are independent. |
+| `demotedOwnerLosesManageUsersAndPromotedMemberGainsIt` | End-to-end on the permission derived from the role: before the swap the owner passes `assertCanManageUsers` and the plain member does not; after demoting one and promoting the other, exactly the reverse holds. |
+| `removeMemberRefusesToRemoveTheLastActiveOwner` | With one active owner, removing them throws `IllegalArgumentException("The organization would be left without an owner")`, the membership stays in `Organization.members`, nothing is deleted and the project repository is never touched. |
+| `removeMemberAllowsRemovingAnOwnerWhenAnotherOneRemains` | With two active owners, removing one goes through and it drops out of `Organization.members`. |
+| `removeMemberRefusesTheLastActiveOwnerEvenForAPlatformAdmin` | The guard is not a permission check: a platform ADMIN — who skips the membership lookup entirely — still gets the refusal. |
+| `removeMemberDoesNotApplyTheOwnerGuardToAnOwnerWhoseUserIsInactive` | An owner whose account is deactivated does not count, so the owner count is never even queried and the removal proceeds. |
+| `removeMemberRefusesWhenAProjectWouldBeLeftWithoutAnAdministrator` | When `countProjectsLeftWithoutAdmin` reports one, the whole removal is refused with `A project in this organization would be left without an administrator`: the membership survives and **no** project membership is loaded or deleted. The cascade is rejected, not trimmed. |
+| `removeMemberRemovesTheMembershipWhenEveryProjectKeepsAnAdministrator` | With that count at zero, the project memberships are deleted through `deleteAll` and then the organization membership. |
+| `changeMemberRoleRefusesToDemoteTheLastActiveOwner` | The same guard on the demotion path: the role is unchanged and nothing is saved. |
+| `changeMemberRoleAllowsDemotingAnOwnerWhenAnotherOneRemains` | With a second active owner the demotion goes through and is saved. |
+| `changeMemberRolePromotesAMemberWithoutConsultingTheOwnerCount` | A promotion cannot empty the role, so the count query is never run. |
 
 ## `organization.repository.OrganizationRepositoryTest` — Data
 
@@ -414,6 +470,34 @@ turns two cases red.
 | `ownedExcludesDeactivatedOrganizations` | A deactivated organization drops out, so its owner stops being offered a page they cannot write to. |
 | `ownedExcludesOrganizationsOwnedBySomebodyElse` | Correlated on the caller: two owners of different organizations see one each. |
 | `ownsAnyActiveOrganizationFollowsTheSameRule` | The boolean behind the user lookup agrees with the list: true for the owner, false for the plain member. |
+
+## `organization.repository.OrganizationMemberRepositoryTest` — Data
+
+The two `@Query` methods on `OrganizationMemberRepository` that only a database
+can answer: `findProjectMemberCandidates` (who in the organization may still be
+added to a given project) and `countOwnersByOrganization` (the count behind the
+last-owner guard). The candidate query is a constructor projection, so the cases
+also pin that it exposes nothing but id, first name, last name and mail.
+
+| Case | Verifies |
+| --- | --- |
+| `returnsTheActiveOrganizationMembersWhoAreNotOnTheProject` | The baseline: an active organization member who is not on the project is a candidate, projected with their four fields. |
+| `excludesUsersAlreadyOnTheProject` | Somebody already on the project is not offered again. |
+| `excludesUsersWhoseProjectMembershipIsInactive` | A deactivated project membership still excludes them — consistent with `existsByProjectIdAndUserId`, which would refuse the re-add anyway. |
+| `excludesUsersWhoAreOnlyInAnotherOrganization` | Candidates come from the project's own organization only. |
+| `excludesInactiveOrganizationMemberships` | A deactivated organization membership is not a candidate. |
+| `excludesInactiveUsers` | Neither is a deactivated account. |
+| `returnsNothingForAnotherProjectsOrganization` | Asking with an organization the project does not belong to yields nothing, rather than leaking the other organization's roster. |
+| `keepsUsersWhoAreOnlyOnAnotherProjectOfTheSameOrganization` | Being on a *different* project of the same organization does not disqualify anyone. |
+| `filtersByFirstNameLastNameOrMailIgnoringCase` | `%mart%` matches a first name, a last name and a mail, case-insensitively, and leaves the non-matching member out. |
+| `treatsPercentAndUnderscoreInTheEscapedPatternAsLiterals` | With the pattern `ProjectService` builds (`%ana\_maria%`), the `_` is a literal: `Ana_Maria` matches and `AnaXMaria` does not. |
+| `ordersByLastNameThenFirstName` | The rows come back ordered by last name, then first name. |
+| `countsTheActiveOwnersOfAnOrganization` | Two OWNER memberships count as 2. |
+| `doesNotCountPlainMembersAsOwners` | A MEMBER does not count towards the owner floor. |
+| `doesNotCountAnOwnerWhoseUserIsInactive` | A deactivated account does not keep a seat warm. |
+| `doesNotCountAnOwnerWhoseMembershipIsInactive` | Neither does a deactivated membership — both flags are required. |
+| `doesNotCountTheOwnersOfAnotherOrganization` | The count is scoped to one organization. |
+| `countsZeroOwnersForAnOrganizationWithNone` | An organization with only members reports 0 rather than failing. |
 
 ## `organization.controller.OrganizationControllerTest` — Web
 
@@ -454,16 +538,26 @@ every non-`/auth` route); `OrganizationService` and
 | `listOwnedOrganizationsReturnsThem` | `GET /organizations/owned` → `200` `Owned organizations`. |
 | `listOwnedOrganizationsRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
 | `removeMemberReturnsOk` | `DELETE /organizations/{id}/members/{memberId}` → `200` `Member removed`, and the service is asked to remove that pair. |
-| `removeMemberRejectsUnknownMemberWith400` | When the service reports an unknown member → `400` `Member not found`. |
 | `removeMemberPropagatesForbiddenWith403` | When the service refuses the caller → `403` with the domain message. |
 | `removeMemberRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+| `removeMemberAnswers404ForAnUnknownMember` | An unknown member now answers `404` `Member not found` (it used to be documented as `400`; the service throws `EntityNotFoundException`, which `GlobalExceptionHandler` maps to `404`). |
+| `removeMemberRejectsALastOwnerRemovalWith400` | The last-owner refusal reaches the client as `400` with `The organization would be left without an owner`, verbatim. |
+| `removeMemberRejectsACascadeThatOrphansAProjectWith400` | The cascade refusal reaches the client as `400` with `A project in this organization would be left without an administrator`, verbatim. |
+| `changeMemberRoleReturnsTheUpdatedMember` | `PATCH /organizations/{id}/members/{memberId}` → `200` `Member role updated` with the new `memberType` and its derived `permissions`. |
+| `changeMemberRoleRejectsAMissingRoleWith400` | An empty body → `400`; the service is never called. |
+| `changeMemberRoleRejectsAnUnknownRoleWith400` | `"memberType":"ADMIN"` — a *project* role, not an organization one — is rejected at deserialization with `400`; the service is never called. |
+| `changeMemberRolePropagatesForbiddenWith403` | A caller without `MANAGE_ORGANIZATION` → `403` with `You are not allowed to manage users in this organization`. |
+| `changeMemberRolePropagatesAnUnknownMemberWith404` | An unknown member → `404` `Member not found`. |
+| `changeMemberRoleRequiresAuthenticationWith401` | No token → `401`; the service is never called. |
 
 ## `project.repository.ProjectMemberRepositoryTest` — Data
 
-`findByUserInOrganization`, the query that finds a user's project memberships
-inside one organization so that removing their organization membership can take
-them with it. Both filters and the delete cascade were checked by mutation: each
-one turns a case red when removed.
+The queries on `ProjectMemberRepository` that no mocked test can answer:
+`findByUserInOrganization` (a user's project memberships inside one
+organization, so removing their organization membership can take them with it),
+`findByIdAndProjectId`, the two counting queries behind the last-administrator
+guards, and the role cascade. The filters and the delete cascade of the first
+group were checked by mutation: each one turns a case red when removed.
 
 | Case | Verifies |
 | --- | --- |
@@ -472,6 +566,22 @@ one turns a case red when removed.
 | `excludesTheMembershipsOfOtherUsers` | Two members on the same project resolve to one row for the user asked about. |
 | `returnsEmptyWhenTheUserIsInNoProjectOfThatOrganization` | No project in that organization means no rows, not every row. |
 | `deletingTheFoundMembershipsCascadesToTheirRoles` | `deleteAll` over the loaded entities removes their `ProjectMemberRole` rows too. The role count is asserted as 1 **before** the delete: without that, the case passes even with the cascade removed, because the role would never have been written. |
+| `findsAMembershipByIdWithinItsProject` | `findByIdAndProjectId` finds the membership when the project matches. |
+| `doesNotFindAMembershipThroughAnotherProject` | The same membership id under a different project, and an unknown id under the right project, both come back empty — the project in the path is part of the key, so a member of project A cannot be touched through project B. |
+| `countsTheActiveAdminsOfAProject` | `countAdminsByProject` counts two ADMIN memberships as 2. |
+| `doesNotCountEditorsAsAdmins` | An EDITOR does not count towards the administrator floor. |
+| `doesNotCountAnAdminWhoseMembershipIsInactive` | A deactivated membership does not keep a seat warm. |
+| `doesNotCountAnAdminWhoseUserIsInactive` | Neither does an ADMIN whose account was deactivated — both flags are required. |
+| `doesNotCountTheAdminsOfAnotherProject` | The count is scoped to one project. |
+| `countsZeroAdminsForAProjectWithNone` | A project with only editors reports 0 rather than failing. |
+| `anInactiveMembershipStillCountsAsExistingForTheUniquePair` | `existsByProjectIdAndUserId` is true for a deactivated membership, which is why re-adding that person is refused with `User is already a member of this project` instead of violating the unique constraint. |
+| `replacingTheRoleOfAPersistedMemberLeavesASingleRoleWithTheNewPermissions` | `changeRole` on a loaded entity replaces the role instead of adding a second one: one row survives, with the new `memberType` and the new permission set. |
+| `deletingAMembershipByEntityCascadesToItsRoles` | Deleting one membership entity removes its role row (orphan removal), checked with the role count asserted before the delete. |
+| `countsTheProjectWhereTheUserIsTheOnlyAdmin` | `countProjectsLeftWithoutAdmin` reports 1 for a project where the user is the only ADMIN and the other member is an EDITOR. |
+| `doesNotCountAProjectThatKeepsAnotherActiveAdmin` | A project with a second active ADMIN is not at risk, so it is not counted. |
+| `doesNotCountAProjectWhereTheUserIsOnlyAnEditor` | Leaving does not endanger a project the user does not administer. |
+| `doesNotCountTheProjectsOfAnotherOrganization` | The query is scoped to the organization being left. |
+| `countsOnlyTheProjectsThatWouldBeLeftWithoutAnAdmin` | The combined case: of five projects (two sole-admin, one shared, one where the user is an editor, one in another organization) exactly the two sole-admin ones are counted. |
 
 ## `project.service.ProjectAccessGuardTest` — Unit
 
@@ -504,6 +614,10 @@ states: authorized, authenticated but not allowed (`403`), and no session
 | `assertIsPlatformAdminAllowsPlatformAdmin` | A platform ADMIN passes the platform-level check. |
 | `assertIsPlatformAdminRejectsRegularUserWith403` | A regular user gets `ForbiddenException` with the action named in the message. |
 | `assertIsPlatformAdminRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+| `assertCanManageProjectDeniesAnAdminAfterTheyAreDemotedToEditor` | The same membership instance passes the manage check as an ADMIN and is refused once `changeRole` has turned it into an EDITOR — the guard reads the role at call time, it does not cache a decision. |
+| `assertCanEditProjectStillAllowsAnAdminAfterTheyAreDemotedToEditor` | A demotion from ADMIN to EDITOR keeps `EDIT_PROJECT`, so the demoted member can still edit; only `MANAGE_PROJECT` is lost. |
+| `assertCanManageProjectAllowsAnEditorAfterTheyArePromotedToAdmin` | The mirror case: an EDITOR refused the manage check passes it after being promoted to ADMIN. |
+| `changingTheRoleDoesNotShareThePermissionSetWithTheDefaults` | `changeRole` copies `ProjectMember.defaultPermissionsFor(...)` instead of storing the returned set, so mutating a member's permissions cannot corrupt the defaults for every other member. |
 
 ## `project.service.ProjectServiceTest` — Unit
 
@@ -564,6 +678,37 @@ coverage and what matters here is that `createProject` runs it.
 | `deactivateProjectAllowsPlatformAdmin` | A platform ADMIN deletes without any membership lookup. |
 | `deactivateProjectRejectsProjectEditorWith403` | A member holding only `EDIT_PROJECT` is refused; the project stays active and nothing is saved. |
 | `deactivateProjectRejectsUnauthenticated` | No session throws `UnauthorizedException`; the project stays active. |
+| `addMemberRejectsInactiveProjectBeforeLookingUpTheUser` | A deleted project throws `Project not found` before the candidate is read, so a deleted project cannot be used to probe which user ids exist. |
+| `addMemberRejectsAnInactiveUser` | A deactivated account throws `User is not active`; nothing is saved. |
+| `addMemberRejectsAUserOutsideTheProjectsOrganizationEvenForAPlatformAdmin` | `User is not a member of the project's organization` applies to a platform ADMIN too: being allowed to act is not being allowed to break the membership prerequisite. |
+| `addMemberRejectsAUserWhoseOrganizationMembershipIsInactive` | A deactivated organization membership counts as not belonging. |
+| `addMemberCannotReAddAUserWhoseProjectMembershipIsInactive` | A deactivated project membership still answers `User is already a member of this project` — the unique pair survives the logical delete, so the row has to be reactivated, not re-created. |
+| `changeMemberRoleDemotesAnAdminReplacingTheWholeRole` | Demoting an ADMIN leaves one role row named `EDITOR` with the editor permissions, and saves it. |
+| `changeMemberRolePromotesAnEditorWithoutConsultingTheAdminCount` | A promotion cannot empty the role, so `countAdminsByProject` is never run. |
+| `changeMemberRoleIsANoOpWhenTheRoleDoesNotChange` | Asking for the current role saves nothing and never consults the admin count. |
+| `changeMemberRoleRefusesToDemoteTheLastActiveAdmin` | With one active administrator, demoting them throws `IllegalArgumentException("The project would be left without an administrator")` and nothing is saved. |
+| `changeMemberRoleAllowsDemotingAnAdminWhenAnotherOneRemains` | With a second active administrator the demotion goes through. |
+| `changeMemberRoleDoesNotApplyTheGuardToAnAdminThatNoLongerCounts` | A deactivated membership does not count as an administrator, so the guard is skipped and the change is saved. |
+| `changeMemberRoleDoesNotApplyTheGuardToAnAdminWhoseUserIsInactive` | Same for an administrator whose account is deactivated. |
+| `changeMemberRoleAllowsAProjectAdminCaller` | A project ADMIN may change roles, not only a platform admin. |
+| `changeMemberRoleRejectsAProjectEditorCallerWith403` | An EDITOR caller is refused before the target membership is looked up; nothing is saved. |
+| `changeMemberRoleRejectsAnOrganizationOwnerWhoIsNotOnTheProjectWith403` | Owning the organization does not grant `MANAGE_PROJECT` on a project you are not a member of. |
+| `changeMemberRoleAnswers404ForAMemberOfAnotherProject` | A member id from another project raises `EntityNotFoundException("Member not found")`; the lookup is scoped by project id and `findById` is never used. |
+| `changeMemberRoleRejectsAnInactiveProject` | A deleted project throws `Project not found` before the membership is looked up. |
+| `changeMemberRoleRejectsAMissingMemberType` | A null DTO and a null `memberType` both throw. |
+| `removeMemberDeletesTheMembershipAndDetachesItFromTheProject` | Removing an EDITOR deletes the row, drops it from `Project.members` and never consults the admin count. |
+| `removeMemberRefusesToRemoveTheLastActiveAdmin` | With one active administrator the removal throws the same `The project would be left without an administrator` and deletes nothing. |
+| `removeMemberAllowsRemovingAnAdminWhenAnotherOneRemains` | With a second active administrator the removal goes through. |
+| `removeMemberRefusesTheSelfRemovalOfTheLastAdmin` | The guard is not about who is being removed by whom: the sole administrator cannot walk out either. |
+| `removeMemberAllowsAnAdminToLeaveWhenAnotherOneRemains` | An administrator may remove their own membership when another one remains. |
+| `removeMemberRejectsAProjectEditorCallerWith403EvenForTheirOwnMembership` | Leaving a project needs `MANAGE_PROJECT`: an EDITOR cannot remove even themselves, which is a deliberate limitation and not an oversight. |
+| `removeMemberAnswers404ForAMemberOfAnotherProject` | A member id from another project raises `EntityNotFoundException("Member not found")`; nothing is deleted. |
+| `removeMemberRejectsAnInactiveProject` | A deleted project is refused before the membership is looked up. |
+| `listMemberCandidatesQueriesTheProjectsOrganizationWithAMatchAllPatternWhenQIsBlank` | A null `q` and a whitespace-only one both become the pattern `%`, against the project's own organization. |
+| `listMemberCandidatesLowercasesTrimsAndEscapesTheSearchTerm` | `"  Ja_N%\x "` becomes `%ja\_n\%\\x%`: trimmed, lower-cased, and `_`, `%` and `\` escaped so a user's input cannot act as a LIKE wildcard. |
+| `listMemberCandidatesRejectsAProjectEditorWith403` | Listing candidates needs `MANAGE_PROJECT`; the query never runs for an EDITOR. |
+| `listMemberCandidatesAllowsAProjectAdmin` | A project ADMIN may list them. |
+| `listMemberCandidatesRejectsAnInactiveProject` | A deleted project is refused and the query never runs. |
 
 ## `project.controller.ProjectControllerTest` — Web
 
@@ -600,6 +745,22 @@ non-`/auth` route); `ProjectService` is mocked.
 | `deleteProjectRejectsUnknownProjectWith400` | When the service reports an unknown id → `400` with `Project not found`. |
 | `deleteProjectPropagatesForbiddenWith403` | When the service refuses the caller → `403` with `You are not allowed to manage this project`. |
 | `deleteProjectRequiresAuthenticationWith401` | `DELETE /projects/{id}` without a token → `401`; the service is never reached. |
+| `changeMemberRoleReturnsTheUpdatedMember` | `PATCH /projects/{id}/members/{memberId}` → `200` with the new `memberType` and the member's `userMail`. |
+| `changeMemberRoleRejectsALastAdminDemotionWith400` | The last-administrator refusal reaches the client as `400` with `The project would be left without an administrator`, verbatim. |
+| `changeMemberRoleRejectsAMissingMemberTypeWith400` | An empty body → `400`; the service is never called. |
+| `changeMemberRolePropagatesForbiddenWith403` | A caller without `MANAGE_PROJECT` → `403` with `You are not allowed to manage this project`. |
+| `changeMemberRoleAnswers404ForAnUnknownMember` | An unknown member → `404` `Member not found`. |
+| `changeMemberRoleRequiresAuthenticationWith401` | No token → `401`; the service is never called. |
+| `removeMemberReturnsOk` | `DELETE /projects/{id}/members/{memberId}` → `200` `Member removed`, and the service is asked to remove that pair. |
+| `removeMemberRejectsALastAdminRemovalWith400` | The same refusal on the removal path → `400` with the same message. |
+| `removeMemberPropagatesForbiddenWith403` | A caller without `MANAGE_PROJECT` → `403`. |
+| `removeMemberAnswers404ForAnUnknownMember` | An unknown member → `404` `Member not found`. |
+| `removeMemberRequiresAuthenticationWith401` | No token → `401`; the service is never called. |
+| `listMemberCandidatesReturnsTheMinimalProjection` | `GET /projects/{id}/member-candidates` → `200` with id, first name, last name and mail per row, and **no** `passwordHash` — the projection is asserted not to leak it. |
+| `listMemberCandidatesForwardsTheSearchTerm` | `?q=` reaches `ProjectService.listMemberCandidates` unchanged (the escaping happens in the service). |
+| `listMemberCandidatesRejectsAnInactiveProjectWith400` | A deleted project → `400` `Project not found`. |
+| `listMemberCandidatesPropagatesForbiddenWith403` | A caller without `MANAGE_PROJECT` → `403`. |
+| `listMemberCandidatesRequiresAuthenticationWith401` | No token → `401`; the service is never called. |
 
 ## `project.repository.ProjectRepositoryTest` — Data
 
@@ -626,43 +787,129 @@ red, so none of them passes for the wrong reason.
 | `existsByIdAndActiveTrueIsTrueForAnActiveProject` | The baseline for the `listMembers` guard. |
 | `existsByIdAndActiveTrueIsFalseOnceTheProjectIsDeactivated` | Listing the members of a deleted project answers `400`. |
 | `existsByIdAndActiveTrueIsFalseForAnUnknownId` | An id that was never stored is not active either. |
+| `findSummariesForMemberExposesTheCallerRole` | Each row's `myRole` is the caller's own role in that project — ADMIN in one, EDITOR in another — and not the role of whoever else is on it. |
+| `findSummariesExposesNullRoleWhenCallerIsNotAMember` | For the platform-wide query, a project the caller does not belong to comes back with `myRole = null`, which is how the UI tells "I may see this" from "I may act on it". |
+| `findSummariesExposesTheCallerRoleWhenPlatformAdminIsAMember` | A platform admin who *is* a member gets their actual membership role, not null. |
+| `findSummariesForMemberPrefersAdminWhenTheCallerHoldsTwoRoles` | A membership carrying both roles reports ADMIN — the more capable one wins, so a leftover second role cannot downgrade someone. |
 
 ## `version.service.VersionServiceTest` — Unit
 
-Version and node/connection mechanics, plus the authorization every entry point
-runs. `ProjectAccessGuard` is mocked here (unlike in `ProjectServiceTest`): the
-rules themselves are covered case by case in `ProjectAccessGuardTest`, so what
-these cases pin down is that no entry point skips the guard and that a rejected
-call touches neither the repositories nor `NodeService`.
+Version and node mechanics: editing a node inside a version, adding one, and
+merging a sub-version into its parent. `ProjectAccessGuard` is mocked and every
+case here is about the mechanics, not the authorization.
+
+> **Coverage regression — the authorization cases are gone.** An earlier revision
+> of this class carried thirteen more cases that pinned the guard on every entry
+> point (`mutatingOperationsRejectCallerWithoutEditPermission` and
+> `mutatingOperationsRejectUnauthenticatedCaller`, both `@ParameterizedTest`s
+> over the eight mutating methods; the three `getVersion*` cases; the three
+> `saveOrphanVersion*` cases; and the five snapshot-initialisation /
+> `saveVersionIsUnguardedBecauseItsCallersAuthorizeInstead` cases), plus the four
+> `getDiagram`/`updateNodePosition`/`updateNodeBasics`/`getNodeDetail` cases.
+> They were lost in a merge, **not removed on purpose**: `VersionService` still
+> calls `accessGuard.assertCanEditVersion` on nine entry points,
+> `assertCanViewVersion` on `getVersion` and `assertIsPlatformAdmin` on
+> `saveOrphanVersion`, so the code is still guarded and nothing in this class
+> notices any more. Restoring them is its own card; until then the only
+> protection against a dropped guard here is `ProjectAccessGuardTest` (which
+> tests the guard, not its callers) and the `403`/`401` cases in
+> `VersionControllerTest`.
 
 | Case | Verifies |
 | --- | --- |
 | `modifyVersionShouldUpdateNameWithoutCreatingNodeChange` | Renaming a version updates the name and creates no `NodeChange`/`ConnectionChange`. |
-| `editNodeInVersion_WhenNodeAddedInThisVersion_ShouldEditInPlaceAndCreateEditChange` | Editing a node that was added in this version edits it in place and records an `EDIT` change. |
+| `editNodeInVersion_WhenNodeAddedInThisVersion_ShouldEditInPlaceAndKeepSingleAddChange` | Editing a node that was *added* in this version edits it in place and leaves a single `ADD` change — the history records that the version added the node in its final shape, not an `ADD` followed by an `EDIT`. |
 | `editNodeInVersion_WhenNodePreviouslyEditedInThisVersion_ShouldEditInPlaceAndCreateAnotherEditChange` | Editing an already-edited node edits in place and records a further `EDIT` change. |
-| `editNodeInVersion_WhenNodeCameFromParent_ShouldUpdateSnapshotAndCreateEditChange` | Editing a node inherited from the parent version replaces it in the snapshot and records an `EDIT` change. |
+| `editNodeInVersion_WhenNodeCameFromParent_ShouldUpdateSnapshotAndCreateEditChange` | Editing a node inherited from the parent version clones it into this version's snapshot and records an `EDIT` change, leaving the parent's row alone. |
+| `editNodeInVersion_WhenCallerPassesAStaleIdForTheSameIdentity_EditsTheCurrentRowInsteadOfDuplicatingIt` | A client holding the row id from before a clone-on-write edit still edits the current row, because the node is resolved by `identityId` rather than by raw id. |
+| `editNodeInVersion_WhenIdentityNotInThisVersionsSnapshot_ShouldThrowIllegalArgumentException` | An identity absent from this version's snapshot throws `IllegalArgumentException`. |
 | `editNodeInVersion_WhenNodeDTOIsNull_ShouldThrowNullPointerException` | A null node DTO throws `NullPointerException`. |
 | `editNodeInVersion_WhenNodeIdIsNull_ShouldThrowNullPointerException` | A null node id throws `NullPointerException`. |
 | `editNodeInVersion_WhenVersionNotFound_ShouldThrowVersionNotFoundException` | An unknown version id throws `VersionNotFoundException`. |
 | `editNodeInVersion_WhenNodeNotFound_ShouldThrowEntityNotFoundException` | A node absent from the version throws `EntityNotFoundException`. |
 | `addNodeToVersion_WithWellDTO_ShouldAddWellToVersion` | Adding a `WellDTO` saves the well, appends it to the snapshot and records an `ADD` change. |
-| `mutatingOperationsRejectCallerWithoutEditPermission` | **Parameterized over all eight mutating entry points** (`deleteVersion`, `modifyVersion`, `addNodeToVersion`, `addConnectionToVersion`, `editNodeInVersion`, `editConnectionInVersion`, `deleteNodeFromVersion`, `deleteConnectionFromVersion`): each requires `EDIT_PROJECT` on the owning project, and a refused call reads and writes nothing. |
-| `mutatingOperationsRejectUnauthenticatedCaller` | The same eight entry points, with no session: `UnauthorizedException`, and again nothing is read or written. |
-| `getVersionChecksViewPermissionAndReturnsTheVersion` | Reading a version runs the view check and returns it. |
-| `getVersionRejectsCallerOutsideTheOwningProject` | A caller with no claim on the owning project gets `ForbiddenException`; the repository is never touched. |
-| `getVersionRejectsUnauthenticatedCaller` | No session throws `UnauthorizedException`; the repository is never touched. |
-| `saveOrphanVersionCreatesTheVersionForAPlatformAdmin` | `POST /version/createtest` creates a detached version for a platform ADMIN, running the platform-level check. |
-| `saveOrphanVersionRejectsNonPlatformAdmin` | A regular user gets `ForbiddenException`; nothing is saved. |
-| `saveOrphanVersionRejectsUnauthenticatedCaller` | No session throws `UnauthorizedException`; nothing is saved. |
-| `saveVersionWithoutParentInitialisesEmptySnapshots` | A version created with no parent has empty, non-null `nodeSnapshot`/`connectionSnapshot`. |
-| `addNodeToVersionWorksOnAFreshlyCreatedRootVersion` | **Regression:** adding the first node to a just-created root version lands it in the snapshot and records an `ADD` change. Before the snapshots were initialised this threw `NullPointerException`. |
-| `saveVersionFromParentWithNullSnapshotsDoesNotPropagateNull` | A parent row created before the fix, still carrying null snapshots, produces a child with empty lists rather than inheriting the nulls. |
-| `versionNoArgsConstructorStartsWithEmptyCollections` | `new Version()` — the path Hibernate and the controller tests use — starts with all four collections non-null. |
-| `saveVersionIsUnguardedBecauseItsCallersAuthorizeInstead` | The internal `saveVersion` deliberately runs no check: `ProjectService.saveVersion` authorizes the owning project and `saveOrphanVersion` requires a platform ADMIN. Adding a third check here would fail this case on purpose. |
-| `getDiagram_ShouldMapNodesAndConnectionsToDTOs` | `getDiagram` maps the version snapshot to a `DiagramDTO`, including node type, graph and geographical positions, and the connection endpoints. |
-| `updateNodePosition_ShouldUpdateGraphAndGeographicalPosition` | `updateNodePosition` updates both the diagram (x/y) and geographical (lng/lat) positions and persists the node. |
-| `updateNodeBasics_ShouldUpdateNameAndState` | `updateNodeBasics` updates a node's name and state and persists it. |
-| `getNodeDetail_ShouldReturnCommonAndTypeSpecificFields` | `getNodeDetail` returns a node's common fields and its type-specific values (keyed by the frontend field names). |
+| `mergeSubVersionIntoParent_ShouldReplaceSnapshotsAndMergeChanges` | A merge applies the child's snapshots onto the parent and folds the child's change lists into the parent's. |
+| `mergeSubVersionIntoParent_AddAndDelete_ShouldCancelOut` | An identity added and then deleted in the child leaves no net change in the parent, instead of two history entries that undo each other. |
+| `mergeSubVersionIntoParent_SingleEdit_ShouldBePreserved` | A lone `EDIT` survives the merge as an `EDIT`. |
+| `mergeSubVersionIntoParent_VersionHasNoParent_ThrowsIllegalArgumentException` | Merging a root version throws `IllegalArgumentException`. |
+
+## `version.service.VersionConflictServiceTest` — Unit
+
+`VersionConflictService`, with every repository mocked. Two halves: **detection**
+(`recordMergeConflicts`, run right after a merge, which flags every sibling of
+the merged parent whose own row for a touched identity differs) and
+**resolution** (`resolveConflict`, which either copies the parent's row into the
+sibling or writes the change that keeps the sibling as it is). The matching key
+throughout is the `identityId`, never the row id.
+
+| Case | Verifies |
+| --- | --- |
+| `recordMergeConflicts_SiblingHasADifferentRowForATouchedIdentity_CreatesOneConflictPerIdentity` | The baseline: one unresolved conflict per diverging identity, carrying the merged parent, the source version, the conflicting sibling, `NODE` and the identity. A sibling change to an *unrelated* identity adds nothing. |
+| `recordMergeConflicts_SiblingHasADifferentConnectionForATouchedIdentity_CreatesConflict` | The same for a connection, recorded with `entityType = CONNECTION`. |
+| `recordMergeConflicts_SiblingNeverTouchedIdentityButHasNoRowForIt_StillCreatesConflict` | When the merge *added* a node, a sibling that never touched it is still flagged: its snapshot is a static copy taken when it branched, so it simply does not have the node, and a human has to decide whether it should adopt it. |
+| `recordMergeConflicts_SiblingAlreadyHasTheIdenticalMergedRow_CreatesNothing` | A sibling that inherited the exact same row (branched off after an earlier merge applied it) has nothing to diverge about, so nothing is saved. |
+| `recordMergeConflicts_SiblingChangedDifferentIdentity_CreatesNothing` | Two branches touching different identities do not conflict. |
+| `recordMergeConflicts_SourceWithoutChanges_DoesNotQuerySiblings` | A source with no changes short-circuits: the siblings are never even loaded. |
+| `recordMergeConflicts_PendingDuplicateAlreadyExists_UpdatesItInsteadOfInsertingANewRow` | Re-merging into the same identity updates the existing pending row rather than inserting a second one, so the list does not grow on every merge. |
+| `recordMergeConflicts_OnlyAResolvedRowExistsForTheIdentity_InsertsANewPendingRow` | An already-resolved row does not suppress a fresh conflict: a new pending row is inserted. |
+| `recordMergeConflicts_TwoDifferentIdentitiesConflict_EachGetsItsOwnRowNotTheOthers` | Two diverging identities produce two rows — the pre-existing one is updated and a new one inserted — and neither is mistaken for the other. |
+| `resolveConflict_NodeAccept_BothHaveIt_CopiesDataKeepsSiblingId` | Accepting copies the parent's data onto the sibling's **own row**, keeping that row's id, drops the sibling's now-redundant `NodeChange`, leaves one node in the snapshot and saves the sibling. |
+| `resolveConflict_NodeAccept_OnlyParentHasIt_ClonesIntoSiblingSnapshot` | When only the parent has the node, accepting clones it into the sibling's snapshot with the same identity and a **new** row id, so the two versions never share a row. |
+| `resolveConflict_NodeAccept_OnlySiblingHasIt_RemovesFromSnapshot` | When only the sibling has it, accepting the parent's state means removing it: the snapshot and the change list both end up empty and no node is saved. |
+| `resolveConflict_NodeReject_BothHaveIt_WritesEditChange` | Rejecting keeps the sibling's row and records an `EDIT` change from the parent's node to the sibling's, so the divergence is explicit in the history. |
+| `resolveConflict_NodeReject_OnlyParentHasIt_WritesDeleteChange` | Rejecting a node the parent added records a `DELETE` change with no result node, and the sibling's snapshot stays empty. |
+| `resolveConflict_NodeReject_OnlySiblingHasIt_WritesAddChange` | Rejecting the parent's absence records an `ADD` change with no changed node, and the sibling keeps its row. |
+| `resolveConflict_ConnectionAccept_BothHaveIt_RemapsEndpointsThroughIdentity` | Accepting a connection remaps its endpoints onto **the sibling's own copies** of the endpoint nodes (matched by identity), not onto the parent's row ids, and clears the sibling's connection change. |
+| `resolveConflict_ConnectionReject_OnlyParentHasIt_WritesDeleteChange` | Rejecting a connection the parent added records a `DELETE` connection change. |
+| `getConflictsForVersion_ReturnsMappedConflicts` | The conflicts of one version are returned as DTOs carrying both version ids and `resolved = false`. |
+| `getConflictsForVersion_UnknownVersion_Throws` | An unknown version id throws `VersionNotFoundException`. |
+| `resolveConflict_UnknownConflict_Throws` | An unknown conflict id throws `EntityNotFoundException`. |
+
+## `version.service.VersionConflictIntegrationTest` — Integration
+
+`@SpringBootTest` on the H2 `test` profile, inside a transaction, driving the
+real `VersionService`/`VersionConflictService` against a real Hibernate session.
+`ProjectAccessGuard` is the only mocked bean — permissions are
+`ProjectAccessGuardTest`'s job, so the callers here have no session. This is the
+class that catches what the mocked unit tests cannot: entity identity, snapshot
+sharing between versions, and what cascades on delete.
+
+| Case | Verifies |
+| --- | --- |
+| `mergingOneChildFlagsAConflictOnTheSiblingThatTouchedTheSameIdentity` | The reported scenario end to end: two children of one parent each touch a node, one is merged, and the other shows the conflict through `getConflictsForVersion`. |
+| `mergingANewlyAddedNodeFlagsAConflictWithSiblingsThatDontHaveIt` | A node added by the merged branch is flagged against siblings that never had it, rather than quietly never reaching them. |
+| `mergingASiblingThatNeverTouchedAnythingDoesNotRevertWhatAnEarlierMergeAdded` | Because the merge is differential (it applies only what the merging branch itself changed), a sibling that changed nothing cannot wipe out another branch's merge. |
+| `repeatedMergesTouchingTheSameIdentityCollapseToOneNetNodeChange` | **Regression:** several merges into the same identity collapse to the net change instead of accumulating stale entries (`ADD`, `EDIT`, `ADD`). The old grouping was by raw row id, which changes on every clone-on-write edit; it is by identity now. Includes a third branch re-adding the same identity, as in the reported reproduction. |
+| `getAllConflicts_ReturnsConflictsAcrossAllVersions` | The unscoped listing returns conflicts from more than one version. |
+| `editingAnInheritedNodeInOneChildDoesNotMutateTheParentOrSiblingRows` | **Regression:** a node inherited from the parent is cloned on write, so the parent's row and any untouched sibling's row keep their old values. Mutating in place made the edit visible in every version sharing the row. |
+| `editingAnInheritedConnectionInOneChildDoesNotMutateTheParentOrSiblingRows` | The same for a connection, including that branching deep-copies the nodes and remaps the connection onto *that* version's copies (same identity, new row id). |
+| `deletingTheSourceVersionKeepsTheConflictWithNullSourceAndStillAcceptable` | Deleting the version a merge came from leaves the conflict with a null source, and accepting it still works — the conflict describes both remaining sides on its own. |
+| `deletingTheSourceVersionKeepsTheConflictWithNullSourceAndStillRejectable` | The same for rejecting it. |
+| `deletingTheConflictingSiblingVersionDeletesItsConflicts` | A conflict has no meaning without the sibling it was raised against, so deleting that version deletes its conflicts. |
+| `deletingTheMergedParentVersionDeletesItsConflicts` | Same for the merged parent. |
+
+## `version.repository.VersionConflictRepositoryTest` — Data
+
+`VersionConflictRepository.findPendingDuplicate`, the lookup that keeps
+`recordMergeConflicts` from inserting a second pending row for a tuple it has
+already flagged. The key is the whole tuple (merged version, source version,
+conflicting sibling, entity type, identity) **plus** `resolved = false`, and each
+case removes one element of it.
+
+| Case | Verifies |
+| --- | --- |
+| `findPendingDuplicate_ExactMatch_ReturnsIt` | The baseline: the exact tuple finds the stored row. |
+| `findPendingDuplicate_DifferentSibling_DoesNotMatch` | A different conflicting sibling is a different row, and asking for it returns that row rather than the original. |
+| `findPendingDuplicate_DifferentIdentity_DoesNotMatchTheOriginalRow` | A different identity likewise, and the original tuple still has exactly one pending row. |
+| `findPendingDuplicate_DifferentEntityType_DoesNotMatchTheOriginalRow` | A `CONNECTION` row and a `NODE` row for the same identity do not collide. |
+| `findPendingDuplicate_OnlyAResolvedRowExistsForTheExactTuple_ReturnsEmpty` | Once resolved, the row stops being a duplicate — which is what lets the same divergence be raised again later. |
+| `findPendingDuplicate_HistoricalDuplicatePendingRowsAlreadyExist_StillReturnsExactlyOne` | With two pending rows already stored for one tuple (historical data from before the de-duplication), the query returns one instead of failing, and does not delete the other. |
+
+## `version.dto.VersionConflictDTOTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+| `from_WithNullSourceVersion_IsNullSafeAndStillDescribesBothSides` | `VersionConflictDTO.from` survives a conflict whose source version was deleted: `sourceVersionId` and `sourceChangeType` come back null while both side descriptions, both version ids and the identity are still filled in. This is the DTO half of the two `deletingTheSourceVersion*` integration cases. |
 
 ## `version.controller.VersionControllerTest` — Web
 
@@ -671,11 +918,16 @@ chain, so a request without a token is refused by the actual filter chain rather
 than by a stub; `VersionService` is mocked. These endpoints take nothing but a
 version UUID, which is what made guarding them necessary.
 
+> **Correction:** this class used to carry three `createVersion*` cases for
+> `POST /projects/{projectId}/versions`. That endpoint lives on
+> `ProjectController` and is covered by `ProjectControllerTest`
+> (`createVersionReturnsCreatedVersion`, `…PropagatesForbiddenWith403`,
+> `…RequiresAuthenticationWith401`), so the rows were removed here rather than
+> duplicated. **One of the three did not survive the move:** nothing now covers
+> a blank version `name` being rejected with a validation error. Worth a case.
+
 | Case | Verifies |
 | --- | --- |
-| `createVersionReturnsCreatedVersion` | `POST /projects/{projectId}/versions` with a valid body → `201` and an envelope with `success=true`, message `Version created`, and the created version's `name`. |
-| `createVersionRejectsBlankNameWithValidationError` | Blank `name` → `400` `Validation error`; `VersionService.createVersion` is never called. |
-| `createVersionRejectsUnknownProjectWith400` | When the service throws for an unknown project → `400` with the domain error message. |
 | `getVersionReturnsTheVersion` | `GET /version/{id}` → `200` with the envelope and the version's `name`. |
 | `getVersionPropagatesForbiddenWith403` | When the service refuses the caller → `403` carrying the domain message. |
 | `getVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
@@ -686,16 +938,19 @@ version UUID, which is what made guarding them necessary.
 | `createDetachedVersionReturnsTheVersionForAPlatformAdmin` | `POST /version/createtest` → `200` with the created version. |
 | `createDetachedVersionPropagatesForbiddenWith403` | The same call for a non-admin → `403` with `Only platform admins can create detached versions`. |
 | `createDetachedVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+| `mergeSubVersionIntoParentPropagatesNoParentWith400` | `PATCH /version/merge/{subId}` on a root version → `400` with the domain message. |
 
 ## `node.service.NodeServiceTest` — Unit
 
-`NodeService` has eleven save methods; only `saveWell` is covered. The case
+`NodeService` has eleven save methods; only `saveWell` is covered. That case
 builds a complete `WellDTO`, saves it through a mocked `WellRepository` that
-echoes its argument back, and reads it again through the same mock.
+echoes its argument back, and reads it again through the same mock. The second
+case covers the edit path.
 
 | Case | Verifies |
 | --- | --- |
 | `saveWellShouldReturnWell` | `saveWell` maps a complete `WellDTO` onto a persisted `Well`, preserving `name`, `maxCollectionCapacity` and `declineCurve`. |
+| `editWellShouldNeverChangeIdentityEvenIfDtoCarriesADifferentOne` | **Regression:** `editWell` applies the DTO's fields but keeps the well's original `identityId`, even when the DTO carries a different one (a stale or placeholder value from a client form). The identity is the key merges and conflicts match nodes by, so reassigning it silently would break version history. |
 
 ## `node.controller.NodeControllerTest` — Unit
 
@@ -710,34 +965,74 @@ their own. One of the eleven is covered.
 | --- | --- |
 | `createWellShouldReturnOk` | `POST /nodes/well` with a complete `WellDTO` → `200`, JSON content type, and `Well created successfully` in the envelope. |
 
-## `simulator.ResultMappingTest` — Data
+## `simulator.ResultPerRoundTest` — Unit
 
-Pins the JPA mapping of the simulation results to the tables and columns that
-`V8__create_results.sql` creates. Production runs Hibernate in `validate` mode
-against the migrated PostgreSQL schema, but the tests build their H2 schema from
-the entities, so a drifting annotation is invisible to the rest of the suite and
-only shows up as an application that will not start. The cases therefore read
-the stored rows back with plain SQL, using the migration's own column names.
+Per-node simulation results. Each case builds the `BaseNode` it needs as a
+Mockito mock (so the node's own persistence and validation are out of the way),
+wraps it in its `Sim*` counterpart, wires it to the node upstream, runs a full
+year hour by hour (`t = 0 … 8759`) and then asserts the four figures
+`createResult()` reports: `maxPossibleProduced`, `totalProduced`,
+`totalDeferred` and `extra`.
 
-`year` is a reserved word in H2 2.x, so this class keeps the `test` profile's
-datasource instead of the embedded one `@DataJpaTest` would substitute, and adds
-`NON_KEYWORDS=YEAR` to its URL; on a stock H2 URL Hibernate cannot create the
-`result` table at all.
-
-Five of the seven cases were checked by reverting the three mapping changes
-(`@JoinColumn` on `Result.resultPerNodes` and on `Version.results`, `node_id`
-on `ResultPerNode.nodeID`) and confirming they turn red; the first and the last
-pass under either mapping and exist to show the pieces still work together.
+These are **characterisation tests**: the expected numbers are the engine's
+current output to one decimal, not values derived independently. They are what
+tells you a change to the engine moved a number; they do not tell you the number
+is right. Treat a diff here as a question to answer, not a test to re-baseline
+without looking.
 
 | Case | Verifies |
 | --- | --- |
-| `resultPerNodesAreStoredAndLoadedBackWithTheirValues` | A version saved with a result and two per-node rows cascades all of them, and the result loads back with its year and each row's node class and totals. |
-| `resultPerNodeRowsReferenceTheirResultThroughResultId` | Both per-node rows carry the result's id in `result_per_node.result_id` — the foreign key column of V8, not a join table. |
-| `resultPerNodeRowsStoreTheNodeIdInTheNodeIdColumn` | The node id is stored in `result_per_node.node_id` (the naming strategy would have produced `nodeid`). |
-| `resultRowReferencesItsVersionThroughVersionId` | The result carries its version's id in `result.version_id`. |
-| `noJoinTableIsUsedForTheResultPerNodes` | The schema has no `result_result_per_nodes` table, which JPA creates by default for an unannotated `@OneToMany` and no migration provides. |
-| `removingAResultPerNodeFromItsResultDeletesItsRow` | Removing a row from the result's list deletes it (orphan removal) instead of trying to null the `NOT NULL` `result_id`. |
-| `deletingAVersionDeletesItsResultsAndTheirRows` | Deleting a version cascades to its results and their per-node rows. |
+| `testResultWell` | A well feeding a gathering network produces its capacity every hour, and the share the network cannot take is reported as deferred. |
+| `testResultGatheringNetwork` | A gathering network's result after its loss per metre, including the surplus it reports as `extra`. |
+| `testResultTreatmentPlant` | A treatment plant's result once the contaminant is removed. |
+| `testResultPipeline` | A pipeline's result after its loss per kilometre. |
+| `testResultPipelineConnection` | A pipeline connection's result at its transfer capacity. |
+| `testResultCompressingPlant` | A compressing plant's result. |
+| `testResultLiquefactionPlant` | A ground-based liquefaction plant's result, where the liquefaction ratio is what caps the output. |
+| `testResultFLNGUnit` | An FLNG unit's result, plus the docking limit (two ships, the third refused, a slot freed by releasing one) and that `reset` empties both the ship count and the storage. |
+| `testResultSeaportTerminal` | A seaport terminal's result, with the export frequency gating how much actually leaves. |
+| `testResultLNGCarrier` | An LNG carrier's result, where `maxPossibleProduced` is bounded by the round trips the year allows. |
+| `testResultInternalConsumption` | An internal consumption node takes what it is fed up to its own demand, deferring nothing. |
+| `testResultIndustrialConsumption` | The same for an industrial consumption node. |
+
+## `simulator.SimulatorTest` — Unit
+
+Two layers in one class. The first ten cases are **unit tests of a single
+`Sim*` node**: give it one upstream node with a known delivery, simulate one or
+two hours, assert what it hands on — which is where each node type's physics
+(loss per metre, contaminant removal, compression, liquefaction ratio, transfer
+capacity, docking slots) is actually pinned. The rest drive the whole
+`Simulator` over a mocked `Version` snapshot.
+
+| Case | Verifies |
+| --- | --- |
+| `testSimWellActiveAction` | A well delivers its full capacity at hour 0 and less a year later, so the decline curve is applied over time rather than per hour. |
+| `testSimGatheringNetworkCapacity` | A gathering network passes on the well's delivery minus its length × loss-per-metre. |
+| `testSimTreatmentPlant` | A treatment plant removes the contaminant: the volume drops by exactly the contaminant and the contaminant itself ends at 0. |
+| `testSimConnection` | A pipeline connection takes what the treatment plant offers, up to its transfer capacity. |
+| `testSimPipeline` | A pipeline applies its loss per kilometre. |
+| `testSimPipelineConnection` | A pipeline connection fed by a pipeline transfers up to its capacity. |
+| `testSimCompressingPlant` | A compressing plant applies its own loss. |
+| `testSimLiquefactionPlant` | A ground-based liquefaction plant applies its liquefaction ratio. |
+| `testSimSeaportTerminal` | A terminal takes the plant's delivery, reports a free berth, and reports none once both its berths are taken. |
+| `testSimLNGCarrier` | A carrier fed by a terminal simulates an hour without failing. **No assertion** — it is a smoke test; the carrier's figures are asserted in `ResultPerRoundTest.testResultLNGCarrier`. |
+| `testSimulationSimpleComplete` | A linear eight-node chain simulates 10 years and finishes in under 2s — a guard against the infinite loop a cycle in the graph used to cause, not a correctness check. |
+| `testSimulationWhitNNodes` | A randomly wired 500-node network (seeded `Random(42)`, so it is reproducible) simulates 10 years without throwing, in under 8s. |
+| `testResultInFiveYearSimulationWithAllNodeTypes` | A graph with all twelve node types, including a branch into FLNG and another into industrial and internal consumption, simulates 5 years and yields 12 per-node results per round, each with a node id and non-negative figures, and a final result whose `time` is 5. |
+| `testSimWellProductionAndDecline` | A well's `maxPossibleProduced` after one year and after two: the second year adds less than the first, which is the decline applied cumulatively. |
+| `testPipelineConnectionPriorityOrdering` | A pipeline's two outgoing connections are placed in the execution order by ascending `outputPriority`, so the lower value runs first and gets served first. |
+
+> **`simulator.ResultMappingTest` is not on this branch.** The catalog carried a
+> seven-case section for it (it pinned the JPA mapping of the results to the
+> columns `V8__create_results.sql` creates, and opted into `NON_KEYWORDS=YEAR`
+> because `year` is reserved in H2 2.x — see `considerations.md`, 2026-10-05).
+> The file does not exist under `backend/src/test/java/org/enerscope/simulator/`
+> here; it was last present in commit `f66a681` and was lost in a merge. The
+> rows were removed from this catalog so it matches the code, **but the mapping
+> it protected is still only protected by Hibernate's `validate` on a real
+> PostgreSQL**, which no test in this suite runs. Restoring the class (or
+> replacing it with the Testcontainers test that 2026-10-05 called for) is an
+> open card.
 
 ## `strategyCost.CostTest` — Unit
 
@@ -785,3 +1080,61 @@ node type, so each of those also has a case for the type it must reject.
 | `Per_Conections_Total_CalculatesCostForGatheringNetwork` | `Per_Conections_Total` multiplies by the gathering network's connected-well count. |
 | `Per_Conections_Total_ReturnsSameMoneyForPipelineConnection` | For a `PipelineConnection` the amount is returned unchanged — the connection counts as one. |
 | `Per_Conections_Total_ThrowsException_ForInvalidNodeType` | Any other node type throws with `Wrong type of node`. |
+
+## Manual verification (frontend)
+
+The frontend has **no automated tests and no mocking layer** — no runner in
+`package.json`, no MSW, no fixtures, no mock mode in `src/api/client.ts`. Every
+check below therefore runs **against a real backend** (`cd backend && docker
+compose up --build`, then `cd frontend && npm run dev`); there is no "with
+mocks" variant to choose, and anything a mock *could* have covered is simply not
+covered.
+
+So the honest answer to "what is tested against the real backend and what only
+with mocks" is:
+
+- **Backend behaviour** — every rule in this catalog above — is covered by
+  `mvn test`, which runs against **mocks** (Unit/Web) or **H2** (Data/
+  Integration), never against PostgreSQL. The only thing that checks the
+  entities against the real schema is Hibernate's `validate` at startup, and no
+  test performs it (see the `ResultMappingTest` note).
+- **Frontend behaviour** is covered only by the checklist below, by hand,
+  against a real backend.
+
+**Status of this pass:** the checklist was written from the code on
+2026-10-18 and **none of it was executed as part of writing it**. Every row is
+therefore `pendiente de verificación`. Fill the status in as you run them, and
+do not infer a pass from the fact that the feature was built.
+
+| # | Check | How | Needs | Status |
+| --- | --- | --- | --- | --- |
+| M1 | A CSV with the canonical header imports, and only the valid rows | Importar CSV in *Mi organización* (owner) with a file mixing valid rows, a bad address, a duplicate and an unknown role; the preview must mark each bad row with its reason, the button must offer only the valid count | Real backend | Pendiente de verificación |
+| M2 | An Excel "CSV UTF-8" file (BOM) imports | Save the template from Excel and upload it unchanged; the BOM must not reach the server and the columns must resolve | Real backend | Pendiente de verificación |
+| M3 | A semicolon-delimited CSV imports | Same file saved with `;`; the preview must say `separador «;» convertido a coma` | Real backend | Pendiente de verificación |
+| M4 | Over 100 rows and over 1 MB are refused in the browser | Upload a 101-row file, then a >1 MB one; both must block with their own message and leave the import button disabled, **without** a request being sent (check the network tab) | None | Pendiente de verificación |
+| M5 | The credentials are downloadable once and the warning is real | After a successful import, download `credenciales-*.csv` and check it opens as UTF-8 with the accents intact; then import again and close the dialog without downloading — the confirmation must appear | Real backend | Pendiente de verificación |
+| M6 | Rows whose account already exists are reported as "ya existían", not as errors | Import a file containing an address that already has an account | Real backend | Pendiente de verificación |
+| M7 | A `role` column creates owners | Import a row with `role=OWNER` and check the member list shows Propietario | Real backend | Pendiente de verificación |
+| M8 | A member missing a mandatory column is refused for the whole file | Upload a file whose header lacks `lastName` | None | Pendiente de verificación |
+| M9 | An existing account can be added to an organization by exact email | *Mi organización* → Agregar a la organización, search an address that exists | Real backend | Pendiente de verificación |
+| M10 | The email lookup does not leak the roster | Search a partial address and a deactivated account; both must come back as not found | Real backend | Pendiente de verificación |
+| M11 | The platform-admin modal offers a searchable list and hides current members | *Todas las organizaciones* → an organization's members → Agregar; the combobox must work with the keyboard (↑/↓/Enter/Esc) and must not list people already in the organization | Real backend, platform admin | Pendiente de verificación |
+| M12 | The last owner of an organization cannot be removed or demoted | With a single Propietario, both actions must be disabled with the reason; then call the API directly and confirm `400 The organization would be left without an owner` | Real backend | Pendiente de verificación |
+| M13 | The last administrator of a project cannot be removed or demoted | Same in *Equipo del proyecto*; direct call must answer `400 The project would be left without an administrator` | Real backend | Pendiente de verificación |
+| M14 | A platform admin does not bypass either guard | Repeat M12 and M13 signed in as `admin@enerscope.org` | Real backend, platform admin | Pendiente de verificación |
+| M15 | Removing someone from an organization is refused when it would orphan a project | Make a user the only Administrador of a project, then remove them from the organization; the error must name the project problem and the member must still be there afterwards | Real backend | Pendiente de verificación |
+| M16 | Removing someone from an organization removes them from its projects | Same with a second administrator present on the project; after the removal they must be gone from both lists | Real backend | Pendiente de verificación |
+| M17 | The sidebar opens itself once, then stays out of the way | Sign in on a desktop viewport; it must open on `/app` and push the content, and close on the first navigation | None | Pendiente de verificación |
+| M18 | The left edge opens it | Move the mouse to the left edge below the top bar and hold ~150 ms; it must slide over the content, and close ~300 ms after leaving it | None | Pendiente de verificación |
+| M19 | `Ctrl`/`Cmd`+`B` toggles it, and is ignored where it should be | Press it on a page, then with the caret in a text field, then with a modal open | None | Pendiente de verificación |
+| M20 | Below `64rem` it is a drawer | Narrow the window; it must overlay under a scrim, trap `Tab`, close on a row click and on `Escape`, and closing the breakpoint gap must not leave it open | None | Pendiente de verificación |
+| M21 | Sections the caller cannot reach are hidden, not disabled | Compare the sidebar as a platform admin, an organization owner and a plain member: *Usuarios* and *Todas las organizaciones* only for the admin, *Mi organización* only for an owner, *Equipo del proyecto* only where the caller administers the active project | Real backend, three accounts | Pendiente de verificación |
+| M22 | A module left with one child collapses into a plain row | As a plain member with one project, *Proyectos* must be a single row and not a disclosure | Real backend | Pendiente de verificación |
+| M23 | Locked sections are legible | Check *Simulaciones*, *Comparaciones* and *Reportes*: padlock or "próximamente", full-contrast label, not dimmed | None | Pendiente de verificación |
+| M24 | The tab title follows the route | Walk `/app`, `/projects`, a project's team, a project's versions, `/editor`, `/admin/users`, an organization, and the sign-in page; each must read `<section> · EnerScope`, with the project or organization name inserted where the route is scoped to one | Real backend | Pendiente de verificación |
+| M25 | The favicon renders at small sizes in both OS themes | Check the tab in a light and a dark OS appearance — **and note that it follows the OS, not the in-app theme toggle** (known debt). It is also PROVISIONAL artwork | None | Pendiente de verificación |
+| M26 | The two themes hold | Switch Configuración between Claro, Oscuro and Sistema and walk the screens above: no hard-coded white or black surface, every control's border visible, focus rings visible on every interactive element | None | Pendiente de verificación |
+| M27 | Keyboard-only pass over a dialog | Open any modal (Nuevo proyecto, Cambiar rol, Importar CSV): focus must land on the first field, `Tab` must not escape the panel, `Escape` must close it, and focus must return to the button that opened it | None | Pendiente de verificación |
+| M28 | Field errors are announced | Submit an invalid form and check with a screen reader that the error is tied to its input (`aria-describedby`) and the input is marked `aria-invalid` | None | Pendiente de verificación |
+| M29 | The sign-in hero's subtitle contrast | Measure it in the **light** theme at 1440px and wider; it currently reads 4.21:1 against a 4.5:1 bar (known debt) | None | Pendiente de verificación |
+| M30 | A dropped connection mid-import is survivable | Start an import, kill the backend halfway, and check the warning about partially created accounts appears and the member list reflects whatever was created | Real backend | Pendiente de verificación |

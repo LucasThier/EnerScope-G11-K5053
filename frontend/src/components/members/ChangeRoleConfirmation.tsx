@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
+import { ModalFooter } from '../ui/Modal';
 import type {
   PendingRoleChange,
   RoleChangeError,
@@ -54,14 +55,14 @@ export function ChangeRoleConfirmation<M extends RoleChangeMember>({
 
       {isLastAdmin && <Alert tone="error">{lastAdminWarning}</Alert>}
 
-      <div className="mt-2 flex justify-end gap-2">
+      <ModalFooter>
         <Button type="button" variant="ghost" onClick={onCancel} disabled={submitting}>
           Volver
         </Button>
         <Button type="button" onClick={onConfirm} loading={submitting}>
           Cambiar rol
         </Button>
-      </div>
+      </ModalFooter>
     </div>
   );
 }

@@ -260,6 +260,62 @@ class ProjectMemberRepositoryTest {
         assertEquals(0L, roleCount());
     }
 
+    @Test
+    void countsTheProjectWhereTheUserIsTheOnlyAdmin() {
+        Project project = project("Grid Expansion", acme);
+        attach(project, jane, ProjectMemberType.ADMIN);
+        attach(project, user("joe@enerscope.org"), ProjectMemberType.EDITOR);
+        sync();
+
+        assertEquals(1L, projectMemberRepository.countProjectsLeftWithoutAdmin(jane.getId(), acme.getId()));
+    }
+
+    @Test
+    void doesNotCountAProjectThatKeepsAnotherActiveAdmin() {
+        Project project = project("Grid Expansion", acme);
+        attach(project, jane, ProjectMemberType.ADMIN);
+        attach(project, user("joe@enerscope.org"), ProjectMemberType.ADMIN);
+        sync();
+
+        assertEquals(0L, projectMemberRepository.countProjectsLeftWithoutAdmin(jane.getId(), acme.getId()));
+    }
+
+    @Test
+    void doesNotCountAProjectWhereTheUserIsOnlyAnEditor() {
+        Project project = project("Grid Expansion", acme);
+        attach(project, jane, ProjectMemberType.EDITOR);
+        attach(project, user("joe@enerscope.org"), ProjectMemberType.ADMIN);
+        sync();
+
+        assertEquals(0L, projectMemberRepository.countProjectsLeftWithoutAdmin(jane.getId(), acme.getId()));
+    }
+
+    @Test
+    void doesNotCountTheProjectsOfAnotherOrganization() {
+        attach(project("Offshore Terminal", globex), jane, ProjectMemberType.ADMIN);
+        sync();
+
+        assertEquals(0L, projectMemberRepository.countProjectsLeftWithoutAdmin(jane.getId(), acme.getId()));
+    }
+
+    @Test
+    void countsOnlyTheProjectsThatWouldBeLeftWithoutAnAdmin() {
+        Project orphaned = project("Grid Expansion", acme);
+        Project alsoOrphaned = project("Pipeline Review", acme);
+        Project shared = project("Storage Hub", acme);
+        Project asEditor = project("Wind Farm", acme);
+        attach(orphaned, jane, ProjectMemberType.ADMIN);
+        attach(alsoOrphaned, jane, ProjectMemberType.ADMIN);
+        attach(shared, jane, ProjectMemberType.ADMIN);
+        attach(shared, user("joe@enerscope.org"), ProjectMemberType.ADMIN);
+        attach(asEditor, jane, ProjectMemberType.EDITOR);
+        attach(asEditor, user("ann@enerscope.org"), ProjectMemberType.ADMIN);
+        attach(project("Offshore Terminal", globex), jane, ProjectMemberType.ADMIN);
+        sync();
+
+        assertEquals(2L, projectMemberRepository.countProjectsLeftWithoutAdmin(jane.getId(), acme.getId()));
+    }
+
     private long roleCount() {
         return entityManager.getEntityManager()
                 .createQuery("SELECT COUNT(r) FROM ProjectMemberRole r", Long.class)

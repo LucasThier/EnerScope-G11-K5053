@@ -1,38 +1,33 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { useOwnedOrganizations } from '../../hooks/useOwnedOrganizations';
+import { useNavigationTree } from '../../hooks/useNavigationTree';
 import { useSidebar } from '../../hooks/useSidebar';
-import { ADMIN_ITEMS, NAV_ITEMS, type NavItem } from './navItems';
-import { LockIcon, PinIcon } from '../ui/icons';
+import { type NavGroup, type NavItem } from './navItems';
+import { ChevronDownIcon, LockIcon } from '../ui/icons';
 
 const FOCUSABLE = 'a[href], button:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
 /** Shared row geometry. */
-const itemBase = 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors';
+const itemBase =
+  'relative flex h-11 items-center gap-3 rounded-xl px-3 text-sm transition-colors ' +
+  'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus';
 
 export function Sidebar() {
-  const { user } = useAuth();
-  const {
-    isVisible,
-    pushes,
-    isDrawer,
-    isPinned,
-    origin,
-    menuId,
-    panelRef,
-    menuButtonRef,
-    keepOpen,
-    close,
-    togglePinned,
-  } = useSidebar();
+  const { origin, isVisible, pushes, isDrawer, menuId, panelRef, menuButtonRef, close, keepOpen } =
+    useSidebar();
+  const { pathname } = useLocation();
+  const groups = useNavigationTree();
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const showAdmin = user?.platformRole === 'ADMIN';
-  const { owned } = useOwnedOrganizations();
-  const items = NAV_ITEMS.map((item) =>
-    item.key === 'team' && owned.length > 0
-      ? { ...item, to: `/organizations/${owned[0].id}` }
-      : item,
+  const toggleModule = useCallback(
+    (item: NavItem) => {
+      const id = moduleKey(item);
+      setExpanded((current) => ({
+        ...current,
+        [id]: !(current[id] ?? containsActiveChild(item, pathname)),
+      }));
+    },
+    [pathname],
   );
 
   useEffect(() => {
@@ -93,113 +88,210 @@ export function Sidebar() {
       inert={!isVisible}
       onFocus={keepOpen}
       className={
-        'fixed bottom-0 left-0 top-16 z-40 flex w-72 flex-col border-r border-ink-100 bg-surface ' +
+        'fixed bottom-0 left-0 z-40 flex flex-col border-r border-ink-100 bg-nav ' +
         'transition-[transform,box-shadow] duration-200 ease-out motion-reduce:transition-none ' +
+        (isDrawer ? 'top-14 w-[17rem] max-w-[85vw] ' : 'top-16 w-60 ') +
         (isVisible ? 'translate-x-0 ' : '-translate-x-full ') +
         (isVisible && !pushes ? 'shadow-2xl' : 'shadow-none')
       }
     >
-      <nav aria-label="Secciones" className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
-        {items.map((item) => (
-          <NavItemLink key={item.label} item={item} onNavigate={close} />
+      <nav
+        aria-label="Secciones"
+        className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+      >
+        {groups.map((group, index) => (
+          <NavGroupBlock
+            key={group.title}
+            group={group}
+            isFirst={index === 0}
+            expanded={expanded}
+            onToggleModule={toggleModule}
+            onNavigate={close}
+          />
         ))}
-
-        {showAdmin && (
-          <>
-            <hr className="my-3 border-ink-100" />
-            <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-ink-500">
-              Administración
-            </p>
-            {ADMIN_ITEMS.map((item) => (
-              <NavItemLink key={item.label} item={item} onNavigate={close} />
-            ))}
-          </>
-        )}
       </nav>
-
-      <div className="hidden p-3 lg:block">
-        <button
-          type="button"
-          onClick={togglePinned}
-          aria-pressed={isPinned}
-          title={
-            isPinned
-              ? 'El menú queda abierto en todas las pantallas'
-              : 'Mantener el menú abierto en todas las pantallas'
-          }
-          className={
-            `${itemBase} w-full border font-medium ` +
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
-            (isPinned
-              ? 'border-ink-200 bg-ink-100 text-ink-700'
-              : 'border-ink-100 text-ink-500 hover:bg-ink-50 hover:text-ink-700')
-          }
-        >
-          <span className="shrink-0">
-            <PinIcon />
-          </span>
-          <span>Fijar menú</span>
-        </button>
-      </div>
     </aside>
   );
 }
 
-function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
+function moduleKey(item: NavItem): string {
+  return item.id ?? item.label;
+}
+
+function isItemActive(item: NavItem, pathname: string): boolean {
+  if (item.matchPattern) {
+    return item.matchPattern.test(pathname) || pathname === item.to;
+  }
+  return item.to !== undefined && pathname === item.to;
+}
+
+function containsActiveChild(item: NavItem, pathname: string): boolean {
+  return (item.children ?? []).some((child) => isItemActive(child, pathname));
+}
+
+interface GroupProps {
+  group: NavGroup;
+  isFirst: boolean;
+  expanded: Record<string, boolean>;
+  onToggleModule: (item: NavItem) => void;
+  onNavigate: () => void;
+}
+
+function NavGroupBlock({ group, isFirst, expanded, onToggleModule, onNavigate }: GroupProps) {
+  const titleId = useId();
+
+  return (
+    <div className={isFirst ? '' : 'mt-5'}>
+      <p
+        id={titleId}
+        className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500"
+      >
+        {group.title}
+      </p>
+      <ul aria-labelledby={titleId} className="flex flex-col gap-1">
+        {group.items.map((item) => (
+          <li key={moduleKey(item)}>
+            {item.children ? (
+              <NavModuleRow
+                item={item}
+                expandedState={expanded[moduleKey(item)]}
+                onToggle={() => onToggleModule(item)}
+                onNavigate={onNavigate}
+              />
+            ) : (
+              <NavItemRow item={item} onNavigate={onNavigate} />
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+const restingTone = 'font-medium text-ink-500 hover:bg-nav-hover hover:text-ink-700';
+const activeTone = 'bg-nav-active font-semibold text-brand-900';
+
+const marker = (
+  <span
+    aria-hidden="true"
+    className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-900"
+  />
+);
+
+interface ModuleProps {
+  item: NavItem;
+  expandedState: boolean | undefined;
+  onToggle: () => void;
+  onNavigate: () => void;
+}
+
+function NavModuleRow({ item, expandedState, onToggle, onNavigate }: ModuleProps) {
   const location = useLocation();
-  const label = <span className="truncate">{item.label}</span>;
+  const panelId = useId();
+  const containsActive = containsActiveChild(item, location.pathname);
+  const open = expandedState ?? containsActive;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={panelId}
+        aria-label={item.fullLabel}
+        title={item.fullLabel ?? item.label}
+        className={`${itemBase} w-full text-left ${containsActive ? activeTone : restingTone}`}
+      >
+        {containsActive && marker}
+        <span className="shrink-0">{item.icon}</span>
+        <span className="truncate">{item.label}</span>
+        <ChevronDownIcon
+          className={
+            'ml-auto h-4 w-4 shrink-0 transition-transform duration-150 ease-out ' +
+            'motion-reduce:transition-none ' +
+            (open ? 'rotate-180' : 'rotate-0')
+          }
+        />
+      </button>
+      <ul
+        id={panelId}
+        className={
+          open ? 'mt-1 ml-5 flex flex-col gap-1 border-l border-ink-100 pl-3' : 'hidden'
+        }
+      >
+        {open &&
+          (item.children ?? []).map((child) => (
+            <li key={child.label}>
+              <NavItemRow item={child} onNavigate={onNavigate} />
+            </li>
+          ))}
+      </ul>
+    </>
+  );
+}
+
+function NavItemRow({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
+  const location = useLocation();
+  const fullName = item.fullLabel ?? item.label;
+
+  const body = (
+    <>
+      {item.icon && <span className="shrink-0">{item.icon}</span>}
+      <span className="truncate">{item.label}</span>
+    </>
+  );
 
   /* Locked sections keep full-contrast text (ink-500, 5.69:1) and signal their
    * state through the padlock and a lighter weight instead — dimming the label
    * to carry that meaning is what made them unreadable before. */
   if (!item.to) {
+    const isSoon = item.availability === 'soon';
     return (
       <span
         aria-disabled="true"
-        title={`${item.label} — no disponible`}
+        title={isSoon ? `${fullName} — próximamente` : fullName}
         className={`${itemBase} cursor-not-allowed font-normal text-ink-500`}
       >
-        <span className="relative shrink-0">{item.icon}</span>
-        {label}
-        <LockIcon className="ml-auto h-3.5 w-3.5 shrink-0 text-ink-400" />
+        <span className="shrink-0 text-ink-400">{item.icon}</span>
+        <span className="truncate">{item.label}</span>
+        <span className="sr-only">{isSoon ? '— próximamente' : '— sin permisos'}</span>
+        {!isSoon && <LockIcon className="ml-auto h-3.5 w-3.5 shrink-0 text-ink-500" />}
       </span>
     );
   }
 
+  const linkProps = {
+    to: item.to,
+    onClick: onNavigate,
+    'aria-label': item.fullLabel,
+    title: fullName,
+  };
+
   if (item.matchPattern) {
-    const isActive =
-      item.matchPattern.test(location.pathname) || location.pathname === item.to;
+    const isActive = item.matchPattern.test(location.pathname) || location.pathname === item.to;
     return (
       <Link
-        to={item.to}
-        onClick={onNavigate}
+        {...linkProps}
         aria-current={isActive ? 'page' : undefined}
-        className={
-          `${itemBase} ` +
-          (isActive
-            ? 'bg-brand-50 font-semibold text-brand-800'
-            : 'font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-700')
-        }
+        className={`${itemBase} ${isActive ? activeTone : restingTone}`}
       >
-        <span className="shrink-0">{item.icon}</span>
-        {label}
+        {isActive && marker}
+        {body}
       </Link>
     );
   }
 
   return (
     <NavLink
-      to={item.to}
-      onClick={onNavigate}
-      className={({ isActive }) =>
-        `${itemBase} ` +
-        (isActive
-          ? 'bg-brand-50 font-semibold text-brand-800'
-          : 'font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-700')
-      }
+      {...linkProps}
+      className={({ isActive }) => `${itemBase} ${isActive ? activeTone : restingTone}`}
     >
-      <span className="shrink-0">{item.icon}</span>
-      {label}
+      {({ isActive }) => (
+        <>
+          {isActive && marker}
+          {body}
+        </>
+      )}
     </NavLink>
   );
 }

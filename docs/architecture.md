@@ -37,8 +37,13 @@ EnerScope is a two-tier web application kept in a single repository (monorepo).
 ## Frontend
 
 - **React 19 + Vite + TypeScript**, styled exclusively with **Tailwind CSS**
-  (no hand-written CSS files beyond the single Tailwind import). Brand colours
-  live as `@theme` tokens in `src/index.css` and are the only source of colour.
+  (no hand-written CSS files beyond the single Tailwind import). The design
+  tokens live as `@theme` custom properties in `src/index.css` and are the only
+  source of colour, radius, control height and elevation. They are declared
+  twice — once for the light theme and once under `html[data-theme='dark']` —
+  so a component changes theme without being touched. See
+  [`considerations.md`](considerations.md) for the token roles and the contrast
+  contracts.
 - The `src/api` layer wraps Axios: `client.ts` injects the access token and
   transparently refreshes it on `401`; `session.ts` centralises token storage;
   `auth.ts` exposes the auth endpoints.
@@ -46,10 +51,13 @@ EnerScope is a two-tier web application kept in a single repository (monorepo).
   holds identity and the session; `ActiveProjectProvider` holds the project list
   and which project the app is scoped to. Each pairs a `use*` hook with the
   provider so components never touch the context object directly.
-- **The signed-in shell** is `AppLayout`: a full-width top bar (brand, project
-  switcher, user menu) above a collapsible sidebar, with pages rendered through
-  the router `Outlet`. Route guards (`ProtectedRoute`, `RoleRoute`) sit above
-  it, so the shell only ever renders for an authenticated user.
+- **The signed-in shell** is `AppLayout`: a full-width top bar (brand,
+  breadcrumbs, project switcher, user menu) above an overlay sidebar, with pages
+  rendered through the router `Outlet`. Route guards (`ProtectedRoute`,
+  `RoleRoute`, `OrganizationOwnerRoute`) sit above it, so the shell only ever
+  renders for an authenticated user. `SidebarProvider` owns when the sidebar is
+  shown and `useNavigationTree` owns what it shows; `AppLayout` also keeps the
+  browser tab title in step with the route.
 - The Vite dev server proxies `/api` to the backend on port `8080`.
 
 ## Layers (backend)

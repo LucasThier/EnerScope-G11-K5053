@@ -1,6 +1,7 @@
 import { client } from './client';
 import type {
   AddOrganizationMemberRequest,
+  BulkRegistrationResult,
   UpdateOrganizationMemberRoleRequest,
   ApiResponse,
   OrganizationMemberSummary,
@@ -12,8 +13,10 @@ import type { AxiosResponse } from 'axios';
 
 export const organizationsApi = {
   /** Organizations visible to the caller (all for admins, own for others). */
-  list: (): Promise<AxiosResponse<ApiResponse<OrganizationSummary[]>>> =>
-    client.get('/organizations'),
+  list: (params?: {
+    mine?: boolean;
+  }): Promise<AxiosResponse<ApiResponse<OrganizationSummary[]>>> =>
+    client.get('/organizations', { params }),
 
   create: (data: { name: string }): Promise<AxiosResponse<ApiResponse<OrganizationSummary>>> =>
     client.post('/organizations', data),
@@ -66,4 +69,16 @@ export const organizationsApi = {
     data: RegisterOrganizationUserRequest,
   ): Promise<AxiosResponse<ApiResponse<OrganizationMemberSummary>>> =>
     client.post(`/organizations/${organizationId}/users`, data),
+
+  bulkRegisterUsers: (
+    organizationId: string,
+    file: File,
+  ): Promise<AxiosResponse<ApiResponse<BulkRegistrationResult>>> => {
+    const form = new FormData();
+    form.append('file', file);
+    return client.post(`/organizations/${organizationId}/users/bulk`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 180_000,
+    });
+  },
 };

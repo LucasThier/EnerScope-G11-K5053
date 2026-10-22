@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
+import { SelectField } from '../ui/SelectField';
 import { TextField } from '../ui/TextField';
 import { useTheme } from '../../hooks/useTheme';
 import { NODE_STATES, specForType, verticalColor } from './nodeCatalog';
@@ -71,23 +72,18 @@ export function NodeDataPanel({
 
       <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} />
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="node-state" className="text-sm font-medium text-ink-600">
-          State
-        </label>
-        <select
-          id="node-state"
-          value={state}
-          onChange={(e) => setState(e.target.value as NodeState)}
-          className="rounded-lg border border-ink-200 bg-surface px-3 py-2.5 text-sm text-ink-800 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60"
-        >
-          {stateOptions.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
+      <SelectField
+        id="node-state"
+        label="State"
+        value={state}
+        onChange={(e) => setState(e.target.value as NodeState)}
+      >
+        {stateOptions.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </SelectField>
 
       <div className="flex gap-2">
         <Button
