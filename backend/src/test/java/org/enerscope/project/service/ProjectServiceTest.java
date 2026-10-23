@@ -214,6 +214,21 @@ class ProjectServiceTest {
                 verify(projectMemberRepository, never()).save(any());
         }
 
+        @Test
+        void createProjectNormalizesMissingAndBlankDescription() {
+                UUID orgId = UUID.randomUUID();
+                Organization organization = new Organization("Acme");
+                User creator = creator();
+                authenticateAs(creator);
+                when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
+                when(organizationRepository.findByIdAndActiveTrue(orgId)).thenReturn(Optional.of(organization));
+                when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+                for (String value : new String[]{null, "", "   "}) {
+                        assertEquals("", projectService.createProject(new CreateProjectRequestDTO("Example", value, orgId)).getDescription());
+                }
+        }
+
         // ---- addMember -------------------------------------------------------
 
         @Test
@@ -455,12 +470,13 @@ class ProjectServiceTest {
         }
 
         @Test
-        void updateProjectRejectsABlankDescription() {
+        void updateProjectAllowsClearingDescription() {
+                authenticateAs(admin());
                 UUID projectId = UUID.randomUUID();
-
-                assertThrows(IllegalArgumentException.class, () -> projectService.updateProject(
-                                projectId, new UpdateProjectRequestDTO(null, "   ")));
-                verify(projectRepository, never()).save(any());
+                Project project = new Project("Example", "Old description", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+                assertEquals("", projectService.updateProject(projectId, new UpdateProjectRequestDTO(null, "   ")).getDescription());
         }
 
         @Test

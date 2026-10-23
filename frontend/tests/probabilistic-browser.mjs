@@ -39,7 +39,7 @@ await page.route('**/api/v1/**',async route=>{
  }
  throw new Error('Unexpected request '+path);
 });
-const base='http://127.0.0.1:5173/projects/p1/versions/v1/economics';
+const base=(process.env.APP_URL || 'http://127.0.0.1:5173')+'/projects/p1/versions/v1/economics';
 const output=new URL('../node_modules/.cache/probabilistic-ui/',import.meta.url);
 await mkdir(output,{recursive:true});
 try {

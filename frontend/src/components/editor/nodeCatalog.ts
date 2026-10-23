@@ -16,10 +16,8 @@ export interface NodeTypeSpec {
   vertical: Vertical;
   role: StructuralRole;
   /**
-   * The complete set of the subtype's own fields. Sending exactly this set (plus
-   * the common base fields) lets the backend's Jackson `DEDUCTION` uniquely
-   * resolve the node subtype — every set below contains a field, or a
-   * combination, that no other subtype knows.
+   * The complete set of the subtype's own fields. The backend chooses the DTO
+   * using the explicit type.nodeType discriminator sent in the payload.
    */
   fields: NodeFieldSpec[];
 }
@@ -192,6 +190,7 @@ export function canConnect(from: NodeType, to: NodeType): boolean {
 /** Base fields every node create/edit payload carries. */
 export interface NodeBaseValues {
   name: string;
+  declineCurve?: import("../../types/diagram").DeclineDistribution;
   state: NodeState;
   upkeepCosts: number;
   operatingCosts: number;
@@ -219,7 +218,7 @@ export interface GraphDataInput {
 
 /**
  * Builds a node payload (create or edit) from the common base fields, the full
- * set of type-specific fields (which drives the backend's type deduction), the
+ * set of type-specific fields, the explicit node type, the
  * graph data and, on edit, the node's existing identity.
  */
 export function buildNodePayload(
@@ -245,6 +244,7 @@ export function buildNodePayload(
       acc[f.key] = typeFields[f.key] ?? 0;
       return acc;
     }, {}),
+    ...(spec.type === 'WELL' ? { declineCurve: base.declineCurve ?? { type: 'CONSTANT', val_a: typeFields.declineCurve ?? 0, val_b: null } } : {}),
   };
 }
 

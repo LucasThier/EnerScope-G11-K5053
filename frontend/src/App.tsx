@@ -10,6 +10,7 @@ import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AdminOrganizationsPage } from './pages/AdminOrganizationsPage';
 import { WorkspacePage } from './pages/WorkspacePage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { ScenarioConfigurationPage } from './pages/ScenarioConfigurationPage';
 import { ScenariosPage } from './pages/ScenariosPage';
 import { EconomicsPage } from './pages/EconomicsPage';
 import { EditorPage } from './pages/EditorPage';
@@ -27,6 +28,9 @@ const router = createBrowserRouter(createRoutesFromElements(<>
         <Route path="/" element={<DashboardRedirect />} />
         <Route path="/app" element={<WorkspacePage />} />
         <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/projects/:projectId/scenario-configurations" element={<ScenariosPage configuration />} />
+        <Route path="/projects/:projectId/versions/:versionId/economics/configuration" element={<ScenarioConfigurationPage />} />
+        <Route path="/projects/:projectId/versions/:versionId/economics" element={<ScenarioConfigurationPage />} />
         <Route path="/projects/:projectId/versions" element={<ScenariosPage />} />
         <Route path="/projects/:projectId/versions/:versionId/economics/:tab?/:evaluationId?" element={<EconomicsPage />} />
         <Route path="/projects/:projectId/team" element={<ProjectTeamPage />} />

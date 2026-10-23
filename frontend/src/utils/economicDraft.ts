@@ -154,3 +154,45 @@ export function fromConfiguration(c: EconomicConfiguration): EconomicDraft | nul
     return canonical(toConfiguration(d)) === canonical(c) ? d : null;
   } catch { return null; }
 }
+
+
+/** Explicitly lossy projection for a NEW scenario only; never use to overwrite its source. */
+export function createSimpleCopyDraft(c: EconomicConfiguration, nodeIds: Readonly<Record<string, string>> = {}): EconomicDraft {
+  const draft = emptyDraft();
+  draft.startYear = String(c.startYear); draft.years = String(c.years); draft.currency = c.currency;
+  draft.wacc = String(Number((c.wacc * 100).toPrecision(15)));
+  draft.entityName = 'Operadora de la copia simple';
+  const rates = new Set(c.taxEntities.map(e => e.taxRate));
+  draft.taxRate = rates.size === 1 ? String(Number((c.taxEntities[0].taxRate * 100).toPrecision(15))) : '';
+  const concepts = new Set<string>();
+  function concept(name: string, asset = false) {
+    let candidate = name, suffix = 2;
+    while (concepts.has(candidate) || (asset && concepts.has(candidate + '.depreciation'))) candidate = name + ' ' + suffix++;
+    concepts.add(candidate); if (asset) concepts.add(candidate + '.depreciation'); return candidate;
+  }
+  draft.assets = c.assets.map(a => ({id: crypto.randomUUID(), concept: concept(a.concept, true), nodeId: a.nodeId ? nodeIds[a.nodeId] ?? a.nodeId : '',
+    cost: String(a.cost), residual: String(a.residualValue), purchase: a.purchaseDate, service: a.serviceDate, life: String(a.usefulLifeMonths)}));
+  function add(r: EconomicRule, nodeId: string) {
+    if (r.counterpartyId || r.cashClassification !== 'CASH' || !['FIXED','OUTPUT_VOLUME','EXPORTED_VOLUME'].includes(r.driver) ||
+        (r.direction === 'EXPENSE' && r.driver === 'EXPORTED_VOLUME')) return;
+    const counts = new Map<number, number>();
+    for (const occurrence of r.occurrences) {
+      const year = Number(occurrence.recognitionDate.slice(0,4));
+      if (year > c.startYear && year <= c.startYear + c.years && occurrence.recognitionDate >= r.validFrom && occurrence.recognitionDate <= r.validTo)
+        counts.set(year, (counts.get(year) ?? 0) + 1);
+    }
+    const spans: {from:number;to:number;count:number}[] = [];
+    for (const [year,count] of [...counts].sort(([a],[b])=>a-b)) {
+      const prior=spans[spans.length-1];
+      if(prior && prior.to+1===year && prior.count===count) prior.to=year;
+      else spans.push({from:year,to:year,count});
+    }
+    const conversion = c.conversions.find(m => m.nodeId === nodeId && m.metric === r.driver);
+    for (const span of spans) draft.rules.push({id: crypto.randomUUID(), concept: concept(r.concept), direction: r.direction, driver: r.driver as Driver,
+      nodeId: nodeIds[nodeId] ?? nodeId, value: String(r.unitValue * span.count), unit: conversion?.unit ?? '', factor: String(conversion?.factor ?? ''), from: String(span.from), to: String(span.to)});
+  }
+  c.adjustments.forEach(r => add(r,''));
+  c.nodeProfiles.forEach(p => p.rules.forEach(r => add(r,p.nodeId)));
+  c.contracts.forEach(contract => add(contract.revenueRule,contract.deliveryNodeId));
+  return draft;
+}

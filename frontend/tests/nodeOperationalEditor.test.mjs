@@ -43,7 +43,7 @@ test('node create and edit forms expose operational fields only for every node t
       }));
       assert.doesNotMatch(markup, costs);
       assert.match(markup, /Lifespan \(months\)/);
-      assert.match(markup, /Simulaciones \/ Escenarios/);
+      assert.match(markup, /Configuración del Escenario/);
       for (const field of spec.fields.filter(f => !f.economic)) assert.ok(markup.includes(field.label));
     }
   }
@@ -67,7 +67,32 @@ test('operational saves retain hidden legacy costs and complete subtype payloads
     const payload = buildNodePayload(spec, { ...base, name: 'Renamed' }, fields, {}, 'identity');
     assert.equal(payload.upkeepCosts, 123);
     assert.equal(payload.operatingCosts, 456);
-    for (const field of spec.fields) assert.equal(payload[field.key], fields[field.key]);
+    for (const field of spec.fields) { if(field.key === 'declineCurve') assert.deepEqual(payload[field.key],{type:'CONSTANT',val_a:fields[field.key],val_b:null}); else assert.equal(payload[field.key], fields[field.key]); }
     assert.deepEqual({ base, fields }, original);
   }
+});
+
+
+test('new node numeric fields start blank except the maintenance default',()=>{
+ for(const spec of NODE_TYPE_SPECS){
+  const markup=renderToStaticMarkup(React.createElement(NodeFormPanel,{mode:'create',busy:false,initialType:spec.type,onSubmit:noop,onClose:noop}));
+  const inputs=[...markup.matchAll(/<input[^>]*type="number"[^>]*>/g)].map(m=>m[0]);
+  assert.ok(inputs.length>=2);assert.ok(inputs.every(input=>/value="(?:|30)"/.test(input)));
+ }
+});
+test('editing a node preserves saved zero and nonzero numeric values',()=>{
+ const markup=renderToStaticMarkup(React.createElement(NodeFormPanel,{mode:'edit',busy:false,initial:{type:'WELL',base:{...defaultBaseValues(),lifespanInMonths:120},typeFields:{maxCollectionCapacity:0,gasRichness:.25}},onSubmit:noop,onClose:noop}));
+ assert.match(markup,/value="120"/);assert.match(markup,/value="0"/);assert.match(markup,/value="0.25"/);
+});
+
+
+test('distribution edits preserve parameters and hidden fields in the well payload',()=>{
+ const spec=NODE_TYPE_SPECS.find(s=>s.type==='WELL');
+ for(const distribution of [{type:'CONSTANT',val_a:1.45,val_b:null},{type:'NORMAL',val_a:2,val_b:.5},{type:'UNIFORM',val_a:1,val_b:3}]){
+  const base={...defaultBaseValues(),declineCurve:distribution};
+  const payload=buildNodePayload(spec,base,{dtmCost:17},{},'identity');
+  assert.deepEqual(payload.declineCurve,distribution);assert.equal(payload.dtmCost,17);assert.equal(payload.identity,'identity');
+  const markup=renderToStaticMarkup(React.createElement(NodeFormPanel,{mode:'edit',busy:false,initial:{type:'WELL',base,typeFields:{}},onSubmit:noop,onClose:noop}));
+  assert.match(markup,new RegExp('value="'+distribution.type+'" selected=""'));assert.ok(markup.includes('value="'+distribution.val_a+'"'));
+ }
 });

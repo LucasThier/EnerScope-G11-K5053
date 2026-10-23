@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import { useAuth } from '../../hooks/useAuth';
@@ -39,7 +39,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Inicio', icon: <HomeIcon />, to: '/app' },
   { label: 'Proyectos', icon: <FolderIcon />, to: '/projects' },
   { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon />, to: '/editor' },
-  { label: 'Simulaciones / Escenarios', icon: <FlaskIcon /> },
+  { label: 'Configuración del Escenario', icon: <FolderIcon /> },
+  { label: 'Simulación de Escenarios', icon: <FlaskIcon /> },
   { label: 'Comparar Escenarios', icon: <CompareIcon /> },
   { label: 'Reportes', icon: <ReportIcon /> },
   { label: 'Gestión de organización', icon: <TeamIcon />, key: 'team' },
@@ -88,7 +89,7 @@ export function Sidebar() {
     >
       <nav className="flex flex-1 flex-col gap-1 p-3">
         {items.map((item) => (
-          <NavItemLink key={item.label} item={item.label === 'Simulaciones / Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item} isCollapsed={isCollapsed} />
+          <NavItemLink key={item.label} item={item.label === 'Simulación de Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item.label === 'Configuración del Escenario' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/scenario-configurations' } : item} isCollapsed={isCollapsed} />
         ))}
 
         {showAdmin && (
@@ -100,7 +101,7 @@ export function Sidebar() {
               </p>
             )}
             {ADMIN_ITEMS.map((item) => (
-              <NavItemLink key={item.label} item={item.label === 'Simulaciones / Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item} isCollapsed={isCollapsed} />
+              <NavItemLink key={item.label} item={item.label === 'Simulación de Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item.label === 'Configuración del Escenario' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/scenario-configurations' } : item} isCollapsed={isCollapsed} />
             ))}
           </>
         )}
@@ -128,6 +129,7 @@ export function Sidebar() {
 }
 
 function NavItemLink({ item, isCollapsed }: { item: NavItem; isCollapsed: boolean }) {
+  const { pathname } = useLocation();
   const label = isCollapsed ? null : <span className="truncate">{item.label}</span>;
   const padding = itemPadding(isCollapsed);
 
@@ -151,6 +153,15 @@ function NavItemLink({ item, isCollapsed }: { item: NavItem; isCollapsed: boolea
         {!isCollapsed && <LockIcon className="ml-auto h-3.5 w-3.5 shrink-0 text-ink-400" />}
       </span>
     );
+  }
+
+  if (item.label === 'Configuración del Escenario' || item.label === 'Simulación de Escenarios') {
+    const configuration = pathname.endsWith('/scenario-configurations') || /\/economics(?:\/configuration)?\/?$/.test(pathname);
+    const active = item.label === 'Configuración del Escenario' ? configuration : pathname.includes('/versions') && !configuration;
+    return <Link to={item.to} aria-current={active ? 'page' : undefined} title={isCollapsed ? item.label : undefined}
+      className={`${itemBase} ${padding} ${active ? 'bg-brand-50 font-semibold text-brand-800' : 'font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-700'}`}>
+      <span className="shrink-0">{item.icon}</span>{label}
+    </Link>;
   }
 
   return (

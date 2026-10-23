@@ -52,7 +52,7 @@ export interface NodeTypeData {
 }
 
 export interface DiagramNode {
-  /** Table id — this is what connections reference within a version. */
+  /** Table id â€” this is what connections reference within a version. */
   id: string;
   /** Cross-version identity. */
   identity: string;
@@ -89,6 +89,7 @@ export interface NodeDetail {
   maintenanceIntervalInDays: number;
   wastePercentage: number;
   attributes: Record<string, number>;
+  declineCurve?: DeclineDistribution | null;
 }
 
 export interface VersionSummary {
@@ -96,4 +97,10 @@ export interface VersionSummary {
   name: string;
   parentVersionId: string | null;
   createdAt: string;
+}
+
+export interface DeclineDistribution {
+  type: 'CONSTANT' | 'NORMAL' | 'UNIFORM';
+  val_a: number;
+  val_b?: number | null;
 }

@@ -48,7 +48,23 @@ export function NodeFormPanel({
 }: NodeFormPanelProps) {
   const [type, setType] = useState<NodeType>(initial?.type ?? initialType ?? 'WELL');
   const [base, setBase] = useState<NodeBaseValues>(initial?.base ?? { ...defaultBaseValues() });
-  const [typeFields, setTypeFields] = useState<Record<string, number>>(initial?.typeFields ?? {});
+  // Keep editable text until submission so clearing a number does not immediately restore zero.
+  const [numericBase, setNumericBase] = useState({
+    lifespanInMonths: initial ? String(initial.base.lifespanInMonths) : '',
+    maintenanceIntervalInDays: String(initial?.base.maintenanceIntervalInDays ?? defaultBaseValues().maintenanceIntervalInDays),
+  });
+  const [typeFields, setTypeFields] = useState<Record<string, string>>(
+    Object.fromEntries(Object.entries(initial?.typeFields ?? {}).map(([key,value]) => [key,String(value)])),
+  );
+
+  const [declineType, setDeclineType] = useState<import('../../types/diagram').DeclineDistribution['type']>(initial?.base.declineCurve?.type ?? 'CONSTANT');
+  const [declineA, setDeclineA] = useState(String(initial?.base.declineCurve?.val_a ?? initial?.typeFields.declineCurve ?? ''));
+  const [declineB, setDeclineB] = useState(String(initial?.base.declineCurve?.val_b ?? ''));
+  const a = Number(declineA), b = Number(declineB);
+  const validDecline = type !== 'WELL' || (declineA.trim() !== '' && Number.isFinite(a)
+    && (declineType === 'NORMAL' || (a >= 0 && a <= 100))
+    && (declineType === 'CONSTANT' || (declineB.trim() !== '' && Number.isFinite(b)
+      && (declineType === 'NORMAL' ? b > 0 : b > a && b <= 100))));
 
   const spec = useMemo(() => specForType(type), [type]);
   const color = spec ? VERTICAL_COLORS[spec.vertical] : '#6f767f';
@@ -63,8 +79,12 @@ export function NodeFormPanel({
   }
 
   async function submit() {
-    if (!spec || !base.name.trim()) return;
-    await onSubmit(spec, base, typeFields);
+    if (!spec || !base.name.trim() || !validDecline) return;
+    await onSubmit(spec, { ...base,
+      ...(type === 'WELL' ? { declineCurve: { type: declineType, val_a: a, val_b: declineType === 'CONSTANT' ? null : b } } : {}),
+      lifespanInMonths: num(numericBase.lifespanInMonths),
+      maintenanceIntervalInDays: num(numericBase.maintenanceIntervalInDays),
+    }, Object.fromEntries(Object.entries(typeFields).map(([key,value]) => [key,num(value)])));
     onClose();
   }
 
@@ -132,20 +152,20 @@ export function NodeFormPanel({
         </select>
       </div>
 
-      <p className="text-xs text-ink-500">La configuración económica se edita en Simulaciones / Escenarios.</p>
+      <p className="text-xs text-ink-500">La configuración económica se edita en Configuración del Escenario.</p>
 
       <div className="grid grid-cols-2 gap-2">
         <TextField
           label="Lifespan (months)"
           type="number"
-          value={base.lifespanInMonths}
-          onChange={(e) => setBase((b) => ({ ...b, lifespanInMonths: num(e.target.value) }))}
+          value={numericBase.lifespanInMonths}
+          onChange={(e) => setNumericBase((b) => ({ ...b, lifespanInMonths: e.target.value }))}
         />
         <TextField
           label="Maint. interval (days)"
           type="number"
-          value={base.maintenanceIntervalInDays}
-          onChange={(e) => setBase((b) => ({ ...b, maintenanceIntervalInDays: num(e.target.value) }))}
+          value={numericBase.maintenanceIntervalInDays}
+          onChange={(e) => setNumericBase((b) => ({ ...b, maintenanceIntervalInDays: e.target.value }))}
         />
       </div>
 
@@ -155,14 +175,15 @@ export function NodeFormPanel({
             {spec.label} fields
           </span>
           <div className="grid grid-cols-2 gap-2">
-            {operationalFields(spec).map((f) => (
+            {operationalFields(spec).filter(f => f.key !== 'declineCurve').map((f) => (
               <TextField
                 key={f.key}
                 label={f.label}
                 type="number"
-                value={typeFields[f.key] ?? 0}
+                step="any"
+                value={typeFields[f.key] ?? ''}
                 onChange={(e) =>
-                  setTypeFields((prev) => ({ ...prev, [f.key]: num(e.target.value) }))
+                  setTypeFields((prev) => ({ ...prev, [f.key]: e.target.value }))
                 }
               />
             ))}
@@ -170,7 +191,19 @@ export function NodeFormPanel({
         </div>
       )}
 
-      <Button variant="primary" loading={busy} disabled={!base.name.trim()} onClick={submit}>
+      {type === 'WELL' && <fieldset className="flex flex-col gap-2 border-t border-ink-100 pt-3">
+        <legend className="text-sm font-medium">Decline curve</legend>
+        <label htmlFor="decline-type" className="text-sm">Distribución de declinación</label>
+        <select id="decline-type" className={selectClass} value={declineType}
+          onChange={e => setDeclineType(e.target.value as typeof declineType)}>
+          <option value="CONSTANT">Constante</option><option value="NORMAL">Normal</option><option value="UNIFORM">Uniforme</option>
+        </select>
+        <TextField label={declineType === 'CONSTANT' ? 'Declinación anual (puntos porcentuales)' : declineType === 'NORMAL' ? 'Media anual (puntos porcentuales)' : 'Mínimo anual (puntos porcentuales)'} type="number" step="any" value={declineA} onChange={e => setDeclineA(e.target.value)} />
+        {declineType !== 'CONSTANT' && <TextField label={declineType === 'NORMAL' ? 'Desviación estándar' : 'Máximo anual (puntos porcentuales)'} type="number" step="any" value={declineB} onChange={e => setDeclineB(e.target.value)} />}
+        <p className="text-xs text-ink-500">Ingresá 1,45 para una declinación de 1,45 puntos por año. Las muestras se limitan a 0–100 y se acumulan hasta 100.</p>
+        {!validDecline && <p role="status" className="text-xs text-red-600">Completá los parámetros: constante entre 0 y 100; uniforme con mínimo menor al máximo entre 0 y 100; normal con desviación mayor a cero.</p>}
+      </fieldset>}
+      <Button variant="primary" loading={busy} disabled={!base.name.trim() || !validDecline} onClick={submit}>
         {mode === 'create' ? 'Create node' : 'Save node'}
       </Button>
     </div>

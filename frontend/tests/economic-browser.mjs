@@ -1,256 +1,139 @@
-// Optional browser acceptance check. Run against local Vite with PLAYWRIGHT_MODULE
-// pointing to an installed playwright module; API calls use isolated fixtures.
+// Acceptance of separate scenario configuration and execution using isolated HTTP fixtures.
 import assert from 'node:assert/strict';
-import { readFile, mkdir } from 'node:fs/promises';
-import { pathToFileURL, fileURLToPath } from 'node:url';
+import {readFile,mkdir} from 'node:fs/promises';
+import {pathToFileURL,fileURLToPath} from 'node:url';
 import ts from 'typescript';
-const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
-const source = await readFile(new URL('../src/utils/economicDraft.ts', import.meta.url), 'utf8');
-const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
-const { emptyDraft, toConfiguration } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
-const browser = await chromium.launch({ channel: 'chrome', headless: true });
-const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-const page = await context.newPage();
-const failures = [];
-page.on('pageerror', e => failures.push(e.message));
-const user = { id: 'u1', mail: 'test@example.com', firstName: 'Analista', lastName: 'Prueba', platformRole: 'ADMIN' };
-await context.addInitScript(user => {
-  localStorage.setItem('accessToken','test'); localStorage.setItem('refreshToken','test');
-  localStorage.setItem('authUser',JSON.stringify(user));
-},user);
-const projects = ['p1','p2'].map((id,i) => ({ id, name: 'Proyecto ' + (i + 1), organizationName: 'Organización', organizationId: 'o1', memberCount: 1, lastModified: '2030-01-01T00:00:00Z' }));
-const scenario = { id: 'v1', name: 'Base', lastModified: '2030-01-01T00:00:00Z', nodes: [{ id: 'n1', name: 'Pozo A', type: 'WELL' }] };
-let savedDraft = null;
-let configuration = null, history = [], saves = 0, simulations = 0, rejectSave = false;
-const fixtureDraft = { ...emptyDraft(), startYear: '2030', years: '2', wacc: '10', entityName: 'Entidad de prueba', taxRate: '30' };
-const fixture = toConfiguration(fixtureDraft);
-const evaluation = () => ({
-  id: 'e' + simulations, createdAt: '2030-01-01T12:00:00Z',
-  snapshot: { schemaVersion: 2, configuration: structuredClone(configuration), result: {
-    npv: 74.38, indicators: { irr: { status: 'CALCULATED', rate: 0.2 },
-      simplePayback: { status: 'RECOVERED', period: 2, year: 2032, becomesNegativeAgain: false },
-      discountedPayback: { status: 'NOT_RECOVERED_WITHIN_HORIZON', period: null, year: null, becomesNegativeAgain: false },
-      origin: 'STORED', calculationVersion: 1 },
-    periods: [-1000, 600, 600].map((cashFlow,i) => ({ period: i, year: 2030 + i, cashFlow, discountedCashFlow: cashFlow / 1.1 ** i,
-      taxableIncome: i ? 600 : 0, deductibleExpenses: 0, taxes: 0 })), pendingBalances: [],
-  } },
+const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
+const code=ts.transpileModule(await readFile(new URL('../src/utils/economicDraft.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
+const {emptyDraft,toConfiguration}=await import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'));
+const initial=toConfiguration({...emptyDraft(),startYear:'2030',years:'5',wacc:'10',entityName:'Operator',taxRate:'30'});
+await mkdir(new URL('../node_modules/.cache/scenario-ui/',import.meta.url),{recursive:true});
+const screenshot=name=>page.screenshot({path:fileURLToPath(new URL('../node_modules/.cache/scenario-ui/'+name+'.png',import.meta.url)),fullPage:true});
+const browser=await chromium.launch({channel:'chrome',headless:true});
+const context=await browser.newContext({viewport:{width:1440,height:1000}});
+const page=await context.newPage(), failures=[];
+page.on('pageerror',e=>failures.push(e.message));
+page.on('dialog',d=>d.accept());
+const user={id:'u1',mail:'test@example.com',firstName:'Test',lastName:'Admin',platformRole:'ADMIN'};
+await context.addInitScript(user=>{localStorage.setItem('accessToken','test');localStorage.setItem('refreshToken','test');localStorage.setItem('authUser',JSON.stringify(user));},user);
+const project={id:'p1',name:'Project',organizationName:'Org',organizationId:'o1',memberCount:1,lastModified:'2030-01-01T00:00:00Z'};
+const scenario={id:'v1',name:'Scenario',lastModified:project.lastModified,nodes:[{id:'n1',name:'Well',type:'WELL'}]};
+const node={id:'n1',identity:'identity',name:'Well',type:'WELL',fields:[{name:'name',type:'text'},{name:'maxCollectionCapacity',type:'number'},{name:'declineCurve',type:'distribution'}],values:{name:'Well',maxCollectionCapacity:100,declineCurve:{type:'NORMAL',a:4,b:2}}};
+let state={token:'1',sourceToken:'1',configuration:structuredClone(initial),nodes:[structuredClone(node)],draft:null,legacyDraft:null,errors:[]};
+let copyState=null;
+let saves=0,simulations=0,rejectSave=false,lastSave,lastExecution;
+function bump(){state.token=String(Number(state.token)+1);state.sourceToken=state.token;}
+await page.route('**/api/v1/**',async route=>{
+ const p=new URL(route.request().url()).pathname.replace('/api/v1',''),method=route.request().method();
+ const ok=data=>route.fulfill({json:{success:true,data}});
+ if(p==='/auth/refresh')return ok({user,accessToken:'test',refreshToken:'test'});
+ if(p==='/projects')return ok([project]);
+ if(p==='/organizations'||p.endsWith('/owned'))return ok([]);
+ if(p==='/projects/p1')return ok(project);
+ if(p.endsWith('/members'))return ok([]);
+ if(p==='/projects/p1/versions')return ok([scenario,...(copyState?[{...scenario,id:'v2',name:'Scenario · copia simple'}]:[])]);
+ if(p==='/projects/p1/version' && method==='POST'){assert.equal(route.request().postDataJSON().parentVersion,'v1');copyState={...structuredClone(state),configuration:null,token:'copy',sourceToken:'copy',nodes:state.nodes.map(n=>({...structuredClone(n),id:'copy-'+n.id}))};return ok({id:'v2'});}
+ if(p==='/projects/p1/versions/v2/scenario-configuration'){
+  if(method==='PUT'){lastSave=route.request().postDataJSON();copyState.configuration=lastSave.configuration;copyState.draft=lastSave.configuration?null:lastSave;saves++;}
+  return ok(copyState);
+ }
+ if(p.endsWith('/simulation-readiness'))return ok([{versionId:'v1',ready:!state.draft,errors:state.draft?['Hay un borrador pendiente.']:[]}]);
+ if(p.endsWith('/scenario-configuration/draft')){state.draft=null;state.errors=[];bump();return ok(state);}
+ if(p.endsWith('/scenario-configuration')){
+  if(method==='GET')return ok(state);
+  saves++;lastSave=route.request().postDataJSON();
+  if(rejectSave)return route.fulfill({status:500,json:{success:false,message:'Save failed'}});
+  if(lastSave.token!==state.token)return route.fulfill({status:409,json:{success:false,message:'Concurrent change'}});
+  if(!lastSave.configuration){state.draft=lastSave;state.token=String(Number(state.token)+1);state.errors=['Completá los datos pendientes.'];}
+  else {state.configuration=lastSave.configuration;state.nodes[0].values=lastSave.operations.n1;state.draft=null;state.errors=[];bump();}
+  return ok(state);
+ }
+ if(p.endsWith('/evaluation-jobs')){
+  if(method==='POST'){simulations++;lastExecution=route.request().postDataJSON();await new Promise(r=>setTimeout(r,200));return ok({id:'j1',status:'QUEUED',seed:lastExecution.seed||'42'});}
+  return ok([]);
+ }
+ if(p.endsWith('/evaluations'))return ok([]);
+ return ok(null);
 });
-await page.route('**/api/v1/**', async route => {
-  const url = new URL(route.request().url()), path = url.pathname.replace('/api/v1',''), method = route.request().method();
-  const ok = data => route.fulfill({ json: { success: true, data, message: 'OK' } });
-  if (path.endsWith('/organizations/owned')) return ok([]);
-  if (path === '/auth/refresh') return ok({ user, accessToken:'test', refreshToken:'test' });
-  if (path === '/projects') return ok(projects);
-  if (path.endsWith('/members')) return ok([]);
-  if (path === '/projects/p1/versions') return ok([scenario]);
-  if (path === '/projects/p2/versions') return ok([]);
-  if (path.endsWith('/draft')) {
-    if (method === 'PUT') {
-      if (rejectSave) return route.fulfill({ status: 400, json: { success: false, message: 'No se pudo guardar el borrador' } });
-      savedDraft = route.request().postDataJSON();
-    }
-    return ok(savedDraft);
-  }
-  if (path.endsWith('/configuration')) {
-    if (method === 'PUT') {
-      saves++;
-      if (rejectSave) return route.fulfill({ status: 400, json: { success: false, message: 'Configuración inválida' } });
-      configuration = route.request().postDataJSON(); savedDraft = null; return ok(configuration);
-    }
-    return configuration ? ok(configuration) : route.fulfill({ status: 404, json: { success: false, message: 'Economic configuration not found' } });
-  }
-  if (path.endsWith('/evaluation-jobs')) {
-    if(method==='GET') return ok([]);
-    assert.ok(configuration, 'Configuration must be saved before submitting the job');
-    assert.deepEqual(route.request().postDataJSON(), { rounds: 10, seed: null });
-    simulations++; await new Promise(r=>setTimeout(r,150)); const e=evaluation(); history.unshift(e);
-    return route.fulfill({status:202,json:{success:true,data:{id:'job'+simulations,status:'QUEUED',rounds:10,completedRounds:0,seed:'42'},message:'Queued'}});
-  }
-  if (path.endsWith('/evaluations')) {
-    if (method === 'POST') { simulations++; await new Promise(r => setTimeout(r,150)); const e=evaluation(); history.unshift(e); return ok(e); }
-    return ok(history);
-  }
-  if (path.includes('/evaluations/')) return ok(history.find(e => path.endsWith('/' + e.id)));
-  throw new Error('Unexpected request: ' + path);
-});
-const base = (process.env.APP_URL || 'http://127.0.0.1:5173') + '/projects/p1/versions/v1/economics';
+const base=(process.env.APP_URL||'http://127.0.0.1:5173')+'/projects/p1/versions/v1/economics/configuration';
 try {
-  await page.goto(base.replace('/versions/v1/economics', '/versions'));
-  await page.getByRole('link', { name: 'Base', exact: true }).click();
-  assert.equal(new URL(page.url()).pathname, '/projects/p1/versions/v1/economics/configuration');
-  for (const section of ['General', 'Inversion', 'Ingresos', 'Costos', 'Impuestos']) {
-    await page.getByRole('button', { name: section, exact: true }).click();
-  }
-  await page.getByRole('button', { name: 'General', exact: true }).click();
-  await page.getByRole('link', { name: '← Escenarios / Base' }).click();
-  await page.getByRole('link', { name: 'Configurar y simular →' }).click();
-  assert.equal(new URL(page.url()).pathname, '/projects/p1/versions/v1/economics/configuration');
-  await page.getByLabel('WACC anual (%)', { exact: true }).fill('10');
-  await page.getByRole('button', { name: 'Impuestos', exact: true }).click();
-  await page.getByLabel('Nombre de la entidad').fill('Entidad de prueba');
-  await page.getByLabel('Tasa de impuesto (%)').fill('30');
-  // Failed saves retain the draft and cannot trigger evaluation.
-  rejectSave = true;
-  await page.getByRole('button',{ name:'Guardar y simular', exact:true }).first().click();
-  await page.getByText('Configuración inválida',{exact:true}).waitFor();
-  assert.equal(simulations,0);
-  assert.equal(await page.getByLabel('Nombre de la entidad').inputValue(),'Entidad de prueba');
-  rejectSave = false;
-  await page.getByRole('button',{ name:'Guardar y simular', exact:true }).first().evaluate(button => { button.click(); button.click(); });
-  await page.getByRole('button',{name:'Actualizar',exact:true}).click();
-  await page.getByRole('link',{name:'Ver evaluación →'}).first().click();
-  await page.getByRole('heading',{name:/VAN/}).first().waitFor();
-  assert.equal(simulations,1);
-  assert.equal(saves,2);
-  const output = new URL('../node_modules/.cache/economic-ui/',import.meta.url);
-  await mkdir(output,{recursive:true});
-  await page.screenshot({path: fileURLToPath(new URL('results-desktop.png',output)),fullPage:true});
-  await page.getByRole('link',{name:'Historial',exact:true}).click();
-  await page.getByRole('button',{name:'Actualizar',exact:true}).click();
-  await page.getByRole('link',{name:'Ver evaluación →'}).first().click();
-  await page.getByRole('heading',{name:/VAN/}).first().waitFor();
-  assert.equal(simulations,1);
-  await page.getByRole('link',{name:'Configuración',exact:true}).click();
-  await page.getByLabel('WACC anual (%)',{exact:true}).fill('15');
-  await page.getByRole('link',{name:'← Escenarios / Base'}).click();
-  await page.getByRole('button',{name:'Quedarme',exact:true}).click();
-  assert.equal(await page.getByLabel('WACC anual (%)',{exact:true}).inputValue(),'15');
-  await page.getByRole('button',{name:'Proyecto 1',exact:true}).click();
-  await page.getByRole('option').filter({hasText:'Proyecto 2'}).getByRole('button').click();
-  await page.getByRole('button',{name:'Salir y descartar'}).click();
-  await page.getByText('Este proyecto todavía no tiene escenarios.',{exact:false}).waitFor();
-  assert.equal(new URL(page.url()).pathname,'/projects/p2/versions');
-  configuration = fixture;
-  await page.goto(base);
-  await page.getByLabel('WACC anual (%)',{exact:true}).waitFor();
-  await page.screenshot({path: fileURLToPath(new URL('configuration-desktop.png',output)),fullPage:true});
-  await page.setViewportSize({width:390,height:844});
-  await page.waitForFunction(() => document.querySelector('aside').getBoundingClientRect().width === 64);
-  await page.screenshot({path: fileURLToPath(new URL('configuration-mobile.png',output)),fullPage:true});
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-  assert.equal(overflow,false,'Mobile must not overflow the page');
-  configuration = JSON.parse(await readFile(new URL('../../backend/src/test/resources/economic-examples/economic-configuration.json', import.meta.url), 'utf8'));
-  const advancedBefore = structuredClone(configuration);
-  await page.goto(base);
-  await page.getByLabel('WACC anual (%)', { exact: true }).fill('12');
-  for (const section of ['Inversión', 'Ingresos', 'Costos', 'Impuestos']) await page.getByRole('button', { name: section, exact: true }).click();
-  assert.equal(await page.getByLabel('Trasladar pérdidas', { exact: true }).count(), 2);
-  await page.getByLabel('Tasa de impuesto (%)', { exact: true }).first().fill('25');
-  await page.getByRole('button', { name: 'General', exact: true }).click();
-  await page.getByRole('button', { name: 'Guardar', exact: true }).first().click();
-  await page.getByText('Configuración guardada.', { exact: false }).waitFor();
-  const advancedExpected = structuredClone(advancedBefore);
-  advancedExpected.wacc = 0.12; advancedExpected.taxEntities[0].taxRate = 0.25;
-  assert.deepEqual(configuration, advancedExpected, 'Saving must preserve ownership, contracts, dates and fiscal policies');
-  await page.reload();
-  await page.getByLabel('WACC anual (%)', { exact: true }).waitFor();
-  assert.equal(await page.getByLabel('WACC anual (%)', { exact: true }).inputValue(), '12');
-  const advancedSimulations = simulations;
-  await page.getByRole('button', { name: 'Guardar y simular', exact: true }).first().click();
-  await page.getByRole('heading', { name: 'Evaluaciones guardadas' }).waitFor();
-  assert.equal(simulations, advancedSimulations + 1);
-  assert.deepEqual(configuration, advancedExpected);
-  configuration = fixture;
-  scenario.nodes.push({ id: 'ship', name: 'Buque de prueba', type: 'LNG_CAMER' });
-  await page.goto(base);
-  await page.getByRole('button', { name: 'Ingresos', exact: true }).click();
-  await page.getByRole('button', { name: 'Agregar ingreso', exact: true }).click();
-  await page.getByRole('combobox', { name: /^Modalidad/ }).selectOption('OUTPUT_VOLUME');
-  await page.getByRole('combobox', { name: /^Nodo/ }).selectOption('n1');
-  await page.getByLabel('Unidad comercial').fill('unidad');
-  await page.getByLabel('Unidades comerciales por unidad del simulador').fill('1');
-  await page.getByRole('combobox', { name: /^Modalidad/ }).selectOption('EXPORTED_VOLUME');
-  assert.equal(await page.getByRole('combobox', { name: /^Nodo/ }).inputValue(), '');
-  assert.equal(await page.getByLabel('Unidad comercial').inputValue(), '');
-  assert.deepEqual(await page.getByRole('combobox', { name: /^Nodo/ }).locator('option').evaluateAll(options => options.map(o => o.value)), ['', 'ship']);
-  await page.getByRole('combobox', { name: /^Nodo/ }).selectOption('ship');
-  scenario.nodes.pop();
-  await page.reload();
-  await page.getByRole('button', { name: 'Ingresos', exact: true }).click();
-  await page.getByRole('button', { name: 'Agregar ingreso', exact: true }).click();
-  await page.getByRole('combobox', { name: /^Modalidad/ }).selectOption('EXPORTED_VOLUME');
-  await page.getByText('Este escenario no tiene buques para calcular ingresos por exportación.', { exact: true }).waitFor();
-  const simulationsBeforeInvalid = simulations;
-  await page.getByRole('button', { name: 'Guardar y simular', exact: true }).first().click();
-  await page.getByRole('alert').filter({ hasText: 'No se ejecutó la simulación.' }).waitFor();
-  assert.equal(simulations, simulationsBeforeInvalid);
-  // An incomplete draft survives errors, reload and a later valid simulation.
-  configuration = fixture; savedDraft = null;
-  await page.goto(base);
-  await page.getByRole('button', { name: 'Inversion', exact: true }).click();
-  await page.getByRole('button', { name: 'Agregar activo', exact: true }).click();
-  await page.getByLabel('Concepto', { exact: true }).fill('Activo pendiente');
-  await page.getByRole('button', { name: 'Impuestos', exact: true }).click();
-  await page.getByText('Activo pendiente: la vida útil debe tener entre 1 y 1200 meses.', { exact: true }).waitFor();
-  rejectSave = true;
-  await page.getByRole('button', { name: 'Guardar', exact: true }).first().click();
-  await page.getByText('No se pudo guardar el borrador', { exact: true }).waitFor();
-  assert.equal(savedDraft, null);
-  rejectSave = false;
-  const simulationsBeforeDraft = simulations;
-  await page.getByRole('button', { name: 'Guardar', exact: true }).first().click();
-  await page.getByText('Borrador guardado.', { exact: false }).waitFor();
-  assert.equal(savedDraft.draft.assets[0].concept, 'Activo pendiente');
-  assert.equal(configuration.assets.length, 0);
-  await page.reload();
-  await page.getByText('Borrador recuperado.', { exact: false }).waitFor();
-  await page.getByRole('button', { name: 'Guardar y simular', exact: true }).first().click();
-  await page.getByRole('alert').filter({ hasText: 'No se ejecutó la simulación.' }).waitFor();
-  assert.equal(await page.getByLabel('Concepto', { exact: true }).inputValue(), 'Activo pendiente');
-  assert.equal(simulations, simulationsBeforeDraft);
-  await page.getByLabel('Importe (USD)', { exact: true }).fill('1000');
-  await page.getByLabel('Vida útil (meses)', { exact: true }).fill('24');
-  await page.getByRole('button', { name: 'Guardar y simular', exact: true }).first().evaluate(b => { b.click(); b.click(); });
-  await page.getByRole('button',{name:'Actualizar',exact:true}).click();
-  await page.getByRole('link',{name:'Ver evaluación →'}).first().click();
-  await page.getByRole('heading',{name:/VAN/}).first().waitFor();
-  assert.equal(simulations, simulationsBeforeDraft + 1);
-  assert.equal(savedDraft, null);
-  // Filtering is presentation-only; both action bars operate on the complete draft.
-  scenario.nodes.push({ id: 'ship', name: 'Buque de prueba', type: 'LNG_CAMER' });
-  const asset = (id, nodeId) => ({ id, nodeId, concept: id, cost: '100', residual: '0', purchase: '2030-12-31', service: '2031-01-01', life: '24' });
-  savedDraft = { schemaVersion: 1, draft: { ...fixtureDraft, assets: [asset('General', ''), asset('Pozo', 'n1'), asset('Buque', 'ship')], rules: [] } };
-  configuration = fixture;
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto(base);
-  await page.getByRole('button', { name: 'Inversion', exact: true }).click();
-  const topActions = page.getByRole('group', { name: 'Acciones superiores' });
-  const bottomActions = page.getByRole('group', { name: 'Acciones inferiores' });
-  assert.equal(await page.getByRole('button', { name: 'Guardar', exact: true }).count(), 2);
-  const filter = page.getByLabel('Filtrar inversiones por nodo');
-  await filter.selectOption('n1');
-  assert.equal(await page.getByLabel('Concepto', { exact: true }).count(), 1);
-  assert.equal(await page.getByLabel('Concepto', { exact: true }).inputValue(), 'Pozo');
-  assert.equal(await topActions.getByRole('button', { name: 'Descartar cambios' }).isDisabled(), true);
-  await page.getByLabel('Importe (USD)', { exact: true }).fill('250');
-  await bottomActions.getByRole('button', { name: 'Guardar', exact: true }).click();
-  await page.getByText('Borrador guardado.', { exact: false }).waitFor();
-  assert.deepEqual(savedDraft.draft.assets.map(a => a.cost), ['100', '250', '100']);
-  await filter.selectOption('');
-  assert.equal(await page.getByLabel('Concepto', { exact: true }).inputValue(), 'General');
-  await filter.selectOption('ship');
-  await page.getByRole('combobox', { name: /^Nodo \(opcional\)/ }).selectOption('n1');
-  await page.getByText('No hay inversiones asociadas a este nodo.', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Agregar activo', exact: true }).click();
-  assert.equal(await page.getByRole('combobox', { name: /^Nodo \(opcional\)/ }).inputValue(), 'ship');
-  await page.getByRole('button', { name: 'Quitar', exact: true }).click();
-  await filter.selectOption('');
-  // Invalid data in a hidden node must still block simulation and become visible.
-  await page.getByLabel('Importe (USD)', { exact: true }).fill('');
-  await filter.selectOption('n1');
-  const beforeFilteredSimulation = simulations;
-  await topActions.getByRole('button', { name: 'Guardar y simular' }).click();
-  await page.getByRole('alert').filter({ hasText: 'No se ejecutó la simulación.' }).waitFor();
-  assert.equal(await filter.inputValue(), '*');
-  assert.equal(simulations, beforeFilteredSimulation);
-  await page.setViewportSize({ width: 390, height: 844 });
-  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-  savedDraft = null;
-  user.platformRole = 'USER'; configuration = fixture;
-  await page.goto(base);
-  await page.getByText('Tenés acceso de consulta.',{exact:false}).waitFor();
-  assert.equal(await page.getByRole('button',{name:'Guardar y simular'}).first().isDisabled(),true);
-  assert.equal(await page.getByRole('group', { name: 'Acciones inferiores' }).getByRole('button', { name: 'Guardar y simular' }).isDisabled(), true);
-  assert.deepEqual(failures,[]);
-  console.log('PASS: save failure, single evaluation, immutable history, dirty navigation, project switching, advanced editing without data loss, viewer permissions, desktop/mobile layout.');
-} finally { await browser.close(); }
+ await page.goto(base);
+ await page.getByLabel('Año de inversión',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('button',{name:'Guardar y simular',exact:true}).count(),0);
+ assert.equal(await page.getByLabel('Rondas (1–100)',{exact:true}).count(),0);
+ assert.equal(await page.locator('aside').getByRole('link',{name:'Configuración del Escenario',exact:true}).getAttribute('aria-current'),'page');
+ await screenshot('configuration');
+ await page.getByRole('button',{name:'Operación',exact:true}).click();
+ await screenshot('operation');
+ await page.getByLabel('Capacidad máxima de recolección',{exact:true}).fill('250');
+ await page.getByRole('button',{name:'Guardar',exact:true}).first().click();
+ await page.getByText('Configuración económica y operativa guardada.',{exact:false}).waitFor();
+ assert.equal(lastSave.operations.n1.maxCollectionCapacity,'250');assert.equal(simulations,0);
+ assert.deepEqual(lastSave.operations.n1.declineCurve,{type:'NORMAL',a:4,b:2});
+ state.nodes[0].values.maxCollectionCapacity=333;bump();
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await page.waitForFunction(()=>[...document.querySelectorAll('input')].some(i=>i.value==='333'));
+ await page.getByLabel('Capacidad máxima de recolección',{exact:true}).fill('444');
+ state.nodes[0].values.maxCollectionCapacity=555;bump();
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await page.getByText('El escenario cambió desde otra pantalla.',{exact:false}).waitFor();
+ assert.equal(await page.getByLabel('Capacidad máxima de recolección',{exact:true}).inputValue(),'444');
+ assert.equal(await page.getByRole('button',{name:'Guardar',exact:true}).first().isDisabled(),true);
+ await page.getByRole('button',{name:'Descartar y recargar',exact:true}).click();
+ await page.waitForFunction(()=>[...document.querySelectorAll('input')].some(i=>i.value==='555'));
+ await page.getByRole('button',{name:'Economía',exact:true}).click();
+ await page.getByLabel('Año de inversión',{exact:true}).fill('');
+ await page.getByRole('button',{name:'Guardar',exact:true}).first().click();
+ await page.getByText('Borrador guardado.',{exact:false}).waitFor();
+ await page.reload();await page.getByLabel('Año de inversión',{exact:true}).waitFor();
+ assert.equal(await page.getByLabel('Año de inversión',{exact:true}).inputValue(),'');
+ await page.getByRole('link',{name:'Simulación de Escenarios',exact:true}).click();
+ assert.equal(await page.getByRole('button',{name:'Simular',exact:true}).isDisabled(),true);
+ assert.equal(await page.getByRole('button',{name:'Nuevo escenario',exact:true}).count(),0);
+ await page.goto(base);
+ await page.getByRole('button',{name:'Descartar cambios',exact:true}).first().click();
+ await page.getByLabel('Año de inversión',{exact:true}).fill('2031');
+ rejectSave=true;await page.getByRole('button',{name:'Guardar',exact:true}).first().click();
+ await page.getByText('Save failed',{exact:false}).waitFor();
+ assert.equal(await page.getByLabel('Año de inversión',{exact:true}).inputValue(),'2031');
+ rejectSave=false;
+ await page.getByRole('link',{name:'Simulación de Escenarios',exact:true}).click();
+ await page.getByRole('button',{name:'Seguir editando',exact:true}).click();
+ await page.getByRole('button',{name:'Descartar cambios',exact:true}).first().click();
+ await page.getByRole('link',{name:'Simulación de Escenarios',exact:true}).click();
+ await page.getByRole('button',{name:'Simular',exact:true}).click();
+ await page.getByRole('dialog').waitFor();
+ assert.equal(await page.locator('aside').getByRole('link',{name:'Simulación de Escenarios',exact:true}).getAttribute('aria-current'),'page');
+ await screenshot('simulation-dialog');
+ assert.equal(await page.getByLabel('Rondas (1–100)',{exact:true}).inputValue(),'10');
+ await page.getByRole('button',{name:'Cancelar',exact:true}).click();
+ assert.equal(simulations,0);
+ await page.getByRole('button',{name:'Simular',exact:true}).click();
+ await page.getByLabel('Semilla (opcional)',{exact:true}).fill('9223372036854775808');
+ await page.getByRole('dialog').getByRole('button',{name:'Simular',exact:true}).click();
+ assert.equal(simulations,0);
+ await page.getByLabel('Semilla (opcional)',{exact:true}).fill('9223372036854775807');
+ const before=saves;
+ await page.getByRole('dialog').getByRole('button',{name:'Simular',exact:true}).click();
+ await page.waitForURL('**/economics/history');
+ assert.equal(simulations,1);assert.equal(saves,before);assert.equal(lastExecution.seed,'9223372036854775807');
+ const advanced=JSON.parse(await readFile(new URL('../../backend/src/test/resources/economic-examples/economic-configuration.json',import.meta.url),'utf8'));
+ state.configuration=structuredClone(advanced);state.nodes=advanced.conversions.map(c=>({...structuredClone(node),id:c.nodeId,identity:c.nodeId}));bump();
+ await page.goto(base);await page.getByRole('heading',{name:'Configuración original conservada',exact:true}).waitFor();
+ assert.equal(await page.getByLabel('WACC anual (%)',{exact:true}).count(),0);
+ await page.getByRole('button',{name:'Crear copia simple',exact:true}).click();
+ await page.waitForURL('**/versions/v2/economics/configuration');
+ await page.getByLabel('WACC anual (%)',{exact:true}).waitFor();
+ assert.equal(copyState.configuration.taxEntities.length,1);assert.equal(copyState.configuration.contracts.length,0);
+ assert.deepEqual(state.configuration,advanced);
+ assert.equal(await page.getByRole('button',{name:'Seguir editando',exact:true}).count(),0);
+ await page.setViewportSize({width:390,height:844});
+ await page.waitForTimeout(350);
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await screenshot('configuration-mobile');
+ user.platformRole='USER';
+ await page.reload();await page.getByRole('button',{name:'Guardar',exact:true}).first().waitFor();
+ assert.equal(await page.getByRole('button',{name:'Guardar',exact:true}).first().isDisabled(),true);
+ assert.deepEqual(failures,[]);
+ console.log('PASS: separate screens, joint save, map refresh/conflict, drafts, navigation, failures, rounds/seed modal, single submission, original preservation and simple copy, read-only permissions and mobile layout.');
+} catch (error) { console.error((await page.locator('body').innerText()).slice(0,6000)); console.error(failures); throw error; } finally {await browser.close();}

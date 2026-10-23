@@ -136,7 +136,7 @@ export function NodeDataPanel({
             {spec && operationalFields(spec).map((f) => (
               <Fragment key={f.key}>
                 <dt className="text-ink-400">{f.label}</dt>
-                <dd className="text-ink-700">{fmt(detail.attributes[f.key])}</dd>
+                <dd className="text-ink-700">{f.key === 'declineCurve' && detail.declineCurve ? `${detail.declineCurve.type}: ${detail.declineCurve.val_a}${detail.declineCurve.val_b == null ? '' : ` / ${detail.declineCurve.val_b}`}` : fmt(detail.attributes[f.key])}</dd>
               </Fragment>
             ))}
           </dl>

@@ -1,3 +1,6 @@
+import { scenarioConfigurationApi } from '../api/scenarioConfiguration';
+import type { ScenarioReadiness } from '../types/scenarioConfiguration';
+import { SimulationDialog } from '../components/economics/SimulationDialog';
 import { projectsApi } from '../api/projects';
 import { useAuth } from '../hooks/useAuth';
 import { useEffect, useRef, useState } from 'react';
@@ -11,11 +14,13 @@ import { TextField } from '../components/ui/TextField';
 import { formatDate } from '../utils/date';
 import type { Scenario } from '../types/economics';
 
-export function ScenariosPage() {
+export function ScenariosPage({ configuration = false }: { configuration?: boolean }) {
   const { projectId = '' } = useParams();
-  return <ScenariosWorkspace key={projectId} projectId={projectId} />;
+  return <ScenariosWorkspace key={projectId + String(configuration)} projectId={projectId} configuration={configuration} />;
 }
-function ScenariosWorkspace({ projectId }: { projectId: string }) {
+function ScenariosWorkspace({ projectId, configuration }: { projectId: string; configuration: boolean }) {
+  const [readiness,setReadiness]=useState<ScenarioReadiness[]>([]);
+  const [simulating,setSimulating]=useState<Scenario|null>(null);
   const { user } = useAuth();
   const navigate = useNavigate();
   const [canEdit, setCanEdit] = useState(false);
@@ -32,12 +37,13 @@ function ScenariosWorkspace({ projectId }: { projectId: string }) {
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let cancelled = false;
-    Promise.all([economicsApi.scenarios(projectId), user?.platformRole === 'ADMIN' ? Promise.resolve(null) : projectsApi.members(projectId)]).then(([scenarios, members]) => {
+    Promise.all([configuration ? Promise.resolve([]) : scenarioConfigurationApi.readiness(projectId), economicsApi.scenarios(projectId), user?.platformRole === 'ADMIN' ? Promise.resolve(null) : projectsApi.members(projectId)]).then(([ready, scenarios, members]) => {
+      if (!cancelled) setReadiness(ready);
       if (!cancelled) setCanEdit(user?.platformRole === 'ADMIN' || !!members?.data.data?.some(m => m.userId === user?.id && m.active && m.permissions.includes('EDIT_PROJECT')));
       if (!cancelled) setState({ project: projectId, scenarios, error: '', loading: false });
     }).catch(error => { if (!cancelled) setState({ project: projectId, scenarios: [], error: getErrorMessage(error, 'No se pudieron cargar los escenarios.'), loading: false }); });
     return () => { cancelled = true; };
-  }, [projectId, retry, user?.id, user?.platformRole]);
+  }, [projectId, retry, user?.id, user?.platformRole, configuration]);
   async function create() {
     if (inFlight.current || !canEdit || !name.trim() || (parent && !state.scenarios.some(s => s.id === parent))) return;
     inFlight.current = true; setBusy(true); setCreateError('');
@@ -51,10 +57,10 @@ function ScenariosWorkspace({ projectId }: { projectId: string }) {
   const loading = state.loading || state.project !== projectId;
   const filtered = state.scenarios.filter(s => s.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
   return <div className="space-y-6">
-    <header><h1 className="text-2xl font-semibold text-ink-800">Simulaciones / Escenarios</h1>
-      <p className="mt-1 text-sm text-ink-500">Seleccioná un escenario para editar su configuración económica y simular. Los datos operativos se editan en el mapa de nodos.</p></header>
-    {canEdit && <Button onClick={() => setCreating(true)} disabled={busy}>Nuevo escenario</Button>}
-    {creating && canEdit && <Card><form className="space-y-4" onSubmit={e => { e.preventDefault(); void create(); }}>
+    <header><h1 className="text-2xl font-semibold text-ink-800">{configuration ? 'Configuración del Escenario' : 'Simulación de Escenarios'}</h1>
+      <p className="mt-1 text-sm text-ink-500">{configuration ? 'Seleccioná un escenario para editar su configuración económica y operativa.' : 'Seleccioná Simular para elegir las rondas y la semilla. El nombre del escenario abre su historial y resultados.'}</p></header>
+    {configuration && canEdit && <Button onClick={() => setCreating(true)} disabled={busy}>Nuevo escenario</Button>}
+    {configuration && creating && canEdit && <Card><form className="space-y-4" onSubmit={e => { e.preventDefault(); void create(); }}>
       <h2 className="text-lg font-semibold">Crear escenario</h2>
       <p className="text-sm text-ink-500">El escenario se crea como una versión de este proyecto. Podés comenzar vacío o copiar la estructura física de una versión existente.</p>
       <TextField label="Nombre del escenario" required maxLength={120} value={name} disabled={busy} onChange={e => setName(e.target.value)} />
@@ -66,8 +72,18 @@ function ScenariosWorkspace({ projectId }: { projectId: string }) {
       <Card><TextField label="Buscar escenario" value={search} onChange={e => setSearch(e.target.value)} />
         {!state.scenarios.length ? <p className="mt-6 text-sm text-ink-500">Este proyecto todavía no tiene escenarios. Creá un escenario para configurar su economía y agregá sus nodos desde el mapa de la cadena de valor.</p> :
           <div className="mt-6 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b border-ink-200"><th className="p-3">Escenario</th><th className="p-3">Actualizado</th><th className="p-3">Acción</th></tr></thead><tbody>
-            {filtered.map(s => <tr key={s.id} className="border-b border-ink-100"><td className="p-3 font-medium"><Link className="text-brand-800 underline" to={`/projects/${projectId}/versions/${s.id}/economics/configuration`}>{s.name}</Link></td><td className="p-3">{formatDate(s.lastModified)}</td><td className="p-3"><Link className="font-semibold text-brand-800 underline" to={`/projects/${projectId}/versions/${s.id}/economics/configuration`}>Configurar y simular →</Link><Link className="ml-4 text-brand-800 underline" to={'/editor?versionId=' + s.id}>Editar mapa</Link></td></tr>)}
+            {filtered.map(s => {
+              const status=readiness.find(r=>r.versionId===s.id);
+              return <tr key={s.id} className="border-b border-ink-100"><td className="p-3 font-medium">
+                <Link className="text-brand-800 underline" to={`/projects/${projectId}/versions/${s.id}/economics/${configuration ? 'configuration' : 'history'}`}>{s.name}</Link>
+                {!configuration && <p className="mt-1 text-xs text-ink-500">{status?.ready ? 'Listo para simular' : status?.errors.join(' ') || 'No se pudo verificar la configuración.'}</p>}
+              </td><td className="p-3">{formatDate(s.lastModified)}</td><td className="p-3">
+                {configuration ? <Link className="text-brand-800 underline" to={`/projects/${projectId}/versions/${s.id}/economics/configuration`}>Configurar →</Link> :
+                  <Button disabled={!canEdit || !status?.ready} onClick={()=>setSimulating(s)}>Simular</Button>}
+              </td></tr>;
+            })}
           </tbody></table>{!filtered.length && <p className="p-3">No hay escenarios que coincidan con la búsqueda.</p>}</div>}
       </Card>}
+    {simulating && <SimulationDialog projectId={projectId} versionId={simulating.id} name={simulating.name} onClose={()=>setSimulating(null)} />}
   </div>;
 }

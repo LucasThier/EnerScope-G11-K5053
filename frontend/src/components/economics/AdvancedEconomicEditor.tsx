@@ -30,8 +30,9 @@ const enums: Record<string, [string, string][]> = {
   classification: [['TAXABLE', 'Gravado'], ['NON_TAXABLE', 'No gravado'], ['DEDUCTIBLE', 'Deducible'], ['NON_DEDUCTIBLE', 'No deducible'], ['CAPITALIZABLE', 'Capitalizable']],
 };
 
-export function AdvancedEconomicEditor({ configuration: c, nodes, onChange, disabled, busy, dirty, save, discard }: {
+export function AdvancedEconomicEditor({ configuration: c, nodes, onChange, disabled, busy, dirty, save, discard, saveOnly = false }: {
   configuration: EconomicConfiguration; nodes: Scenario['nodes']; onChange: (c: EconomicConfiguration) => void;
+  saveOnly?: boolean;
   disabled: boolean; busy: boolean; dirty: boolean; save: (simulate: boolean) => void; discard: () => void;
 }) {
   const [section, setSection] = useState<Section>('General');
@@ -96,10 +97,10 @@ export function AdvancedEconomicEditor({ configuration: c, nodes, onChange, disa
   }
   const actions = <div className="flex flex-wrap justify-between gap-3 rounded-lg border border-ink-200 bg-white p-4">
     <Button variant="ghost" disabled={disabled || busy || !dirty} onClick={discard}>Descartar cambios</Button><div className="flex flex-wrap gap-3">
-      <Button variant="secondary" disabled={disabled || busy} onClick={() => submit(false)}>Guardar</Button>
-      <Button disabled={disabled || busy} loading={busy} onClick={() => submit(true)}>Guardar y simular</Button></div></div>;
+      <Button variant="secondary" disabled={disabled || busy} onClick={() => saveOnly ? save(false) : submit(false)}>Guardar</Button>
+      {!saveOnly && <Button disabled={disabled || busy} loading={busy} onClick={() => submit(true)}>Guardar y simular</Button>}</div></div>;
   return <div ref={root} className="space-y-4">
-    <p className="text-sm text-ink-600">Esta configuración incluye entidades y reglas propias. Podés editarlas por sección. Guardar valida la configuración completa; se conservan las participaciones, los contratos y las fechas de cobro y pago.</p>
+    <p className="text-sm text-ink-600">Esta configuración incluye entidades y reglas propias. Podés editarlas por sección. Guardar conserva como borrador los datos incompletos; se conservan las participaciones, los contratos y las fechas de cobro y pago.</p>
     {actions}<div className="grid gap-4 xl:grid-cols-[9rem_minmax(0,1fr)]">
       <nav aria-label="Secciones de configuración" className="flex flex-wrap gap-2 xl:flex-col">{sections.map(s => <button key={s} type="button" aria-current={s === section ? 'page' : undefined} onClick={() => setSection(s)} className={'rounded-lg px-3 py-2 text-left text-sm ' + (s === section ? 'bg-brand-50 font-semibold text-brand-800' : 'text-ink-600')}>{s}</button>)}</nav>
       <Card>{sections.map(s => <fieldset key={s} data-section={s} hidden={section !== s} disabled={disabled || busy} className="min-w-0 space-y-5 disabled:opacity-75"><h2 className="text-lg font-semibold">{s}</h2>

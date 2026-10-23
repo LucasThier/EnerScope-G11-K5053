@@ -37,6 +37,7 @@ interface EditState {
 function editStateFromDetail(detail: NodeDetail): EditState {
   const base: NodeBaseValues = {
     name: detail.name,
+    declineCurve: detail.declineCurve ?? undefined,
     state: detail.state,
     upkeepCosts: detail.upkeepCosts,
     operatingCosts: detail.operatingCosts,
