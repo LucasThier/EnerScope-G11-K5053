@@ -1,6 +1,7 @@
 package org.enerscope.common;
 
 import org.enerscope.logging.AppLogger;
+import org.enerscope.scenario.service.ScenarioConflictException;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.springframework.http.HttpStatus;
@@ -66,6 +67,11 @@ public class GlobalExceptionHandler {
         return Responses.badRequest("Method not allowed");
     }
 
+    @ExceptionHandler(org.springframework.web.bind.MissingRequestHeaderException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingHeader(org.springframework.web.bind.MissingRequestHeaderException ex) {
+        return Responses.badRequest("Missing required header: " + ex.getHeaderName());
+    }
+
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         return Responses.badRequest("Invalid argument for parameter '" + ex.getName() + "'");
@@ -113,6 +119,11 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ScenarioConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleScenarioConflict(ScenarioConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

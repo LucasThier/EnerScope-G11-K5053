@@ -1,9 +1,9 @@
-package org.enerscope.economic.repository;
+package org.enerscope.scenario.repository;
 
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.enerscope.economic.model.EconomicDraftEntity;
+import org.enerscope.scenario.model.EconomicDraftEntity;
 
 public interface EconomicDraftRepository extends JpaRepository<EconomicDraftEntity, UUID> {
     Optional<EconomicDraftEntity> findByVersionId(UUID versionId);

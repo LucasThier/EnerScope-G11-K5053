@@ -819,4 +819,31 @@ class VersionServiceTest {
         version.getNodeSnapshot().add(new Well());
         assertEquals(1, version.getNodeSnapshot().size());
     }
+
+        @Test
+        void nodeDetailPreservesDistributionParametersWithoutSampling() {
+                var distributions = List.of(
+                    org.mockito.Mockito.spy(new org.enerscope.probabilistic.ConstantValue(1.45f)),
+                    org.mockito.Mockito.spy(new org.enerscope.probabilistic.NormalDistributionCase(2f, .5f)),
+                    org.mockito.Mockito.spy(new org.enerscope.probabilistic.UniformDistributionCase(1f, 3f)));
+                String[] types = {"CONSTANT", "NORMAL", "UNIFORM"};
+                float[] first = {1.45f, 2f, 1f};
+                Float[] second = {null, .5f, 3f};
+                for (int index = 0; index < distributions.size(); index++) {
+                    var well = new Well();
+                    well.setDeclineCurve(distributions.get(index));
+                    var version = new Version("Test", null, new ArrayList<>(List.of(well)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+                    var versionId = UUID.randomUUID(); var nodeId = UUID.randomUUID();
+                    when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                    when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(well));
+                    for (int read = 0; read < 2; read++) {
+                        var detail = versionService.getNodeDetail(versionId, nodeId);
+                        assertEquals(types[index], detail.getDeclineCurve().getType());
+                        assertEquals(first[index], detail.getDeclineCurve().getVal_a());
+                        assertEquals(second[index], detail.getDeclineCurve().getVal_b());
+                        assertTrue(!detail.getAttributes().containsKey("declineCurve"));
+                    }
+                    verify(distributions.get(index), org.mockito.Mockito.never()).generateValue();
+                }
+        }
 }

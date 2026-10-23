@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.enerscope.economic.dto.EvaluationDTO;
 import org.enerscope.economic.model.configuration.EconomicConfiguration;
 import org.enerscope.economic.service.EconomicService;
+import org.enerscope.scenario.dto.EconomicDraftDTO;
 import org.enerscope.util.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,13 +15,13 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/projects/{projectId}/versions/{versionId}/economics")
 public class EconomicController {
     private final EconomicService service;@PutMapping("/draft")
-    public ResponseEntity<ApiResponse<org.enerscope.economic.dto.EconomicDraftDTO>> saveDraft(
+    public ResponseEntity<ApiResponse<EconomicDraftDTO>> saveDraft(
             @PathVariable UUID projectId, @PathVariable UUID versionId,
-            @RequestBody org.enerscope.economic.dto.EconomicDraftDTO draft) {
+            @RequestBody EconomicDraftDTO draft) {
         return Responses.ok("Economic draft saved", service.saveDraft(projectId, versionId, draft));
     }
     @GetMapping("/draft")
-    public ResponseEntity<ApiResponse<org.enerscope.economic.dto.EconomicDraftDTO>> draft(
+    public ResponseEntity<ApiResponse<EconomicDraftDTO>> draft(
             @PathVariable UUID projectId, @PathVariable UUID versionId) {
         return Responses.ok("Economic draft", service.getDraft(projectId, versionId));
     }

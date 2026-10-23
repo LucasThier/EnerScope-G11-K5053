@@ -24,5 +24,7 @@ public class EconomicConfigurationEntity extends BaseEntity {
         this.version = version;
         this.configurationJson = json;
     }
-    public void replace(String json) { this.configurationJson = json; }
+    public void replace(String json) {
+        this.configurationJson = json;
+    }
 }

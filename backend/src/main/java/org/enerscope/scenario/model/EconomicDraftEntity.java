@@ -1,4 +1,4 @@
-package org.enerscope.economic.model;
+package org.enerscope.scenario.model;
 
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -19,6 +19,13 @@ public class EconomicDraftEntity extends BaseEntity {
     private String draftJson;
     @jakarta.persistence.Version
     private long revision;
-    public EconomicDraftEntity(Version version, String json) { this.version = version; this.draftJson = json; }
-    public void replace(String json) { this.draftJson = json; }
+
+    public EconomicDraftEntity(Version version, String json) {
+        this.version = version;
+        this.draftJson = json;
+    }
+
+    public void replace(String json) {
+        this.draftJson = json;
+    }
 }

@@ -13,6 +13,10 @@ import org.enerscope.economic.repository.*;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.repository.ProjectRepository;
+import org.enerscope.scenario.dto.EconomicDraftDTO;
+import org.enerscope.scenario.model.EconomicDraftEntity;
+import org.enerscope.scenario.repository.EconomicDraftRepository;
+import org.enerscope.scenario.repository.ScenarioDraftRepository;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.util.AuthUtil;
 import org.enerscope.version.model.Version;
@@ -35,15 +39,25 @@ public class EconomicService {
     private final ObjectMapper mapper;
     private final AppLogger logger;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+    @org.springframework.beans.factory.annotation.Autowired
+    private ScenarioDraftRepository scenarioDrafts;
+    void lock(Version version) {
+        if (entityManager != null && entityManager.getLockMode(version) != jakarta.persistence.LockModeType.PESSIMISTIC_WRITE) {
+            entityManager.flush();
+            entityManager.refresh(version, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        }
+    }
+    void assertNoDraft(Version version) {
+        lock(version);
+        if ((scenarioDrafts != null && scenarioDrafts.existsByVersionId(version.getId())) || drafts.findByVersionId(version.getId()).isPresent())
+            throw new IllegalArgumentException("Hay un borrador pendiente. Completá o descartá los cambios en Configuración del Escenario.");
+    }
     public EconomicConfiguration save(UUID projectId, UUID versionId, EconomicConfiguration configuration) {
         Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
-        validator.validate(configuration, nodeIds(version));
-        validateExportNodes(configuration, version);
-        // Validate fiscal coverage/classification before accepting a configuration, with zero observed quantities.
-        List<OperationalMetric> validationMetrics = new ArrayList<>();
-        for (var m : configuration.conversions()) for (int t = 0; t <= configuration.years(); t++)
-            validationMetrics.add(new OperationalMetric(m.nodeId(), configuration.startYear() + t, m.metric(), m.unit(), java.math.BigDecimal.ZERO));
-        engine.calculate(configuration, validationMetrics);
+        lock(version);
+        validateConfiguration(configuration, version);
         var entity = configurations.findByVersionId(versionId).orElseGet(() -> new EconomicConfigurationEntity(version, ""));
         entity.replace(json(configuration)); configurations.save(entity);
         drafts.deleteByVersionId(versionId);
@@ -51,9 +65,21 @@ public class EconomicService {
         return configuration;
     }
 
-    public org.enerscope.economic.dto.EconomicDraftDTO saveDraft(UUID projectId, UUID versionId,
-            org.enerscope.economic.dto.EconomicDraftDTO draft) {
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
+    void validateConfiguration(EconomicConfiguration configuration, Version version) {
+        validator.validate(configuration, nodeIds(version));
+        validateExportNodes(configuration, version);
+        // Validate fiscal coverage/classification before accepting a configuration, with zero observed quantities.
+        List<OperationalMetric> validationMetrics = new ArrayList<>();
+        for (var m : configuration.conversions()) for (int t = 0; t <= configuration.years(); t++)
+            validationMetrics.add(new OperationalMetric(m.nodeId(), configuration.startYear() + t, m.metric(), m.unit(), java.math.BigDecimal.ZERO));
+        engine.calculate(configuration, validationMetrics);
+    }
+
+    public EconomicDraftDTO saveDraft(UUID projectId, UUID versionId,
+                                      EconomicDraftDTO draft) {
         Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        lock(version);
         EconomicValidator.require(draft != null, "Draft is required");
         draft.validateStructure();
         var entity = drafts.findByVersionId(versionId).orElseGet(() -> new EconomicDraftEntity(version, ""));
@@ -63,10 +89,10 @@ public class EconomicService {
     }
 
     @Transactional(readOnly = true)
-    public org.enerscope.economic.dto.EconomicDraftDTO getDraft(UUID projectId, UUID versionId) {
+    public EconomicDraftDTO getDraft(UUID projectId, UUID versionId) {
         authorize(projectId, versionId, ProjectMemberPermission.VIEW_PROJECT);
         return drafts.findByVersionId(versionId).map(e -> read(e.getDraftJson(),
-                org.enerscope.economic.dto.EconomicDraftDTO.class)).orElse(null);
+                EconomicDraftDTO.class)).orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +103,7 @@ public class EconomicService {
 
     public EvaluationDTO evaluate(UUID projectId, UUID versionId) {
         Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        assertNoDraft(version);
         EconomicConfiguration c = configuration(versionId); validator.validate(c, nodeIds(version));
         validateExportNodes(c, version);
         var codec = new EconomicInputCodec(mapper);
@@ -108,6 +135,7 @@ public class EconomicService {
                 .orElseThrow(() -> new EntityNotFoundException("Economic evaluation not found")));
     }
 
+    @Transactional(noRollbackFor = EntityNotFoundException.class)
     EconomicConfiguration configuration(UUID versionId) {
         return read(configurations.findByVersionId(versionId)
                 .orElseThrow(() -> new EntityNotFoundException("Economic configuration not found")).getConfigurationJson(), EconomicConfiguration.class);
@@ -145,7 +173,7 @@ public class EconomicService {
         return true;
     }
 
-    Version authorize(UUID projectId, UUID versionId, ProjectMemberPermission permission) {
+    org.enerscope.project.model.Project authorizeProject(UUID projectId, ProjectMemberPermission permission) {
         var session = AuthUtil.currentSession();
         if (session == null || session.getUser() == null) throw new UnauthorizedException("Authentication required");
         var project = projects.findById(projectId).orElseThrow(() -> new EntityNotFoundException("Project not found"));
@@ -155,6 +183,10 @@ public class EconomicService {
                     .anyMatch(r -> r.getPermissions().contains(permission));
             if (!allowed) throw new ForbiddenException("Project permission required: " + permission);
         }
+        return project;
+    }
+    Version authorize(UUID projectId, UUID versionId, ProjectMemberPermission permission) {
+        var project=authorizeProject(projectId,permission);
         return project.getVersions().stream().filter(v -> v.getId().equals(versionId) && v.isActive()).findFirst()
                 .orElseThrow(() -> new EntityNotFoundException("Version does not belong to project"));
     }

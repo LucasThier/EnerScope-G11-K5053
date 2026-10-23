@@ -3,13 +3,13 @@ package org.enerscope.version.service;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.node.repository.BaseNodeRepository;
 import org.enerscope.node.repository.NodeConnectionRepository;
+import org.enerscope.scenario.service.ScenarioReferenceService;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
 import org.springframework.stereotype.Service;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.VersionNotFoundException;
@@ -17,12 +17,10 @@ import org.enerscope.node.service.NodeCloner;
 import org.enerscope.node.service.NodeService;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -53,11 +51,8 @@ import org.enerscope.money.MoneyAmount;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.Map;
-import org.enerscope.node.model.GeographicalPosition;
-import org.enerscope.node.model.GraphPosition;
+
 import org.enerscope.node.model.NodeGraphData;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.dto.WellDTO;
@@ -82,13 +77,21 @@ import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.ConnectionChange;
 import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
-import org.enerscope.node.model.enums.ChangeTypeEnum;
 import org.enerscope.project.service.ProjectAccessGuard;
 
 @Service
-@AllArgsConstructor
+@lombok.RequiredArgsConstructor
 @Getter
 public class VersionService {
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager scenarioEntityManager;
+    @org.springframework.beans.factory.annotation.Autowired private ScenarioReferenceService scenarioReferences;
+    private void lockScenario(Version version) {
+        if(scenarioEntityManager != null && scenarioEntityManager.getLockMode(version) != jakarta.persistence.LockModeType.PESSIMISTIC_WRITE) {
+            scenarioEntityManager.flush();
+            scenarioEntityManager.refresh(version, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        }
+    }
+
 
     private final VersionRepository versionRepository;
     private final NodeConnectionRepository connectionRepository;
@@ -272,6 +275,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
@@ -313,6 +317,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
@@ -364,14 +369,14 @@ public class VersionService {
                 money(node.getUpkeepCosts()), money(node.getOperatingCosts()),
                 node.getLifespanInMonths(), node.getMaintenanceIntervalInDays(),
                 (double) node.getWastePercentage(),
-                typeAttributes(node));
+                typeAttributes(node), node instanceof Well w
+                    ? org.enerscope.node.dto.ProbabilisticDistributionDTO.from(w.getDeclineCurve()) : null);
     }
 
     private Map<String, Double> typeAttributes(BaseNode node) {
         Map<String, Double> a = new LinkedHashMap<>();
         if (node instanceof Well w) {
             a.put("maxCollectionCapacity", (double) w.getMaxCollectionCapacity());
-            a.put("declineCurve", (double) w.getDeclineCurve().generateValue());
             a.put("gasRichness", (double) w.getGasRichness());
             a.put("dtmTime", (double) w.getDTMTime());
             a.put("dtmCost", money(w.getDTMCost()));
@@ -546,6 +551,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         // A brand-new node gets a fresh cross-version identity. Only saveWell
         // defaulted this; centralise it here so every node type is covered and
@@ -597,6 +603,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         nodeRepository.findById(connectionDTO.getFromNodeId())
                 .orElseThrow(
@@ -638,6 +645,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         BaseNode requestedNode = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
@@ -686,6 +694,7 @@ public class VersionService {
         }
 
         versionRepository.save(version);
+        if (scenarioReferences != null) scenarioReferences.remap(version, currentNode.getId(), editedNode.getId());
         logger.info("Edited node {} in version {}", nodeId, version.getName());
 
         return editedNode;
@@ -762,6 +771,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         NodeConnection requestedConnection = connectionRepository.findById(connectionId)
                 .orElseThrow(() -> new EntityNotFoundException("Connection not found with id: " + connectionId));
@@ -825,6 +835,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         // Handle regular node deletion
         BaseNode nodeToDelete = nodeRepository.findById(nodeId)
@@ -887,6 +898,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         // Handle connection deletion
         NodeConnection connectionToDelete = connectionRepository.findById(connectionId)

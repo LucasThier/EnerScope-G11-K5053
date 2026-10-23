@@ -11,6 +11,7 @@ import org.apache.commons.statistics.distribution.ContinuousDistribution;
 import org.apache.commons.rng.simple.RandomSource;
 import org.apache.commons.statistics.distribution.NormalDistribution;
 
+@lombok.Getter
 @Entity
 @DiscriminatorValue("NORMAL")
 @NoArgsConstructor

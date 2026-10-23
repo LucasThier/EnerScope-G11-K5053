@@ -46,6 +46,18 @@ public class EconomicInputCodec {
         mapper.addMixIn(ProbabilisticDistribution.class, DistributionType.class);
     }
 
+    public JsonNode physicalNodes(Version version) { return mapper.valueToTree(version.getNodeSnapshot()); }
+
+    /** Validate proposed values before publishing any managed entity changes. */
+    public void validatePrepared(Version version, EconomicConfiguration configuration, Map<UUID, BaseNode> prepared) {
+        var nodes = version.getNodeSnapshot().stream().map(original -> {
+            var tree = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(prepared.get(original.getId()));
+            tree.put("id", original.getId().toString());
+            return (BaseNode) mapper.convertValue(tree, org.hibernate.Hibernate.getClass(original));
+        }).toList();
+        freeze(new Version(version.getName(), null, nodes, version.getConnectionSnapshot(), new ArrayList<>(), new ArrayList<>()), configuration, 1, 0);
+    }
+
     public FrozenEconomicInput freeze(Version version, EconomicConfiguration configuration, int rounds, long seed) {
         List<PhysicalNode> nodes = version.getNodeSnapshot().stream().map(node -> {
             Class<? extends BaseNode> type = TYPES.stream().filter(t -> t.isInstance(node)).findFirst()

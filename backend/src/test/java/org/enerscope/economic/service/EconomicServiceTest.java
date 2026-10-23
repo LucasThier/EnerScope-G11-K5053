@@ -10,6 +10,9 @@ import org.enerscope.organization.model.Organization;
 import org.enerscope.project.model.*;
 import org.enerscope.project.model.enums.*;
 import org.enerscope.project.repository.ProjectRepository;
+import org.enerscope.scenario.dto.EconomicDraftDTO;
+import org.enerscope.scenario.model.EconomicDraftEntity;
+import org.enerscope.scenario.repository.EconomicDraftRepository;
 import org.enerscope.session.model.Session;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
@@ -19,7 +22,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static org.mockito.ArgumentMatchers.*;
 import static org.enerscope.economic.service.EconomicExample.*;
 
 class EconomicServiceTest {
@@ -245,11 +247,11 @@ class EconomicServiceTest {
         verify(configs).save(any(EconomicConfigurationEntity.class));
     }
 
-    private org.enerscope.economic.dto.EconomicDraftDTO incompleteDraft() {
+    private EconomicDraftDTO incompleteDraft() {
         var json = MAPPER.createObjectNode();
         for (String field : List.of("startYear", "years", "currency", "wacc", "entityId", "entityName", "taxRate")) json.put(field, "");
         json.putArray("assets"); json.putArray("rules");
-        return new org.enerscope.economic.dto.EconomicDraftDTO(1, json);
+        return new EconomicDraftDTO(1, json);
     }
 
     @Test void editorSavesIncompleteDraftWithoutChangingConfigurationOrSimulating() {
@@ -280,7 +282,7 @@ class EconomicServiceTest {
     @Test void invalidDraftStructureIsRejectedBeforePersistence() {
         grant(ProjectMemberPermission.EDIT_PROJECT);
         assertThrows(IllegalArgumentException.class, () -> service.saveDraft(projectId, holder.version.getId(),
-                new org.enerscope.economic.dto.EconomicDraftDTO(1, MAPPER.createObjectNode())));
+                new EconomicDraftDTO(1, MAPPER.createObjectNode())));
         verifyNoInteractions(drafts);
     }
 

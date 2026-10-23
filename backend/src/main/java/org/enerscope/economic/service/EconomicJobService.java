@@ -29,6 +29,7 @@ public class EconomicJobService {
 
     public EconomicJobDTO submit(UUID projectId,UUID versionId,EconomicJobRequest request) {
         var version=economics.authorize(projectId,versionId,ProjectMemberPermission.EDIT_PROJECT);
+        economics.assertNoDraft(version);
         var configuration=economics.configuration(versionId);
         validator.validate(configuration,economics.nodeIds(version));
         economics.validateExportNodes(configuration,version);
