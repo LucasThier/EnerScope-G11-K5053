@@ -42,9 +42,10 @@ public class ScenarioConfigurationService {
  @PersistenceContext private EntityManager em;
 
  public ScenarioConfigurationDTO get(UUID project,UUID id) {
-  Version version=economics.authorize(project,id,ProjectMemberPermission.VIEW_PROJECT);
+  Version version = economics.authorize(project,id,ProjectMemberPermission.VIEW_PROJECT);
   return view(project,version,List.of());
  }
+
  private ScenarioConfigurationDTO view(UUID project,Version version,List<String> errors) {
   var configuration=configurations.findByVersionId(version.getId()).map(e->read(e.getConfigurationJson(),EconomicConfiguration.class)).orElse(null);
   var draft=drafts.findByVersionId(version.getId()).map(e->read(e.getDraftJson(),SaveRequest.class)).orElse(null);
@@ -55,6 +56,7 @@ public class ScenarioConfigurationService {
       version.getNodeSnapshot().stream().sorted(Comparator.comparing(n->n.getId().toString())).map(operations::describe).toList(),
       draft,economics.getDraft(project,version.getId()),errors);
  }
+
  public ScenarioConfigurationDTO save(UUID project,UUID id,SaveRequest request) {
   var version=economics.authorize(project,id,ProjectMemberPermission.EDIT_PROJECT);
   economics.lock(version);
@@ -120,7 +122,8 @@ public class ScenarioConfigurationService {
   logger.info("Scenario configuration published for version {}",id);
   return view(project,version,List.of());
  }
- static void remapReferences(JsonNode tree,Map<String,String> ids) {
+
+ public static void remapReferences(JsonNode tree, Map<String, String> ids) {
   if(tree.isObject()) {
    var object=(ObjectNode)tree;
    var keys=new ArrayList<String>();object.fieldNames().forEachRemaining(keys::add);
@@ -131,12 +134,14 @@ public class ScenarioConfigurationService {
    }
   } else if(tree.isArray()) tree.forEach(child->remapReferences(child,ids));
  }
+
  public ScenarioConfigurationDTO discard(UUID project,UUID id,String token) {
-  var version=economics.authorize(project,id,ProjectMemberPermission.EDIT_PROJECT);economics.lock(version);
+  var version = economics.authorize(project,id,ProjectMemberPermission.EDIT_PROJECT);economics.lock(version);
   if(!Objects.equals(token,view(project,version,List.of()).token())) throw new ScenarioConflictException();
   drafts.deleteByVersionId(id);legacyDrafts.deleteByVersionId(id);em.flush();
   return view(project,version,List.of());
  }
+
  public List<Readiness> readiness(UUID project) {
   var p=projects.findById(project).orElseThrow(()->new EntityNotFoundException("Project not found"));
   // Validate project access even when the project has no versions.
@@ -145,11 +150,12 @@ public class ScenarioConfigurationService {
    var errors=new ArrayList<String>();
    if(drafts.existsByVersionId(v.getId()) || legacyDrafts.findByVersionId(v.getId()).isPresent()) errors.add("Hay un borrador pendiente en Configuración del Escenario.");
    try {
-    var config=economics.configuration(v.getId());economics.validateConfiguration(config,v);codec.freeze(v,config,1,0);
+    var config = economics.configuration(v.getId());economics.validateConfiguration(config,v);codec.freeze(v,config,1,0);
    } catch(EntityNotFoundException | IllegalArgumentException e) { errors.add(e.getMessage()); }
    return new Readiness(v.getId(),errors.isEmpty(),errors);
   }).toList();
  }
+
  private String source(Version version,EconomicConfiguration configuration) {
   var root=mapper.createObjectNode();
   root.set("configuration",mapper.valueToTree(configuration));
@@ -157,6 +163,7 @@ public class ScenarioConfigurationService {
   root.set("connections",mapper.valueToTree(version.getConnectionSnapshot()));
   return hash(canonical(root).toString());
  }
+
  private JsonNode canonical(JsonNode node) {
   if(node.isObject()) {
    ObjectNode result=mapper.createObjectNode();var keys=new TreeSet<String>();node.fieldNames().forEachRemaining(keys::add);

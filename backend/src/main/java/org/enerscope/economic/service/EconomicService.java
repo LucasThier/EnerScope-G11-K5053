@@ -43,12 +43,15 @@ public class EconomicService {
     private jakarta.persistence.EntityManager entityManager;
     @org.springframework.beans.factory.annotation.Autowired
     private ScenarioDraftRepository scenarioDrafts;
-    void lock(Version version) {
+
+    //TODO: revisar parametros de entrada
+    public void lock(Version version) {
         if (entityManager != null && entityManager.getLockMode(version) != jakarta.persistence.LockModeType.PESSIMISTIC_WRITE) {
             entityManager.flush();
             entityManager.refresh(version, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         }
     }
+
     void assertNoDraft(Version version) {
         lock(version);
         if ((scenarioDrafts != null && scenarioDrafts.existsByVersionId(version.getId())) || drafts.findByVersionId(version.getId()).isPresent())
@@ -66,7 +69,7 @@ public class EconomicService {
     }
 
     @Transactional(noRollbackFor = IllegalArgumentException.class)
-    void validateConfiguration(EconomicConfiguration configuration, Version version) {
+    public void validateConfiguration(EconomicConfiguration configuration, Version version) {
         validator.validate(configuration, nodeIds(version));
         validateExportNodes(configuration, version);
         // Validate fiscal coverage/classification before accepting a configuration, with zero observed quantities.
@@ -135,8 +138,9 @@ public class EconomicService {
                 .orElseThrow(() -> new EntityNotFoundException("Economic evaluation not found")));
     }
 
+    //TODO: revisar parametros de entrada
     @Transactional(noRollbackFor = EntityNotFoundException.class)
-    EconomicConfiguration configuration(UUID versionId) {
+    public EconomicConfiguration configuration(UUID versionId) {
         return read(configurations.findByVersionId(versionId)
                 .orElseThrow(() -> new EntityNotFoundException("Economic configuration not found")).getConfigurationJson(), EconomicConfiguration.class);
     }
@@ -173,7 +177,8 @@ public class EconomicService {
         return true;
     }
 
-    org.enerscope.project.model.Project authorizeProject(UUID projectId, ProjectMemberPermission permission) {
+    //TODO: revisar alcance
+    public org.enerscope.project.model.Project authorizeProject(UUID projectId, ProjectMemberPermission permission) {
         var session = AuthUtil.currentSession();
         if (session == null || session.getUser() == null) throw new UnauthorizedException("Authentication required");
         var project = projects.findById(projectId).orElseThrow(() -> new EntityNotFoundException("Project not found"));
@@ -185,7 +190,9 @@ public class EconomicService {
         }
         return project;
     }
-    Version authorize(UUID projectId, UUID versionId, ProjectMemberPermission permission) {
+
+    //TODO: revisar alcance
+    public Version authorize(UUID projectId, UUID versionId, ProjectMemberPermission permission) {
         var project=authorizeProject(projectId,permission);
         return project.getVersions().stream().filter(v -> v.getId().equals(versionId) && v.isActive()).findFirst()
                 .orElseThrow(() -> new EntityNotFoundException("Version does not belong to project"));
@@ -205,7 +212,7 @@ public class EconomicService {
         }
     }
 
-    Set<UUID> nodeIds(Version version) {
+    public Set<UUID> nodeIds(Version version) {
         Set<UUID> ids = new HashSet<>();
         if (version.getNodeSnapshot() != null) version.getNodeSnapshot().forEach(n -> ids.add(n.getId()));
         return ids;
