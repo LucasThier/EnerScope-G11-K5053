@@ -53,7 +53,7 @@ Verified on 2026-10-12: **684 executions across 42 classes**, with zero failures
 | `project.repository.ProjectMemberRepositoryTest` | Data | 16 |
 | `project.repository.ProjectRepositoryTest` | Data | 17 |
 | `project.service.ProjectAccessGuardTest` | Unit | 26 |
-| `project.service.ProjectServiceTest` | Unit | 81 |
+| `project.service.ProjectServiceTest` | Unit | 83 |
 | `simulator.EconomicMetricsTest` | Unit | 7 |
 | `simulator.ResultMappingTest` | Data | 7 |
 | `simulator.ResultTest` | Unit | 10 |
@@ -72,7 +72,7 @@ Verified on 2026-10-12: **684 executions across 42 classes**, with zero failures
 | `version.service.VersionConflictServiceTest` | Unit | 17 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 |
 | `version.service.VersionServiceTest` | Unit | 15 |
-| **Total** | | **684** |
+| **Total** | | **686** |
 
 ## `ApplicationContextTest` — Integration
 
@@ -1292,3 +1292,309 @@ Frontend total: 30 unit cases (20 economic editor/formatting, 8 operational, 2 c
 - results-browser.mjs — browser: operational annual detail starts collapsed, opens with a click, toggles with Enter and exposes historical node values on demand. Unit case count remains 30.
 
 - results-browser.mjs — browser: operational bar tooltip shows saved year, metric, converted value/unit; follows pointer movement, dismisses on leave, supports keyboard focus on exports and Escape dismissal. Unit case count remains 30.
+
+## Probabilistic economic integration — 2026-10-14
+
+Validated counts: **711 default backend tests in 46 classes**, plus **4 explicit PostgreSQL tests**, with zero failures/errors/skips. Frontend: **34 unit cases**, plus three browser workflows. This summary supersedes older counts while preserving their history.
+
+### Backend counts from isolated Surefire reports
+
+| Class | Cases |
+|---|---:|
+| ApplicationContextTest | 1 |
+| auth.controller.AuthControllerTest | 16 |
+| common.CsvUtilTest | 5 |
+| economic.controller.EconomicControllerTest | 12 |
+| economic.controller.EconomicJobControllerTest | 4 |
+| economic.service.EconomicEngineTest | 21 |
+| economic.service.EconomicIndicatorsCalculatorTest | 17 |
+| economic.service.EconomicJobServiceTest | 8 |
+| economic.service.EconomicJobWorkerTest | 4 |
+| economic.service.EconomicServiceTest | 22 |
+| economic.service.EconomicSimulationAdapterTest | 2 |
+| economic.service.EconomicStatisticsCalculatorTest | 5 |
+| economic.service.PostgreSqlEconomicIT | 4 |
+| economic.service.ProbabilisticSimulationTest | 8 |
+| jwt.JwtServiceTest | 5 |
+| logging.ConsoleAppLoggerTest | 1 |
+| money.MoneyAmountTest | 7 |
+| node.controller.NodeControllerTest | 1 |
+| node.migration.ExportVerticalMigrationTest | 2 |
+| node.service.NodeServiceTest | 2 |
+| organization.controller.OrganizationControllerTest | 39 |
+| organization.repository.OrganizationMemberRepositoryTest | 11 |
+| organization.repository.OrganizationRepositoryTest | 16 |
+| organization.service.OrganizationBulkRegistrationServiceTest | 13 |
+| organization.service.OrganizationServiceTest | 68 |
+| project.controller.ProjectControllerTest | 43 |
+| project.repository.ProjectMemberRepositoryTest | 16 |
+| project.repository.ProjectRepositoryTest | 17 |
+| project.service.ProjectAccessGuardTest | 26 |
+| project.service.ProjectServiceTest | 83 |
+| simulator.EconomicMetricsTest | 7 |
+| simulator.ResultPerRoundTest | 12 |
+| simulator.SimulatorTest | 15 |
+| strategyCost.CostBasisCalculatorsTest | 10 |
+| strategyCost.CostTest | 8 |
+| strategyCost.InvestmentCostTest | 2 |
+| user.controller.UserControllerTest | 30 |
+| user.repository.UserRepositoryTest | 22 |
+| user.service.PasswordGeneratorTest | 4 |
+| user.service.UserServiceTest | 58 |
+| util.AuthUtilTest | 7 |
+| version.controller.VersionControllerTest | 10 |
+| version.controller.VersionQueryControllerTest | 4 |
+| version.service.VersionConflictIntegrationTest | 7 |
+| version.service.VersionConflictServiceTest | 17 |
+| version.service.VersionQueryServiceTest | 10 |
+| version.service.VersionServiceTest | 15 |
+
+### New and expanded case catalog
+
+#### economic.controller.EconomicJobControllerTest — WebMvcTest with real security filter (4 cases)
+
+| Case | Verifies |
+|---|---|
+| anonymousRequestsCannotReadOrStartJobsOrRounds | All six new routes require authentication. |
+| acceptanceReturns202AndSeedAsStringWithoutWaitingForResults | HTTP 202 returns the envelope, QUEUED state and exact seed string. |
+| missingJobPermissionAndInvalidOptionsUseGlobalErrors | 404/403/400 use the global error envelope. |
+| readRoutesAndRetryPreserveScopedIdentifiersAndEnvelopes | Job/round routes preserve scoped IDs and response contracts. |
+
+#### economic.service.EconomicJobServiceTest — Unit (8 cases)
+
+| Case | Verifies |
+|---|---|
+| submissionFreezesInputsAndQueuesWithoutPublishingEvaluation | Submission applies EDIT_PROJECT, defaults and seed text without publishing results. |
+| roundsMustBeSequentialAndCompletionRequiresAllRounds | Progress rejects duplicates/out-of-order rounds; completion requires all rounds and survives late failure. |
+| successfulAtomicClaimReturnsOnlyFrozenInput | A successful claim reconstructs saved inputs without current configuration reads. |
+| invalidExecutionOptionsAreRejectedWithoutSilentCoercion | Round limits and signed 64-bit seed boundaries reject invalid inputs. |
+| retryUsesFrozenInputAndSeedWithoutReadingCurrentConfiguration | Retry starts at zero with unchanged JSON/seed, without reading current configuration. |
+| runningJobCannotBeRetried | Only failed/interrupted jobs can be repeated. |
+| readsRequireViewPermissionAndScopeJobToVersion | List/detail require VIEW_PROJECT and version-scoped lookup. |
+| lostAtomicClaimDoesNotStartDuplicateWork | A losing conditional claim cannot start duplicate execution. |
+
+#### economic.service.EconomicJobWorkerTest — Unit (4 cases)
+
+| Case | Verifies |
+|---|---|
+| physicalFailureKeepsCompletedRoundsButNeverPublishesPartialEvaluation | A physical error stops execution and never publishes partial statistics. |
+| nonCalculableIrrDoesNotFailAnOtherwiseValidJob | Unavailable indicators do not fail a valid physical/economic execution. |
+| startupInterruptsUnfinishedJobsBeforePollingAndEmptyQueueDoesNothing | Startup interruption precedes queue polling; empty queues never simulate. |
+| completedJobSimulatesEachRoundOnceAndPublishesAfterSavingAllRounds | Each round runs once with its own seed; publication follows all round saves. |
+
+#### economic.service.EconomicStatisticsCalculatorTest — Unit (5 cases)
+
+| Case | Verifies |
+|---|---|
+| summaryUsesEachRoundsOwnIndicatorsAndShowsInvalidCounts | Conditional IRR/Payback denominators exclude unresolved outcomes but retain status counts. |
+| emptyAndSingleObservationStatisticsAreExplicit | Empty samples yield null values; single observations are preserved. |
+| nearestRankPercentilesDoNotInterpolateAndRetainTies | Ascending nearest-rank percentiles preserve ties without interpolation. |
+| uncomputablePaybacksHaveNoInventedRecoveryProbability | Zero applicable observations produce null probability. |
+| perRoundTaxationIsNotTaxationOfMeanProduction | Nonlinear taxes make mean round NPV differ from NPV on mean production. |
+
+#### economic.service.PostgreSqlEconomicIT — PostgreSQL/JPA/MockMvc integration (4 cases)
+
+| Case | Verifies |
+|---|---|
+| completeHttpExampleCreatesVersionNodesAndEvaluation | HTTP creates the example, evaluates synchronously, accepts/claims a two-round job once, and reads persisted results after worker execution without HTTP authentication. |
+| restartInterruptionAndRetryPreserveFrozenInputs | PostgreSQL interrupts queued/running work; retry preserves JSON/seed and completes despite changed current inputs. |
+| migrationsValidateAndEconomicSnapshotSurvivesReloadAndConfigurationChanges | Fresh migrations and Hibernate validation preserve snapshots and percentile result mappings across reload/configuration changes. |
+| historicalIndicatorsAreDerivedWithoutUpdatingPersistedJson | Historical enrichment uses saved inputs without changing stored JSON. |
+
+#### economic.service.ProbabilisticSimulationTest — Unit (8 cases)
+
+| Case | Verifies |
+|---|---|
+| graphRejectsCyclesMissingReferencesAndDuplicateEdges | Invalid graphs fail before execution. |
+| distributionSamplesAreIndependentOfEntitySamplerState | Seeded generators are independent of entity sampling; invalid uniform parameters fail. |
+| snapshotRoundTripPreservesDistributionsAndIgnoresLaterPhysicalEdits | Frozen normal parameters survive serialization and later physical edits, including a minimum signed seed. |
+| constantRoundsPreserveTheCompleteIndependentExample | Every constant round preserves NPV 169.20, IRR 0.1483447840 and recovery years 2034/2035. |
+| declineUsesOperatingAgeAndClampsEachSample | Decline applies at completed operating-age years and clips negative/excess samples. |
+| seedReproducesRoundAndDifferentRoundSeedsChangeAnnualQuantities | Identical seeds reproduce metrics; distinct round seeds change quantities without mutating the source. |
+| reorderingNodesDoesNotChangeTheirRandomStreams | Node collection order does not change seeded results. |
+| annualBoundsAndDelayedStartupRemainExact | Operational years contain exactly 8760 hours, with zero hours before delayed startup. |
+
+### Existing tests adapted to the probabilistic merge
+
+- EconomicServiceTest retains 22 cases; single-execution verification now uses the seeded overload and frozen inputs.
+- EconomicSimulationAdapterTest retains 2 cases and checks that managed Version final results remain untouched.
+- EconomicMetricsTest retains 7 cases: duration calls use years, node steps use hours; annual metrics verify 8760 hours and reject invalid horizons.
+- SimulatorTest retains 15 cases: assertions inspect one physical realization; the random graph fixture excludes duplicate edges.
+- ResultPerRoundTest retains 12 cases: testResultPipeline checks delivered material, inventory and in-transit quantities; testResultLiquefactionPlant and testResultFLNGUnit check hourly input after fuel/contaminant removal and conversion; testResultSeaportTerminal checks cargo plus remaining inventory.
+
+### Frontend unit cases — probabilisticResults.test.mjs (4)
+
+| Case | Verifies |
+|---|---|
+| execution accepts default range and preserves 64-bit seed strings | Defaults/boundaries and seed precision. |
+| execution rejects invalid round counts and unsafe seed syntax | Fractional/out-of-range counts and invalid/overflow seeds fail. |
+| only unfinished jobs are polled | Only QUEUED/RUNNING remain pending. |
+| round selection keeps immutable historical metadata and replaces both result tabs together | Selected physical/economic results share one round while preserving common input metadata. |
+
+### Browser acceptance
+
+- probabilistic-browser.mjs: progress and navigation; polling stops at completion; denominators and seed text; default summary; shared round across tabs; saved node name; round-load error; interrupted-job retry; desktop/mobile screenshots and no content overflow.
+- economic-browser.mjs: asynchronous submission and explicit history refresh; existing save-failure, duplicate-click, drafts, dirty-navigation, filters and permission checks.
+- results-browser.mjs: legacy individual snapshots, charts, unit conversions, tooltips, keyboard/reduced-motion and mobile behavior remain covered.
+
+### Validation environment
+
+Maven used an otherwise identical temporary POM with isolated output target/probabilistic-20261014-clean, excluding obsolete merged classes/resources. The temporary POM is not part of the deliverable. PostgreSQL used a new disposable enerscope_economic_test_probabilistic_20261014b database, without Flyway repair or resets of existing databases. Frontend tests/build/lint and all three browser workflows passed. Vite retains its large-bundle advisory. The physical well editor is explicitly excluded by the user.
+
+- Final review: existing historyDerivesFromSnapshotWithoutSimulationConfigurationLookupOrWrites also verifies preservation of simulation metadata during in-memory enrichment. probabilistic-browser.mjs additionally checks polling pauses while hidden/resumes when visible, and retry after FAILED as well as INTERRUPTED. Case counts remain unchanged.
+
+
+## Operational node editor separation — 2026-10-14
+
+Frontend unit/component suite: 37 cases total (previous 34 plus 3), no failures or skips. New file: frontend/tests/nodeOperationalEditor.test.mjs.
+
+| Case | Type | Verification |
+| --- | --- | --- |
+| node create and edit forms expose operational fields only for every node type | Component rendering | All nine node types omit monetary inputs in creation and edition, retaining operational fields and guidance to Scenarios. |
+| node detail panels omit legacy monetary fields while retaining physical data | Component rendering | All nine node detail panels omit monetary fields and retain lifespan. |
+| operational saves retain hidden legacy costs and complete subtype payloads | Unit | Operational edits preserve hidden costs, subtype fields and source inputs. |
+
+Frontend production build and lint passed. Backend code and tests are unchanged by this UI-only adjustment.
+
+- 2026-10-14 — economic-browser.mjs: Scenario entry regression checks both the scenario name and Configurar y simular open configuration, all five editor sections remain reachable, and job submission follows configuration save with the expected rounds/seed payload.
+
+- 2026-10-14 — advancedEconomicDraft.test.mjs (unit, 2 cases): fiscal edits preserve unrelated policies and immutable source; contract edits preserve deferred schedules and unknown fields. economic-browser.mjs now checks multi-entity configuration editing, complete-payload preservation, reload and asynchronous submission.
+
+- advancedEconomicDraft.test.mjs: third unit case verifies asset concept renaming preserves matching capital and depreciation tax treatments. Frontend unit total: 40.
+
+- 2026-10-15 — Runtime upgrade acceptance: clone the populated October 12 database, apply V16/V17 with Flyway validation, verify legacy well decline preservation, authenticate and submit the existing five-year scenario to evaluation-jobs through completion.
+
+- 2026-10-15 — Upgrade verification passed: historical Flyway checksums validated; V16–V18 applied; three legacy well decline values preserved as constants; backend test suite passed with fixture-compatible container directory layout. Live browser acceptance returned HTTP 202 from Guardar y simular, completed 10/10 rounds and rendered probabilistic results for the existing five-year scenario.
+
+
+## Project isolation and scenario creation — 2026-10-16
+
+- ProjectServiceTest.saveVersionRejectsParentFromAnotherProject (unit): rejects foreign parent IDs before copying or saving.
+- ProjectServiceTest.saveVersionAcceptsParentFromSameProject (unit): accepts a persisted same-project parent and attaches the child. ProjectServiceTest: 83 cases.
+- projectScoping-browser.mjs (browser acceptance): toolbar/header synchronization, late version response rejection, empty-project creation payload, navigation to economic configuration, and map selection restricted to the owning project. Uses isolated fixtures; no live scenario is created.
+- Frontend: 40 unit tests, production build and lint. Economic browser regression also covers viewer permissions and advanced configuration preservation.
+- Backend validation: 713 tests, zero failures/errors/skips, using the previously running enerscope-build-oct15 source plus the two changed project service files. A clean build of the current checkout is blocked by pre-existing missing org.enerscope.probabilistic classes and incompatible physical model sources. The local API uses that validated baseline with the project isolation patch; source files outside this change were not restored or overwritten.
+
+- Live acceptance: Prueba1 returns HTTP 200 with zero versions; editor selects its project ID and displays No versions; Nuevo escenario opens the creation form. No live test scenarios were saved. The stopped local PostgreSQL container was started before checking the API.
+
+
+## Separate scenario configuration and simulation — 2026-10-20
+
+Updated totals (superseding previous totals without removing their historical context):
+**730 default backend cases**, **13 explicit PostgreSQL cases**, and **45 frontend
+unit/component cases**. No failures, errors or skipped tests. Backend output uses
+an isolated target directory; the application POM is unchanged. PostgreSQL uses
+enerscope_economic_test_scenario_20261020 only. Frontend npm test/build/lint and
+four browser scripts passed. Vite reports its existing large-chunk advisory.
+
+### ScenarioOperationsTest — unit, 5 cases
+
+| Case | Verification |
+| --- | --- |
+| physicalEditPreservesCostsGeometryAndOriginalNode | Physical edit preserves inherited costs, geometry, inactive state and the original row. |
+| distributionsRoundTripWithoutSamplingOrSharedMutation | Constant, normal and uniform parameters round-trip into independent distributions. |
+| rejectsNonfiniteNegativeAndFractionalIntegerValues | Rejects nonfinite, negative, fractional and oversized integer inputs. |
+| rejectsUnknownFieldsAndInvalidDistributionBounds | Rejects monetary/unknown fields and inverted distribution limits. |
+| remappingChangesOnlyNodeReferences | Remaps nested nodeId/deliveryNodeId without rewriting concept strings. |
+
+### ScenarioConfigurationTest — Spring/H2 transactional integration, 8 cases
+
+| Case | Verification |
+| --- | --- |
+| publishesPhysicsAndEconomicsTogetherAndRemapsReferencesWithoutMutatingParent | Joint publication replaces physical rows and economic references without changing the parent. |
+| incompleteSavePreservesPublishedValuesAndBlocksJobUntilDiscarded | Incomplete operations save only a draft and prevent a new job. |
+| draftSurvivesReloadAndDiscardEnablesSimulation | Draft survives persistence reload; explicit discard restores readiness and job acceptance. |
+| mapEditAppearsInConfigurationAndRejectsStaleSave | Map edits appear in shared configuration and stale saves return a conflict. |
+| persistedDraftKeepsOriginalSourceAfterMapEdit | Draft source remains unchanged when the map changes published data. |
+| fullMapEditRemapsEconomicAndConnectionReferences | Map copy-on-write preserves old rows and updates economic and connection references in the edited version. |
+| malformedEditorIsRejectedWithoutPersistingDraft | Rejects missing mode and malformed simple/advanced editor structures without storing them. |
+| rejectsForeignVersionAndUnauthorizedUser | Rejects foreign versions and missing authentication. |
+
+### ScenarioConfigurationControllerTest — MVC/security, 4 cases
+
+| Case | Verification |
+| --- | --- |
+| anonymousReadAndSaveAreRejected | Authentication is required before calling the service. |
+| readAndReadinessUseResponseEnvelope | Both read routes retain ApiResponse data envelopes. |
+| staleSaveReturnsConflictAndPermissionFailureReturnsForbidden | Stale content returns 409; service permission failures return 403. |
+| discardRequiresAndPassesConcurrencyToken | If-Match reaches discard; missing header returns 400. |
+
+### ScenarioConfigurationPostgreSqlIT — PostgreSQL/Flyway, 9 cases
+
+Runs all eight ScenarioConfigurationTest cases above on PostgreSQL with real
+migrations and Hibernate schema validation. Additional case:
+`baselineIsIgnoredForExistingHistoryAndUpgradePreservesData` creates an isolated
+schema with a V18 history fixture and witness row, applies only V19, verifies the
+row survives, B18 is ignored and a second migrate applies nothing. The fixture
+schema is dropped afterwards. Existing PostgreSqlEconomicIT retains its four
+economic/API/history cases, giving 13 explicit integration executions.
+
+### scenarioConfiguration.test.mjs — frontend unit, 5 cases
+
+| Case | Verification |
+| --- | --- |
+| new configuration reads shared operational values and preserves incomplete legacy drafts | Initializes operations from shared nodes while recovering raw legacy inputs. |
+| joint draft keeps its original source token after map changes | Restores draft data without replacing its original source token. |
+| complete simple saves publish economics while incomplete saves retain raw input only | Publishes valid configuration or retains incomplete text as draft. |
+| advanced saves preserve contracts and ownership without simple conversion | Keeps the entire advanced aggregate intact. |
+| remote changes refresh clean forms and conflict with local or saved drafts | Distinguishes automatic refresh from a publication-blocking conflict. |
+
+### Browser acceptance
+
+- economic-browser.mjs: separate screens and active sidebar; configuration has no execution controls; joint save and preserved distributions; focus refresh; dirty conflict and explicit discard; draft persistence and execution blocking; rejected save preserves input; navigation guard; modal cancel/default rounds/seed boundaries; one submission with no configuration save; advanced contracts/ownership; read-only permissions; mobile overflow. Screenshots inspected for configuration, operation, simulation dialog and mobile configuration.
+- projectScoping-browser.mjs: existing project/header isolation and stale response checks retained; new scenarios open Configuration; map selection remains scoped to project.
+- results-browser.mjs: existing economic/operational results, historical compatibility, node filters, keyboard navigation and responsive layouts retained.
+- probabilistic-browser.mjs: progress, visible-only polling, summary, shared round selection, failures/retries and responsive layouts retained.
+
+Browser acceptance uses isolated HTTP fixtures, not mutations of live scenarios.
+No existing database was repaired, reset or migrated during this verification.
+
+
+## Simple economic form and restored examples — 2026-10-20
+
+Frontend total: **48 cases** (scenarioConfiguration.test.mjs: 8), no failures or skips; production build and lint passed. Backend code is unchanged in this follow-up (last validation: 730 default and 13 PostgreSQL cases).
+
+New unit cases in scenarioConfiguration.test.mjs:
+- `simple copy leaves the source untouched and produces a separate single-entity aggregate`: verifies immutable source, independent IDs, unique concepts and exclusion of internal transfers.
+- `simple copy with different tax rates requires an explicit choice`: leaves tax rate incomplete instead of guessing.
+- `simple copy remaps physical references and preserves gaps in recognition years`: verifies target-node mapping, nonconsecutive income years and omission of nonrepresentable operating t=0 movements.
+
+economic-browser.mjs replaces advanced editing acceptance with preserved-original summary, absence of advanced fields, confirmed copy creation, simple-form navigation and immutable source; it simulates new physical UUIDs and retains conflict/draft/mobile/permission checks. projectScoping-browser.mjs remains passing. Live read-only browser acceptance verifies restored five/ten-year scenarios and the new simple copy; original scenario/evaluation IDs were preserved.
+
+## Optional project descriptions and numeric editing — 2026-10-21
+
+Validation: 733 backend tests and 50 frontend tests passed, without failures or skips. Frontend production build and lint passed.
+
+Updated backend case counts: ProjectControllerTest and ProjectServiceTest are recorded by the current Surefire reports; additions are two controller cases and one service case (the clearing-description case replaces the old rejection case).
+- ProjectControllerTest (MVC): `createProjectAcceptsMissingOrBlankDescription` accepts omitted, null and empty descriptions.
+- ProjectControllerTest (MVC): `createProjectRejectsOverlongDescription` preserves the 500-character limit.
+- ProjectServiceTest (unit): `createProjectNormalizesMissingAndBlankDescription` persists an empty string for missing or blank descriptions.
+- ProjectServiceTest (unit): `updateProjectAllowsClearingDescription` replaces `updateProjectRejectsABlankDescription` and verifies clearing an existing description.
+- nodeOperationalEditor.test.mjs (component; 5 cases total): `new node numeric fields start blank except the maintenance default` checks every node type.
+- nodeOperationalEditor.test.mjs (component): `editing a node preserves saved zero and nonzero numeric values` verifies stored values remain visible.
+- formInputs-browser.mjs (browser acceptance): creates a project without description, clears numeric inputs with the keyboard, enters decimals and verifies numeric submission. HTTP fixtures isolate this test from live user data.
+
+Current per-class totals: ProjectControllerTest **45**, ProjectServiceTest **84**, nodeOperationalEditor.test.mjs **5**.
+
+## Map decline editor — 2026-10-21
+
+- VersionServiceTest (unit, 16 cases): `nodeDetailPreservesDistributionParametersWithoutSampling` verifies repeated reads of constant, normal and uniform wells return exact parameters without invoking random sampling.
+- NodeServiceTest (unit, 3 cases): `wellJsonPreservesAllDistributionTypesThroughSave` deserializes each distribution through the polymorphic node DTO and verifies the saved entity's parameters.
+- nodeOperationalEditor.test.mjs (component/unit, 6 cases): `distribution edits preserve parameters and hidden fields in the well payload` checks all distributions, logical identity, legacy costs and populated edit fields. The existing payload case now verifies the distribution object instead of the obsolete scalar.
+- formInputs-browser.mjs: extends keyboard/optional-description acceptance with constant creation, invalid normal/uniform blocking, saves and reopening both distributions with unchanged parameters. HTTP fixtures avoid modifying live user data.
+
+Validation totals: **735 backend tests**, **51 frontend tests**, zero failures/skips; build, lint and browser acceptance passed.
+
+## Explicit node type regression tests — 2026-10-22
+
+NodeRequestDeserializerTest (unit, 3 cases):
+- `everySupportedNodeTypeSelectsItsDeclaredClass`: all nine supported values bind the corresponding DTO without needing distinctive physical fields.
+- `overlappingPlantFieldsRespectDiscriminatorRegardlessOfOrder`: the screenshot values (140/1/80/30) select ground plant or FLNG according to type.nodeType, whether type appears first or last.
+- `missingMalformedUnknownAndUnsupportedTypesAreRejected`: invalid type input fails instead of guessing.
+
+VersionControllerTest (MVC, now 12 cases):
+- `groundPlantCreateAndEditUseExplicitType`: POST and PATCH accept the overlapping plant fields and pass a GroundBasedLiquefactionPlantDTO to the service.
+- `missingOrUnknownNodeTypeReturnsBadRequestWithoutSaving`: invalid requests return 400 without invoking creation.
+- Existing authorization tests now include the explicit type in their well fixtures; their 401/403 expectations remain unchanged.
+
+Validation: **740 backend tests**, **51 frontend tests**, no failures or skipped tests. Frontend build and lint passed. Backend output isolated in target/node-type-20261022.

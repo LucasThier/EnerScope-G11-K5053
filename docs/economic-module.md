@@ -232,7 +232,7 @@ one simulation, then the engine, then persists one independent evaluation. An
 unavailable indicator never invalidates NPV or prevents saving the evaluation.
 Numerical failures on new evaluations are logged through `AppLogger` as warnings.
 
-The **Guardar y simular** action now calls `POST /evaluation-jobs`, returning a
+The **Simular** dialog in **Simulación de Escenarios** calls `POST /evaluation-jobs`, returning a
 persisted job immediately. Each completed physical round has its own NPV, IRR and
 Paybacks. The compatibility `POST /evaluations` remains synchronous and single-round.
 
@@ -573,21 +573,108 @@ Invoke-RestMethod -Uri "$base/evaluations/$evaluationId/rounds" -Headers $header
 Invoke-RestMethod -Uri "$base/evaluations/$evaluationId/rounds/1" -Headers $headers
 ```
 
-### Screens and scoped limitation
+### Configuración y simulación separadas
 
-Guardar y simular submits the asynchronous endpoint after saving the configuration.
-Rounds and seed are execution options. The page shows progress, allows navigation,
-polls every two seconds while visible and stops at completion/failure/interruption.
-Retry preserves frozen inputs and seed. Schema 3 opens a statistical summary; the
-round selector drives both existing economic and operational tabs together.
-Operational ranges retain node names and saved unit conversions. Old evaluations
-remain individual results; the UI never recomputes economic indicators.
+**Configuración del Escenario** lista las versiones del proyecto y permite crear
+escenarios. El formulario conserva las secciones General, Inversión, Ingresos,
+Costos e Impuestos, utilizando exclusivamente el formulario simple. La pestaña **Operación**
+edita las características físicas de los nodos existentes, incluidas distribuciones
+constante, normal y uniforme. Solo ofrece **Guardar** y **Descartar cambios**.
 
-**Explicitly deferred by the user on 2026-10-14:** the physical well editor still
-uses the old numeric decline field and its detail contract does not expose the
-distribution parameters. This delivery does not change that editor. Configure
-physical distributions through the existing node API (as the fixture/script does)
-until that separate form/contract adaptation is implemented.
+**Simulación de Escenarios** muestra búsqueda, fecha y preparación. Su única acción
+por fila es **Simular**: un diálogo solicita rondas (1–100, inicialmente 10) y semilla
+opcional. La semilla se transmite como texto de entero con signo de 64 bits.
+Confirmar envía una sola solicitud a `POST /economics/evaluation-jobs` y abre el
+historial. No guarda configuraciones desde el diálogo. El nombre abre historial,
+progreso y resultados. La consulta de progreso continúa cada dos segundos mientras
+la pantalla está visible y termina cuando finaliza o falla la ejecución.
+
+El mapa mantiene sus pantallas, formularios y contratos de edición. Creación y
+eliminación de nodos, conexiones y posiciones siguen allí. Operación consulta los
+mismos nodos persistidos, sin otra copia operativa. La adaptación visual de
+distribuciones del mapa continúa fuera de alcance; la nueva pantalla sí expone los
+parámetros completos. No se modifica el simulador horario.
+
+Al volver a enfocar Configuración se consulta el servidor: un formulario limpio se
+actualiza; si existen cambios locales o un borrador y cambió el contenido de origen,
+se bloquea el guardado y se ofrece descartar y recargar. Los cambios no se
+sobrescriben silenciosamente. Salir con modificaciones locales requiere confirmación.
+
+### Guardado conjunto, API y concurrencia
+
+Todas las rutas siguientes llevan el prefijo `/api/v1/projects/{projectId}/versions`:
+
+| Método y ruta | Contrato |
+| --- | --- |
+| `GET /{versionId}/scenario-configuration` | Publicación económica, nodos operativos, borrador conjunto/legado, validaciones y tokens |
+| `PUT /{versionId}/scenario-configuration` | Guarda el conjunto; publica solo cuando ambas partes son válidas |
+| `DELETE /{versionId}/scenario-configuration/draft` | Descarta borradores; requiere cabecera `If-Match` con el token leído |
+| `GET /simulation-readiness` | Estado y pendientes por versión, sin cargar resultados completos |
+
+Se conservan `ApiResponse`, `Responses`, `GlobalExceptionHandler` y `AppLogger`.
+Lectura requiere `VIEW_PROJECT`; guardar, descartar y ejecutar requieren
+`EDIT_PROJECT`; los administradores de plataforma conservan acceso.
+
+La lectura devuelve `token`, `sourceToken`, `configuration`, `nodes`, `draft`,
+`legacyDraft` y `errors`. Cada nodo incluye `id`, `identity`, `name`, `type`,
+descriptores `fields` y `values`. Las distribuciones usan `{type,a,b}`:
+CONSTANT: a=valor; NORMAL: a=media, b=desviación; UNIFORM: a=mínimo, b=máximo.
+Los instantes usan ISO 8601; los números incompletos pueden conservarse como texto
+en el borrador.
+
+El PUT contiene `token`, `sourceToken`, `editor: {mode,value}`, `configuration` y
+`operations`, diccionario por UUID físico con todos los campos operativos leídos.
+`mode` es `simple` o `advanced`. El editor simple incompleto envía configuración
+nula y conserva sus valores originales en `editor.value`. No deben reconstruirse
+ni truncarse contratos, participaciones o campos desconocidos del agregado avanzado.
+
+`sourceToken` identifica configuración publicada, nodos y conexiones relevantes.
+Excluye posiciones visuales y timestamps. `token` incorpora además los borradores.
+Un token obsoleto devuelve HTTP 409. Un borrador recuperado retiene su token de
+origen, aunque el token de la respuesta sea actual.
+
+`ScenarioConfigurationService` bloquea la versión y valida primero el conjunto.
+Si está completo publica economía y operación en una transacción y elimina ambos
+tipos de borrador. Si falta información, responde HTTP 200 con `draft` y `errors`:
+guarda únicamente el borrador, sin aplicar cambios parciales. La forma del editor
+y el límite de tamaño también se validan. Los borradores conjuntos viven en
+`ScenarioDraft` / `scenario_draft`, una fila por versión con revisión optimista;
+los borradores económicos V13 siguen siendo recuperables y bloquean ejecuciones.
+
+`ScenarioOperations` conserva costos heredados, geometría e identidad lógica.
+Una publicación física crea filas nuevas; conexiones y referencias económicas
+`nodeId`/`deliveryNodeId` se actualizan dentro de la misma versión.
+`ScenarioReferenceService` mantiene esas referencias cuando el flujo existente del
+mapa clona un nodo. Los snapshots históricos no se alteran. La aceptación de trabajos
+comparte el bloqueo de versión y vuelve a validar antes de congelar la entrada;
+ambos endpoints de nueva evaluación rechazan borradores pendientes. Repetir un
+trabajo fallido/interrumpido continúa usando su entrada congelada original.
+
+Ejemplo reproducible de lectura y guardado sin pérdida de campos (PowerShell):
+
+```powershell
+$scenarioUrl = "$api/api/v1/projects/$projectId/versions/$versionId/scenario-configuration"
+$state = (Invoke-RestMethod $scenarioUrl -Headers $headers).data
+# Ejemplo para una configuración económica avanzada ya publicada.
+$operations = @{}
+foreach ($node in $state.nodes) { $operations[$node.id] = $node.values }
+$body = @{
+    token = $state.token; sourceToken = $state.sourceToken
+    editor = @{ mode = 'advanced'; value = $state.configuration }
+    configuration = $state.configuration; operations = $operations
+}
+$saved = (Invoke-RestMethod $scenarioUrl -Method Put -Headers $headers `
+    -ContentType 'application/json' -Body ($body | ConvertTo-Json -Depth 100)).data
+if ($saved.draft) { $saved.errors; throw 'Hay pendientes: no simular' }
+$jobUrl = "$api/api/v1/projects/$projectId/versions/$versionId/economics/evaluation-jobs"
+Invoke-RestMethod $jobUrl -Method Post -Headers $headers -ContentType 'application/json' `
+    -Body '{"rounds":10,"seed":"42"}'
+```
+
+Resultados y estadísticas conservan su contrato anterior: schema 3 abre resumen y
+selección de ronda compartida entre pestañas económica y operativa; schemas 1/2
+siguen como evaluaciones individuales. Los rangos mantienen nodo y unidad, y la
+interfaz nunca recalcula indicadores fiscales o económicos.
 
 ## Verification and migrations
 
@@ -597,7 +684,7 @@ mvn test
 # Separate real PostgreSQL verification: use a dedicated, disposable database.
 $env:ECONOMIC_TEST_DATABASE_URL = 'jdbc:postgresql://127.0.0.1:55439/enerscope_economic_test'
 # Set ECONOMIC_TEST_DATABASE_USER/PASSWORD if required by your local server.
-mvn '-Dtest=PostgreSqlEconomicIT' test
+mvn '-Dtest=PostgreSqlEconomicIT,ScenarioConfigurationPostgreSqlIT' test
 cd ../frontend
 npm ci
 npm test
@@ -612,13 +699,18 @@ Flyway and uses Hibernate `validate`; test data is transactionally rolled back.
 V11 introduces economic tables and renames the legacy result year column;
 V12 adds maintenance duration and FLNG gas consumption. V16 introduces economic
 jobs and rounds, and permits percentile result rows without a legacy Result owner.
-For this branch only, the user confirmed the probabilistic merge had not been
-applied to databases requiring preservation: the conflicting V8.5 was restored to
-the prior valid result schema, V1.5's filename was normalized, and the merge's V2
-syntax/duplicate FLNG column were reconciled with V12. These are not instructions
-to rewrite an applied database history. No Flyway repair or database reset is used.
-Verify from a fresh disposable PostgreSQL database before deployment; never point
-the integration suite at a production database.
+V19 agrega el borrador conjunto. `B18__initial_schema.sql` es una migración inicial
+consolidada para **bases vacías**: Flyway aplica B18 y luego V19. Corrige únicamente
+en ese nuevo archivo los problemas de instalación inicial detectados en el historial
+del merge. Los archivos V1–V18 permanecen intactos.
+
+En bases con historial Flyway existente, B18 se ignora y se aplican las migraciones
+versionadas pendientes. No se hace `repair`, no se modifica el historial y no se
+desactiva validación. Si una base tiene checksums o un esquema incompatibles con la
+rama, debe revisarse su historial antes de desplegar; la migración inicial no
+disimula esos conflictos. La prueba de actualización crea exclusivamente un esquema
+descartable con historial V18 y un dato testigo, aplica V19 y verifica preservación
+e idempotencia.
 
 The editable integrated diagram is in `backend/docs/backend-class-diagram.drawio`.
 The Spanish PDF and its diagram pages are generated by `docs/tools/build-economic-document.py`
@@ -644,3 +736,33 @@ Pre-existing integration blockers were corrected with explicit authorization:
 These are persistence/test fixes, with no changes to the simulator's hourly behavior.
 The earlier Draw.io/PDF artifacts predate these indicator classes; the class table
 in this document describes the current indicator implementation.
+
+
+### Formulario simple y recuperación de ejemplos
+
+La pantalla ya no abre el editor avanzado. Los escenarios compatibles se editan
+con EconomicEditor. Un agregado que exceda ese modelo se conserva con un resumen
+y la acción «Crear copia simple»; sus contratos, participaciones, borradores y
+resultados nunca se reemplazan por una conversión implícita.
+
+La acción requiere confirmación, crea una versión hija y publica o guarda como
+borrador su configuración simple. Reconcilia los nuevos UUID físicos por identidad
+lógica. createSimpleCopyDraft conserva horizonte, moneda, WACC, activos e importes
+de reglas compatibles y contratos externos, separando intervalos cuando existen
+años sin reconocimiento. La copia usa una entidad al 100 %, ingresos gravados,
+costos deducibles y cobros/pagos al cierre del año. Omite transferencias internas,
+movimientos no monetarios, reglas con drivers no representables y movimientos
+operativos de t=0; no traslada quebrantos ni tratamientos particulares. Si las
+entidades tienen tasas diferentes, deja la tasa vacía para una elección explícita.
+La copia debe revisarse: no promete los mismos flujos ni indicadores del original.
+Los activos iniciales sí permanecen como inversión. Los datos incompletos siguen
+guardándose como borrador y bloquean la simulación.
+
+Se restauraron los proyectos Demo · Cadena de GNL y Prueba1 desde
+enerscope_run_oct15, con los tres escenarios originales y sus 15 evaluaciones,
+en enerscope_restored_examples_20261020. También se incorporó el ejemplo reciente,
+con sus dos evaluaciones, conservando su configuración avanzada y creando una
+copia simple independiente. La instancia local utiliza esa base restaurada; las
+bases originales y sus historiales Flyway permanecen intactos. La restauración de
+datos se hizo sobre el esquema B18/V19 validado, sin reparar historiales existentes.
+

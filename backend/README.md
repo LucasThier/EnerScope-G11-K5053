@@ -395,3 +395,16 @@ the intended database in the local `.env`. The probabilistic frontend requires
 the `/economics/evaluation-jobs` endpoints. Legacy scalar well declines are preserved 
 as constant distributions by V17; V18 adds the FLNG capacity column. Do not repair or 
 reset historical migrations to bypass incompatibilities.
+
+
+### Scenario configuration migration and verification 
+
+Fresh PostgreSQL installations use Flyway B18 followed by V19. Existing Flyway histories ignore B18; do not repair or reset databases to adopt it. V19 adds joint scenario drafts. Run `mvn test`, then `mvn -Dtest=PostgreSqlEconomicIT,ScenarioConfigurationPostgreSqlIT test` with ECONOMIC_TEST_DATABASE_URL pointing exclusively to a disposable enerscope_economic_test database. See docs/economic-module.md for the joint configuration/readiness API.
+
+### Project description input
+
+POST `/projects` accepts an omitted, null or blank `description` and stores an empty string. The maximum length remains 500 characters. PATCH accepts an empty description to clear it; an omitted or null description leaves it unchanged.
+
+### Explicit node type 
+
+POST `/version/{versionId}/node` and PATCH `/version/{versionId}/node/{nodeId}` require `type.nodeType`. The backend chooses the concrete DTO using that value, not overlapping physical fields. Supported values are WELL, GATHERING_NETWORK, TREATMENT_PLANT, PIPELINE, COMPRESSING_PLANT, GROUND_LIQUEFACTION_PLANT, FLNG_UNIT, SEAPORT_TERMINAL and LNG_CAMER (existing enum spelling). Missing or unsupported values return 400. Existing editor payloads already contain the discriminator; no migration is required.

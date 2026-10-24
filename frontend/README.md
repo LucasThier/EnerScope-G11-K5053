@@ -211,3 +211,8 @@ In Simulaciones / Escenarios, users with edit permission can select Nuevo escena
 enter a name, and optionally copy a version from the same project. Crear y configurar 
 opens the economic editor. Editar mapa opens that scenario’s physical graph. 
 Project selection is shared with the global header.
+
+
+### Scenario configuration and simulation
+
+Configuration is at `/projects/:projectId/scenario-configurations`; scenario forms retain `/projects/:projectId/versions/:versionId/economics/configuration`. Simulation remains `/projects/:projectId/versions`, with a rounds/seed dialog. The map is unchanged. Browser acceptance: economic-browser.mjs, projectScoping-browser.mjs, results-browser.mjs and probabilistic-browser.mjs under tests; set APP_URL and PLAYWRIGHT_MODULE for a local Vite server and Playwright installation.

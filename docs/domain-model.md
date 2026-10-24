@@ -438,3 +438,4 @@ completedRounds, lifecycle timestamps/error and an optional unique evaluationId.
 up to rounds EconomicRound records, unique by (job, round number), with full snapshotJson and 
 small summaryJson. A completed job links one EconomicEvaluation; failed/interrupted jobs publish 
 none. FrozenEconomicInput and ProbabilisticSummary are value records, not shared physical JPA state.
+

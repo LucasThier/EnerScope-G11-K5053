@@ -2162,3 +2162,23 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - 2026-10-16 — Editor project selection shares ActiveProjectProvider with the header. Project changes remount editor state; version and diagram requests discard stale responses. Scenarios are project versions: New scenario creates an empty version or copies a parent from the same project, then opens economic configuration. ProjectService rejects foreign/inactive parent versions.
 
 - 2026-10-16 — Current checkout cannot clean-build the probabilistic backend because required physical distribution sources are absent. Local runtime was patched from the previously validated October 15 build, with ProjectService and its tests replaced; do not treat this as validation of the entire current checkout.
+
+
+- 2026-10-20 — **Separate scenario configuration and execution**
+  - Configuration owns economic and operational edits; execution owns rounds/seed and submits without saving. Map frontend and physical simulation behavior are unchanged.
+  - Joint invalid edits persist as drafts without partial publication; both legacy and joint drafts block new evaluations. Historical retry retains frozen inputs.
+  - Version locks coordinate map edits, joint saves and job acceptance. Source/content tokens detect stale forms; graph positions are excluded. Full node clones remap version-local connections and economic references.
+  - User authorized compatible fresh installation: new B18 baseline fixes the initial schema only for empty databases. V1–V18 remain unchanged; V19 introduces scenario_draft. Never repair or reset existing databases automatically
+  - User requests the simple economic form only. Preserve complex originals and offer an explicitly confirmed simple copy; remap physical UUIDs by logical identity and preserve recognition-year gaps. Copies do not promise financial equivalence. Original databases are retained; runtime now uses enerscope_restored_examples_20261020 with the previous three examples/15 evaluations and the recent example/two evaluations.
+
+- 2026-10-21 — **Optional descriptions and editable numeric inputs**
+  - Project descriptions are optional on creation; null, omitted and whitespace-only input is normalized to an empty string, preserving the non-null database column. The 500-character limit remains. Editing permits clearing the description; an omitted PATCH field remains unchanged.
+  - Node forms keep numeric input as text until submission, allowing empty fields and decimal typing. New zero-default fields start blank; the existing maintenance default of 30 days remains. Editing preserves saved values, including explicit zero. Numeric conversion occurs on submission; physical simulation rules are unchanged.
+
+- 2026-10-21 — **Well decline distribution editor**
+  - User now authorized the previously deferred map distribution editor. The map creates and edits CONSTANT, NORMAL and UNIFORM distributions using the existing node API (`type`, `val_a`, `val_b`). Constant/bounds use annual percentage points in [0,100]; normal standard deviation must be positive. Simulation clipping and additive decline are unchanged.
+  - Node detail exposes `declineCurve` with persisted parameters. Reading a well never samples its distribution. The former sampled scalar is no longer emitted in `attributes`. The frontend keeps the complete distribution on edit, along with hidden legacy costs and logical identity.
+
+- 2026-10-22 — **Explicit node request discriminator**
+  - Node creation and editing now route by the existing `type.nodeType` field. Field-name deduction was ambiguous for ground liquefaction plants because FLNG includes the same fields. NodeRequestDeserializer uses a fixed allowlist of the nine supported editor DTO types; it never resolves arbitrary class names or falls back to guessing.
+  - Missing, malformed, unknown and unsupported node types return HTTP 400. Frontend payload shape and persisted scenarios are unchanged. The concrete DTOs disable the inherited routing deserializer to avoid recursive dispatch.

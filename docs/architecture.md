@@ -68,4 +68,3 @@ See `AGENTS.md` for the full convention.
 | DTO | `<feature>/dto` | Request/response records for that feature |
 | Filter | `<feature>/filter` | Servlet filters (e.g. `auth/filter/AuthFilter`) |
 | Config | `config` | Security, CORS, crypto, OpenAPI, JPA (flat, cross-cutting) |
-
