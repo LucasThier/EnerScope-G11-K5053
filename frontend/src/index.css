@@ -65,6 +65,55 @@
   --color-danger-400: oklch(70.4% 0.191 22.216);
   --color-danger-600: oklch(57.7% 0.245 27.325);
   --color-danger-700: oklch(50.5% 0.213 27.518);
+
+  /* Warning — the amber the editor's "unsaved changes" banner used to reach for
+     directly. Same values, now inside the system so the dark theme can restate
+     them like every other ramp. */
+  --color-warn-50: oklch(98.7% 0.022 95.277);
+  --color-warn-100: oklch(96.2% 0.059 95.617);
+  --color-warn-200: oklch(92.4% 0.12 95.746);
+  --color-warn-700: oklch(55.5% 0.163 48.998);
+  --color-warn-800: oklch(47.3% 0.137 46.201);
+
+  /* Semantic roles. These name *what a colour is for* rather than where it sits
+     on a ramp, which is what lets a second theme restate them. In the light
+     theme every one of them equals the value the components used literally
+     before, so this theme is unchanged.
+
+     - page / surface / raised are the three elevations: the page, the sheets on
+       it (cards, the chrome, the controls), and what floats above them (modals,
+       popovers, the editor's panels). ink-50 stays the hover fill, one step off
+       whichever surface it lands on.
+     - on-accent is the label on a filled accent — brand, danger, neutral or a
+       node's vertical colour.
+     - focus is the keyboard focus indicator, and it is the one accent that is
+       NOT allowed to be subtle: it has to clear 3:1 against every surface,
+       hover fill and tint it can land on, which the brand ramp's mid greens do
+       not. In the light theme it is a deep green; in the dark theme the ramp's
+       own mid green already clears it.
+     - fill-neutral / -strong are the secondary button and the avatar disc.
+     - hero-* is the sign-in plate, which is a dark panel in both themes.
+     - sample-* are the swatches that picture each theme in Configuración, so
+       they must not follow the theme being pictured. */
+  --color-page: #f5f7f9;
+  --color-surface: #ffffff;
+  --color-raised: #ffffff;
+  --color-on-accent: #ffffff;
+  --color-focus: #1b5e20;
+  --color-fill-neutral: #2f3841;
+  --color-fill-neutral-strong: #232b33;
+  --color-scrim: #232b33;
+  --color-hero: #161b21;
+  --color-hero-line: #2f3841;
+  --color-hero-node: #454f5a;
+  --color-hero-text: #aab6c2;
+
+  --color-sample-light-page: #f5f7f9;
+  --color-sample-light-surface: #ffffff;
+  --color-sample-light-accent: #2e7d32;
+  --color-sample-dark-page: #0f141a;
+  --color-sample-dark-surface: #232c35;
+  --color-sample-dark-accent: #a5e8ad;
 }
 
 /* Base page surface. Kept minimal — everything else is Tailwind utilities. */
@@ -74,7 +123,110 @@ body,
   min-height: 100%;
 }
 
+html {
+  color-scheme: light;
+}
+
 body {
-  background-color: var(--color-ink-50);
+  background-color: var(--color-page);
   color: var(--color-ink-700);
+}
+
+/*
+ * NIGHT MODE — the same system restated, not a filter over it.
+ *
+ * Declaring the tokens again under this selector is the whole mechanism: every
+ * utility in the app already reads them through var(), so the components change
+ * theme without being touched. The rules the light theme documents above still
+ * hold here — green is an accent and never a surface, borders and text come
+ * from the ink ramp, ink-500 is the floor for text — because each token keeps
+ * its ROLE and only changes its VALUE. That is what makes the two themes one
+ * design rather than two.
+ *
+ * WHERE each colour goes, in the order you meet it going up off the page:
+ *
+ *   page     #0f141a   the page itself. Not black: a blue-tinted charcoal, so
+ *                      the ink hue survives and large areas stay restful.
+ *   surface  #181f26   cards, the top bar, the sidebar, the form controls — the
+ *                      sheets that sit on the page.
+ *   raised   #232c35   modals, popovers, the editor's floating panels.
+ *   ink-50   #303a45   the hover fill, now LIGHTER than the surface it lands
+ *                      on. A hover lifts in the dark the same way it darkens in
+ *                      the light: one step away from the surface, either way.
+ *
+ * Elevation is carried by those four steps and by borders a notch more visible
+ * than their light counterparts (a card's border goes from 1.12:1 to 1.89:1
+ * against the page), because a drop shadow does nothing over a dark ground.
+ *
+ * The ink ramp inverts around its middle: what was a dark text colour becomes a
+ * light one, what was a light surface becomes a dark one, and the rungs in
+ * between keep their jobs.
+ *
+ *   ink-100  borders and dividers
+ *   ink-200  the border that identifies a control
+ *   ink-300  dividers only — never text
+ *   ink-400  placeholders, decorative icons, disabled labels (5.42:1)
+ *   ink-500  <- the floor for secondary text, labels and metadata (7.60:1)
+ *   ink-600  form labels (9.78:1)
+ *   ink-700  body text (12.46:1)
+ *   ink-800  headings (14.78:1)
+ *
+ * The accents invert their polarity: on a dark ground a light green reads as
+ * the accent and a dark label reads on top of it, so brand-800 stays the one
+ * token for links, active navigation and the primary button's fill, with
+ * on-accent as its label. Same for danger and for warn.
+ *
+ * Ratios above are against `surface`; every text/background, focus and control
+ * pair in both themes is measured by the contrast script, and this theme clears
+ * WCAG AA on all of them.
+ */
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-brand-50: #16301c;
+  --color-brand-100: #1d4024;
+  --color-brand-200: #2a5c33;
+  --color-brand-300: #3c7d47;
+  --color-brand-400: #5fae6b;
+  --color-brand-500: #6cc077;
+  --color-brand-600: #7fcf89;
+  --color-brand-700: #92dc9b;
+  --color-brand-800: #a5e8ad;
+  --color-brand-900: #bdf2c3;
+
+  --color-ink-50: #303a45;
+  --color-ink-100: #3a4550;
+  --color-ink-200: #4a5663;
+  --color-ink-300: #5f6d7b;
+  --color-ink-400: #8695a4;
+  --color-ink-500: #a3b1bf;
+  --color-ink-600: #bdc8d2;
+  --color-ink-700: #d8e0e7;
+  --color-ink-800: #eef2f6;
+  --color-ink-900: #f8fafb;
+
+  --color-danger-50: #3a1518;
+  --color-danger-200: #5c2328;
+  --color-danger-400: #d4707a;
+  --color-danger-600: #ffa8ad;
+  --color-danger-700: #ffc2c6;
+
+  --color-warn-50: #3a2a0c;
+  --color-warn-100: #4d3810;
+  --color-warn-200: #6a4f17;
+  --color-warn-700: #f0cf8a;
+  --color-warn-800: #f7e2b4;
+
+  --color-page: #0f141a;
+  --color-surface: #181f26;
+  --color-raised: #232c35;
+  --color-on-accent: #111820;
+  --color-focus: #5fae6b;
+  --color-fill-neutral: #cfd8e0;
+  --color-fill-neutral-strong: #e4eaef;
+  --color-scrim: #000000;
+  --color-hero: #1a2129;
+  --color-hero-line: #2f3841;
+  --color-hero-node: #454f5a;
+  --color-hero-text: #aab6c2;
 }

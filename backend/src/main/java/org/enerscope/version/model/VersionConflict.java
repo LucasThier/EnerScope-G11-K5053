@@ -15,6 +15,8 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 /**
  * Records that merging {@code sourceVersion} into {@code mergedVersion} touched
@@ -32,14 +34,17 @@ public class VersionConflict extends BaseEntity {
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "merged_version_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Version mergedVersion;
 
-    @ManyToOne(optional = false)
-    @JoinColumn(name = "source_version_id", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "source_version_id", nullable = true)
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     private Version sourceVersion;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "conflicting_version_id", nullable = false)
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private Version conflictingVersion;
 
     @Column(name = "entity_type", nullable = false)

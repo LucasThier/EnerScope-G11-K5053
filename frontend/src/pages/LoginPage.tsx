@@ -1,5 +1,6 @@
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
 import { LoginForm } from '../components/auth/LoginForm';
 import { Card } from '../components/ui/Card';
 import { Logo } from '../components/ui/Logo';
@@ -19,6 +20,7 @@ const HIGHLIGHTS = [
 
 export function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth();
+  const { resolved } = useTheme();
   const navigate = useNavigate();
 
   if (isLoading) {
@@ -29,12 +31,12 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-ink-50 lg:flex-row">
+    <div className="flex min-h-screen flex-col bg-page lg:flex-row">
       <BrandPanel />
       <div className="flex flex-1 items-center justify-center px-6 pt-10 pb-24">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex justify-center lg:hidden">
-            <Logo variant="full" size="lg" />
+            <Logo variant="full" size="lg" tone={resolved === 'dark' ? 'light' : 'dark'} />
           </div>
           <Card elevation="md">
             <h1 className="text-2xl font-semibold text-ink-800">Iniciar sesión</h1>
@@ -60,11 +62,11 @@ export function LoginPage() {
  */
 function BrandPanel() {
   return (
-    <aside className="relative hidden overflow-hidden bg-ink-900 lg:flex lg:w-[52%] lg:max-w-3xl lg:flex-col lg:justify-between">
+    <aside className="relative hidden overflow-hidden bg-hero lg:flex lg:w-[52%] lg:max-w-3xl lg:flex-col lg:justify-between">
       <NodeGraph
         className="pointer-events-none absolute -right-20 -top-8 h-[38%] w-auto"
-        lineClass="text-ink-700"
-        nodeClass="text-ink-600"
+        lineClass="text-hero-line"
+        nodeClass="text-hero-node"
         accentClass="text-brand-500"
       />
 
@@ -78,14 +80,14 @@ function BrandPanel() {
         <h2 className="max-w-[15ch] text-[clamp(2.75rem,3.4vw,3rem)] font-semibold leading-[1.02] tracking-[-0.03em] text-white">
           {HEADLINE}
         </h2>
-        <p className="mt-6 max-w-lg text-xl leading-snug text-ink-300">{SUBHEAD}</p>
-        <ul className="mt-8 max-w-xl border-t border-ink-700">
+        <p className="mt-6 max-w-lg text-xl leading-snug text-hero-text">{SUBHEAD}</p>
+        <ul className="mt-8 max-w-xl border-t border-hero-line">
           {HIGHLIGHTS.map((item) => (
-            <li key={item.number} className="flex items-baseline gap-6 border-b border-ink-700 py-3">
+            <li key={item.number} className="flex items-baseline gap-6 border-b border-hero-line py-3">
               <span className="w-12 shrink-0 text-2xl font-semibold tracking-tight text-brand-500">
                 {item.number}
               </span>
-              <span className="text-sm text-ink-300">{item.text}</span>
+              <span className="text-sm text-hero-text">{item.text}</span>
             </li>
           ))}
         </ul>

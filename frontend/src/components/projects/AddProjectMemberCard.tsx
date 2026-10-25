@@ -96,7 +96,7 @@ export function AddProjectMemberCard({ projectId, onAdded }: AddProjectMemberCar
                 setSelectedId('');
               }}
               placeholder="Buscar por nombre, apellido o email"
-              className={`w-full pl-9 placeholder:text-ink-400 ${controlClasses}`}
+              className={`w-full pl-9 placeholder:text-ink-500 ${controlClasses}`}
             />
           </div>
 

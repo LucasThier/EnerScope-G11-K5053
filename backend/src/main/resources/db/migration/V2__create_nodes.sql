@@ -171,7 +171,7 @@ CREATE TABLE  well (
 
     PRIMARY KEY (id),
     CONSTRAINT fk_cp_base_node FOREIGN KEY (id) REFERENCES base_node(id),
-    CONSTRAINT fk_well_decline_curve FOREIGN KEY (decline_curve_id) REFERENCES probabilistic_distribution(id);
+    CONSTRAINT fk_well_decline_curve FOREIGN KEY (decline_curve_id) REFERENCES probabilistic_distribution(id)
 );
 
 -- TreatmentPlant table

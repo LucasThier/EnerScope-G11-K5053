@@ -115,7 +115,7 @@ export function AdminUsersPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por nombre, email o puesto"
-              className={`w-full pl-9 placeholder:text-ink-400 ${controlClasses}`}
+              className={`w-full pl-9 placeholder:text-ink-500 ${controlClasses}`}
             />
           </div>
           <FilterSelect

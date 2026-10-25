@@ -20,13 +20,16 @@ public class FinalResult {
     @Column(name = "time")
     private int time;
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinTable(name = "final_result_p90", joinColumns = @JoinColumn(name = "final_result_id"), inverseJoinColumns = @JoinColumn(name = "result_per_node_id"))
+    @JoinTable(name = "final_result_p90", joinColumns = @JoinColumn(name = "final_result_id"),
+            inverseJoinColumns = @JoinColumn(name = "result_per_node_id"))
     private List<ResultPerNode> percentile90;
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinTable(name = "final_result_p50", joinColumns = @JoinColumn(name = "final_result_id"), inverseJoinColumns = @JoinColumn(name = "result_per_node_id"))
+    @JoinTable(name = "final_result_p50", joinColumns = @JoinColumn(name = "final_result_id"),
+            inverseJoinColumns = @JoinColumn(name = "result_per_node_id"))
     private List<ResultPerNode> percentile50;
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinTable(name = "final_result_p10", joinColumns = @JoinColumn(name = "final_result_id"), inverseJoinColumns = @JoinColumn(name = "result_per_node_id"))
+    @JoinTable(name = "final_result_p10", joinColumns = @JoinColumn(name = "final_result_id"),
+            inverseJoinColumns = @JoinColumn(name = "result_per_node_id"))
     private List<ResultPerNode> percentile10;
 
     @Column(name = "media_output")

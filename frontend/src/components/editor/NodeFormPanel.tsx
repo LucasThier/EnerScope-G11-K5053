@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
+import { useTheme } from '../../hooks/useTheme';
 import { Button } from '../ui/Button';
 import { TextField } from '../ui/TextField';
 import { NodeIcon } from './nodeIcons';
 import {
   NODE_STATES,
   NODE_TYPE_SPECS,
-  VERTICAL_COLORS,
+  verticalColor,
   defaultBaseValues,
   operationalFields,
   specForType,
@@ -35,7 +36,7 @@ interface NodeFormPanelProps {
 }
 
 const selectClass =
-  'rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
+  'rounded-lg border border-ink-200 bg-surface px-3 py-2.5 text-sm text-ink-800 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60';
 
 /** Create or edit a node. On edit the type is fixed; on create it is chosen. */
 export function NodeFormPanel({
@@ -56,6 +57,7 @@ export function NodeFormPanel({
   const [typeFields, setTypeFields] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(initial?.typeFields ?? {}).map(([key,value]) => [key,String(value)])),
   );
+  const { resolved } = useTheme();
 
   const [declineType, setDeclineType] = useState<import('../../types/diagram').DeclineDistribution['type']>(initial?.base.declineCurve?.type ?? 'CONSTANT');
   const [declineA, setDeclineA] = useState(String(initial?.base.declineCurve?.val_a ?? initial?.typeFields.declineCurve ?? ''));
@@ -67,7 +69,7 @@ export function NodeFormPanel({
       && (declineType === 'NORMAL' ? b > 0 : b > a && b <= 100))));
 
   const spec = useMemo(() => specForType(type), [type]);
-  const color = spec ? VERTICAL_COLORS[spec.vertical] : '#6f767f';
+  const color = verticalColor(resolved, spec?.vertical);
   // REMOVED is set by deleting a node, not chosen here; only expose it so an
   // already-removed node's state still renders while editing.
   const stateOptions: NodeState[] =
@@ -93,7 +95,7 @@ export function NodeFormPanel({
       <div className="flex items-center justify-between">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-ink-700">
           <span
-            className="flex h-6 w-6 items-center justify-center rounded-md text-white"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-on-accent"
             style={{ background: color }}
           >
             <NodeIcon type={type} className="h-4 w-4" />
@@ -171,7 +173,7 @@ export function NodeFormPanel({
 
       {spec && operationalFields(spec).length > 0 && (
         <div className="flex flex-col gap-2 border-t border-ink-100 pt-3">
-          <span className="text-xs font-semibold uppercase tracking-wide text-ink-400">
+          <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">
             {spec.label} fields
           </span>
           <div className="grid grid-cols-2 gap-2">

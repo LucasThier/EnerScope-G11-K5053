@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { TextField } from '../ui/TextField';
-import { NODE_STATES, VERTICAL_COLORS, operationalFields, specForType } from './nodeCatalog';
+import { useTheme } from '../../hooks/useTheme';
+import { NODE_STATES, specForType, verticalColor } from './nodeCatalog';
 import type { DiagramNode, NodeDetail, NodeState } from '../../types/diagram';
 
 interface NodeDataPanelProps {
@@ -33,6 +34,7 @@ export function NodeDataPanel({
 }: NodeDataPanelProps) {
   const [name, setName] = useState('');
   const [state, setState] = useState<NodeState>('PROPOSED');
+  const { resolved } = useTheme();
 
   useEffect(() => {
     setName(node?.name ?? '');
@@ -41,7 +43,7 @@ export function NodeDataPanel({
 
   if (!node) {
     return (
-      <div className="p-4 text-sm text-ink-400">
+      <div className="p-4 text-sm text-ink-500">
         Select a node to see its data, or add one from the palette.
       </div>
     );
@@ -62,7 +64,7 @@ export function NodeDataPanel({
       <div className="flex items-center gap-2">
         <span
           className="inline-block h-3 w-3 rounded-full"
-          style={{ background: VERTICAL_COLORS[node.type.vertical] }}
+          style={{ background: verticalColor(resolved, node.type.vertical) }}
         />
         <h3 className="text-sm font-semibold text-ink-700">Node data</h3>
       </div>
@@ -77,7 +79,7 @@ export function NodeDataPanel({
           id="node-state"
           value={state}
           onChange={(e) => setState(e.target.value as NodeState)}
-          className="rounded-lg border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-800 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+          className="rounded-lg border border-ink-200 bg-surface px-3 py-2.5 text-sm text-ink-800 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60"
         >
           {stateOptions.map((s) => (
             <option key={s} value={s}>
@@ -103,21 +105,21 @@ export function NodeDataPanel({
       </div>
 
       <dl className="grid grid-cols-2 gap-x-3 gap-y-2 border-t border-ink-100 pt-3 text-xs">
-        <dt className="text-ink-400">Type</dt>
+        <dt className="text-ink-500">Type</dt>
         <dd className="text-ink-700">{node.type.nodeType}</dd>
-        <dt className="text-ink-400">Vertical</dt>
+        <dt className="text-ink-500">Vertical</dt>
         <dd className="text-ink-700">{node.type.vertical}</dd>
-        <dt className="text-ink-400">Role</dt>
+        <dt className="text-ink-500">Role</dt>
         <dd className="text-ink-700">{node.type.role}</dd>
-        <dt className="text-ink-400">Canvas x / y</dt>
+        <dt className="text-ink-500">Canvas x / y</dt>
         <dd className="text-ink-700">
           {fmt(graph?.x)} / {fmt(graph?.y)}
         </dd>
-        <dt className="text-ink-400">Lng / Lat</dt>
+        <dt className="text-ink-500">Lng / Lat</dt>
         <dd className="text-ink-700">
           {fmt(geo?.longitude)} / {fmt(geo?.latitude)}
         </dd>
-        <dt className="text-ink-400">Id</dt>
+        <dt className="text-ink-500">Id</dt>
         <dd className="truncate text-ink-500" title={node.id}>
           {node.id.slice(0, 8)}â€¦
         </dd>
@@ -125,13 +127,13 @@ export function NodeDataPanel({
 
       {showDetail && (
         <div className="border-t border-ink-100 pt-3">
-          <span className="text-xs font-semibold uppercase tracking-wide text-ink-400">Data</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Data</span>
           <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
             <dt className="text-ink-400">Lifespan (mo)</dt>
             <dd className="text-ink-700">{fmt(detail.lifespanInMonths)}</dd>
-            <dt className="text-ink-400">Maint. (days)</dt>
+            <dt className="text-ink-500">Maint. (days)</dt>
             <dd className="text-ink-700">{fmt(detail.maintenanceIntervalInDays)}</dd>
-            <dt className="text-ink-400">Waste %</dt>
+            <dt className="text-ink-500">Waste %</dt>
             <dd className="text-ink-700">{fmt(detail.wastePercentage)}</dd>
             {spec && operationalFields(spec).map((f) => (
               <Fragment key={f.key}>
@@ -158,7 +160,7 @@ export function NodeDataPanel({
       ) : (
         <Button
           variant="ghost"
-          className="text-red-600 hover:bg-red-50"
+          className="text-danger-600! hover:bg-danger-50"
           onClick={() => onDelete(node.id)}
         >
           Delete node

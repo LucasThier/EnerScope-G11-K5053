@@ -102,7 +102,7 @@ class ProjectServiceTest {
                                 projectRepository, projectMemberRepository, organizationRepository,
                                 organizationMemberRepository, userRepository,
                                 logger, versionService,
-                                new ProjectAccessGuard(projectRepository, projectMemberRepository, logger),
+                                new ProjectAccessGuard(projectMemberRepository, logger),
                                 organizationService);
         }
 

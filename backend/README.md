@@ -120,6 +120,11 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `DELETE` | `/version/{id}` | admin / project editor | Delete a version and every version below it |
 | `POST` `PATCH` `DELETE` | `/version/{id}/node[/{nodeId}]` | admin / project editor | Add, edit or remove a node in a version |
 | `POST` `PATCH` `DELETE` | `/version/{id}/connection[/{connectionId}]` | admin / project editor | Add, edit or remove a connection in a version |
+| `PATCH` | `/version/merge/{subId}` | admin / project editor or version admin | Merge a subversion into its parent |
+| `POST` | `/version/{id}/members` | admin / project admin or version admin | Grant a user a version role (`ADMIN`/`EDITOR`+vertical/`SIMULATOR`) |
+| `GET` | `/version/{id}/members` | admin / project or version member | List a version's members and their roles |
+| `DELETE` | `/version/{id}/members/{memberId}/roles/{roleId}` | admin / project admin or version admin | Revoke one version role |
+| `GET` | `/version/{id}/member-candidates` | admin / project admin or version admin | List project members who can be granted a version role |
 | `PATCH` | `/users/me/password` | bearer | Change your own password (requires the current one) |
 | `GET` | `/health` | public | Liveness probe |
 
@@ -239,6 +244,32 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   nested under `/projects` for now — this minimal slice has no sub-resource
   of its own to justify promoting it to a top-level `/versions` resource like
   `Project` was.
+### Version members (`/version/{id}/members`, `/version/{id}/member-candidates`)
+
+- Version-level roles only come into play for someone who has **no** role on
+  the version at all: with none, access falls back to project membership (a
+  project `ADMIN` is therefore a version `ADMIN` too, by default). The moment
+  a user holds *any* role on a version, that role is the **sole** source of
+  truth for what they may do on it — it is never topped up by what their
+  project role would otherwise allow. A `SIMULATOR` cannot edit the version's
+  name, a node or a connection even though every project member can; an
+  `EDITOR` scoped to `EXTRACTION` cannot touch a `TRANSPORTATION` node.
+- Three roles: `ADMIN` (delete the version, merge a subversion into it,
+  resolve its conflicts), `EDITOR` (scoped to exactly one `vertical` — e.g.
+  `EXTRACTION` — plus `INTERNAL_CONSUMPTION` nodes and connections, which any
+  `EDITOR` may touch regardless of their assigned vertical), and `SIMULATOR`
+  (view only, plus a future simulation endpoint). Every role grants read
+  access to the version.
+- Unlike a project member, a version member may hold **any number of roles
+  at once** — e.g. `EDITOR` for two verticals plus `SIMULATOR`. `POST
+  /version/{id}/members` always **adds** a role (`userId`, `memberType`,
+  `vertical` — required for `EDITOR`, forbidden otherwise); there is no
+  "change role" that replaces the set. `DELETE
+  /version/{id}/members/{memberId}/roles/{roleId}` revokes one role; once a
+  member's last role is revoked, the membership itself is removed.
+- Granting a role requires the target user to already be an active member of
+  the version's owning project — `GET /version/{id}/member-candidates` lists
+  exactly those users.
 - **Snapshots start empty, never null.** A version is created with empty
   `nodeSnapshot`/`connectionSnapshot` lists, so the create response and a later
   read answer the same shape (`[]`), and the in-place mutations the service does

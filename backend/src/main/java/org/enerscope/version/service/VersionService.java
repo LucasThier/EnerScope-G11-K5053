@@ -78,6 +78,7 @@ import org.enerscope.node.model.ConnectionChange;
 import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.project.service.ProjectAccessGuard;
+import org.enerscope.node.model.enums.ChangeTypeEnum;
 
 @Service
 @lombok.RequiredArgsConstructor
@@ -99,7 +100,7 @@ public class VersionService {
     private final AppLogger logger;
     private final NodeService nodeService;
     private final VersionConflictService versionConflictService;
-    private final ProjectAccessGuard accessGuard;
+    private final VersionAccessGuard accessGuard;
 
     /**
      * Creates a version detached from every project, for
@@ -187,7 +188,7 @@ public class VersionService {
 
     public void deleteVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
-        accessGuard.assertCanEditVersion(id);
+        accessGuard.assertCanManageVersion(id);
         Version version = versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
         // WE DELETE ALL OF THE SUB-VERSIONS, MAYBE CHANGE LATER
@@ -279,6 +280,7 @@ public class VersionService {
 
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+        assertCanEditNode(versionId, node);
 
         if (!version.getNodeSnapshot().contains(node)) {
             throw new IllegalArgumentException(
@@ -321,6 +323,7 @@ public class VersionService {
 
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+        assertCanEditNode(versionId, node);
 
         if (!version.getNodeSnapshot().contains(node)) {
             throw new IllegalArgumentException(
@@ -547,7 +550,11 @@ public class VersionService {
     public BaseNode addNodeToVersion(UUID versionId, BaseNodeDTO nodeDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
-        accessGuard.assertCanEditVersion(versionId);
+        if (nodeDTO.getType() != null) {
+            accessGuard.assertCanEditNodeVertical(versionId, nodeDTO.getType().getVertical());
+        } else {
+            accessGuard.assertCanEditVersion(versionId);
+        }
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -599,7 +606,7 @@ public class VersionService {
     public NodeConnection addConnectionToVersion(UUID versionId, ConnectionDTO connectionDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionDTO, "Connection DTO cannot be null");
-        accessGuard.assertCanEditVersion(versionId);
+        accessGuard.assertCanEditConnection(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -641,7 +648,6 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
-        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -649,6 +655,7 @@ public class VersionService {
 
         BaseNode requestedNode = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+        assertCanEditNode(versionId, requestedNode);
         UUID identityId = requestedNode.getIdentityId();
 
         // Resolve the node to actually mutate from this version's OWN current
@@ -698,6 +705,20 @@ public class VersionService {
         logger.info("Edited node {} in version {}", nodeId, version.getName());
 
         return editedNode;
+    }
+
+    /**
+     * Routes a node edit through the vertical-aware check when the node's
+     * type is known, falling back to the generic version-edit check when it
+     * is not (a node should always have a type once created, but nothing
+     * here assumes it defensively).
+     */
+    private void assertCanEditNode(UUID versionId, BaseNode node) {
+        if (node.getType() != null) {
+            accessGuard.assertCanEditNodeVertical(versionId, node.getType().getVertical());
+        } else {
+            accessGuard.assertCanEditVersion(versionId);
+        }
     }
 
     private boolean matchesIdentity(BaseNode node, UUID identityId) {
@@ -767,7 +788,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionId, "Connection ID cannot be null");
         Objects.requireNonNull(connectionDTO, "Connection DTO cannot be null");
-        accessGuard.assertCanEditVersion(versionId);
+        accessGuard.assertCanEditConnection(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -831,8 +852,6 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
 
-        accessGuard.assertCanEditVersion(versionId);
-
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         lockScenario(version);
@@ -840,6 +859,7 @@ public class VersionService {
         // Handle regular node deletion
         BaseNode nodeToDelete = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+        assertCanEditNode(versionId, nodeToDelete);
 
         // Check if node exists in version's node snapshot
         boolean existsInNodeSnapshot = version.getNodeSnapshot().contains(nodeToDelete);
@@ -894,7 +914,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionId, "Connection ID cannot be null");
 
-        accessGuard.assertCanEditVersion(versionId);
+        accessGuard.assertCanEditConnection(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -955,9 +975,13 @@ public class VersionService {
     @Transactional
     public Version mergeSubVersionIntoParent(UUID subVersionId) {
         Objects.requireNonNull(subVersionId, "Subversion ID cannot be null");
+        accessGuard.assertCanManageVersion(subVersionId);
 
         Version subVersion = versionRepository.findById(subVersionId)
                 .orElseThrow(() -> new VersionNotFoundException(subVersionId));
+        if (subVersion.getParentVersion() == null) {
+            throw new IllegalArgumentException("Version has no parent version to merge into");
+        }
         Version parentVersion = versionRepository.findById(subVersion.getParentVersion().getId())
                 .orElseThrow(() -> new VersionNotFoundException(subVersion.getParentVersion().getId()));
 

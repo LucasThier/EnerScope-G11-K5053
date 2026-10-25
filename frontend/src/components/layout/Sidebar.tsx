@@ -1,63 +1,17 @@
+import { useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import { useAuth } from '../../hooks/useAuth';
 import { useOwnedOrganizations } from '../../hooks/useOwnedOrganizations';
-import { useLocalPreference } from '../../hooks/useLocalPreference';
-import {
-  BuildingIcon,
-  ChevronsLeftIcon,
-  ChevronsRightIcon,
-  CompareIcon,
-  FlaskIcon,
-  FolderIcon,
-  HomeIcon,
-  LockIcon,
-  ReportIcon,
-  SettingsIcon,
-  TeamIcon,
-  UsersIcon,
-  ValueChainIcon,
-} from '../ui/icons';
+import { useSidebar } from '../../hooks/useSidebar';
+import { ADMIN_ITEMS, NAV_ITEMS, type NavItem } from './navItems';
+import { LockIcon, PinIcon } from '../ui/icons';
 
-interface NavItem {
-  label: string;
-  icon: ReactNode;
-  key?: string;
-  /** Absent until the section has a page; the entry renders locked instead of linking nowhere. */
-  to?: string;
-}
+const FOCUSABLE = 'a[href], button:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
-const COLLAPSED_KEY = 'sidebarCollapsed';
-
-/**
- * The sections from the product design. The ones still to be built are listed
- * but locked: showing the full map of the product is intentional, linking to
- * pages that do not exist is not.
- */
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Inicio', icon: <HomeIcon />, to: '/app' },
-  { label: 'Proyectos', icon: <FolderIcon />, to: '/projects' },
-  { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon />, to: '/editor' },
-  { label: 'Configuración del Escenario', icon: <FolderIcon /> },
-  { label: 'Simulación de Escenarios', icon: <FlaskIcon /> },
-  { label: 'Comparar Escenarios', icon: <CompareIcon /> },
-  { label: 'Reportes', icon: <ReportIcon /> },
-  { label: 'Gestión de organización', icon: <TeamIcon />, key: 'team' },
-  { label: 'Configuración', icon: <SettingsIcon /> },
-];
-
-/** Platform administration, kept separate because it is not part of the project workspace. */
-const ADMIN_ITEMS: NavItem[] = [
-  { label: 'Gestión de usuarios', icon: <UsersIcon />, to: '/admin/users' },
-  { label: 'Gestión de organizaciones', icon: <BuildingIcon />, to: '/admin/organizations' },
-];
-
-/** Shared row geometry. Padding is applied per state so the collapsed rail can
- * centre its icons without inventing a second set of sizes. */
-const itemBase = 'flex items-center gap-3 rounded-lg py-2 text-sm transition-colors';
-
-const itemPadding = (isCollapsed: boolean) => (isCollapsed ? 'justify-center px-2' : 'px-3');
+/** Shared row geometry. */
+const itemBase = 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors';
 
 function subscribeViewport(notify: () => void) {
   const media = window.matchMedia('(max-width: 767px)');
@@ -71,6 +25,19 @@ export function Sidebar() {
   const [preferredCollapsed, setIsCollapsed] = useLocalPreference(COLLAPSED_KEY, false);
   const narrow = useSyncExternalStore(subscribeViewport, () => window.matchMedia('(max-width: 767px)').matches);
   const isCollapsed = narrow || preferredCollapsed;
+  const {
+    isVisible,
+    pushes,
+    isDrawer,
+    isPinned,
+    origin,
+    menuId,
+    panelRef,
+    menuButtonRef,
+    keepOpen,
+    close,
+    togglePinned,
+  } = useSidebar();
 
   const showAdmin = user?.platformRole === 'ADMIN';
   const { owned } = useOwnedOrganizations();
@@ -80,26 +47,81 @@ export function Sidebar() {
       : item,
   );
 
+  useEffect(() => {
+    if (!isVisible || (origin !== 'keyboard' && !isDrawer)) {
+      return;
+    }
+    panelRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+  }, [isVisible, origin, isDrawer, panelRef]);
+
+  useEffect(() => {
+    if (isVisible) {
+      return;
+    }
+    if (panelRef.current?.contains(document.activeElement)) {
+      menuButtonRef.current?.focus();
+    }
+  }, [isVisible, panelRef, menuButtonRef]);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!isDrawer || !isVisible || !panel) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Tab' || !panel) {
+        return;
+      }
+      const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE));
+      if (focusables.length === 0) {
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (!panel.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+        return;
+      }
+      if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isDrawer, isVisible, panelRef]);
+
   return (
     <aside
+      ref={panelRef}
+      id={menuId}
+      inert={!isVisible}
+      onFocus={keepOpen}
       className={
-        'flex shrink-0 flex-col border-r border-ink-100 bg-white transition-[width] duration-200 ' +
-        (isCollapsed ? 'w-16' : 'w-72')
+        'fixed bottom-0 left-0 top-16 z-40 flex w-72 flex-col border-r border-ink-100 bg-surface ' +
+        'transition-[transform,box-shadow] duration-200 ease-out motion-reduce:transition-none ' +
+        (isVisible ? 'translate-x-0 ' : '-translate-x-full ') +
+        (isVisible && !pushes ? 'shadow-2xl' : 'shadow-none')
       }
     >
-      <nav className="flex flex-1 flex-col gap-1 p-3">
+      <nav aria-label="Secciones" className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
         {items.map((item) => (
-          <NavItemLink key={item.label} item={item.label === 'Simulación de Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item.label === 'Configuración del Escenario' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/scenario-configurations' } : item} isCollapsed={isCollapsed} />
+            <NavItemLink key={item.label} item={item.label === 'Simulación de Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item.label === 'Configuración del Escenario' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/scenario-configurations' } : item} isCollapsed={isCollapsed} />
         ))}
 
         {showAdmin && (
           <>
             <hr className="my-3 border-ink-100" />
-            {!isCollapsed && (
-              <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-ink-500">
-                Administración
-              </p>
-            )}
+            <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-ink-500">
+              Administración
+            </p>
             {ADMIN_ITEMS.map((item) => (
               <NavItemLink key={item.label} item={item.label === 'Simulación de Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item.label === 'Configuración del Escenario' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/scenario-configurations' } : item} isCollapsed={isCollapsed} />
             ))}
@@ -107,31 +129,37 @@ export function Sidebar() {
         )}
       </nav>
 
-      <div className="hidden p-3 md:block">
+      <div className="hidden p-3 lg:block">
         <button
           type="button"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          aria-label={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}
-          title={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+          onClick={togglePinned}
+          aria-pressed={isPinned}
+          title={
+            isPinned
+              ? 'El menú queda abierto en todas las pantallas'
+              : 'Mantener el menú abierto en todas las pantallas'
+          }
           className={
-            `${itemBase} ${itemPadding(isCollapsed)} w-full border border-ink-100 font-medium text-ink-500 ` +
-            'hover:bg-ink-50 hover:text-ink-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400'
+            `${itemBase} w-full border font-medium ` +
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
+            (isPinned
+              ? 'border-ink-200 bg-ink-100 text-ink-700'
+              : 'border-ink-100 text-ink-500 hover:bg-ink-50 hover:text-ink-700')
           }
         >
           <span className="shrink-0">
-            {isCollapsed ? <ChevronsRightIcon /> : <ChevronsLeftIcon />}
+            <PinIcon />
           </span>
-          {!isCollapsed && <span>Colapsar menú</span>}
+          <span>Fijar menú</span>
         </button>
       </div>
     </aside>
   );
 }
 
-function NavItemLink({ item, isCollapsed }: { item: NavItem; isCollapsed: boolean }) {
-  const { pathname } = useLocation();
-  const label = isCollapsed ? null : <span className="truncate">{item.label}</span>;
-  const padding = itemPadding(isCollapsed);
+function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
+  const location = useLocation();
+  const label = <span className="truncate">{item.label}</span>;
 
   /* Locked sections keep full-contrast text (ink-500, 5.69:1) and signal their
    * state through the padlock and a lighter weight instead — dimming the label
@@ -141,17 +169,33 @@ function NavItemLink({ item, isCollapsed }: { item: NavItem; isCollapsed: boolea
       <span
         aria-disabled="true"
         title={`${item.label} — no disponible`}
-        className={`${itemBase} ${padding} cursor-not-allowed font-normal text-ink-500`}
+        className={`${itemBase} cursor-not-allowed font-normal text-ink-500`}
       >
-        <span className="relative shrink-0">
-          {item.icon}
-          {isCollapsed && (
-            <LockIcon className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-white text-ink-400" />
-          )}
-        </span>
+        <span className="relative shrink-0">{item.icon}</span>
         {label}
-        {!isCollapsed && <LockIcon className="ml-auto h-3.5 w-3.5 shrink-0 text-ink-400" />}
+        <LockIcon className="ml-auto h-3.5 w-3.5 shrink-0 text-ink-400" />
       </span>
+    );
+  }
+
+  if (item.matchPattern) {
+    const isActive =
+      item.matchPattern.test(location.pathname) || location.pathname === item.to;
+    return (
+      <Link
+        to={item.to}
+        onClick={onNavigate}
+        aria-current={isActive ? 'page' : undefined}
+        className={
+          `${itemBase} ` +
+          (isActive
+            ? 'bg-brand-50 font-semibold text-brand-800'
+            : 'font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-700')
+        }
+      >
+        <span className="shrink-0">{item.icon}</span>
+        {label}
+      </Link>
     );
   }
 
@@ -167,10 +211,9 @@ function NavItemLink({ item, isCollapsed }: { item: NavItem; isCollapsed: boolea
   return (
     <NavLink
       to={item.to}
-      end={item.to === '/projects'}
-      title={isCollapsed ? item.label : undefined}
+      onClick={onNavigate}
       className={({ isActive }) =>
-        `${itemBase} ${padding} ` +
+        `${itemBase} ` +
         (isActive
           ? 'bg-brand-50 font-semibold text-brand-800'
           : 'font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-700')

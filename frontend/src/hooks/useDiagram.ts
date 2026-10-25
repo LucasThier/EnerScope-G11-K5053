@@ -55,6 +55,10 @@ export function useDiagram(versionId: string | null): UseDiagram {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const currentVersionIdRef = useRef(versionId);
+  useEffect(() => {
+    currentVersionIdRef.current = versionId;
+  }, [versionId]);
 
   const requestId = useRef(0);
   const reload = useCallback(async () => {
@@ -187,10 +191,13 @@ export function useDiagram(versionId: string | null): UseDiagram {
   const getNodeDetail = useCallback(
     async (nodeId: string): Promise<NodeDetail | null> => {
       if (!versionId) return null;
+      const requestedVersionId = versionId;
       try {
         const res = await diagramApi.getNodeDetail(versionId, nodeId);
+        if (currentVersionIdRef.current !== requestedVersionId) return null;
         return res.data.data ?? null;
       } catch (err) {
+        if (currentVersionIdRef.current !== requestedVersionId) return null;
         setError(getErrorMessage(err, 'Could not load the node detail'));
         return null;
       }
