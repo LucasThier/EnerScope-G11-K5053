@@ -1,4 +1,5 @@
-CREATE TABLE probabilistic_distribution (
+-- Reconciled after V19; earlier published migrations may already supply this object.
+CREATE TABLE IF NOT EXISTS probabilistic_distribution (
                                             id                  UUID NOT NULL DEFAULT gen_random_uuid(),
                                             distribution_type   VARCHAR(30) NOT NULL,
     -- Parámetros (todos deben permitir NULL porque varían según el tipo)
