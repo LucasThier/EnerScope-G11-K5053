@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import ts from 'typescript';
 import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderToStaticMarkup as renderMarkup } from 'react-dom/server';
 
 const require = createRequire(import.meta.url);
 const cache = new Map();
@@ -30,6 +30,8 @@ const directory = fileURLToPath(new URL('../src/components/editor/', import.meta
 const { NODE_TYPE_SPECS, defaultBaseValues, buildNodePayload } = load(path.join(directory, 'nodeCatalog.ts'));
 const { NodeFormPanel } = load(path.join(directory, 'NodeFormPanel.tsx'));
 const { NodeDataPanel } = load(path.join(directory, 'NodeDataPanel.tsx'));
+const { ThemeContext } = load(path.resolve(directory, '../../hooks/useTheme.ts'));
+const renderToStaticMarkup = element => renderMarkup(React.createElement(ThemeContext.Provider, { value: { resolved: 'light', preference: 'light', system: 'light', setPreference: () => {} } }, element));
 const costs = /Upkeep cost|Operating cost|DTM cost|Treatment cost|Hiring cost/;
 const noop = () => {};
 
@@ -94,5 +96,38 @@ test('distribution edits preserve parameters and hidden fields in the well paylo
   assert.deepEqual(payload.declineCurve,distribution);assert.equal(payload.dtmCost,17);assert.equal(payload.identity,'identity');
   const markup=renderToStaticMarkup(React.createElement(NodeFormPanel,{mode:'edit',busy:false,initial:{type:'WELL',base,typeFields:{}},onSubmit:noop,onClose:noop}));
   assert.match(markup,new RegExp('value="'+distribution.type+'" selected=""'));assert.ok(markup.includes('value="'+distribution.val_a+'"'));
+ }
+});
+
+
+test('consumers accept treated gas only and remain terminal nodes', () => {
+  const { canConnect } = load(path.join(directory, 'nodeCatalog.ts'));
+  for (const type of ['INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION']) {
+    const spec = NODE_TYPE_SPECS.find(s => s.type === type);
+    assert.equal(spec.role, 'SINK');
+    assert.equal(spec.vertical, 'INTERNAL_CONSUMPTION');
+    const values = Object.fromEntries(spec.fields.map((f, i) => [f.key, i + 0.5]));
+    const payload = buildNodePayload(spec, defaultBaseValues(), values, {});
+    for (const [key, value] of Object.entries(values)) assert.equal(payload[key], value);
+    for (const candidate of NODE_TYPE_SPECS) {
+      assert.equal(canConnect(candidate.type, type), ['TREATMENT_PLANT', 'PIPELINE', 'COMPRESSING_PLANT'].includes(candidate.type));
+      assert.equal(canConnect(type, candidate.type), false);
+    }
+  }
+});
+
+
+test('scenario consumer fields use Spanish labels and retain zero demand', () => {
+ const { ScenarioOperationsEditor } = load(path.resolve(directory, '../economics/ScenarioOperationsEditor.tsx'));
+ const labels = {consumptionSummer:'Consumo de verano',consumptionAutumn:'Consumo de otoño',consumptionWinter:'Consumo de invierno',consumptionSpring:'Consumo de primavera',consumption:'Consumo constante'};
+ for (const type of ['INTERNAL_CONSUMPTION','INDUSTRIAL_CONSUMPTION']) {
+  const spec=NODE_TYPE_SPECS.find(s=>s.type===type);
+  const values=Object.fromEntries(spec.fields.map(f=>[f.key,0]));
+  const markup=renderToStaticMarkup(React.createElement(ScenarioOperationsEditor, {
+   nodes:[{id:'consumer',name:'Consumer',type,fields:spec.fields.map(f=>({name:f.key,type:'number'})),values}],
+   values:{consumer:values},onChange:noop,disabled:false,
+  }));
+  for(const f of spec.fields) assert.ok(markup.includes(labels[f.key]));
+  assert.ok(markup.includes('value="0"'));
  }
 });

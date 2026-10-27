@@ -1,4 +1,5 @@
 package org.enerscope.economic.service;
+import org.enerscope.scenario.service.CurrentScenarioNodes;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -202,7 +203,7 @@ public class EconomicService {
     // including contract revenue. Check actual node classes, not editable type labels.
     void validateExportNodes(EconomicConfiguration configuration, Version version) {
         Set<UUID> carriers = new HashSet<>();
-        if (version.getNodeSnapshot() != null) version.getNodeSnapshot().stream()
+        if (version.getNodeSnapshot() != null) CurrentScenarioNodes.nodes(version).stream()
                 .filter(n -> n instanceof org.enerscope.node.model.export.LNGCarrier)
                 .forEach(n -> carriers.add(n.getId()));
         for (var conversion : configuration.conversions()) {
@@ -214,7 +215,7 @@ public class EconomicService {
 
     public Set<UUID> nodeIds(Version version) {
         Set<UUID> ids = new HashSet<>();
-        if (version.getNodeSnapshot() != null) version.getNodeSnapshot().forEach(n -> ids.add(n.getId()));
+        if (version.getNodeSnapshot() != null) CurrentScenarioNodes.nodes(version).forEach(n -> ids.add(n.getId()));
         return ids;
     }
 

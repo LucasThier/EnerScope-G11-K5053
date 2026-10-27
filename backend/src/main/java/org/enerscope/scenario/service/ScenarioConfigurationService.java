@@ -39,7 +39,8 @@ public class ScenarioConfigurationService {
  private final ObjectMapper mapper;
  private final ProjectRepository projects;
  private final AppLogger logger;
- @PersistenceContext private EntityManager em;
+ @PersistenceContext
+ private EntityManager em;
 
  public ScenarioConfigurationDTO get(UUID project,UUID id) {
   Version version = economics.authorize(project,id,ProjectMemberPermission.VIEW_PROJECT);
@@ -53,7 +54,7 @@ public class ScenarioConfigurationService {
   String token=hash(source+"|"+drafts.findByVersionId(version.getId()).map(e->e.getRevision()+":"+e.getDraftJson()).orElse("")+"|"+
       legacyDrafts.findByVersionId(version.getId()).map(e->e.getRevision()+":"+e.getDraftJson()).orElse(""));
   return new ScenarioConfigurationDTO(token,source,configuration,
-      version.getNodeSnapshot().stream().sorted(Comparator.comparing(n->n.getId().toString())).map(operations::describe).toList(),
+      CurrentScenarioNodes.nodes(version).stream().sorted(Comparator.comparing(n->n.getId().toString())).map(operations::describe).toList(),
       draft,economics.getDraft(project,version.getId()),errors);
  }
 
@@ -75,7 +76,7 @@ public class ScenarioConfigurationService {
   var prepared=new LinkedHashMap<UUID,BaseNode>();
   var supplied=request.operations();
   if(supplied==null || !supplied.keySet().equals(economics.nodeIds(version))) errors.add("La lista de nodos no coincide con el escenario.");
-  else for(var node:version.getNodeSnapshot()) {
+  else for(var node:CurrentScenarioNodes.nodes(version)) {
    try { prepared.put(node.getId(),operations.prepare(node,supplied.get(node.getId()))); }
    catch(IllegalArgumentException e) { errors.add(e.getMessage()); }
   }
@@ -95,6 +96,7 @@ public class ScenarioConfigurationService {
   var remap=new HashMap<String,String>();
   for(int i=0;i<version.getNodeSnapshot().size();i++) {
    var original=version.getNodeSnapshot().get(i);
+   if(!CurrentScenarioNodes.includes(original)) continue;
    var candidate=prepared.get(original.getId());
    if(operations.describe(original).values().equals(operations.describe(candidate).values())) continue;
    // Always copy on a joint save: even a node originally created here may have been inherited by a child.

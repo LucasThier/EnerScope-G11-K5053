@@ -26,7 +26,8 @@ export type NodeType =
   | 'FLNG_UNIT'
   | 'SEAPORT_TERMINAL'
   | 'LNG_CAMER'
-  | 'INTERNAL_CONSUMPTION';
+  | 'INTERNAL_CONSUMPTION'
+  | 'INDUSTRIAL_CONSUMPTION';
 
 /** Abstract diagram-canvas position (x/y in canvas units). */
 export interface GraphPosition {

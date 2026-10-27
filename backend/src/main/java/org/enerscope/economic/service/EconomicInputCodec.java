@@ -1,4 +1,5 @@
 package org.enerscope.economic.service;
+import org.enerscope.scenario.service.CurrentScenarioNodes;
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.*;
 import java.util.*;
@@ -50,22 +51,22 @@ public class EconomicInputCodec {
 
     /** Validate proposed values before publishing any managed entity changes. */
     public void validatePrepared(Version version, EconomicConfiguration configuration, Map<UUID, BaseNode> prepared) {
-        var nodes = version.getNodeSnapshot().stream().map(original -> {
+        var nodes = CurrentScenarioNodes.nodes(version).stream().map(original -> {
             var tree = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(prepared.get(original.getId()));
             tree.put("id", original.getId().toString());
             return (BaseNode) mapper.convertValue(tree, org.hibernate.Hibernate.getClass(original));
         }).toList();
-        freeze(new Version(version.getName(), null, nodes, version.getConnectionSnapshot(), new ArrayList<>(), new ArrayList<>()), configuration, 1, 0);
+        freeze(new Version(version.getName(), null, nodes, CurrentScenarioNodes.connections(version), new ArrayList<>(), new ArrayList<>()), configuration, 1, 0);
     }
 
     public FrozenEconomicInput freeze(Version version, EconomicConfiguration configuration, int rounds, long seed) {
-        List<PhysicalNode> nodes = version.getNodeSnapshot().stream().map(node -> {
+        List<PhysicalNode> nodes = CurrentScenarioNodes.nodes(version).stream().map(node -> {
             Class<? extends BaseNode> type = TYPES.stream().filter(t -> t.isInstance(node)).findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("Unsupported physical node"));
             return new PhysicalNode(type.getSimpleName(), mapper.valueToTree(node));
         }).toList();
         var input = new FrozenEconomicInput(configuration, version.getName(), nodes,
-                mapper.valueToTree(version.getConnectionSnapshot()),
+                mapper.valueToTree(CurrentScenarioNodes.connections(version)),
                 new SimulationMetadata(rounds, Long.toString(seed), Simulator.ALGORITHM, Simulator.CALCULATION_VERSION));
         // Validate reconstruction and graph before accepting any background work.
         new Simulator(thaw(input), configuration.startYear() + 1, Simulator.seedForRound(seed, 0));

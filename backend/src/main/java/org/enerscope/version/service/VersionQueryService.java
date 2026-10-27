@@ -9,6 +9,7 @@ import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.repository.ProjectRepository;
 import org.enerscope.user.model.enums.PlatformRole;
+import org.enerscope.scenario.service.CurrentScenarioNodes;
 import org.enerscope.util.AuthUtil;
 import org.enerscope.version.dto.VersionSummaryDTO;
 import org.springframework.stereotype.Service;
@@ -37,7 +38,7 @@ public class VersionQueryService {
         logger.debug("Listing active versions for project {}", projectId);
         return project.getVersions().stream().filter(BaseEntity::isActive)
                 .map(v -> new VersionSummaryDTO(v.getId(), v.getName(), v.getLastModified(),
-                        v.getNodeSnapshot() == null ? List.of() : v.getNodeSnapshot().stream()
+                        v.getNodeSnapshot() == null ? List.of() : v.getNodeSnapshot().stream().filter(CurrentScenarioNodes::includes)
                                 .map(n -> new VersionSummaryDTO.NodeSummary(n.getId(), n.getName(),
                                         n.getType() == null || n.getType().getNodeType() == null
                                                 ? "UNKNOWN" : n.getType().getNodeType().name()))

@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { useSyncExternalStore, type ReactNode } from 'react';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import { useAuth } from '../../hooks/useAuth';
 import { useOwnedOrganizations } from '../../hooks/useOwnedOrganizations';
@@ -13,18 +12,10 @@ const FOCUSABLE = 'a[href], button:not(:disabled), [tabindex]:not([tabindex="-1"
 /** Shared row geometry. */
 const itemBase = 'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors';
 
-function subscribeViewport(notify: () => void) {
-  const media = window.matchMedia('(max-width: 767px)');
-  media.addEventListener('change', notify);
-  return () => media.removeEventListener('change', notify);
-}
 
 export function Sidebar() {
   const { user } = useAuth();
   const { activeProject } = useActiveProject();
-  const [preferredCollapsed, setIsCollapsed] = useLocalPreference(COLLAPSED_KEY, false);
-  const narrow = useSyncExternalStore(subscribeViewport, () => window.matchMedia('(max-width: 767px)').matches);
-  const isCollapsed = narrow || preferredCollapsed;
   const {
     isVisible,
     pushes,
@@ -41,11 +32,14 @@ export function Sidebar() {
 
   const showAdmin = user?.platformRole === 'ADMIN';
   const { owned } = useOwnedOrganizations();
-  const items = NAV_ITEMS.map((item) =>
-    item.key === 'team' && owned.length > 0
-      ? { ...item, to: `/organizations/${owned[0].id}` }
-      : item,
-  );
+  const items = NAV_ITEMS.map((item) => {
+    if (item.key === 'team' && owned.length > 0) return { ...item, to: '/organizations/' + owned[0].id };
+    if (item.key === 'configuration' || item.key === 'simulation') {
+      const module = item.key === 'configuration' ? 'scenario-configurations' : 'simulations';
+      return { ...item, to: activeProject ? '/projects/' + activeProject.id + '/' + module : '/projects' };
+    }
+    return item;
+  });
 
   useEffect(() => {
     if (!isVisible || (origin !== 'keyboard' && !isDrawer)) {
@@ -113,7 +107,7 @@ export function Sidebar() {
     >
       <nav aria-label="Secciones" className="flex flex-1 flex-col gap-1 overflow-y-auto p-3">
         {items.map((item) => (
-            <NavItemLink key={item.label} item={item.label === 'Simulación de Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item.label === 'Configuración del Escenario' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/scenario-configurations' } : item} isCollapsed={isCollapsed} />
+            <NavItemLink key={item.label} item={item} onNavigate={close} />
         ))}
 
         {showAdmin && (
@@ -123,7 +117,7 @@ export function Sidebar() {
               Administración
             </p>
             {ADMIN_ITEMS.map((item) => (
-              <NavItemLink key={item.label} item={item.label === 'Simulación de Escenarios' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/versions' } : item.label === 'Configuración del Escenario' && activeProject ? { ...item, to: '/projects/' + activeProject.id + '/scenario-configurations' } : item} isCollapsed={isCollapsed} />
+              <NavItemLink key={item.label} item={item} onNavigate={close} />
             ))}
           </>
         )}
@@ -180,7 +174,7 @@ function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate: () => vo
 
   if (item.matchPattern) {
     const isActive =
-      item.matchPattern.test(location.pathname) || location.pathname === item.to;
+      item.matchPattern.test(location.pathname) || (item.key !== 'configuration' && item.key !== 'simulation' && location.pathname === item.to);
     return (
       <Link
         to={item.to}
@@ -199,14 +193,6 @@ function NavItemLink({ item, onNavigate }: { item: NavItem; onNavigate: () => vo
     );
   }
 
-  if (item.label === 'Configuración del Escenario' || item.label === 'Simulación de Escenarios') {
-    const configuration = pathname.endsWith('/scenario-configurations') || /\/economics(?:\/configuration)?\/?$/.test(pathname);
-    const active = item.label === 'Configuración del Escenario' ? configuration : pathname.includes('/versions') && !configuration;
-    return <Link to={item.to} aria-current={active ? 'page' : undefined} title={isCollapsed ? item.label : undefined}
-      className={`${itemBase} ${padding} ${active ? 'bg-brand-50 font-semibold text-brand-800' : 'font-medium text-ink-500 hover:bg-ink-50 hover:text-ink-700'}`}>
-      <span className="shrink-0">{item.icon}</span>{label}
-    </Link>;
-  }
 
   return (
     <NavLink

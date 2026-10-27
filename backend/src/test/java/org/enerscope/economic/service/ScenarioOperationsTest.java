@@ -11,6 +11,32 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 class ScenarioOperationsTest {
  private final ScenarioOperations service=new ScenarioOperations(EconomicExample.MAPPER);
+
+ @Test
+ void consumptionFieldsRoundTripAndCloneWithoutChangingOriginal() {
+  var internal = new org.enerscope.node.model.export.InternalConsumption();
+  internal.setConsumptionSummer(10); internal.setConsumptionAutumn(20);
+  internal.setConsumptionWinter(30); internal.setConsumptionSpring(40);
+  var industrial = new org.enerscope.node.model.export.IndustrialConsumption();
+  industrial.setConsumption(50);
+  for (BaseNode node : List.of(internal, industrial)) {
+   node.setName("Consumer"); node.setState(NodeStateEnum.RUNNING); node.setIdentityId(UUID.randomUUID());
+   node.setType(new NodeTypeData(VerticalEnum.INTERNAL_CONSUMPTION, StructuralRoleEnum.SINK,
+     node == internal ? NodeTypeEnum.INTERNAL_CONSUMPTION : NodeTypeEnum.INDUSTRIAL_CONSUMPTION));
+   var before = service.describe(node).values();
+   var values = new TreeMap<>(before);
+   String field = node == internal ? "consumptionWinter" : "consumption";
+   values.put(field, EconomicExample.MAPPER.valueToTree("12.5"));
+   var copy = service.prepare(node, values);
+   assertEquals(12.5, service.describe(copy).values().get(field).asDouble());
+   assertEquals(before, service.describe(node).values());
+   assertEquals(node.getIdentityId(), copy.getIdentityId());
+   assertNotSame(node.getType(), copy.getType());
+   values.put(field, EconomicExample.MAPPER.valueToTree(-1));
+   assertThrows(IllegalArgumentException.class, () -> service.prepare(node, values));
+  }
+ }
+
  private Well well() {
   Well node=EconomicExample.well(UUID.randomUUID(),100,"2031-01-01T00:00:00Z");
   node.setType(new NodeTypeData(VerticalEnum.EXTRACTION,StructuralRoleEnum.GENERATOR,NodeTypeEnum.WELL));

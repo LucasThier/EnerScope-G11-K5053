@@ -9,16 +9,18 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 
 /** Routes node requests by their explicit nested discriminator, never by field overlap. */
 public final class NodeRequestDeserializer extends StdDeserializer<BaseNodeDTO> {
-    private static final Map<String, Class<? extends BaseNodeDTO>> TYPES = Map.of(
-        "WELL", WellDTO.class,
-        "GATHERING_NETWORK", GatheringNetworkDTO.class,
-        "TREATMENT_PLANT", TreatmentPlantDTO.class,
-        "PIPELINE", PipelineDTO.class,
-        "COMPRESSING_PLANT", CompressingPlantDTO.class,
-        "GROUND_LIQUEFACTION_PLANT", GroundBasedLiquefactionPlantDTO.class,
-        "FLNG_UNIT", FLNGUnitDTO.class,
-        "SEAPORT_TERMINAL", SeaportTerminalDTO.class,
-        "LNG_CAMER", LNGCarrierDTO.class);
+    private static final Map<String, Class<? extends BaseNodeDTO>> TYPES = Map.ofEntries(
+        Map.entry("WELL", WellDTO.class),
+        Map.entry("GATHERING_NETWORK", GatheringNetworkDTO.class),
+        Map.entry("TREATMENT_PLANT", TreatmentPlantDTO.class),
+        Map.entry("PIPELINE", PipelineDTO.class),
+        Map.entry("COMPRESSING_PLANT", CompressingPlantDTO.class),
+        Map.entry("GROUND_LIQUEFACTION_PLANT", GroundBasedLiquefactionPlantDTO.class),
+        Map.entry("FLNG_UNIT", FLNGUnitDTO.class),
+        Map.entry("SEAPORT_TERMINAL", SeaportTerminalDTO.class),
+        Map.entry("LNG_CAMER", LNGCarrierDTO.class),
+        Map.entry("INTERNAL_CONSUMPTION", InternalConsumptionDTO.class),
+        Map.entry("INDUSTRIAL_CONSUMPTION", IndustrialConsumptionDTO.class));
 
     public NodeRequestDeserializer() { super(BaseNodeDTO.class); }
 

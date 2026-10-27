@@ -61,12 +61,43 @@ class ScenarioConfigurationTest {
   String json=mapper.writeValueAsString(EconomicExample.configuration());for(var e:ids.entrySet())json=json.replace(e.getKey(),e.getValue());
   economics.save(projectId,versionId,mapper.readValue(json,EconomicConfiguration.class));
  }
- @AfterEach void clear(){SecurityContextHolder.clearContext();}
+
+ @Test
+ void removedNodesStayInHistoryButLeaveConfigurationAndNewInputs() {
+  var version=em.find(Version.class,versionId);
+  var removed=org.enerscope.node.service.NodeCloner.cloneNode(well);
+  removed.setIdentityId(UUID.randomUUID());removed.setName("Removed consumer");removed.setState(NodeStateEnum.REMOVED);
+  em.persist(removed);version.getNodeSnapshot().add(removed);
+  var edge=new NodeConnection(UUID.randomUUID(),well.getId(),removed.getId());em.persist(edge);version.getConnectionSnapshot().add(edge);em.flush();
+  var state=scenarios.get(projectId,versionId);
+  assertFalse(state.nodes().stream().anyMatch(n->n.id().equals(removed.getId())));
+  var saved=scenarios.save(projectId,versionId,request(state));
+  assertNull(saved.draft());assertTrue(saved.errors().isEmpty());
+  assertTrue(version.getNodeSnapshot().contains(removed));
+  assertEquals(NodeStateEnum.REMOVED,removed.getState());
+  var codec=new EconomicInputCodec(mapper);
+  var frozen=codec.freeze(version,saved.configuration(),1,42);
+  var current=codec.thaw(frozen);
+  assertFalse(current.getNodeSnapshot().stream().anyMatch(n->n.getId().equals(removed.getId())));
+  assertTrue(current.getConnectionSnapshot().stream().noneMatch(e->e.getToNodeId().equals(removed.getId())));
+  assertFalse(economics.nodeIds(version).contains(removed.getId()));
+ }
+
+ @Test
+ void removingReferencedNodeRequiresEconomicRulesToBeReviewed() {
+  well.setState(NodeStateEnum.REMOVED);em.flush();
+  assertThrows(IllegalArgumentException.class,()->economics.validateConfiguration(economics.get(projectId,versionId),em.find(Version.class,versionId)));
+ }
+
+ @AfterEach
+ void clear(){SecurityContextHolder.clearContext();}
  SaveRequest request(ScenarioConfigurationDTO state) {
   var edits=new HashMap<UUID,Map<String,JsonNode>>();state.nodes().forEach(n->edits.put(n.id(),new TreeMap<>(n.values())));
   return new SaveRequest(state.token(),state.sourceToken(),mapper.valueToTree(Map.of("mode","advanced","value",state.configuration())),mapper.valueToTree(state.configuration()),edits);
  }
- @Test void publishesPhysicsAndEconomicsTogetherAndRemapsReferencesWithoutMutatingParent() {
+
+ @Test
+ void publishesPhysicsAndEconomicsTogetherAndRemapsReferencesWithoutMutatingParent() {
   var parent=em.find(Version.class,versionId);
   var child=new Version("Child",parent,new ArrayList<>(parent.getNodeSnapshot()),new ArrayList<>(),new ArrayList<>(),new ArrayList<>());em.persist(child);
   em.find(Project.class,projectId).addVersion(child);em.flush();
@@ -81,14 +112,18 @@ class ScenarioConfigurationTest {
   assertTrue(saved.configuration().conversions().stream().anyMatch(c->c.nodeId().equals(changed.id())));
   assertEquals(100,well.getMaxCollectionCapacity());
  }
- @Test void incompleteSavePreservesPublishedValuesAndBlocksJobUntilDiscarded() {
+
+ @Test
+ void incompleteSavePreservesPublishedValuesAndBlocksJobUntilDiscarded() {
   var state=scenarios.get(projectId,versionId);var input=request(state);
   input.operations().get(well.getId()).put("maxCollectionCapacity",mapper.valueToTree(""));
   var saved=scenarios.save(projectId,versionId,input);
   assertNotNull(saved.draft());assertFalse(saved.errors().isEmpty());assertEquals(100,well.getMaxCollectionCapacity());
   assertThrows(IllegalArgumentException.class,()->jobs.submit(projectId,versionId,new EconomicJobRequest(1,"42")));
  }
- @Test void draftSurvivesReloadAndDiscardEnablesSimulation() {
+
+ @Test
+ void draftSurvivesReloadAndDiscardEnablesSimulation() {
   var state=scenarios.get(projectId,versionId);var valid=request(state);
   var invalid=new SaveRequest(valid.token(),valid.sourceToken(),valid.editor(),null,valid.operations());
   scenarios.save(projectId,versionId,invalid);em.flush();em.clear();
@@ -107,7 +142,9 @@ class ScenarioConfigurationTest {
   assertNotEquals(before.sourceToken(),after.sourceToken());
   assertThrows(ScenarioConflictException.class,()->scenarios.save(projectId,versionId,request(before)));
  }
- @Test void persistedDraftKeepsOriginalSourceAfterMapEdit() {
+
+ @Test
+ void persistedDraftKeepsOriginalSourceAfterMapEdit() {
   var before=scenarios.get(projectId,versionId);var valid=request(before);
   scenarios.save(projectId,versionId,new SaveRequest(valid.token(),valid.sourceToken(),valid.editor(),null,valid.operations()));
   well.setMaxCollectionCapacity(321);em.flush();
@@ -115,7 +152,9 @@ class ScenarioConfigurationTest {
   assertNotEquals(after.sourceToken(),after.draft().sourceToken());
   assertThrows(ScenarioConflictException.class,()->scenarios.save(projectId,versionId,new SaveRequest(after.token(),after.draft().sourceToken(),valid.editor(),valid.configuration(),valid.operations())));
  }
- @Test void fullMapEditRemapsEconomicAndConnectionReferences() {
+
+ @Test
+ void fullMapEditRemapsEconomicAndConnectionReferences() {
   var version=em.find(Version.class,versionId);
   var connection=new NodeConnection(UUID.randomUUID(),well.getId(),version.getNodeSnapshot().get(1).getId());
   em.persist(connection);version.getConnectionSnapshot().add(connection);em.flush();
@@ -132,7 +171,9 @@ class ScenarioConfigurationTest {
   assertTrue(config.conversions().stream().anyMatch(c->c.nodeId().equals(edited.getId())));
   assertFalse(config.conversions().stream().anyMatch(c->c.nodeId().equals(well.getId())));
  }
- @Test void malformedEditorIsRejectedWithoutPersistingDraft() {
+
+ @Test
+ void malformedEditorIsRejectedWithoutPersistingDraft() {
   var state=scenarios.get(projectId,versionId);var input=request(state);
   assertThrows(IllegalArgumentException.class,()->scenarios.save(projectId,versionId,new SaveRequest(input.token(),input.sourceToken(),mapper.createObjectNode(),input.configuration(),input.operations())));
   for(String mode:List.of("simple","advanced")) {
@@ -141,7 +182,9 @@ class ScenarioConfigurationTest {
   }
   assertNull(scenarios.get(projectId,versionId).draft());
  }
- @Test void rejectsForeignVersionAndUnauthorizedUser() {
+
+ @Test
+ void rejectsForeignVersionAndUnauthorizedUser() {
   assertThrows(org.enerscope.common.EntityNotFoundException.class,()->scenarios.get(projectId,UUID.randomUUID()));
   SecurityContextHolder.clearContext();
   assertThrows(org.enerscope.common.UnauthorizedException.class,()->scenarios.get(projectId,versionId));

@@ -63,6 +63,10 @@ import org.enerscope.node.dto.CompressingPlantDTO;
 import org.enerscope.node.dto.GroundBasedLiquefactionPlantDTO;
 import org.enerscope.node.dto.FLNGUnitDTO;
 import org.enerscope.node.dto.LNGCarrierDTO;
+import org.enerscope.node.dto.InternalConsumptionDTO;
+import org.enerscope.node.dto.IndustrialConsumptionDTO;
+import org.enerscope.node.model.export.InternalConsumption;
+import org.enerscope.node.model.export.IndustrialConsumption;
 import org.enerscope.node.dto.SeaportTerminalDTO;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.extraction.TreatmentPlant;
@@ -427,6 +431,14 @@ public class VersionService {
             a.put("hiringCost", money(l.getHiringCost()));
             a.put("timeToDestination", (double) l.getTimeToDestination());
         }
+        if (node instanceof InternalConsumption c) {
+            a.put("consumptionSummer", (double) c.getConsumptionSummer());
+            a.put("consumptionAutumn", (double) c.getConsumptionAutumn());
+            a.put("consumptionWinter", (double) c.getConsumptionWinter());
+            a.put("consumptionSpring", (double) c.getConsumptionSpring());
+        } else if (node instanceof IndustrialConsumption c) {
+            a.put("consumption", (double) c.getConsumption());
+        }
         return a;
     }
 
@@ -575,6 +587,8 @@ public class VersionService {
             case CompressingPlantDTO dto -> nodeService.saveCompressingPlant(dto);
             case GroundBasedLiquefactionPlantDTO dto -> nodeService.saveGroundBasedLiquefactionPlant(dto);
             case FLNGUnitDTO dto -> nodeService.saveFLNGUnit(dto);
+            case InternalConsumptionDTO dto -> nodeService.saveInternalConsumption(dto);
+            case IndustrialConsumptionDTO dto -> nodeService.saveIndustrialConsumption(dto);
             case LNGCarrierDTO dto -> nodeService.saveLNGCarrier(dto);
             case SeaportTerminalDTO dto -> nodeService.saveSeaportTerminal(dto);
             default ->
@@ -773,6 +787,14 @@ public class VersionService {
                 throw new IllegalArgumentException("Node type mismatch: expected LNGCarrier");
             }
             return nodeService.editLNGCarrier((LNGCarrier) originalNode, dto);
+        } else if (nodeDTO instanceof InternalConsumptionDTO dto) {
+            if (!(originalNode instanceof InternalConsumption consumption))
+                throw new IllegalArgumentException("Node type mismatch: expected InternalConsumption");
+            return nodeService.editInternalConsumption(consumption, dto);
+        } else if (nodeDTO instanceof IndustrialConsumptionDTO dto) {
+            if (!(originalNode instanceof IndustrialConsumption consumption))
+                throw new IllegalArgumentException("Node type mismatch: expected IndustrialConsumption");
+            return nodeService.editIndustrialConsumption(consumption, dto);
         } else if (nodeDTO instanceof SeaportTerminalDTO dto) {
             if (!(originalNode instanceof SeaportTerminal)) {
                 throw new IllegalArgumentException("Node type mismatch: expected SeaportTerminal");

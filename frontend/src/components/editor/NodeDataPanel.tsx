@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { TextField } from '../ui/TextField';
 import { useTheme } from '../../hooks/useTheme';
-import { NODE_STATES, specForType, verticalColor } from './nodeCatalog';
+import { NODE_STATES, specForType, verticalColor, operationalFields } from './nodeCatalog';
 import type { DiagramNode, NodeDetail, NodeState } from '../../types/diagram';
 
 interface NodeDataPanelProps {

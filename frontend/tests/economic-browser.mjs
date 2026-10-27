@@ -15,7 +15,7 @@ const page=await context.newPage(), failures=[];
 page.on('pageerror',e=>failures.push(e.message));
 page.on('dialog',d=>d.accept());
 const user={id:'u1',mail:'test@example.com',firstName:'Test',lastName:'Admin',platformRole:'ADMIN'};
-await context.addInitScript(user=>{localStorage.setItem('accessToken','test');localStorage.setItem('refreshToken','test');localStorage.setItem('authUser',JSON.stringify(user));},user);
+await context.addInitScript(user=>{localStorage.setItem('sidebarPinned','true');localStorage.setItem('accessToken','test');localStorage.setItem('refreshToken','test');localStorage.setItem('authUser',JSON.stringify(user));},user);
 const project={id:'p1',name:'Project',organizationName:'Org',organizationId:'o1',memberCount:1,lastModified:'2030-01-01T00:00:00Z'};
 const scenario={id:'v1',name:'Scenario',lastModified:project.lastModified,nodes:[{id:'n1',name:'Well',type:'WELL'}]};
 const node={id:'n1',identity:'identity',name:'Well',type:'WELL',fields:[{name:'name',type:'text'},{name:'maxCollectionCapacity',type:'number'},{name:'declineCurve',type:'distribution'}],values:{name:'Well',maxCollectionCapacity:100,declineCurve:{type:'NORMAL',a:4,b:2}}};

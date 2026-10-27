@@ -1,3 +1,4 @@
+import { CONFIGURATION_PATTERN, SIMULATION_PATTERN, VERSION_MANAGEMENT_PATTERN } from '../../utils/workspaceRoutes';
 import type { ReactNode } from 'react';
 import {
   BranchIcon,
@@ -12,7 +13,7 @@ import {
   ValueChainIcon,
 } from '../ui/icons';
 
-export const VERSIONS_PATH_PATTERN = /^\/projects\/[^/]+\/versions(\/|$)/;
+const VERSIONS_PATH_PATTERN = VERSION_MANAGEMENT_PATTERN;
 export const PROJECTS_PATH_PATTERN = /^\/projects(\/[^/]+\/team)?\/?$/;
 
 export interface NavItem {
@@ -33,8 +34,9 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Inicio', icon: <HomeIcon />, to: '/app' },
   { label: 'Proyectos', icon: <FolderIcon />, to: '/projects', matchPattern: PROJECTS_PATH_PATTERN },
   { label: 'Mapa de la Cadena de Valor', icon: <ValueChainIcon />, to: '/editor' },
+  { label: 'Configuración del Escenario', icon: <FolderIcon />, key: 'configuration', matchPattern: CONFIGURATION_PATTERN },
+  { label: 'Simulación de Escenarios', icon: <FlaskIcon />, key: 'simulation', matchPattern: SIMULATION_PATTERN },
   { label: 'Versionado', icon: <BranchIcon />, to: '/versions', matchPattern: VERSIONS_PATH_PATTERN },
-  { label: 'Simulaciones / Escenarios', icon: <FlaskIcon /> },
   { label: 'Comparar Escenarios', icon: <CompareIcon /> },
   { label: 'Reportes', icon: <ReportIcon /> },
   { label: 'Gestión de organización', icon: <TeamIcon />, key: 'team' },
@@ -48,6 +50,8 @@ export const ADMIN_ITEMS: NavItem[] = [
 
 const MODULE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/app\/?$/, title: 'Inicio' },
+  { pattern: CONFIGURATION_PATTERN, title: 'Configuración del Escenario' },
+  { pattern: SIMULATION_PATTERN, title: 'Simulación de Escenarios' },
   { pattern: VERSIONS_PATH_PATTERN, title: 'Versionado' },
   { pattern: /^\/projects\/[^/]+\/team(\/|$)/, title: 'Equipo del proyecto' },
   { pattern: /^\/projects\/?$/, title: 'Proyectos' },

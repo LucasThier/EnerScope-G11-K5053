@@ -1,3 +1,4 @@
+import { projectDestination } from '../utils/workspaceRoutes';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
 import { projectsApi } from '../api/projects';
@@ -70,8 +71,7 @@ export function ActiveProjectProvider({ children }: { children: ReactNode }) {
       setLastProjectId(projectId);
       if (routeMatch) {
         const previous = routeMatch.params['*'] ?? '';
-        const rest = previous.startsWith('versions') ? 'versions' : previous;
-        navigate(`/projects/${projectId}${rest ? `/${rest}` : ''}`);
+        navigate(projectDestination(projectId, previous));
       }
     },
     [routeMatch, navigate, setLastProjectId],

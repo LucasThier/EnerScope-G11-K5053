@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import { economicsApi } from '../api/economics';
 import { projectsApi } from '../api/projects';
 import { getErrorMessage } from '../api/errors';
@@ -14,6 +14,7 @@ import { ProbabilisticResults } from '../components/economics/ProbabilisticResul
 import type { Evaluation } from '../types/economics';
 export function EconomicsPage() {
  const {projectId='',versionId='',tab='history',evaluationId}=useParams();
+ if (tab !== 'history' && tab !== 'results') return <Navigate replace to={'/projects/'+projectId+'/versions/'+versionId+'/economics/history'} />;
  return <Results key={projectId+versionId+String(evaluationId)} projectId={projectId} versionId={versionId} tab={tab} evaluationId={evaluationId}/>;
 }
 function Results({projectId,versionId,tab,evaluationId}:{projectId:string;versionId:string;tab:string;evaluationId?:string}) {
@@ -33,7 +34,7 @@ function Results({projectId,versionId,tab,evaluationId}:{projectId:string;versio
   return ()=>{cancelled=true;};
  },[projectId,versionId,evaluationId,refresh,user?.id,user?.platformRole]);
  const selected=detail ?? (!evaluationId?evaluations[0]:null);
- return <div className="space-y-5"><Link className="text-brand-800 underline" to={'/projects/'+projectId+'/versions'}>← Simulación de Escenarios / {name}</Link>
+ return <div className="space-y-5"><Link className="text-brand-800 underline" to={'/projects/'+projectId+'/simulations'}>← Simulación de Escenarios / {name}</Link>
  <h1 className="text-2xl font-semibold">Evaluación del escenario</h1>
  <nav className="flex gap-5 border-b border-ink-200 pb-3" aria-label="Evaluaciones"><Link to={base+'/history'} aria-current={tab==='history'?'page':undefined}>Historial</Link><Link to={base+'/results'} aria-current={tab==='results'?'page':undefined}>Resultados</Link></nav>
  <EconomicJobs projectId={projectId} versionId={versionId} canEdit={canEdit} refreshToken={refresh}/>

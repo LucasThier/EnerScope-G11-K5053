@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { visibleDiagram } from '../utils/visibleDiagram';
 import { diagramApi } from '../api/diagram';
 import { getErrorMessage } from '../api/errors';
 import {
@@ -74,7 +75,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
     try {
       const res = await diagramApi.get(versionId);
       if (request !== requestId.current) return;
-      setDiagram(res.data.data ?? { versionId, nodes: [], connections: [] });
+      setDiagram(visibleDiagram(res.data.data ?? { versionId, nodes: [], connections: [] }));
     } catch (err) {
       if (request === requestId.current) setError(getErrorMessage(err, 'Could not load the diagram'));
     } finally {

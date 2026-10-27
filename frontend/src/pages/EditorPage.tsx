@@ -302,50 +302,27 @@ function EditorWorkspace() {
     if (!orgId && organizations.length > 0) setOrgId(organizations[0].id);
   }, [organizations, orgId]);
 
-  const loadProjects = useCallback(
-    (selectId?: string) => {
-      if (!orgId) return;
-      setSelectorError(null);
-      clearNodeSelection();
-      projectsApi
-        .list(orgId)
-        .then((res) => {
-          const list = res.data.data ?? [];
-          setProjects(list);
-          setProjectId(selectId ?? list[0]?.id ?? '');
-        })
-        .catch((err) => setSelectorError(getErrorMessage(err, 'Could not load projects')));
-    },
-    [orgId, clearNodeSelection],
-  );
-
+  const loadVersions = useCallback(async (selectId?: string) => {
+    const request = ++versionRequest.current;
+    clearNodeSelection();
+    setVersionState({ project: projectId, list: [], selected: '' });
+    setSelectorError(null);
+    if (!projectId) return;
+    try {
+      const res = await projectsApi.listVersions(projectId);
+      if (request !== versionRequest.current) return;
+      const list = res.data.data ?? [];
+      const preferred = selectId ?? preferredVersion;
+      setVersionState({ project: projectId, list, selected: list.find(v => v.id === preferred)?.id ?? list[0]?.id ?? '' });
+    } catch (err) {
+      if (request === versionRequest.current) setSelectorError(getErrorMessage(err, 'Could not load versions'));
+    }
+  }, [projectId, preferredVersion, clearNodeSelection]);
+  const invalidateRequest = useCallback(() => { versionRequest.current++; }, []);
   useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
-
-  const loadVersions = useCallback(
-    (selectId?: string) => {
-      clearNodeSelection();
-      if (!projectId) {
-        setVersions([]);
-        setVersionId('');
-        return;
-      }
-      projectsApi
-        .listVersions(projectId)
-        .then((res) => {
-          const list = res.data.data ?? [];
-          setVersions(list);
-          setVersionId(selectId ?? list[0]?.id ?? '');
-        })
-        .catch((err) => setSelectorError(getErrorMessage(err, 'Could not load versions')));
-    },
-    [projectId, clearNodeSelection],
-  );
-
-  useEffect(() => {
-    loadVersions();
-  }, [loadVersions]);
+    void loadVersions();
+    return invalidateRequest;
+  }, [loadVersions, invalidateRequest]);
 
   async function handleCreateOrganization() {
     const name = window.prompt('New organization name');
@@ -376,19 +353,6 @@ function EditorWorkspace() {
       if (res.data.data?.id) selectProject(res.data.data.id);
     } catch (err) {
       setSelectorError(getErrorMessage(err, 'Could not create the project'));
-    }
-  }
-
-  async function handleCreateVersion() {
-    if (!projectId) return;
-    const name = window.prompt('New version name');
-    if (!name || !name.trim()) return;
-    try {
-      const parent = versionId || undefined;
-      const response = await projectsApi.createVersion(projectId, { name: name.trim(), parentVersion: parent });
-      void loadVersions(response.data.data?.id);
-    } catch (err) {
-      setSelectorError(getErrorMessage(err, 'Could not create the version'));
     }
   }
 

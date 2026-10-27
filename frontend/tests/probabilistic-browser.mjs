@@ -71,7 +71,8 @@ try {
  await page.getByText('Ronda no disponible',{exact:true}).waitFor();
  failRound=false;await page.getByLabel('Vista de resultados').selectOption('summary');
  await page.setViewportSize({width:390,height:844});
- await page.waitForFunction(()=>document.querySelector('aside').getBoundingClientRect().width===64);
+ // Master uses an off-canvas mobile drawer instead of the former 64px rail.
+ await page.waitForFunction(()=>{const panel=document.querySelector('aside');return panel.inert && panel.getBoundingClientRect().right<=1;});
  await page.getByRole('heading',{name:'Rentabilidad',exact:true}).scrollIntoViewIfNeeded();
  await page.screenshot({path:fileURLToPath(new URL('summary-mobile.png',output)),fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

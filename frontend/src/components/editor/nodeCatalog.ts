@@ -133,6 +133,17 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
       { key: 'timeToDestination', label: 'Time to destination', integer: true },
     ],
   },
+  { type: 'INTERNAL_CONSUMPTION', label: 'Internal Consumption', vertical: 'INTERNAL_CONSUMPTION', role: 'SINK',
+    fields: [
+      { key: 'consumptionSummer', label: 'Summer consumption' },
+      { key: 'consumptionAutumn', label: 'Autumn consumption' },
+      { key: 'consumptionWinter', label: 'Winter consumption' },
+      { key: 'consumptionSpring', label: 'Spring consumption' },
+    ],
+  },
+  { type: 'INDUSTRIAL_CONSUMPTION', label: 'Industrial Consumption', vertical: 'INTERNAL_CONSUMPTION', role: 'SINK',
+    fields: [{ key: 'consumption', label: 'Constant consumption' }],
+  },
 ];
 
 /** Fields editable in the physical diagram and map. */
@@ -194,13 +205,15 @@ export const NODE_STATES: NodeState[] = ['PROPOSED', 'PENDING', 'RUNNING'];
 export const ALLOWED_CONNECTIONS: Partial<Record<NodeType, NodeType[]>> = {
   WELL: ['GATHERING_NETWORK'],
   GATHERING_NETWORK: ['TREATMENT_PLANT'],
-  TREATMENT_PLANT: ['PIPELINE', 'COMPRESSING_PLANT'],
-  PIPELINE: ['PIPELINE', 'COMPRESSING_PLANT', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT'],
-  COMPRESSING_PLANT: ['PIPELINE', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT'],
+  TREATMENT_PLANT: ['PIPELINE', 'COMPRESSING_PLANT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
+  PIPELINE: ['PIPELINE', 'COMPRESSING_PLANT', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
+  COMPRESSING_PLANT: ['PIPELINE', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
   GROUND_LIQUEFACTION_PLANT: ['SEAPORT_TERMINAL'],
   FLNG_UNIT: ['LNG_CAMER'],
   SEAPORT_TERMINAL: ['LNG_CAMER'],
   LNG_CAMER: [],
+  INTERNAL_CONSUMPTION: [],
+  INDUSTRIAL_CONSUMPTION: [],
 };
 
 /** The node types a node of `from` type may connect to. */

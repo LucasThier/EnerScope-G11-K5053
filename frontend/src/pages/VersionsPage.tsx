@@ -24,6 +24,10 @@ interface PendingDeletion {
 
 export function VersionsPage() {
   const { projectId } = useParams();
+  return <VersionsWorkspace key={projectId} projectId={projectId} />;
+}
+
+function VersionsWorkspace({ projectId }: { projectId?: string }) {
   const { user } = useAuth();
   const { projects, isLoading: projectsLoading } = useActiveProject();
   const { versions, loading, error, errorStatus, reload, deleteVersion, mergeVersion } = useVersions(

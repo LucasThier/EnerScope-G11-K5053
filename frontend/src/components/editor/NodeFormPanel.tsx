@@ -202,7 +202,6 @@ export function NodeFormPanel({
         </select>
         <TextField label={declineType === 'CONSTANT' ? 'Declinación anual (puntos porcentuales)' : declineType === 'NORMAL' ? 'Media anual (puntos porcentuales)' : 'Mínimo anual (puntos porcentuales)'} type="number" step="any" value={declineA} onChange={e => setDeclineA(e.target.value)} />
         {declineType !== 'CONSTANT' && <TextField label={declineType === 'NORMAL' ? 'Desviación estándar' : 'Máximo anual (puntos porcentuales)'} type="number" step="any" value={declineB} onChange={e => setDeclineB(e.target.value)} />}
-        <p className="text-xs text-ink-500">Ingresá 1,45 para una declinación de 1,45 puntos por año. Las muestras se limitan a 0–100 y se acumulan hasta 100.</p>
         {!validDecline && <p role="status" className="text-xs text-red-600">Completá los parámetros: constante entre 0 y 100; uniforme con mínimo menor al máximo entre 0 y 100; normal con desviación mayor a cero.</p>}
       </fieldset>}
       <Button variant="primary" loading={busy} disabled={!base.name.trim() || !validDecline} onClick={submit}>

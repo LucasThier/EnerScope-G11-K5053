@@ -9,8 +9,8 @@ class NodeRequestDeserializerTest {
 
     @Test
     void everySupportedNodeTypeSelectsItsDeclaredClass() throws Exception {
-        String[] types = {"WELL", "GATHERING_NETWORK", "TREATMENT_PLANT", "PIPELINE", "COMPRESSING_PLANT", "GROUND_LIQUEFACTION_PLANT", "FLNG_UNIT", "SEAPORT_TERMINAL", "LNG_CAMER"};
-        Class<?>[] classes = {WellDTO.class, GatheringNetworkDTO.class, TreatmentPlantDTO.class, PipelineDTO.class, CompressingPlantDTO.class, GroundBasedLiquefactionPlantDTO.class, FLNGUnitDTO.class, SeaportTerminalDTO.class, LNGCarrierDTO.class};
+        String[] types = {"WELL", "GATHERING_NETWORK", "TREATMENT_PLANT", "PIPELINE", "COMPRESSING_PLANT", "GROUND_LIQUEFACTION_PLANT", "FLNG_UNIT", "SEAPORT_TERMINAL", "LNG_CAMER", "INTERNAL_CONSUMPTION", "INDUSTRIAL_CONSUMPTION"};
+        Class<?>[] classes = {WellDTO.class, GatheringNetworkDTO.class, TreatmentPlantDTO.class, PipelineDTO.class, CompressingPlantDTO.class, GroundBasedLiquefactionPlantDTO.class, FLNGUnitDTO.class, SeaportTerminalDTO.class, LNGCarrierDTO.class, InternalConsumptionDTO.class, IndustrialConsumptionDTO.class};
         for (int i = 0; i < types.length; i++) {
             var body = mapper.createObjectNode(); body.putObject("type").put("nodeType", types[i]);
             assertEquals(classes[i], mapper.treeToValue(body, BaseNodeDTO.class).getClass());
@@ -32,7 +32,7 @@ class NodeRequestDeserializerTest {
 
     @Test
     void missingMalformedUnknownAndUnsupportedTypesAreRejected() {
-        for (String json : new String[]{"{}", "{\"type\":null}", "{\"type\":{\"nodeType\":12}}", "{\"type\":{\"nodeType\":\"UNKNOWN\"}}", "{\"type\":{\"nodeType\":\"INTERNAL_CONSUMPTION\"}}"})
+        for (String json : new String[]{"{}", "{\"type\":null}", "{\"type\":{\"nodeType\":12}}", "{\"type\":{\"nodeType\":\"UNKNOWN\"}}", "{\"type\":{\"nodeType\":\"PIPELINE_CONECTION\"}}"})
             assertThrows(com.fasterxml.jackson.databind.JsonMappingException.class, () -> mapper.readValue(json, BaseNodeDTO.class));
     }
 }
