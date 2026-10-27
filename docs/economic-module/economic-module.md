@@ -279,7 +279,7 @@ Successful saves/evaluations log through `AppLogger` without logging configurati
 
 ## Complete example: NPV USD 169.20
 
-Use [economic-configuration.json](../backend/src/test/resources/economic-examples/economic-configuration.json). The golden
+Use [economic-configuration.json](../../backend/src/test/resources/economic-examples/economic-configuration.json). The golden
 test reads this file and asserts independently specified expected amounts.
 
 Two hypothetical tax entities A/B own 60%/40% of both wells. WACC is 10%, tax is 30%,

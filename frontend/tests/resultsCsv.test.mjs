@@ -9,7 +9,7 @@ const values={count:2,mean:10,min:0,max:20,p10:2,p50:10,p90:18};
 const evaluation={id:'saved',createdAt:'2026-10-01',snapshot:{configuration:{startYear:2030,currency:'USD',conversions:[{nodeId:'a',metric:'OUTPUT_VOLUME',unit:'m³',factor:2}]},physicalNodes:[{id:'a',name:'Nodo, histórico'}],rawMetrics:[{nodeId:'a',period:1,input:0,output:10,exported:null,losses:0,operatingHours:8760,events:0},{nodeId:'b',period:1,output:999}],result:{npv:12.345,periods:[{year:2030,period:0,cashFlow:-12.345,discountedCashFlow:0}]}}};
 test('CSV preserves decimals and missing values and escapes text safely',()=>{
  const text=csv([['A,"B"', '=SUM(A1)', 'line\nbreak', -12.345,0,null,NaN]]);
- assert.ok(text.startsWith('\uFEFF'));assert.ok(text.includes('"A,""B"""'));assert.ok(text.includes("' =SUM")==false);
+ assert.ok(text.startsWith('\uFEFF'));assert.ok(text.includes('"A,""B"""'));assert.ok(text.includes("' =SUM")===false);
  assert.ok(text.includes("'=SUM(A1)"));assert.ok(text.includes('"-12.345","0",,'));assert.ok(text.endsWith('\r\n'));
 });
 test('economic CSV uses saved annual values and identifies the selected round',()=>{

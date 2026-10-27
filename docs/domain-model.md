@@ -439,3 +439,10 @@ up to rounds EconomicRound records, unique by (job, round number), with full sna
 small summaryJson. A completed job links one EconomicEvaluation; failed/interrupted jobs publish 
 none. FrozenEconomicInput and ProbabilisticSummary are value records, not shared physical JPA state.
 
+## Consumer nodes in the editor
+
+Internal Consumption has four physical demand fields: consumptionSummer, consumptionAutumn, 
+consumptionWinter and consumptionSpring. Industrial Consumption uses consumption. Both are sinks in 
+the INTERNAL_CONSUMPTION vertical, fed from treatment plants, pipelines or compressors. They use the 
+existing consumer entity tables and simulator behavior; demand is measured in simulator units per 
+hourly step. They remain eligible for non-export economic drivers and do not become LNG export nodes.

@@ -301,7 +301,7 @@ All responses are wrapped in a standard envelope:
 ## Economic API
 
 The economic API evaluates project versions, with persisted configuration and
-immutable NPV history. See [economic documentation and runnable example](../docs/economic-module.md).
+immutable NPV history. See [economic documentation and runnable example](../docs/economic-module/economic-module.md).
 Use the complete migration chain through V15. The incoming master V11 for node columns is redundant with this branch's V12 and is not included. Existing databases require reviewing their Flyway history before deployment; this merge does not reset databases or repair checksums.
 
 Economic routes use `/api/v1/projects/{projectId}/versions/{versionId}/economics`:
@@ -393,7 +393,7 @@ application logger level and `LOG_LEVEL_ROOT` the framework level
 GET /api/v1/projects/{projectId}/versions returns active version summaries with
 node identifiers, names and types. Requires VIEW_PROJECT through an active project
 membership/role, or a platform administrator. Responses use ApiResponse.
-See [economic frontend](../docs/economic-frontend.md).
+See [economic frontend](../docs/economic-module/economic-frontend.md).
 
 Economic drafts: migration V13 adds economic_draft. 
 GET/PUT /projects/{projectId}/versions/{versionId}/economics/draft reads/stores 
@@ -414,7 +414,7 @@ accepts {"rounds":10,"seed":"42"} and returns 202 with persisted progress.
 The worker uses economic.worker.enabled (default true) and 
 economic.worker.poll-ms (default 1000); deploy one worker instance. 
 POST /evaluations remains synchronous and single-round. 
-V16 adds jobs/rounds. See [economic module](../docs/economic-module.md) for migration 
+V16 adds jobs/rounds. See [economic module](../docs/economic-module/economic-module.md) for migration 
 reconciliation, restart/retry, permissions and the example script. Use a disposable 
 ECONOMIC_TEST_DATABASE_URL for the explicit PostgreSqlEconomicIT suite.
 
@@ -439,3 +439,7 @@ POST `/projects` accepts an omitted, null or blank `description` and stores an e
 ### Explicit node type 
 
 POST `/version/{versionId}/node` and PATCH `/version/{versionId}/node/{nodeId}` require `type.nodeType`. The backend chooses the concrete DTO using that value, not overlapping physical fields. Supported values are WELL, GATHERING_NETWORK, TREATMENT_PLANT, PIPELINE, COMPRESSING_PLANT, GROUND_LIQUEFACTION_PLANT, FLNG_UNIT, SEAPORT_TERMINAL and LNG_CAMER (existing enum spelling). Missing or unsupported values return 400. Existing editor payloads already contain the discriminator; no migration is required.
+
+### Migration reconciliation 
+
+Use docker compose up -d --build api to compile current sources and wait for the database health check. Pending migrations now continue through V23. Previously published V2/V8.5/V9 retain their historical contents; incoming alternatives are preserved in docs/migration-reconciliation-20261025 outside Flyway discovery. Do not repair checksums or reset existing databases to resolve a conflicting migration number.

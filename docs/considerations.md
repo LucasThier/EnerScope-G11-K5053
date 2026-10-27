@@ -778,7 +778,7 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     are pre-fix data, not a defect in the current code.
 
 - 2026-09-16 — Economic evaluations are version-owned typed aggregates with immutable
-  input/output snapshots. See `docs/economic-module.md` for rule semantics, annual
+  input/output snapshots. See `economic-module/economic-module.md` for rule semantics, annual
   365-day operational time, tax-loss expiry and explicit unit conversions. Do not
   import `BaseNode` legacy costs implicitly, mirror an internal transfer manually,
   or duplicate an asset purchase as an expense rule. Tax is calculated per entity
@@ -835,7 +835,7 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 
 - 2026-10-01 — Pinned frontend Axios to 1.20.0 and refreshed the npm lockfile for upstream security fixes. Keep HTTP requests and token refresh in the existing src/api client; no API contract changes are required.
 - 2026-09-16 — Economic evaluations are version-owned typed aggregates with immutable
-  input/output snapshots. See `docs/economic-module.md` for rule semantics, annual
+  input/output snapshots. See `economic-module/economic-module.md` for rule semantics, annual
   365-day operational time, tax-loss expiry and explicit unit conversions. Do not
   import `BaseNode` legacy costs implicitly, mirror an internal transfer manually,
   or duplicate an asset purchase as an expense rule. Tax is calculated per entity
@@ -2182,3 +2182,17 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - 2026-10-22 — **Explicit node request discriminator**
   - Node creation and editing now route by the existing `type.nodeType` field. Field-name deduction was ambiguous for ground liquefaction plants because FLNG includes the same fields. NodeRequestDeserializer uses a fixed allowlist of the nine supported editor DTO types; it never resolves arbitrary class names or falls back to guessing.
   - Missing, malformed, unknown and unsupported node types return HTTP 400. Frontend payload shape and persisted scenarios are unchanged. The concrete DTOs disable the inherited routing deserializer to avoid recursive dispatch.
+
+- 2026-10-25 — Migration reconciliation preserves every SQL file: incoming V1.5/V11.5/V13.5/V14.5 are now V20/V21/V22/V23. V20/V21 preserve existing objects and values. Published V2/V8.5/V9 were restored from the October 16 runtime to retain applied checksums; incoming variants remain verbatim in docs/migration-reconciliation-20261025. No Flyway repair, validation bypass or database reset. Both a populated database clone and a fresh database successfully reached V23.
+
+- 2026-10-25 — Startup fixes restore valid App route names, align Sidebar with SidebarProvider callbacks, restore the scoped Editor version loader and import operationalFields. Simulation listing uses /projects/:projectId/simulations, keeping version management separate.
+
+- 2026-10-26 — Route integration preserves master version management at /versions and /projects/:id/versions, and economics configuration/history/results under their existing detail URLs. Simulation listing is /projects/:id/simulations. Data router restored for useBlocker; shared module patterns drive sidebar/title and project-switch targets. No permission expansion. Full inventory and audit: route-integration-20261026.md.
+
+- 2026-10-26 — Both consumer node types are now supported by the editor and version-scoped node API. INDUSTRIAL_CONSUMPTION is a new discriminator in the existing string column; both consumers use INTERNAL_CONSUMPTION/SINK and its existing edit permissions. Treatment plants, pipelines and compressors can feed them; consumers have no outgoing editor connections. Scenario operations expose seasonal/constant demand with Spanish labels. Existing simulator units, timing and economic formulas remain unchanged. No schema migration or historical data rewrite.
+
+- 2026-10-26 — Editor diagrams exclude REMOVED nodes and connections whose endpoints are not visible, on every reload. Both diagram/minimap and geographic map share the filtered state. Soft deletion, stored snapshots and historical records are preserved.
+
+- 2026-10-26 — REMOVED nodes are excluded from current scenario operations, economic node eligibility, version summaries and newly frozen simulation inputs. Their touching connections are excluded from new inputs. Stored version rows, source tokens, historical results and historical retry inputs remain intact. Existing economic references to deleted nodes require review rather than silent financial-rule changes. Execution history can be minimized while polling continues and errors remain visible.
+
+- 2026-10-26 — Result CSV exports are generated client-side from the selected immutable evaluation. Annual financial exports include all accounting columns and indicators at stored precision. Operational exports contain the selected node with the same saved unit conversions as the UI. Round exports identify the round; summary exports contain all nodes and statistical/status/probability rows. Files use UTF-8 BOM, comma separators, quoted cells, CRLF, decimal points and blank missing values; text formula prefixes are escaped. No simulation or backend mutation is performed.

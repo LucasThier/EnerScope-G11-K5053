@@ -175,7 +175,7 @@ frontend/
 
 Open **Simulaciones / Escenarios** with an active project to select an existing
 scenario, configure a simplified economic evaluation and inspect saved results.
-See [economic frontend](../docs/economic-frontend.md) for routes, assumptions,
+See [economic frontend](../docs/economic-module/economic-frontend.md) for routes, assumptions,
 permissions and historical compatibility.
 
 Run `npm test` for the dependency-free Node test runner covering the economic
@@ -203,7 +203,7 @@ Validation: npm test, npm run build and npm run lint. Browser scripts
 tests/economic-browser.mjs, tests/results-browser.mjs and 
 tests/probabilistic-browser.mjs use local Vite and PLAYWRIGHT_MODULE pointing to 
 Playwright, with isolated HTTP fixtures. 
-See [economic module](../docs/economic-module.md).
+See [economic module](../docs/economic-module/economic-module.md).
 
 ### Scenario creation
 

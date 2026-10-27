@@ -90,4 +90,4 @@ tax-loss rules make economics on average production incorrect. Use nearest-rank
 ascending percentiles and explicit conditional denominators. Persist immutable job 
 inputs and separate round JSON, with atomic claims and startup interruption under a 
 single-worker-instance deployment. Preserve old individual snapshots unchanged; 
-see [economic module](economic-module.md).
+see [economic module](economic-module/economic-module.md).
