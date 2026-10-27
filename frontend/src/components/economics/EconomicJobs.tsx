@@ -13,6 +13,7 @@ export function EconomicJobs({ projectId, versionId, canEdit, refreshToken }: {
   projectId: string; versionId: string; canEdit: boolean; refreshToken: number;
 }) {
   const [jobs, setJobs] = useState<EconomicJob[]>([]);
+  const [collapsed, setCollapsed] = useState(false);
   const [error, setError] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -44,7 +45,13 @@ export function EconomicJobs({ projectId, versionId, canEdit, refreshToken }: {
   if (!jobs.length && !error) return null;
   return <Card><div className="mb-3 flex flex-wrap items-center justify-between gap-3">
     <h2 className="text-lg font-semibold">Ejecuciones de simulación</h2>
-    <Button variant="ghost" onClick={() => setRefresh(n => n + 1)}>Actualizar avance</Button></div>
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" onClick={() => setRefresh(n => n + 1)}>Actualizar avance</Button>
+      <Button variant="ghost" aria-expanded={!collapsed} onClick={() => setCollapsed(value => !value)}>{collapsed ? 'Mostrar ejecuciones' : 'Minimizar'}</Button>
+    </div></div>
+    {collapsed && <p className="text-sm text-ink-600">{jobs.length} ejecuciones · {jobs.filter(jobPending).length} en curso</p>}
+    {error && <Alert tone="error">{error}</Alert>}
+    {!collapsed && <>
     <p className="mb-4 text-sm text-ink-600">Podés navegar mientras se simula. Repetir conserva las entradas y la semilla originales.</p>
     {error && <Alert tone="error">{error}</Alert>}
     <ul className="space-y-4">{jobs.map(job => <li key={job.id} className="rounded-xl border border-ink-100 p-4">
@@ -54,6 +61,7 @@ export function EconomicJobs({ projectId, versionId, canEdit, refreshToken }: {
       {job.errorMessage && <p className="mt-2 text-sm text-red-700">{job.errorMessage}</p>}
       {job.evaluationId && <Link className="mt-2 inline-block text-brand-800 underline" to={`/projects/${projectId}/versions/${versionId}/economics/results/${job.evaluationId}`}>Ver resultados →</Link>}
       {canEdit && ['FAILED','INTERRUPTED'].includes(job.status) && <Button className="mt-2" variant="secondary" disabled={retrying !== null} onClick={() => { void repeat(job); }}>Repetir desde el inicio</Button>}
-    </li>)}</ul>
+    </li>)}</ul></>
+    }
   </Card>;
 }

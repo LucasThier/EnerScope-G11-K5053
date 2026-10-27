@@ -3,6 +3,8 @@ import { Card } from '../ui/Card';
 import { TextField } from '../ui/TextField';
 import type { OperationalNode, OperationalValue, ScenarioSave } from '../../types/scenarioConfiguration';
 const labels: Record<string,string> = {
+ consumptionSummer:'Consumo de verano', consumptionAutumn:'Consumo de otoño',
+ consumptionWinter:'Consumo de invierno', consumptionSpring:'Consumo de primavera', consumption:'Consumo constante',
  name:'Nombre', state:'Estado', startupDate:'Puesta en marcha (UTC, formato ISO)',
  lifespanInMonths:'Vida útil (meses)', maintenanceIntervalInDays:'Intervalo de mantenimiento (días)',
  maintenanceDuration:'Duración del mantenimiento (horas)', wastePercentage:'Pérdidas (%)',

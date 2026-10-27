@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Evaluation } from '../../types/economics';
 import { operationalColumns, operationalNodes, operationalNumber, operationalDisplay, operationalTotal, operationalYear } from '../../utils/operationalResults';
+import { downloadCsv, operationalCsv } from '../../utils/resultsCsv';
+import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Alert } from '../ui/Alert';
 
-export function OperationalResults({ evaluation, active = true }: { evaluation: Evaluation; active?: boolean }) {
+export function OperationalResults({ evaluation, active = true, round }: { evaluation: Evaluation; active?: boolean; round?: number }) {
   const [hover, setHover] = useState<{ text: string; x: number; y: number } | null>(null);
   const [focus, setFocus] = useState<{ text: string; x: number; y: number } | null>(null);
   const detail = hover ?? focus;
@@ -69,6 +71,6 @@ export function OperationalResults({ evaluation, active = true }: { evaluation: 
       </svg></div><p className="mt-2 text-xs text-ink-500">{!sameUnit && 'Las series usan escalas independientes porque sus unidades son distintas. '}Las exportaciones son una métrica independiente: no se suman a la producción. Los datos ausentes no se dibujan como cero.</p>
     </Card>
     {rows.some(r => operationalColumns.some(([f]) => r[f] == null)) && <Alert>Hay valores no disponibles en esta evaluación. Se conservan como datos ausentes.</Alert>}
-    <Card><details><summary className="cursor-pointer font-semibold text-ink-800">Detalle anual del nodo</summary><div className="mt-5 overflow-x-auto"><table className="w-full text-right text-sm"><thead><tr><th scope="col" className="whitespace-nowrap p-3 text-left">Año / período</th>{columns.map(([key, label, unit]) => <th scope="col" key={key} className="p-3">{label}<span className="block whitespace-nowrap text-xs font-normal text-ink-500">{unit}</span></th>)}</tr></thead><tbody>{rows.map(r => <tr key={r.period} className="border-t border-ink-100"><th scope="row" className="whitespace-nowrap p-3 text-left">{operationalYear(evaluation, r.period)} / {r.period}</th>{columns.map(([field]) => <td key={field} className="whitespace-nowrap p-3 tabular-nums">{operationalNumber(r[field])}</td>)}</tr>)}</tbody></table></div><p className="mt-3 text-xs text-ink-500">Horas y eventos corresponden al nodo seleccionado. El período 1 es el primer año de operación, posterior a la inversión.</p></details></Card>
+    <Card className="relative"><div className="absolute right-6 top-6"><Button variant="secondary" disabled={!rows.length} onClick={() => downloadCsv('resultados-operativos-' + evaluation.id + (round ? '-ronda-' + round : '') + '-nodo-' + nodeId, operationalCsv(evaluation, nodeId, round))}>Descargar CSV</Button></div><details><summary className="min-h-10 cursor-pointer py-2 pr-36 font-semibold leading-6 text-ink-800">Detalle anual del nodo</summary><div className="mt-5 overflow-x-auto"><table className="w-full text-right text-sm"><thead><tr><th scope="col" className="whitespace-nowrap p-3 text-left">Año / período</th>{columns.map(([key, label, unit]) => <th scope="col" key={key} className="p-3">{label}<span className="block whitespace-nowrap text-xs font-normal text-ink-500">{unit}</span></th>)}</tr></thead><tbody>{rows.map(r => <tr key={r.period} className="border-t border-ink-100"><th scope="row" className="whitespace-nowrap p-3 text-left">{operationalYear(evaluation, r.period)} / {r.period}</th>{columns.map(([field]) => <td key={field} className="whitespace-nowrap p-3 tabular-nums">{operationalNumber(r[field])}</td>)}</tr>)}</tbody></table></div><p className="mt-3 text-xs text-ink-500">Horas y eventos corresponden al nodo seleccionado. El período 1 es el primer año de operación, posterior a la inversión.</p></details></Card>
   </div>;
 }

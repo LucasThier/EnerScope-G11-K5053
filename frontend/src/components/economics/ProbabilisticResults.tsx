@@ -6,6 +6,8 @@ import { money, percent } from '../../utils/economicFormat';
 import { operationalColumns, operationalDisplay, operationalNumber } from '../../utils/operationalResults';
 import { roundEvaluation } from '../../utils/probabilisticResults';
 import { ScenarioResults } from './ScenarioResults';
+import { downloadCsv, summaryCsv } from '../../utils/resultsCsv';
+import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Alert } from '../ui/Alert';
 
@@ -44,14 +46,14 @@ export function ProbabilisticResults({ evaluation, projectId, versionId }: { eva
   });
   return <div className="space-y-5">
     <Card><label className="block text-sm font-semibold" htmlFor="round-selection">Vista de resultados</label>
-      <select id="round-selection" value={selection} onChange={e => { setSelection(e.target.value); setError(''); setRound(null); }} className="mt-2 w-full rounded-lg border border-ink-200 bg-white p-3 sm:max-w-sm">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><select id="round-selection" value={selection} onChange={e => { setSelection(e.target.value); setError(''); setRound(null); }} className="w-full rounded-lg border border-ink-200 bg-white p-3 sm:max-w-sm">
         <option value="summary">Resumen de {summary.rounds} rondas</option>
         {Array.from({ length: summary.rounds }, (_, i) => <option key={i + 1} value={i + 1}>Ronda {i + 1}</option>)}
-      </select><p className="mt-3 break-all text-sm text-ink-600">Semilla principal: {evaluation.snapshot.simulation?.seed} · {summary.rounds} rondas</p>
+      </select><Button variant="secondary" onClick={() => downloadCsv('resumen-rondas-' + evaluation.id, summaryCsv(evaluation))}>Descargar resumen CSV</Button></div><p className="mt-3 break-all text-sm text-ink-600">Semilla principal: {evaluation.snapshot.simulation?.seed} · {summary.rounds} rondas</p>
     </Card>
     {error && <Alert tone="error">{error}</Alert>}
     {selection !== 'summary' ? round && round.round === Number(selection) ?
-      <><p className="text-sm text-ink-600">Ronda {round.round} · Semilla {round.seed}</p><ScenarioResults evaluation={roundEvaluation(evaluation, round)} /></>
+      <><p className="text-sm text-ink-600">Ronda {round.round} · Semilla {round.seed}</p><ScenarioResults evaluation={roundEvaluation(evaluation, round)} round={round.round} /></>
       : !error && <p role="status">Cargando ronda…</p> : <>
       <Alert>P10 representa valores bajos y P90 valores altos. Cada indicador se resume por separado; las bandas anuales no representan una ronda completa. Las probabilidades son frecuencias de esta muestra.</Alert>
       <Card><h2 className="text-lg font-semibold">Rentabilidad</h2><p className="my-3">Rondas con VAN positivo: <strong>{percent(summary.positiveNpvProbability)}</strong> de {summary.rounds}.</p>

@@ -4,6 +4,8 @@ import type { EconomicConfiguration, EconomicPeriod, Evaluation } from '../../ty
 import { Alert } from '../ui/Alert';
 import { EconomicSummary } from './EconomicSummary';
 import { CashFlowChart } from './CashFlowChart';
+import { downloadCsv, economicCsv } from '../../utils/resultsCsv';
+import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 
 const labels: Record<string, string> = {
@@ -40,7 +42,7 @@ export function ConfigurationSummary({ configuration }: { configuration: Economi
     <p key={k}><strong>{labels[k] ?? k}: </strong>{String(v)}</p>)}</div>;
 }
 
-export function EconomicResults({ evaluation, active = true }: { evaluation: Evaluation; active?: boolean }) {
+export function EconomicResults({ evaluation, active = true, round }: { evaluation: Evaluation; active?: boolean; round?: number }) {
   const [breakdown, setBreakdown] = useState(false);
   const result = evaluation.snapshot.result;
   const indicators = result?.indicators;
@@ -65,7 +67,7 @@ export function EconomicResults({ evaluation, active = true }: { evaluation: Eva
     <Card><div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-semibold">Flujo de caja anual</h2><p className="mt-1 text-sm text-ink-500">Inversión inicial y {configuration?.years ?? '—'} años operativos · {currency ?? 'Moneda no disponible'}</p></div><span className="flex items-center gap-2 text-xs text-ink-500"><span className="h-2 w-2 rounded-full bg-brand-800" />Flujo de caja</span></div>
       {!periods.length ? <p>No hay flujos anuales disponibles.</p> : <CashFlowChart key={evaluation.id} periods={periods} currency={currency} active={active} />}
     </Card>
-    <Card><details><summary className="cursor-pointer font-semibold text-ink-800">Ver detalle anual</summary><div className="mt-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Flujos anuales · {currency ?? 'Moneda no disponible'}</h2><button className="text-sm font-semibold text-brand-800 underline" onClick={() => setBreakdown(!breakdown)}>{breakdown ? 'Ver resumen' : 'Ver desglose contable'}</button></div>
+    <Card className="relative"><div className="absolute right-6 top-6"><Button variant="secondary" disabled={!periods.length} onClick={() => downloadCsv('resultados-economicos-' + evaluation.id + (round ? '-ronda-' + round : ''), economicCsv(evaluation, round))}>Descargar CSV</Button></div><details><summary className="min-h-10 cursor-pointer py-2 pr-36 font-semibold leading-6 text-ink-800">Ver detalle anual</summary><div className="mt-5"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Flujos anuales · {currency ?? 'Moneda no disponible'}</h2><button className="text-sm font-semibold text-brand-800 underline" onClick={() => setBreakdown(!breakdown)}>{breakdown ? 'Ver resumen' : 'Ver desglose contable'}</button></div>
       <div className="overflow-x-auto"><table className="w-full text-right text-sm"><thead><tr><th className="p-3 text-left">Año / período</th>{columns.map(([key,label]) => <th className="p-3" key={key}>{label}</th>)}</tr></thead><tbody>{periods.map(p => <tr key={p.period} className="border-t border-ink-100"><th className="whitespace-nowrap p-3 text-left">{p.year} / {p.period === 0 ? 'Inicial' : p.period}</th>{columns.map(([key]) => <td className="whitespace-nowrap p-3 tabular-nums" key={key}>{money(p[key],currency)}</td>)}</tr>)}</tbody></table></div>
       <p className="mt-3 text-xs text-ink-500">Los períodos de recupero corresponden al cierre anual, sin interpolación. El VAN se muestra redondeado hacia arriba a la unidad; los flujos conservan sus decimales.</p></div></details>
     </Card>
