@@ -62,7 +62,7 @@ class VersionServiceTest {
         private VersionConflictService versionConflictService;
 
         @Mock
-        private org.enerscope.project.service.ProjectAccessGuard accessGuard;
+        private VersionAccessGuard accessGuard;
 
         @InjectMocks
         private VersionService versionService;

@@ -22,7 +22,6 @@ import org.enerscope.version.dto.VersionConflictDTO;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
-import org.enerscope.project.service.ProjectAccessGuard;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,9 +40,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class VersionConflictIntegrationTest {
 
-    // Permissions are covered by ProjectAccessGuardTest; here the callers have no session.
+    // Permissions are covered by VersionAccessGuardTest; here the callers have no session.
     @MockitoBean
-    private ProjectAccessGuard accessGuard;
+    private VersionAccessGuard accessGuard;
 
     @Autowired
     private VersionService versionService;
