@@ -430,7 +430,7 @@ reset historical migrations to bypass incompatibilities.
 
 ### Scenario configuration migration and verification 
 
-Fresh PostgreSQL installations use Flyway B18 followed by V19. Existing Flyway histories ignore B18; do not repair or reset databases to adopt it. V19 adds joint scenario drafts. Run `mvn test`, then `mvn -Dtest=PostgreSqlEconomicIT,ScenarioConfigurationPostgreSqlIT test` with ECONOMIC_TEST_DATABASE_URL pointing exclusively to a disposable enerscope_economic_test database. See docs/economic-module.md for the joint configuration/readiness API.
+Fresh PostgreSQL installations execute the individual V1–V23 migrations. The former B18 snapshot is archived outside Flyway in docs/migration-reconciliation. Databases that recorded B18 require a separate compatibility review before upgrading; do not repair or reset their history automatically. V19 adds joint scenario drafts. Run `mvn test`, then `mvn -Dtest=PostgreSqlEconomicIT,ScenarioConfigurationPostgreSqlIT test` with ECONOMIC_TEST_DATABASE_URL pointing exclusively to a disposable enerscope_economic_test database. See docs/economic-module.md for the joint configuration/readiness API.
 
 ### Project description input
 

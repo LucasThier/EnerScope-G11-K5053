@@ -24,6 +24,13 @@ class MigrationCatalogTest {
     }
 
     @Test
+    void executableCatalogUsesOnlyVersionedMigrations() throws Exception {
+        var resources = new PathMatchingResourcePatternResolver().getResources("classpath*:db/migration/*.sql");
+        assertEquals(23, resources.length);
+        for (var resource : resources) assertTrue(resource.getFilename().matches("V[0-9]+([._][0-9]+)*__.+\\.sql"), resource.getFilename());
+    }
+
+    @Test
     void reconciledEnsureMigrationsPreserveExistingValues() throws Exception {
         try (var connection = DriverManager.getConnection("jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=PostgreSQL")) {
             var statement = connection.createStatement();
