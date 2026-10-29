@@ -1,7 +1,5 @@
 package org.enerscope.node.dto;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -25,18 +23,7 @@ import org.enerscope.node.dto.SeaportTerminalDTO;
  */
 @Getter
 @Setter
-@JsonTypeInfo(use = JsonTypeInfo.Id.DEDUCTION)
-@JsonSubTypes({
-        @JsonSubTypes.Type(value = WellDTO.class),
-        @JsonSubTypes.Type(value = TreatmentPlantDTO.class),
-        @JsonSubTypes.Type(value = GatheringNetworkDTO.class),
-        @JsonSubTypes.Type(value = PipelineDTO.class),
-        @JsonSubTypes.Type(value = CompressingPlantDTO.class),
-        @JsonSubTypes.Type(value = GroundBasedLiquefactionPlantDTO.class),
-        @JsonSubTypes.Type(value = FLNGUnitDTO.class),
-        @JsonSubTypes.Type(value = LNGCarrierDTO.class),
-        @JsonSubTypes.Type(value = SeaportTerminalDTO.class)
-})
+@com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = NodeRequestDeserializer.class)
 public class BaseNodeDTO {
 
     // Common fields from BaseNode

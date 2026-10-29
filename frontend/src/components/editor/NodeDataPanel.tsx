@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { TextField } from '../ui/TextField';
 import { useTheme } from '../../hooks/useTheme';
-import { NODE_STATES, specForType, verticalColor } from './nodeCatalog';
+import { NODE_STATES, specForType, verticalColor, operationalFields } from './nodeCatalog';
 import type { DiagramNode, NodeDetail, NodeState } from '../../types/diagram';
 
 interface NodeDataPanelProps {
@@ -18,7 +18,7 @@ interface NodeDataPanelProps {
 }
 
 function fmt(n: number | null | undefined): string {
-  return n == null ? '—' : String(Number(n.toFixed(4)));
+  return n == null ? 'â€”' : String(Number(n.toFixed(4)));
 }
 
 /** Details of the selected node, with lightweight rename/state edit and delete. */
@@ -121,7 +121,7 @@ export function NodeDataPanel({
         </dd>
         <dt className="text-ink-500">Id</dt>
         <dd className="truncate text-ink-500" title={node.id}>
-          {node.id.slice(0, 8)}…
+          {node.id.slice(0, 8)}â€¦
         </dd>
       </dl>
 
@@ -129,20 +129,16 @@ export function NodeDataPanel({
         <div className="border-t border-ink-100 pt-3">
           <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Data</span>
           <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-            <dt className="text-ink-500">Upkeep cost</dt>
-            <dd className="text-ink-700">{fmt(detail.upkeepCosts)}</dd>
-            <dt className="text-ink-500">Operating cost</dt>
-            <dd className="text-ink-700">{fmt(detail.operatingCosts)}</dd>
-            <dt className="text-ink-500">Lifespan (mo)</dt>
+            <dt className="text-ink-400">Lifespan (mo)</dt>
             <dd className="text-ink-700">{fmt(detail.lifespanInMonths)}</dd>
             <dt className="text-ink-500">Maint. (days)</dt>
             <dd className="text-ink-700">{fmt(detail.maintenanceIntervalInDays)}</dd>
             <dt className="text-ink-500">Waste %</dt>
             <dd className="text-ink-700">{fmt(detail.wastePercentage)}</dd>
-            {spec?.fields.map((f) => (
+            {spec && operationalFields(spec).map((f) => (
               <Fragment key={f.key}>
-                <dt className="text-ink-500">{f.label}</dt>
-                <dd className="text-ink-700">{fmt(detail.attributes[f.key])}</dd>
+                <dt className="text-ink-400">{f.label}</dt>
+                <dd className="text-ink-700">{f.key === 'declineCurve' && detail.declineCurve ? `${detail.declineCurve.type}: ${detail.declineCurve.val_a}${detail.declineCurve.val_b == null ? '' : ` / ${detail.declineCurve.val_b}`}` : fmt(detail.attributes[f.key])}</dd>
               </Fragment>
             ))}
           </dl>
@@ -150,11 +146,15 @@ export function NodeDataPanel({
       )}
 
       <Button variant="secondary" onClick={() => onStartConnect(node.id)}>
-        Connect to another node…
+        Connect to another nodeâ€¦
       </Button>
 
       {removed ? (
-        <Button variant="secondary" onClick={() => onRestore(node.id)}>
+        <Button
+          variant="secondary"
+          onClick={() => onRestore(node.id)}
+          className="border-brand-300 text-brand-700 hover:bg-brand-50"
+        >
           Restore node
         </Button>
       ) : (

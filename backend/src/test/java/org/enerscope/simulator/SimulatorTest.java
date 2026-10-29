@@ -438,7 +438,8 @@ public class SimulatorTest {
         if (!puertoNodes.isEmpty() && !barcoNodes.isEmpty()) {
             for (UUID idPuerto : puertoNodes) {
                 UUID idBarco = barcoNodes.get(random.nextInt(barcoNodes.size()));
-                connections.add(crearConexionMock(idPuerto, idBarco));
+                if (connections.stream().noneMatch(c -> c.getFromNodeId().equals(idPuerto) && c.getToNodeId().equals(idBarco)))
+                    connections.add(crearConexionMock(idPuerto, idBarco));
             }
         }
 
@@ -575,11 +576,11 @@ public class SimulatorTest {
         Simulator simulator = new Simulator(mockVersion);
         simulator.simulate(5);
 
-        ResultPerRound resultPerRound = simulator.getResultsPerRound().get(1);
+        ResultPerRound resultPerRound = simulator.getResult();
         List<ResultPerNode> nodeResults = resultPerRound.getResultPerNodes();
 
         assertNotNull(resultPerRound);
-        assertEquals(5, simulator.getFinalResult().getTime());
+        assertEquals(5, simulator.getResult().getYear());
         assertEquals(12, nodeResults.size());
 
         nodeResults.forEach(nodeResult -> {

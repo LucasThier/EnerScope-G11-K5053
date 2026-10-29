@@ -26,52 +26,53 @@ Run everything with `cd backend && mvn test`.
 
 ## Summary
 
-| Test class | Type | Cases |
+Verified on 2026-10-12: **684 executions across 42 classes**, with zero failures, errors or skips. Counts include each parameterized invocation.
+
+| Test class | Type | Executions |
 | --- | --- | --- |
 | `ApplicationContextTest` | Integration | 1 |
+| `node.migration.ExportVerticalMigrationTest` | Data (JDBC/H2) | 2 |
 | `auth.controller.AuthControllerTest` | Web | 16 |
 | `common.CsvUtilTest` | Unit | 5 |
+| `economic.controller.EconomicControllerTest` | Web | 12 |
+| `economic.service.EconomicEngineTest` | Unit | 21 |
+| `economic.service.EconomicIndicatorsCalculatorTest` | Unit | 17 |
+| `economic.service.EconomicServiceTest` | Unit | 22 |
+| `economic.service.EconomicSimulationAdapterTest` | Unit | 2 |
 | `jwt.JwtServiceTest` | Unit | 5 |
-| `util.AuthUtilTest` | Unit | 7 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 |
 | `money.MoneyAmountTest` | Unit | 7 |
-| `user.service.UserServiceTest` | Unit | 53 |
-| `user.service.PasswordGeneratorTest` | Unit | 4 |
-| `user.controller.UserControllerTest` | Web | 26 |
-| `user.repository.UserRepositoryTest` | Data | 13 |
-| `organization.service.OrganizationServiceTest` | Unit | 56 |
-| `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 13 |
-| `organization.controller.OrganizationControllerTest` | Web | 33 |
-| `organization.repository.OrganizationRepositoryTest` | Data | 16 |
-| `project.service.ProjectAccessGuardTest` | Unit | 22 |
-| `project.service.ProjectServiceTest` | Unit | 49 |
-| `project.controller.ProjectControllerTest` | Web | 27 |
-| `project.repository.ProjectRepositoryTest` | Data | 13 |
-| `project.repository.ProjectMemberRepositoryTest` | Data | 5 |
-| `version.service.VersionServiceTest` | Unit | 22 [^p] |
-| `version.controller.VersionControllerTest` | Web | 10 |
-| `node.service.NodeServiceTest` | Unit | 1 |
 | `node.controller.NodeControllerTest` | Unit | 1 |
+| `node.service.NodeServiceTest` | Unit | 2 |
+| `organization.controller.OrganizationControllerTest` | Web | 39 |
+| `organization.repository.OrganizationMemberRepositoryTest` | Data | 11 |
+| `organization.repository.OrganizationRepositoryTest` | Data | 16 |
+| `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 13 |
+| `organization.service.OrganizationServiceTest` | Unit | 68 |
+| `project.controller.ProjectControllerTest` | Web | 43 |
+| `project.repository.ProjectMemberRepositoryTest` | Data | 16 |
+| `project.repository.ProjectRepositoryTest` | Data | 17 |
+| `project.service.ProjectAccessGuardTest` | Unit | 26 |
+| `project.service.ProjectServiceTest` | Unit | 83 |
+| `simulator.EconomicMetricsTest` | Unit | 7 |
 | `simulator.ResultMappingTest` | Data | 7 |
+| `simulator.ResultTest` | Unit | 10 |
+| `simulator.SimulatorTest` | Unit | 12 |
+| `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
 | `strategyCost.CostTest` | Unit | 8 |
 | `strategyCost.InvestmentCostTest` | Unit | 2 |
-| `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| **Total** | | **433 [^p]** |
-
-[^p]: Two cases in `version.service.VersionServiceTest` are
-`@ParameterizedTest`s running over the eight mutating version entry points,
-so they count as 16 executions rather than 2. The 433 cases catalogued here
-therefore make 447 executions.
-
-> **This catalog has drifted from the code.** On 2026-10-05 `mvn test` ran
-> **587** executions, against the 447 above. The gap is not a mistake in the
-> rows: it is tests merged since the catalog was last reconciled. Three classes
-> have no entry (`organization.repository.OrganizationMemberRepositoryTest`,
-> `simulator.ResultTest` and `simulator.SimulatorTest`: 33 executions) and
-> eleven have grown past their recorded count (`user.*`, `organization.*`,
-> `project.*` and `version.service.VersionServiceTest`: 107 executions in
-> total). Reconciling them is its own task. `simulator.ResultMappingTest` was
-> added on 2026-10-05 and is counted correctly.
+| `user.controller.UserControllerTest` | Web | 30 |
+| `user.repository.UserRepositoryTest` | Data | 22 |
+| `user.service.PasswordGeneratorTest` | Unit | 4 |
+| `user.service.UserServiceTest` | Unit | 58 |
+| `util.AuthUtilTest` | Unit | 7 |
+| `version.controller.VersionControllerTest` | Web | 10 |
+| `version.controller.VersionQueryControllerTest` | Web | 4 |
+| `version.service.VersionConflictIntegrationTest` | Integration | 7 |
+| `version.service.VersionConflictServiceTest` | Unit | 17 |
+| `version.service.VersionQueryServiceTest` | Unit | 10 |
+| `version.service.VersionServiceTest` | Unit | 15 |
+| **Total** | | **686** |
 
 ## `ApplicationContextTest` — Integration
 
@@ -228,6 +229,16 @@ Registration, login and password logic.
 | `reactivateUserRejectsANonAdminCallerWith403` | A regular user is refused before any lookup. |
 | `reactivateUserRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
 
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `getDetailRejectsANonAdminCallerWith403` | get Detail Rejects ANon Admin Caller With403. |
+| `getDetailAssemblesIdentityAndBothMembershipLists` | get Detail Assembles Identity And Both Membership Lists. |
+| `getDetailRejectsUnauthenticated` | get Detail Rejects Unauthenticated. |
+| `getDetailThrowsEntityNotFoundForAnUnknownUser` | get Detail Throws Entity Not Found For An Unknown User. |
+| `getDetailReturnsTheDetailOfASuspendedAccount` | get Detail Returns The Detail Of ASuspended Account. |
+
 ## `user.service.PasswordGeneratorTest` — Unit
 
 Secure password generation.
@@ -268,6 +279,20 @@ address here is prefixed `count-` for that reason.
 | `searchNeverMatchesPartially` | Neither a local part nor a bare domain matches — this is what keeps the endpoint from enumerating the roster. |
 | `searchSkipsASuspendedAccount` | A deactivated account is not found, which is what makes the `404` indistinguishable from an unknown address. |
 
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `organizationMembershipsAreEmptyForAUserInNoOrganization` | organization Memberships Are Empty For AUser In No Organization. |
+| `organizationMembershipsExcludeOtherUsers` | organization Memberships Exclude Other Users. |
+| `projectMembershipsExcludeADeactivatedProject` | project Memberships Exclude ADeactivated Project. |
+| `projectMembershipsExcludeOtherUsers` | project Memberships Exclude Other Users. |
+| `projectMembershipsAreEmptyForAUserInNoProject` | project Memberships Are Empty For AUser In No Project. |
+| `organizationMembershipsIncludeASuspendedOrganizationMarked` | organization Memberships Include ASuspended Organization Marked. |
+| `projectMembershipsCarryTheProjectAndTheOrganization` | project Memberships Carry The Project And The Organization. |
+| `organizationMembershipsCarryTheOrganizationAndTheRole` | organization Memberships Carry The Organization And The Role. |
+| `projectMembershipsIncludeAProjectOfASuspendedOrganizationMarked` | project Memberships Include AProject Of ASuspended Organization Marked. |
+
 ## `user.controller.UserControllerTest` — Web
 
 `PATCH /users/me/password`, through the real `SecurityConfig`/`AuthFilter`
@@ -301,6 +326,15 @@ chain; `UserService` is mocked.
 | `deleteUserRequiresAuthenticationWith401` | No token → `401`; the service is never reached. |
 | `reactivateUserReturnsOk` | `POST /users/{id}/reactivate` → `200` `User reactivated`, and the service is asked to reactivate that id. |
 | `reactivateUserRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `getUserDetailPropagatesForbiddenWith403` | get User Detail Propagates Forbidden With403. |
+| `getUserDetailReturnsTheFullDetail` | get User Detail Returns The Full Detail. |
+| `getUserDetailAnswers404WithAFixedMessage` | get User Detail Answers404 With AFixed Message. |
+| `getUserDetailRequiresAuthenticationWith401` | get User Detail Requires Authentication With401. |
 
 ## `organization.service.OrganizationBulkRegistrationServiceTest` — Unit
 
@@ -386,6 +420,23 @@ Organization creation and member addition (with role/permission derivation).
 | `removeMemberRejectsUnknownMember` | An unknown member id throws `IllegalArgumentException`; nothing is deleted. |
 | `removeMemberRejectsAMemberOfAnotherOrganization` | A member id belonging to a different organization answers the same `Member not found` as one that does not exist, so an owner cannot probe which membership ids exist elsewhere. |
 
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `demotedOwnerLosesManageUsersAndPromotedMemberGainsIt` | demoted Owner Loses Manage Users And Promoted Member Gains It. |
+| `changeMemberRoleToTheCurrentRoleIsANoOp` | change Member Role To The Current Role Is ANo Op. |
+| `changeMemberRoleRejectsAPlainMemberWith403` | change Member Role Rejects APlain Member With403. |
+| `changeMemberRoleRejectsUnauthenticated` | change Member Role Rejects Unauthenticated. |
+| `changeMemberRoleRejectsAMissingRole` | change Member Role Rejects AMissing Role. |
+| `changeMemberRoleRejectsADeactivatedOrganization` | change Member Role Rejects ADeactivated Organization. |
+| `changeMemberRoleLeavesProjectMembershipsAlone` | change Member Role Leaves Project Memberships Alone. |
+| `changeMemberRoleCollapsesSeveralRolesIntoOne` | change Member Role Collapses Several Roles Into One. |
+| `changeMemberRoleRejectsAMemberOfAnotherOrganizationWithTheSameMessageAsAMissingOne` | change Member Role Rejects AMember Of Another Organization With The Same Message As AMissing One. |
+| `changeMemberRolePromotesAMemberToOwner` | change Member Role Promotes AMember To Owner. |
+| `changeMemberRoleDemotesAnOwnerToMember` | change Member Role Demotes An Owner To Member. |
+| `changeMemberRoleAllowsAnOrganizationOwner` | change Member Role Allows An Organization Owner. |
+
 ## `organization.repository.OrganizationRepositoryTest` — Data
 
 The two projections behind `GET /organizations`, added when the list gained a
@@ -458,6 +509,18 @@ every non-`/auth` route); `OrganizationService` and
 | `removeMemberPropagatesForbiddenWith403` | When the service refuses the caller → `403` with the domain message. |
 | `removeMemberRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
 
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `changeMemberRoleRejectsAMissingRoleWith400` | change Member Role Rejects AMissing Role With400. |
+| `changeMemberRoleReturnsTheUpdatedMember` | change Member Role Returns The Updated Member. |
+| `changeMemberRoleRejectsAnUnknownRoleWith400` | change Member Role Rejects An Unknown Role With400. |
+| `changeMemberRoleRequiresAuthenticationWith401` | change Member Role Requires Authentication With401. |
+| `changeMemberRolePropagatesAnUnknownMemberWith404` | change Member Role Propagates An Unknown Member With404. |
+| `removeMemberAnswers404ForAnUnknownMember` | remove Member Answers404 For An Unknown Member. |
+| `changeMemberRolePropagatesForbiddenWith403` | change Member Role Propagates Forbidden With403. |
+
 ## `project.repository.ProjectMemberRepositoryTest` — Data
 
 `findByUserInOrganization`, the query that finds a user's project memberships
@@ -472,6 +535,22 @@ one turns a case red when removed.
 | `excludesTheMembershipsOfOtherUsers` | Two members on the same project resolve to one row for the user asked about. |
 | `returnsEmptyWhenTheUserIsInNoProjectOfThatOrganization` | No project in that organization means no rows, not every row. |
 | `deletingTheFoundMembershipsCascadesToTheirRoles` | `deleteAll` over the loaded entities removes their `ProjectMemberRole` rows too. The role count is asserted as 1 **before** the delete: without that, the case passes even with the cascade removed, because the role would never have been written. |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `doesNotFindAMembershipThroughAnotherProject` | does Not Find AMembership Through Another Project. |
+| `doesNotCountTheAdminsOfAnotherProject` | does Not Count The Admins Of Another Project. |
+| `anInactiveMembershipStillCountsAsExistingForTheUniquePair` | an Inactive Membership Still Counts As Existing For The Unique Pair. |
+| `doesNotCountEditorsAsAdmins` | does Not Count Editors As Admins. |
+| `countsTheActiveAdminsOfAProject` | counts The Active Admins Of AProject. |
+| `doesNotCountAnAdminWhoseUserIsInactive` | does Not Count An Admin Whose User Is Inactive. |
+| `doesNotCountAnAdminWhoseMembershipIsInactive` | does Not Count An Admin Whose Membership Is Inactive. |
+| `findsAMembershipByIdWithinItsProject` | finds AMembership By Id Within Its Project. |
+| `deletingAMembershipByEntityCascadesToItsRoles` | deleting AMembership By Entity Cascades To Its Roles. |
+| `countsZeroAdminsForAProjectWithNone` | counts Zero Admins For AProject With None. |
+| `replacingTheRoleOfAPersistedMemberLeavesASingleRoleWithTheNewPermissions` | replacing The Role Of APersisted Member Leaves ASingle Role With The New Permissions. |
 
 ## `project.service.ProjectAccessGuardTest` — Unit
 
@@ -504,6 +583,15 @@ states: authorized, authenticated but not allowed (`403`), and no session
 | `assertIsPlatformAdminAllowsPlatformAdmin` | A platform ADMIN passes the platform-level check. |
 | `assertIsPlatformAdminRejectsRegularUserWith403` | A regular user gets `ForbiddenException` with the action named in the message. |
 | `assertIsPlatformAdminRejectsUnauthenticated` | No session throws `UnauthorizedException`. |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `assertCanManageProjectDeniesAnAdminAfterTheyAreDemotedToEditor` | assert Can Manage Project Denies An Admin After They Are Demoted To Editor. |
+| `changingTheRoleDoesNotShareThePermissionSetWithTheDefaults` | changing The Role Does Not Share The Permission Set With The Defaults. |
+| `assertCanManageProjectAllowsAnEditorAfterTheyArePromotedToAdmin` | assert Can Manage Project Allows An Editor After They Are Promoted To Admin. |
+| `assertCanEditProjectStillAllowsAnAdminAfterTheyAreDemotedToEditor` | assert Can Edit Project Still Allows An Admin After They Are Demoted To Editor. |
 
 ## `project.service.ProjectServiceTest` — Unit
 
@@ -565,6 +653,43 @@ coverage and what matters here is that `createProject` runs it.
 | `deactivateProjectRejectsProjectEditorWith403` | A member holding only `EDIT_PROJECT` is refused; the project stays active and nothing is saved. |
 | `deactivateProjectRejectsUnauthenticated` | No session throws `UnauthorizedException`; the project stays active. |
 
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `addMemberRejectsAUserWhoseOrganizationMembershipIsInactive` | add Member Rejects AUser Whose Organization Membership Is Inactive. |
+| `changeMemberRoleDoesNotApplyTheGuardToAnAdminWhoseUserIsInactive` | change Member Role Does Not Apply The Guard To An Admin Whose User Is Inactive. |
+| `changeMemberRoleDemotesAnAdminReplacingTheWholeRole` | change Member Role Demotes An Admin Replacing The Whole Role. |
+| `listMemberCandidatesAllowsAProjectAdmin` | list Member Candidates Allows AProject Admin. |
+| `removeMemberRejectsAProjectEditorCallerWith403EvenForTheirOwnMembership` | remove Member Rejects AProject Editor Caller With403 Even For Their Own Membership. |
+| `addMemberRejectsAnInactiveUser` | add Member Rejects An Inactive User. |
+| `changeMemberRoleAnswers404ForAMemberOfAnotherProject` | change Member Role Answers404 For AMember Of Another Project. |
+| `changeMemberRoleRefusesToDemoteTheLastActiveAdmin` | change Member Role Refuses To Demote The Last Active Admin. |
+| `changeMemberRoleIsANoOpWhenTheRoleDoesNotChange` | change Member Role Is ANo Op When The Role Does Not Change. |
+| `addMemberRejectsAUserOutsideTheProjectsOrganizationEvenForAPlatformAdmin` | add Member Rejects AUser Outside The Projects Organization Even For APlatform Admin. |
+| `changeMemberRoleRejectsAMissingMemberType` | change Member Role Rejects AMissing Member Type. |
+| `removeMemberDeletesTheMembershipAndDetachesItFromTheProject` | remove Member Deletes The Membership And Detaches It From The Project. |
+| `addMemberCannotReAddAUserWhoseProjectMembershipIsInactive` | add Member Cannot Re Add AUser Whose Project Membership Is Inactive. |
+| `addMemberRejectsInactiveProjectBeforeLookingUpTheUser` | add Member Rejects Inactive Project Before Looking Up The User. |
+| `removeMemberAnswers404ForAMemberOfAnotherProject` | remove Member Answers404 For AMember Of Another Project. |
+| `saveVersionReturnsCreatedVersionAndLinksItToProject` | save Version Returns Created Version And Links It To Project. |
+| `removeMemberRejectsAnInactiveProject` | remove Member Rejects An Inactive Project. |
+| `listMemberCandidatesRejectsAnInactiveProject` | list Member Candidates Rejects An Inactive Project. |
+| `changeMemberRoleRejectsAnOrganizationOwnerWhoIsNotOnTheProjectWith403` | change Member Role Rejects An Organization Owner Who Is Not On The Project With403. |
+| `removeMemberAllowsAnAdminToLeaveWhenAnotherOneRemains` | remove Member Allows An Admin To Leave When Another One Remains. |
+| `changeMemberRoleRejectsAnInactiveProject` | change Member Role Rejects An Inactive Project. |
+| `changeMemberRolePromotesAnEditorWithoutConsultingTheAdminCount` | change Member Role Promotes An Editor Without Consulting The Admin Count. |
+| `changeMemberRoleAllowsDemotingAnAdminWhenAnotherOneRemains` | change Member Role Allows Demoting An Admin When Another One Remains. |
+| `removeMemberRefusesToRemoveTheLastActiveAdmin` | remove Member Refuses To Remove The Last Active Admin. |
+| `removeMemberAllowsRemovingAnAdminWhenAnotherOneRemains` | remove Member Allows Removing An Admin When Another One Remains. |
+| `listMemberCandidatesLowercasesTrimsAndEscapesTheSearchTerm` | list Member Candidates Lowercases Trims And Escapes The Search Term. |
+| `changeMemberRoleRejectsAProjectEditorCallerWith403` | change Member Role Rejects AProject Editor Caller With403. |
+| `removeMemberRefusesTheSelfRemovalOfTheLastAdmin` | remove Member Refuses The Self Removal Of The Last Admin. |
+| `listMemberCandidatesQueriesTheProjectsOrganizationWithAMatchAllPatternWhenQIsBlank` | list Member Candidates Queries The Projects Organization With AMatch All Pattern When QIs Blank. |
+| `changeMemberRoleDoesNotApplyTheGuardToAnAdminThatNoLongerCounts` | change Member Role Does Not Apply The Guard To An Admin That No Longer Counts. |
+| `changeMemberRoleAllowsAProjectAdminCaller` | change Member Role Allows AProject Admin Caller. |
+| `listMemberCandidatesRejectsAProjectEditorWith403` | list Member Candidates Rejects AProject Editor With403. |
+
 ## `project.controller.ProjectControllerTest` — Web
 
 Exercises `ProjectController` through the real `SecurityConfig`/`AuthFilter`
@@ -601,6 +726,27 @@ non-`/auth` route); `ProjectService` is mocked.
 | `deleteProjectPropagatesForbiddenWith403` | When the service refuses the caller → `403` with `You are not allowed to manage this project`. |
 | `deleteProjectRequiresAuthenticationWith401` | `DELETE /projects/{id}` without a token → `401`; the service is never reached. |
 
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `listMemberCandidatesPropagatesForbiddenWith403` | list Member Candidates Propagates Forbidden With403. |
+| `changeMemberRoleAnswers404ForAnUnknownMember` | change Member Role Answers404 For An Unknown Member. |
+| `listMemberCandidatesRejectsAnInactiveProjectWith400` | list Member Candidates Rejects An Inactive Project With400. |
+| `changeMemberRoleReturnsTheUpdatedMember` | change Member Role Returns The Updated Member. |
+| `changeMemberRoleRejectsALastAdminDemotionWith400` | change Member Role Rejects ALast Admin Demotion With400. |
+| `removeMemberPropagatesForbiddenWith403` | remove Member Propagates Forbidden With403. |
+| `changeMemberRoleRejectsAMissingMemberTypeWith400` | change Member Role Rejects AMissing Member Type With400. |
+| `listMemberCandidatesRequiresAuthenticationWith401` | list Member Candidates Requires Authentication With401. |
+| `listMemberCandidatesReturnsTheMinimalProjection` | list Member Candidates Returns The Minimal Projection. |
+| `removeMemberRejectsALastAdminRemovalWith400` | remove Member Rejects ALast Admin Removal With400. |
+| `changeMemberRoleRequiresAuthenticationWith401` | change Member Role Requires Authentication With401. |
+| `removeMemberAnswers404ForAnUnknownMember` | remove Member Answers404 For An Unknown Member. |
+| `removeMemberRequiresAuthenticationWith401` | remove Member Requires Authentication With401. |
+| `listMemberCandidatesForwardsTheSearchTerm` | list Member Candidates Forwards The Search Term. |
+| `removeMemberReturnsOk` | remove Member Returns Ok. |
+| `changeMemberRolePropagatesForbiddenWith403` | change Member Role Propagates Forbidden With403. |
+
 ## `project.repository.ProjectRepositoryTest` — Data
 
 The `active` filters on `ProjectRepository`, which are the half of the logical
@@ -626,6 +772,15 @@ red, so none of them passes for the wrong reason.
 | `existsByIdAndActiveTrueIsTrueForAnActiveProject` | The baseline for the `listMembers` guard. |
 | `existsByIdAndActiveTrueIsFalseOnceTheProjectIsDeactivated` | Listing the members of a deleted project answers `400`. |
 | `existsByIdAndActiveTrueIsFalseForAnUnknownId` | An id that was never stored is not active either. |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `findSummariesExposesNullRoleWhenCallerIsNotAMember` | find Summaries Exposes Null Role When Caller Is Not AMember. |
+| `findSummariesForMemberPrefersAdminWhenTheCallerHoldsTwoRoles` | find Summaries For Member Prefers Admin When The Caller Holds Two Roles. |
+| `findSummariesExposesTheCallerRoleWhenPlatformAdminIsAMember` | find Summaries Exposes The Caller Role When Platform Admin Is AMember. |
+| `findSummariesForMemberExposesTheCallerRole` | find Summaries For Member Exposes The Caller Role. |
 
 ## `version.service.VersionServiceTest` — Unit
 
@@ -664,6 +819,24 @@ call touches neither the repositories nor `NodeService`.
 | `updateNodeBasics_ShouldUpdateNameAndState` | `updateNodeBasics` updates a node's name and state and persists it. |
 | `getNodeDetail_ShouldReturnCommonAndTypeSpecificFields` | `getNodeDetail` returns a node's common fields and its type-specific values (keyed by the frontend field names). |
 
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `newVersionInitializesMutableEmptySnapshots` | new Version Initializes Mutable Empty Snapshots. |
+| `saveVersion_WithoutParent_InitialisesEmptyNonNullSnapshots` | save Version Without Parent Initialises Empty Non Null Snapshots. |
+
+Additional cases reconciled during the 2026-10-12 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `mergeSubVersionIntoParent_AddAndDelete_ShouldCancelOut` | merge Sub Version Into Parent Add And Delete Should Cancel Out. |
+| `mergeSubVersionIntoParent_SingleEdit_ShouldBePreserved` | merge Sub Version Into Parent Single Edit Should Be Preserved. |
+| `editNodeInVersion_WhenCallerPassesAStaleIdForTheSameIdentity_EditsTheCurrentRowInsteadOfDuplicatingIt` | edit Node In Version When Caller Passes AStale Id For The Same Identity Edits The Current Row Instead Of Duplicating It. |
+| `editNodeInVersion_WhenNodeAddedInThisVersion_ShouldEditInPlaceAndKeepSingleAddChange` | edit Node In Version When Node Added In This Version Should Edit In Place And Keep Single Add Change. |
+| `mergeSubVersionIntoParent_ShouldReplaceSnapshotsAndMergeChanges` | merge Sub Version Into Parent Should Replace Snapshots And Merge Changes. |
+| `editNodeInVersion_WhenIdentityNotInThisVersionsSnapshot_ShouldThrowIllegalArgumentException` | edit Node In Version When Identity Not In This Versions Snapshot Should Throw Illegal Argument Exception. |
+
 ## `version.controller.VersionControllerTest` — Web
 
 Exercises `VersionController` through the real `SecurityConfig`/`AuthFilter`
@@ -696,6 +869,12 @@ echoes its argument back, and reads it again through the same mock.
 | Case | Verifies |
 | --- | --- |
 | `saveWellShouldReturnWell` | `saveWell` maps a complete `WellDTO` onto a persisted `Well`, preserving `name`, `maxCollectionCapacity` and `declineCurve`. |
+
+Additional cases reconciled during the 2026-10-12 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `editWellShouldNeverChangeIdentityEvenIfDtoCarriesADifferentOne` | edit Well Should Never Change Identity Even If Dto Carries ADifferent One. |
 
 ## `node.controller.NodeControllerTest` — Unit
 
@@ -785,3 +964,637 @@ node type, so each of those also has a case for the type it must reject.
 | `Per_Conections_Total_CalculatesCostForGatheringNetwork` | `Per_Conections_Total` multiplies by the gathering network's connected-well count. |
 | `Per_Conections_Total_ReturnsSameMoneyForPipelineConnection` | For a `PipelineConnection` the amount is returned unchanged — the connection counts as one. |
 | `Per_Conections_Total_ThrowsException_ForInvalidNodeType` | Any other node type throws with `Wrong type of node`. |
+
+## `economic.controller.EconomicControllerTest` — Web
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `invalidDraftReturns400` | invalid Draft Returns400. |
+| `missingConfigurationReturns404` | missing Configuration Returns404. |
+| `permissionDenialReturns403` | permission Denial Returns403. |
+| `draftEndpointsUseEnvelopeAndAllowNoSavedDraft` | draft Endpoints Use Envelope And Allow No Saved Draft. |
+| `invalidConfigurationReturns400` | invalid Configuration Returns400. |
+| `anonymousDraftEndpointsReturn401` | anonymous Draft Endpoints Return401. |
+| `unavailableIndicatorsExposeNullInsteadOfZero` | unavailable Indicators Expose Null Instead Of Zero. |
+| `configurationRoundTripUsesEnvelope` | configuration Round Trip Uses Envelope. |
+| `anonymousEvaluationReturns401` | anonymous Evaluation Returns401. |
+| `evaluationReturnsCreatedAndHistoryCanBeRead` | evaluation Returns Created And History Can Be Read. |
+| `allEvaluationEndpointsExposeIndicatorContract` | all Evaluation Endpoints Expose Indicator Contract. |
+| `draftPermissionDenialReturns403` | draft Permission Denial Returns403. |
+
+## `economic.service.EconomicEngineTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `partialDeductibilityMovesCashRemainderToEnai` | partial Deductibility Moves Cash Remainder To Enai. |
+| `monthlyDepreciationRespectsServiceDateAndResidual` | monthly Depreciation Respects Service Date And Residual. |
+| `disabledLossCarryForwardDoesNotRefundOrOffset` | disabled Loss Carry Forward Does Not Refund Or Offset. |
+| `expiredOpeningLossDoesNotReduceFutureTax` | expired Opening Loss Does Not Reduce Future Tax. |
+| `evaluationsAreDeterministic` | evaluations Are Deterministic. |
+| `lossOffsetLimitPreservesUnusedLosses` | loss Offset Limit Preserves Unused Losses. |
+| `zeroWaccEqualsSumOfCashFlows` | zero Wacc Equals Sum Of Cash Flows. |
+| `overlappingTreatmentsAndInvalidDatesAreRejected` | overlapping Treatments And Invalid Dates Are Rejected. |
+| `nonCashTaxableIncomeIsReversedInCashFlow` | non Cash Taxable Income Is Reversed In Cash Flow. |
+| `nonCashEntriesNeverHavePaymentDates` | non Cash Entries Never Have Payment Dates. |
+| `capexCannotBeDeductedTwice` | capex Cannot Be Deducted Twice. |
+| `emptyYearsRemainInDiscountTimeline` | empty Years Remain In Discount Timeline. |
+| `missingMetricsAndDuplicateMetricsAreRejected` | missing Metrics And Duplicate Metrics Are Rejected. |
+| `partialBoundaryRetainsTransferWithExcludedCounterparty` | partial Boundary Retains Transfer With Excluded Counterparty. |
+| `invalidCurrencyOwnershipAndUnitsAreRejected` | invalid Currency Ownership And Units Are Rejected. |
+| `internalTransfersRemainTaxablePerEntityButDisappearOnConsolidation` | internal Transfers Remain Taxable Per Entity But Disappear On Consolidation. |
+| `staticDriversUseExplicitQuantitiesAndRates` | static Drivers Use Explicit Quantities And Rates. |
+| `completeExampleReconcilesEverySectionAndNpv` | complete Example Reconciles Every Section And Npv. |
+| `taxPaymentLagCreatesCashAdjustmentAndPendingTax` | tax Payment Lag Creates Cash Adjustment And Pending Tax. |
+| `zeroProductionPreservesFixedCosts` | zero Production Preserves Fixed Costs. |
+| `receivableBeyondHorizonIsReportedWithoutTerminalRecovery` | receivable Beyond Horizon Is Reported Without Terminal Recovery. |
+
+## `economic.service.EconomicIndicatorsCalculatorTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `zeroIrrIsAValidCalculatedRate` | zero Irr Is AValid Calculated Rate. |
+| `iterationLimitReturnsNumericalFailure` | iteration Limit Returns Numerical Failure. |
+| `expansionLimitReturnsNumericalFailureWithoutLosingPayback` | expansion Limit Returns Numerical Failure Without Losing Payback. |
+| `flowsWithoutOppositeSignsHaveNoIrr` | flows Without Opposite Signs Have No Irr. |
+| `displayedRoundingCannotCreateDiscountedRecovery` | displayed Rounding Cannot Create Discounted Recovery. |
+| `missingWaccOnlyPreventsDiscountedPayback` | missing Wacc Only Prevents Discounted Payback. |
+| `nonnegativeInitialCashMakesPaybackNotApplicable` | nonnegative Initial Cash Makes Payback Not Applicable. |
+| `positiveIrrIsIndependentOfWacc` | positive Irr Is Independent Of Wacc. |
+| `completeExampleMatchesIndependentIndicators` | complete Example Matches Independent Indicators. |
+| `negativeIrrIsSupported` | negative Irr Is Supported. |
+| `exactRecoveryReturnsFirstAnnualClose` | exact Recovery Returns First Annual Close. |
+| `missingOrDiscontinuousPeriodsAreInsufficient` | missing Or Discontinuous Periods Are Insufficient. |
+| `emptyIntermediateYearsKeepTheirDiscountExponent` | empty Intermediate Years Keep Their Discount Exponent. |
+| `unsupportedSignPatternsDoNotChooseARoot` | unsupported Sign Patterns Do Not Choose ARoot. |
+| `laterDeficitDoesNotReplaceFirstRecovery` | later Deficit Does Not Replace First Recovery. |
+| `unrecoveredInvestmentHasNoInventedDate` | unrecovered Investment Has No Invented Date. |
+| `zeroWaccMakesBothPaybacksIdentical` | zero Wacc Makes Both Paybacks Identical. |
+
+## `economic.service.EconomicServiceTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `newEvaluationStoresVersionTwoAndSimulatesOnce` | new Evaluation Stores Version Two And Simulates Once. |
+| `savedInvalidExportCannotRunSimulation` | saved Invalid Export Cannot Run Simulation. |
+| `draftCannotLeakAcrossProjects` | draft Cannot Leak Across Projects. |
+| `absentHistoricalPeriodsAreInsufficientInListAndDetail` | absent Historical Periods Are Insufficient In List And Detail. |
+| `outsiderCannotReadOrWriteConfiguration` | outsider Cannot Read Or Write Configuration. |
+| `invalidDraftStructureIsRejectedBeforePersistence` | invalid Draft Structure Is Rejected Before Persistence. |
+| `historyDerivesFromSnapshotWithoutSimulationConfigurationLookupOrWrites` | history Derives From Snapshot Without Simulation Configuration Lookup Or Writes. |
+| `missingHistoricalWaccDoesNotUseCurrentConfiguration` | missing Historical Wacc Does Not Use Current Configuration. |
+| `viewerReadsDraftButCannotSaveIt` | viewer Reads Draft But Cannot Save It. |
+| `editorCanSaveValidatedConfiguration` | editor Can Save Validated Configuration. |
+| `exportOnWellIsRejectedBeforeSaving` | export On Well Is Rejected Before Saving. |
+| `exportOnCarrierCanBeSaved` | export On Carrier Can Be Saved. |
+| `adminStillCannotAddressVersionInAnotherProject` | admin Still Cannot Address Version In Another Project. |
+| `evaluationIsScopedToVersion` | evaluation Is Scoped To Version. |
+| `foreignNodeIsRejectedBeforePersistence` | foreign Node Is Rejected Before Persistence. |
+| `viewerCanReadButCannotEvaluate` | viewer Can Read But Cannot Evaluate. |
+| `truncatedHistoryReturnsInsufficientDataWithoutFillingMissingYears` | truncated History Returns Insufficient Data Without Filling Missing Years. |
+| `validatedConfigurationSaveClearsDraft` | validated Configuration Save Clears Draft. |
+| `missingHistoricalResultOrConfigurationReturnsInsufficientData` | missing Historical Result Or Configuration Returns Insufficient Data. |
+| `storedIndicatorsAreReturnedWithoutRecalculation` | stored Indicators Are Returned Without Recalculation. |
+| `editorSavesIncompleteDraftWithoutChangingConfigurationOrSimulating` | editor Saves Incomplete Draft Without Changing Configuration Or Simulating. |
+| `absentHistoricalPeriodFieldsDoNotBecomeDefaultZeroes` | absent Historical Period Fields Do Not Become Default Zeroes. |
+
+## `economic.service.EconomicSimulationAdapterTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `unknownRawUnitsAreRejected` | unknown Raw Units Are Rejected. |
+| `actualAnnualSimulationFeedsCompleteExampleAndRepeatsWithoutStateLeak` | actual Annual Simulation Feeds Complete Example And Repeats Without State Leak. |
+
+## `organization.repository.OrganizationMemberRepositoryTest` — Data
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `excludesUsersAlreadyOnTheProject` | excludes Users Already On The Project. |
+| `excludesInactiveOrganizationMemberships` | excludes Inactive Organization Memberships. |
+| `keepsUsersWhoAreOnlyOnAnotherProjectOfTheSameOrganization` | keeps Users Who Are Only On Another Project Of The Same Organization. |
+| `filtersByFirstNameLastNameOrMailIgnoringCase` | filters By First Name Last Name Or Mail Ignoring Case. |
+| `excludesUsersWhoseProjectMembershipIsInactive` | excludes Users Whose Project Membership Is Inactive. |
+| `excludesInactiveUsers` | excludes Inactive Users. |
+| `excludesUsersWhoAreOnlyInAnotherOrganization` | excludes Users Who Are Only In Another Organization. |
+| `ordersByLastNameThenFirstName` | orders By Last Name Then First Name. |
+| `returnsNothingForAnotherProjectsOrganization` | returns Nothing For Another Projects Organization. |
+| `treatsPercentAndUnderscoreInTheEscapedPatternAsLiterals` | treats Percent And Underscore In The Escaped Pattern As Literals. |
+| `returnsTheActiveOrganizationMembersWhoAreNotOnTheProject` | returns The Active Organization Members Who Are Not On The Project. |
+
+## `simulator.EconomicMetricsTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `compressorCountsNewOutputEvenWhenPreviousOutputRemains` | compressor Counts New Output Even When Previous Output Remains. |
+| `shipmentCountsDepartureOnceAndDoesNotSellPartialLoading` | shipment Counts Departure Once And Does Not Sell Partial Loading. |
+| `consumptionNodesKeepTheirAnnualCountersInEconomicSimulations` | consumption Nodes Keep Their Annual Counters In Economic Simulations. |
+| `simulatorRejectsInvalidHorizons` | simulator Rejects Invalid Horizons. |
+| `treatmentCountsSmallerNewBatchWithoutSubtractingPreviousBatch` | treatment Counts Smaller New Batch Without Subtracting Previous Batch. |
+| `simulatorRejectsRepeatedExecutionInsteadOfAccumulatingResults` | simulator Rejects Repeated Execution Instead Of Accumulating Results. |
+| `pipelineConnectionTransfersActualQuantityAndHonorsPredecessorOrder` | pipeline Connection Transfers Actual Quantity And Honors Predecessor Order. |
+
+## `simulator.ResultTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `testResultIndustrialConsumption` | test Result Industrial Consumption. |
+| `testResultInternalConsumption` | test Result Internal Consumption. |
+| `testResultWell` | test Result Well. |
+| `testResultSeaportTerminal` | test Result Seaport Terminal. |
+| `testResultLNGCarrier` | test Result LNGCarrier. |
+| `testResultPipeline` | test Result Pipeline. |
+| `testResultTreatmentPlant` | test Result Treatment Plant. |
+| `testResultGatheringNetwork` | test Result Gathering Network. |
+| `testResultLiquefactionPlant` | test Result Liquefaction Plant. |
+| `testResultCompressingPlant` | test Result Compressing Plant. |
+
+## `simulator.SimulatorTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `testSimTreatmentPlant` | test Sim Treatment Plant. |
+| `testSimGatheringNetworkCapacity` | test Sim Gathering Network Capacity. |
+| `testSimLiquefactionPlant` | test Sim Liquefaction Plant. |
+| `testSimulationWhitNNodes` | test Simulation Whit NNodes. |
+| `testSimulationSimpleComplete` | test Simulation Simple Complete. |
+| `testSimPipeline` | test Sim Pipeline. |
+| `testSimCompressingPlant` | test Sim Compressing Plant. |
+| `testSimWellProductionAndDecline` | test Sim Well Production And Decline. |
+| `testSimLNGCarrier` | test Sim LNGCarrier. |
+| `testResultInFiveYearSimulationWithAllNodeTypes` | test Result In Five Year Simulation With All Node Types. |
+| `testSimWellActiveAction` | test Sim Well Active Action. |
+| `testSimSeaportTerminal` | test Sim Seaport Terminal. |
+
+## `version.controller.VersionQueryControllerTest` — Web
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `authorizedRequestReturnsSummaryEnvelope` | authorized Request Returns Summary Envelope. |
+| `missingProjectReturns404` | missing Project Returns404. |
+| `anonymousRequestReturns401` | anonymous Request Returns401. |
+| `forbiddenRequestReturns403` | forbidden Request Returns403. |
+
+## `version.service.VersionQueryServiceTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-08 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `anonymousCannotListVersions` | anonymous Cannot List Versions. |
+| `viewerGetsOnlyActiveVersionsNewestFirst` | viewer Gets Only Active Versions Newest First. |
+| `inactiveRoleCannotListVersions` | inactive Role Cannot List Versions. |
+| `anotherProjectDoesNotLeakVersions` | another Project Does Not Leak Versions. |
+| `summaryIncludesDiagramMetadataAndEconomicNodesTogether` | summary Includes Diagram Metadata And Economic Nodes Together. |
+| `editPermissionAloneDoesNotGrantView` | edit Permission Alone Does Not Grant View. |
+| `adminCanListWithoutMembershipAndReceivesNodeSummary` | admin Can List Without Membership And Receives Node Summary. |
+| `outsiderCannotListVersions` | outsider Cannot List Versions. |
+| `missingProjectReturnsNotFound` | missing Project Returns Not Found. |
+| `inactiveMembershipCannotListVersions` | inactive Membership Cannot List Versions. |
+
+## Frontend merge verification
+
+`npm test`: 24 cases (18 economic editor/formatting and 6 operational-result cases). Build and lint passed. Browser acceptance scripts passed with isolated API fixtures, including the new organizations/owned request, draft save/reload, simulation validation, permissions, project isolation, historical results and responsive layout.
+
+## `version.service.VersionConflictIntegrationTest` — Integration
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-12 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `repeatedMergesTouchingTheSameIdentityCollapseToOneNetNodeChange` | repeated Merges Touching The Same Identity Collapse To One Net Node Change. |
+| `mergingANewlyAddedNodeFlagsAConflictWithSiblingsThatDontHaveIt` | merging ANewly Added Node Flags AConflict With Siblings That Dont Have It. |
+| `getAllConflicts_ReturnsConflictsAcrossAllVersions` | get All Conflicts Returns Conflicts Across All Versions. |
+| `mergingOneChildFlagsAConflictOnTheSiblingThatTouchedTheSameIdentity` | merging One Child Flags AConflict On The Sibling That Touched The Same Identity. |
+| `mergingASiblingThatNeverTouchedAnythingDoesNotRevertWhatAnEarlierMergeAdded` | merging ASibling That Never Touched Anything Does Not Revert What An Earlier Merge Added. |
+| `editingAnInheritedNodeInOneChildDoesNotMutateTheParentOrSiblingRows` | editing An Inherited Node In One Child Does Not Mutate The Parent Or Sibling Rows. |
+| `editingAnInheritedConnectionInOneChildDoesNotMutateTheParentOrSiblingRows` | editing An Inherited Connection In One Child Does Not Mutate The Parent Or Sibling Rows. |
+
+## `version.service.VersionConflictServiceTest` — Unit
+
+| Case | Verifies |
+| --- | --- |
+
+Additional cases reconciled during the 2026-10-12 merge:
+
+| Case | Verifies |
+| --- | --- |
+| `resolveConflict_NodeAccept_BothHaveIt_CopiesDataKeepsSiblingId` | resolve Conflict Node Accept Both Have It Copies Data Keeps Sibling Id. |
+| `resolveConflict_ConnectionAccept_BothHaveIt_RemapsEndpointsThroughIdentity` | resolve Conflict Connection Accept Both Have It Remaps Endpoints Through Identity. |
+| `recordMergeConflicts_SourceWithoutChanges_DoesNotQuerySiblings` | record Merge Conflicts Source Without Changes Does Not Query Siblings. |
+| `recordMergeConflicts_SiblingNeverTouchedIdentityButHasNoRowForIt_StillCreatesConflict` | record Merge Conflicts Sibling Never Touched Identity But Has No Row For It Still Creates Conflict. |
+| `recordMergeConflicts_SiblingHasADifferentConnectionForATouchedIdentity_CreatesConflict` | record Merge Conflicts Sibling Has ADifferent Connection For ATouched Identity Creates Conflict. |
+| `recordMergeConflicts_SiblingAlreadyHasTheIdenticalMergedRow_CreatesNothing` | record Merge Conflicts Sibling Already Has The Identical Merged Row Creates Nothing. |
+| `resolveConflict_NodeAccept_OnlySiblingHasIt_RemovesFromSnapshot` | resolve Conflict Node Accept Only Sibling Has It Removes From Snapshot. |
+| `getConflictsForVersion_ReturnsMappedConflicts` | get Conflicts For Version Returns Mapped Conflicts. |
+| `resolveConflict_NodeReject_OnlyParentHasIt_WritesDeleteChange` | resolve Conflict Node Reject Only Parent Has It Writes Delete Change. |
+| `resolveConflict_NodeReject_OnlySiblingHasIt_WritesAddChange` | resolve Conflict Node Reject Only Sibling Has It Writes Add Change. |
+| `recordMergeConflicts_SiblingHasADifferentRowForATouchedIdentity_CreatesOneConflictPerIdentity` | record Merge Conflicts Sibling Has ADifferent Row For ATouched Identity Creates One Conflict Per Identity. |
+| `resolveConflict_ConnectionReject_OnlyParentHasIt_WritesDeleteChange` | resolve Conflict Connection Reject Only Parent Has It Writes Delete Change. |
+| `resolveConflict_UnknownConflict_Throws` | resolve Conflict Unknown Conflict Throws. |
+| `getConflictsForVersion_UnknownVersion_Throws` | get Conflicts For Version Unknown Version Throws. |
+| `resolveConflict_NodeReject_BothHaveIt_WritesEditChange` | resolve Conflict Node Reject Both Have It Writes Edit Change. |
+| `recordMergeConflicts_SiblingChangedDifferentIdentity_CreatesNothing` | record Merge Conflicts Sibling Changed Different Identity Creates Nothing. |
+| `resolveConflict_NodeAccept_OnlyParentHasIt_ClonesIntoSiblingSnapshot` | resolve Conflict Node Accept Only Parent Has It Clones Into Sibling Snapshot. |
+
+## `node.migration.ExportVerticalMigrationTest` — Data (JDBC/H2)
+
+Executes the actual V15 SQL resource against an isolated H2 table in PostgreSQL mode.
+
+| Case | Verifies |
+| --- | --- |
+| `normalizesLegacyExportsWithoutChangingOtherNodeData` | Converts active and inactive legacy Cyrillic exports to the current Java enum; preserves identifiers, active flags, current exports and all other verticals. |
+| `migrationAcceptsFreshDatabaseWithoutNodes` | The migration succeeds on an empty table without creating data. |
+
+### Investment filter and duplicate actions (browser acceptance)
+
+`frontend/tests/economic-browser.mjs` additionally checks node/general filtering without dirtying the draft; saving hidden investments through the lower bar; editing node membership; empty matches; adding under the selected node; validating hidden invalid assets through the upper bar and clearing the filter; mobile width; and viewer restrictions on both action bars. Existing save/error/double-submit checks use the upper bar.
+
+### Economic result presentation — 2026-10-13
+
+Frontend total: 26 unit cases (20 economic editor/formatting, 6 operational).
+- economicDraft.test.mjs — unit: NPV display rounds upward without changing cash flow precision: positive/negative/integer VAN, missing values, and unchanged monetary precision.
+- economicDraft.test.mjs — unit: calculated annual IRR displays exactly two percentage decimals: fractional, zero, negative and missing rates.
+- Existing payback status test now expects capitalized Año.
+- results-browser.mjs — browser acceptance: rounded VAN/TIR and payback label; positive/negative bar tooltip on hover, keyboard focus and dismissal; no backend mutations.
+
+- results-browser.mjs — browser acceptance: cash-flow entry animation, tooltip follows pointer movement, reduced-motion disables animation; existing keyboard and responsive checks retained. Unit case count remains 26.
+
+- results-browser.mjs — browser acceptance: operational chart animates on tab entry and node change, reduced motion suppresses it, and hours appear next to the accumulated value. Unit test count remains 26.
+
+- operationalResults.test.mjs — unit: converts saved volumes and totals without changing hours or source metrics; different metric conversions preserve unknown losses and missing values. Total: 28 unit cases (20 economic, 8 operational). Browser acceptance verifies converted totals and units.
+
+### Economic summary redesign — 2026-10-13
+
+Frontend total: 30 unit cases (20 economic editor/formatting, 8 operational, 2 chart).
+- economicChart.test.mjs — unit: cash flow scale contains mixed, positive, negative and zero flows with a finite baseline.
+- economicChart.test.mjs — unit: recovery timeline merges coincident recoveries and excludes unavailable or out of horizon markers.
+- results-browser.mjs — browser: grouped summary, collapsible accounting detail and preserved chart animation, tooltip, keyboard and responsive behavior.
+
+- results-browser.mjs — browser: ten-year evaluation has 11 bars; coincident recoveries share a marker; unavailable TIR and payback preserve explanations, negative VAN retains its minus sign, and no recovery marker is invented. Mobile overflow checked for both horizons.
+
+- results-browser.mjs — browser: positive VAN label, negative VAN label/red background, neutral zero label and missing VAN fallback. Unit case count remains 30.
+
+- results-browser.mjs — browser: operational annual detail starts collapsed, opens with a click, toggles with Enter and exposes historical node values on demand. Unit case count remains 30.
+
+- results-browser.mjs — browser: operational bar tooltip shows saved year, metric, converted value/unit; follows pointer movement, dismisses on leave, supports keyboard focus on exports and Escape dismissal. Unit case count remains 30.
+
+## Probabilistic economic integration — 2026-10-14
+
+Validated counts: **711 default backend tests in 46 classes**, plus **4 explicit PostgreSQL tests**, with zero failures/errors/skips. Frontend: **34 unit cases**, plus three browser workflows. This summary supersedes older counts while preserving their history.
+
+### Backend counts from isolated Surefire reports
+
+| Class | Cases |
+|---|---:|
+| ApplicationContextTest | 1 |
+| auth.controller.AuthControllerTest | 16 |
+| common.CsvUtilTest | 5 |
+| economic.controller.EconomicControllerTest | 12 |
+| economic.controller.EconomicJobControllerTest | 4 |
+| economic.service.EconomicEngineTest | 21 |
+| economic.service.EconomicIndicatorsCalculatorTest | 17 |
+| economic.service.EconomicJobServiceTest | 8 |
+| economic.service.EconomicJobWorkerTest | 4 |
+| economic.service.EconomicServiceTest | 22 |
+| economic.service.EconomicSimulationAdapterTest | 2 |
+| economic.service.EconomicStatisticsCalculatorTest | 5 |
+| economic.service.PostgreSqlEconomicIT | 4 |
+| economic.service.ProbabilisticSimulationTest | 8 |
+| jwt.JwtServiceTest | 5 |
+| logging.ConsoleAppLoggerTest | 1 |
+| money.MoneyAmountTest | 7 |
+| node.controller.NodeControllerTest | 1 |
+| node.migration.ExportVerticalMigrationTest | 2 |
+| node.service.NodeServiceTest | 2 |
+| organization.controller.OrganizationControllerTest | 39 |
+| organization.repository.OrganizationMemberRepositoryTest | 11 |
+| organization.repository.OrganizationRepositoryTest | 16 |
+| organization.service.OrganizationBulkRegistrationServiceTest | 13 |
+| organization.service.OrganizationServiceTest | 68 |
+| project.controller.ProjectControllerTest | 43 |
+| project.repository.ProjectMemberRepositoryTest | 16 |
+| project.repository.ProjectRepositoryTest | 17 |
+| project.service.ProjectAccessGuardTest | 26 |
+| project.service.ProjectServiceTest | 83 |
+| simulator.EconomicMetricsTest | 7 |
+| simulator.ResultPerRoundTest | 12 |
+| simulator.SimulatorTest | 15 |
+| strategyCost.CostBasisCalculatorsTest | 10 |
+| strategyCost.CostTest | 8 |
+| strategyCost.InvestmentCostTest | 2 |
+| user.controller.UserControllerTest | 30 |
+| user.repository.UserRepositoryTest | 22 |
+| user.service.PasswordGeneratorTest | 4 |
+| user.service.UserServiceTest | 58 |
+| util.AuthUtilTest | 7 |
+| version.controller.VersionControllerTest | 10 |
+| version.controller.VersionQueryControllerTest | 4 |
+| version.service.VersionConflictIntegrationTest | 7 |
+| version.service.VersionConflictServiceTest | 17 |
+| version.service.VersionQueryServiceTest | 10 |
+| version.service.VersionServiceTest | 15 |
+
+### New and expanded case catalog
+
+#### economic.controller.EconomicJobControllerTest — WebMvcTest with real security filter (4 cases)
+
+| Case | Verifies |
+|---|---|
+| anonymousRequestsCannotReadOrStartJobsOrRounds | All six new routes require authentication. |
+| acceptanceReturns202AndSeedAsStringWithoutWaitingForResults | HTTP 202 returns the envelope, QUEUED state and exact seed string. |
+| missingJobPermissionAndInvalidOptionsUseGlobalErrors | 404/403/400 use the global error envelope. |
+| readRoutesAndRetryPreserveScopedIdentifiersAndEnvelopes | Job/round routes preserve scoped IDs and response contracts. |
+
+#### economic.service.EconomicJobServiceTest — Unit (8 cases)
+
+| Case | Verifies |
+|---|---|
+| submissionFreezesInputsAndQueuesWithoutPublishingEvaluation | Submission applies EDIT_PROJECT, defaults and seed text without publishing results. |
+| roundsMustBeSequentialAndCompletionRequiresAllRounds | Progress rejects duplicates/out-of-order rounds; completion requires all rounds and survives late failure. |
+| successfulAtomicClaimReturnsOnlyFrozenInput | A successful claim reconstructs saved inputs without current configuration reads. |
+| invalidExecutionOptionsAreRejectedWithoutSilentCoercion | Round limits and signed 64-bit seed boundaries reject invalid inputs. |
+| retryUsesFrozenInputAndSeedWithoutReadingCurrentConfiguration | Retry starts at zero with unchanged JSON/seed, without reading current configuration. |
+| runningJobCannotBeRetried | Only failed/interrupted jobs can be repeated. |
+| readsRequireViewPermissionAndScopeJobToVersion | List/detail require VIEW_PROJECT and version-scoped lookup. |
+| lostAtomicClaimDoesNotStartDuplicateWork | A losing conditional claim cannot start duplicate execution. |
+
+#### economic.service.EconomicJobWorkerTest — Unit (4 cases)
+
+| Case | Verifies |
+|---|---|
+| physicalFailureKeepsCompletedRoundsButNeverPublishesPartialEvaluation | A physical error stops execution and never publishes partial statistics. |
+| nonCalculableIrrDoesNotFailAnOtherwiseValidJob | Unavailable indicators do not fail a valid physical/economic execution. |
+| startupInterruptsUnfinishedJobsBeforePollingAndEmptyQueueDoesNothing | Startup interruption precedes queue polling; empty queues never simulate. |
+| completedJobSimulatesEachRoundOnceAndPublishesAfterSavingAllRounds | Each round runs once with its own seed; publication follows all round saves. |
+
+#### economic.service.EconomicStatisticsCalculatorTest — Unit (5 cases)
+
+| Case | Verifies |
+|---|---|
+| summaryUsesEachRoundsOwnIndicatorsAndShowsInvalidCounts | Conditional IRR/Payback denominators exclude unresolved outcomes but retain status counts. |
+| emptyAndSingleObservationStatisticsAreExplicit | Empty samples yield null values; single observations are preserved. |
+| nearestRankPercentilesDoNotInterpolateAndRetainTies | Ascending nearest-rank percentiles preserve ties without interpolation. |
+| uncomputablePaybacksHaveNoInventedRecoveryProbability | Zero applicable observations produce null probability. |
+| perRoundTaxationIsNotTaxationOfMeanProduction | Nonlinear taxes make mean round NPV differ from NPV on mean production. |
+
+#### economic.service.PostgreSqlEconomicIT — PostgreSQL/JPA/MockMvc integration (4 cases)
+
+| Case | Verifies |
+|---|---|
+| completeHttpExampleCreatesVersionNodesAndEvaluation | HTTP creates the example, evaluates synchronously, accepts/claims a two-round job once, and reads persisted results after worker execution without HTTP authentication. |
+| restartInterruptionAndRetryPreserveFrozenInputs | PostgreSQL interrupts queued/running work; retry preserves JSON/seed and completes despite changed current inputs. |
+| migrationsValidateAndEconomicSnapshotSurvivesReloadAndConfigurationChanges | Fresh migrations and Hibernate validation preserve snapshots and percentile result mappings across reload/configuration changes. |
+| historicalIndicatorsAreDerivedWithoutUpdatingPersistedJson | Historical enrichment uses saved inputs without changing stored JSON. |
+
+#### economic.service.ProbabilisticSimulationTest — Unit (8 cases)
+
+| Case | Verifies |
+|---|---|
+| graphRejectsCyclesMissingReferencesAndDuplicateEdges | Invalid graphs fail before execution. |
+| distributionSamplesAreIndependentOfEntitySamplerState | Seeded generators are independent of entity sampling; invalid uniform parameters fail. |
+| snapshotRoundTripPreservesDistributionsAndIgnoresLaterPhysicalEdits | Frozen normal parameters survive serialization and later physical edits, including a minimum signed seed. |
+| constantRoundsPreserveTheCompleteIndependentExample | Every constant round preserves NPV 169.20, IRR 0.1483447840 and recovery years 2034/2035. |
+| declineUsesOperatingAgeAndClampsEachSample | Decline applies at completed operating-age years and clips negative/excess samples. |
+| seedReproducesRoundAndDifferentRoundSeedsChangeAnnualQuantities | Identical seeds reproduce metrics; distinct round seeds change quantities without mutating the source. |
+| reorderingNodesDoesNotChangeTheirRandomStreams | Node collection order does not change seeded results. |
+| annualBoundsAndDelayedStartupRemainExact | Operational years contain exactly 8760 hours, with zero hours before delayed startup. |
+
+### Existing tests adapted to the probabilistic merge
+
+- EconomicServiceTest retains 22 cases; single-execution verification now uses the seeded overload and frozen inputs.
+- EconomicSimulationAdapterTest retains 2 cases and checks that managed Version final results remain untouched.
+- EconomicMetricsTest retains 7 cases: duration calls use years, node steps use hours; annual metrics verify 8760 hours and reject invalid horizons.
+- SimulatorTest retains 15 cases: assertions inspect one physical realization; the random graph fixture excludes duplicate edges.
+- ResultPerRoundTest retains 12 cases: testResultPipeline checks delivered material, inventory and in-transit quantities; testResultLiquefactionPlant and testResultFLNGUnit check hourly input after fuel/contaminant removal and conversion; testResultSeaportTerminal checks cargo plus remaining inventory.
+
+### Frontend unit cases — probabilisticResults.test.mjs (4)
+
+| Case | Verifies |
+|---|---|
+| execution accepts default range and preserves 64-bit seed strings | Defaults/boundaries and seed precision. |
+| execution rejects invalid round counts and unsafe seed syntax | Fractional/out-of-range counts and invalid/overflow seeds fail. |
+| only unfinished jobs are polled | Only QUEUED/RUNNING remain pending. |
+| round selection keeps immutable historical metadata and replaces both result tabs together | Selected physical/economic results share one round while preserving common input metadata. |
+
+### Browser acceptance
+
+- probabilistic-browser.mjs: progress and navigation; polling stops at completion; denominators and seed text; default summary; shared round across tabs; saved node name; round-load error; interrupted-job retry; desktop/mobile screenshots and no content overflow.
+- economic-browser.mjs: asynchronous submission and explicit history refresh; existing save-failure, duplicate-click, drafts, dirty-navigation, filters and permission checks.
+- results-browser.mjs: legacy individual snapshots, charts, unit conversions, tooltips, keyboard/reduced-motion and mobile behavior remain covered.
+
+### Validation environment
+
+Maven used an otherwise identical temporary POM with isolated output target/probabilistic-20261014-clean, excluding obsolete merged classes/resources. The temporary POM is not part of the deliverable. PostgreSQL used a new disposable enerscope_economic_test_probabilistic_20261014b database, without Flyway repair or resets of existing databases. Frontend tests/build/lint and all three browser workflows passed. Vite retains its large-bundle advisory. The physical well editor is explicitly excluded by the user.
+
+- Final review: existing historyDerivesFromSnapshotWithoutSimulationConfigurationLookupOrWrites also verifies preservation of simulation metadata during in-memory enrichment. probabilistic-browser.mjs additionally checks polling pauses while hidden/resumes when visible, and retry after FAILED as well as INTERRUPTED. Case counts remain unchanged.
+
+
+## Operational node editor separation — 2026-10-14
+
+Frontend unit/component suite: 37 cases total (previous 34 plus 3), no failures or skips. New file: frontend/tests/nodeOperationalEditor.test.mjs.
+
+| Case | Type | Verification |
+| --- | --- | --- |
+| node create and edit forms expose operational fields only for every node type | Component rendering | All nine node types omit monetary inputs in creation and edition, retaining operational fields and guidance to Scenarios. |
+| node detail panels omit legacy monetary fields while retaining physical data | Component rendering | All nine node detail panels omit monetary fields and retain lifespan. |
+| operational saves retain hidden legacy costs and complete subtype payloads | Unit | Operational edits preserve hidden costs, subtype fields and source inputs. |
+
+Frontend production build and lint passed. Backend code and tests are unchanged by this UI-only adjustment.
+
+- 2026-10-14 — economic-browser.mjs: Scenario entry regression checks both the scenario name and Configurar y simular open configuration, all five editor sections remain reachable, and job submission follows configuration save with the expected rounds/seed payload.
+
+- 2026-10-14 — advancedEconomicDraft.test.mjs (unit, 2 cases): fiscal edits preserve unrelated policies and immutable source; contract edits preserve deferred schedules and unknown fields. economic-browser.mjs now checks multi-entity configuration editing, complete-payload preservation, reload and asynchronous submission.
+
+- advancedEconomicDraft.test.mjs: third unit case verifies asset concept renaming preserves matching capital and depreciation tax treatments. Frontend unit total: 40.
+
+- 2026-10-15 — Runtime upgrade acceptance: clone the populated October 12 database, apply V16/V17 with Flyway validation, verify legacy well decline preservation, authenticate and submit the existing five-year scenario to evaluation-jobs through completion.
+
+- 2026-10-15 — Upgrade verification passed: historical Flyway checksums validated; V16–V18 applied; three legacy well decline values preserved as constants; backend test suite passed with fixture-compatible container directory layout. Live browser acceptance returned HTTP 202 from Guardar y simular, completed 10/10 rounds and rendered probabilistic results for the existing five-year scenario.
+
+
+## Project isolation and scenario creation — 2026-10-16
+
+- ProjectServiceTest.saveVersionRejectsParentFromAnotherProject (unit): rejects foreign parent IDs before copying or saving.
+- ProjectServiceTest.saveVersionAcceptsParentFromSameProject (unit): accepts a persisted same-project parent and attaches the child. ProjectServiceTest: 83 cases.
+- projectScoping-browser.mjs (browser acceptance): toolbar/header synchronization, late version response rejection, empty-project creation payload, navigation to economic configuration, and map selection restricted to the owning project. Uses isolated fixtures; no live scenario is created.
+- Frontend: 40 unit tests, production build and lint. Economic browser regression also covers viewer permissions and advanced configuration preservation.
+- Backend validation: 713 tests, zero failures/errors/skips, using the previously running enerscope-build-oct15 source plus the two changed project service files. A clean build of the current checkout is blocked by pre-existing missing org.enerscope.probabilistic classes and incompatible physical model sources. The local API uses that validated baseline with the project isolation patch; source files outside this change were not restored or overwritten.
+
+- Live acceptance: Prueba1 returns HTTP 200 with zero versions; editor selects its project ID and displays No versions; Nuevo escenario opens the creation form. No live test scenarios were saved. The stopped local PostgreSQL container was started before checking the API.
+
+
+## Separate scenario configuration and simulation — 2026-10-20
+
+Updated totals (superseding previous totals without removing their historical context):
+**730 default backend cases**, **13 explicit PostgreSQL cases**, and **45 frontend
+unit/component cases**. No failures, errors or skipped tests. Backend output uses
+an isolated target directory; the application POM is unchanged. PostgreSQL uses
+enerscope_economic_test_scenario_20261020 only. Frontend npm test/build/lint and
+four browser scripts passed. Vite reports its existing large-chunk advisory.
+
+### ScenarioOperationsTest — unit, 5 cases
+
+| Case | Verification |
+| --- | --- |
+| physicalEditPreservesCostsGeometryAndOriginalNode | Physical edit preserves inherited costs, geometry, inactive state and the original row. |
+| distributionsRoundTripWithoutSamplingOrSharedMutation | Constant, normal and uniform parameters round-trip into independent distributions. |
+| rejectsNonfiniteNegativeAndFractionalIntegerValues | Rejects nonfinite, negative, fractional and oversized integer inputs. |
+| rejectsUnknownFieldsAndInvalidDistributionBounds | Rejects monetary/unknown fields and inverted distribution limits. |
+| remappingChangesOnlyNodeReferences | Remaps nested nodeId/deliveryNodeId without rewriting concept strings. |
+
+### ScenarioConfigurationTest — Spring/H2 transactional integration, 8 cases
+
+| Case | Verification |
+| --- | --- |
+| publishesPhysicsAndEconomicsTogetherAndRemapsReferencesWithoutMutatingParent | Joint publication replaces physical rows and economic references without changing the parent. |
+| incompleteSavePreservesPublishedValuesAndBlocksJobUntilDiscarded | Incomplete operations save only a draft and prevent a new job. |
+| draftSurvivesReloadAndDiscardEnablesSimulation | Draft survives persistence reload; explicit discard restores readiness and job acceptance. |
+| mapEditAppearsInConfigurationAndRejectsStaleSave | Map edits appear in shared configuration and stale saves return a conflict. |
+| persistedDraftKeepsOriginalSourceAfterMapEdit | Draft source remains unchanged when the map changes published data. |
+| fullMapEditRemapsEconomicAndConnectionReferences | Map copy-on-write preserves old rows and updates economic and connection references in the edited version. |
+| malformedEditorIsRejectedWithoutPersistingDraft | Rejects missing mode and malformed simple/advanced editor structures without storing them. |
+| rejectsForeignVersionAndUnauthorizedUser | Rejects foreign versions and missing authentication. |
+
+### ScenarioConfigurationControllerTest — MVC/security, 4 cases
+
+| Case | Verification |
+| --- | --- |
+| anonymousReadAndSaveAreRejected | Authentication is required before calling the service. |
+| readAndReadinessUseResponseEnvelope | Both read routes retain ApiResponse data envelopes. |
+| staleSaveReturnsConflictAndPermissionFailureReturnsForbidden | Stale content returns 409; service permission failures return 403. |
+| discardRequiresAndPassesConcurrencyToken | If-Match reaches discard; missing header returns 400. |
+
+### ScenarioConfigurationPostgreSqlIT — PostgreSQL/Flyway, 9 cases
+
+Runs all eight ScenarioConfigurationTest cases above on PostgreSQL with real
+migrations and Hibernate schema validation. Additional case:
+`baselineIsIgnoredForExistingHistoryAndUpgradePreservesData` creates an isolated
+schema with a V18 history fixture and witness row, applies only V19, verifies the
+row survives, B18 is ignored and a second migrate applies nothing. The fixture
+schema is dropped afterwards. Existing PostgreSqlEconomicIT retains its four
+economic/API/history cases, giving 13 explicit integration executions.
+
+### scenarioConfiguration.test.mjs — frontend unit, 5 cases
+
+| Case | Verification |
+| --- | --- |
+| new configuration reads shared operational values and preserves incomplete legacy drafts | Initializes operations from shared nodes while recovering raw legacy inputs. |
+| joint draft keeps its original source token after map changes | Restores draft data without replacing its original source token. |
+| complete simple saves publish economics while incomplete saves retain raw input only | Publishes valid configuration or retains incomplete text as draft. |
+| advanced saves preserve contracts and ownership without simple conversion | Keeps the entire advanced aggregate intact. |
+| remote changes refresh clean forms and conflict with local or saved drafts | Distinguishes automatic refresh from a publication-blocking conflict. |
+
+### Browser acceptance
+
+- economic-browser.mjs: separate screens and active sidebar; configuration has no execution controls; joint save and preserved distributions; focus refresh; dirty conflict and explicit discard; draft persistence and execution blocking; rejected save preserves input; navigation guard; modal cancel/default rounds/seed boundaries; one submission with no configuration save; advanced contracts/ownership; read-only permissions; mobile overflow. Screenshots inspected for configuration, operation, simulation dialog and mobile configuration.
+- projectScoping-browser.mjs: existing project/header isolation and stale response checks retained; new scenarios open Configuration; map selection remains scoped to project.
+- results-browser.mjs: existing economic/operational results, historical compatibility, node filters, keyboard navigation and responsive layouts retained.
+- probabilistic-browser.mjs: progress, visible-only polling, summary, shared round selection, failures/retries and responsive layouts retained.
+
+Browser acceptance uses isolated HTTP fixtures, not mutations of live scenarios.
+No existing database was repaired, reset or migrated during this verification.
+
+
+## Simple economic form and restored examples — 2026-10-20
+
+Frontend total: **48 cases** (scenarioConfiguration.test.mjs: 8), no failures or skips; production build and lint passed. Backend code is unchanged in this follow-up (last validation: 730 default and 13 PostgreSQL cases).
+
+New unit cases in scenarioConfiguration.test.mjs:
+- `simple copy leaves the source untouched and produces a separate single-entity aggregate`: verifies immutable source, independent IDs, unique concepts and exclusion of internal transfers.
+- `simple copy with different tax rates requires an explicit choice`: leaves tax rate incomplete instead of guessing.
+- `simple copy remaps physical references and preserves gaps in recognition years`: verifies target-node mapping, nonconsecutive income years and omission of nonrepresentable operating t=0 movements.
+
+economic-browser.mjs replaces advanced editing acceptance with preserved-original summary, absence of advanced fields, confirmed copy creation, simple-form navigation and immutable source; it simulates new physical UUIDs and retains conflict/draft/mobile/permission checks. projectScoping-browser.mjs remains passing. Live read-only browser acceptance verifies restored five/ten-year scenarios and the new simple copy; original scenario/evaluation IDs were preserved.
+
+## Optional project descriptions and numeric editing — 2026-10-21
+
+Validation: 733 backend tests and 50 frontend tests passed, without failures or skips. Frontend production build and lint passed.
+
+Updated backend case counts: ProjectControllerTest and ProjectServiceTest are recorded by the current Surefire reports; additions are two controller cases and one service case (the clearing-description case replaces the old rejection case).
+- ProjectControllerTest (MVC): `createProjectAcceptsMissingOrBlankDescription` accepts omitted, null and empty descriptions.
+- ProjectControllerTest (MVC): `createProjectRejectsOverlongDescription` preserves the 500-character limit.
+- ProjectServiceTest (unit): `createProjectNormalizesMissingAndBlankDescription` persists an empty string for missing or blank descriptions.
+- ProjectServiceTest (unit): `updateProjectAllowsClearingDescription` replaces `updateProjectRejectsABlankDescription` and verifies clearing an existing description.
+- nodeOperationalEditor.test.mjs (component; 5 cases total): `new node numeric fields start blank except the maintenance default` checks every node type.
+- nodeOperationalEditor.test.mjs (component): `editing a node preserves saved zero and nonzero numeric values` verifies stored values remain visible.
+- formInputs-browser.mjs (browser acceptance): creates a project without description, clears numeric inputs with the keyboard, enters decimals and verifies numeric submission. HTTP fixtures isolate this test from live user data.
+
+Current per-class totals: ProjectControllerTest **45**, ProjectServiceTest **84**, nodeOperationalEditor.test.mjs **5**.
+
+## Map decline editor — 2026-10-21
+
+- VersionServiceTest (unit, 16 cases): `nodeDetailPreservesDistributionParametersWithoutSampling` verifies repeated reads of constant, normal and uniform wells return exact parameters without invoking random sampling.
+- NodeServiceTest (unit, 3 cases): `wellJsonPreservesAllDistributionTypesThroughSave` deserializes each distribution through the polymorphic node DTO and verifies the saved entity's parameters.
+- nodeOperationalEditor.test.mjs (component/unit, 6 cases): `distribution edits preserve parameters and hidden fields in the well payload` checks all distributions, logical identity, legacy costs and populated edit fields. The existing payload case now verifies the distribution object instead of the obsolete scalar.
+- formInputs-browser.mjs: extends keyboard/optional-description acceptance with constant creation, invalid normal/uniform blocking, saves and reopening both distributions with unchanged parameters. HTTP fixtures avoid modifying live user data.
+
+Validation totals: **735 backend tests**, **51 frontend tests**, zero failures/skips; build, lint and browser acceptance passed.
+
+## Explicit node type regression tests — 2026-10-22
+
+NodeRequestDeserializerTest (unit, 3 cases):
+- `everySupportedNodeTypeSelectsItsDeclaredClass`: all nine supported values bind the corresponding DTO without needing distinctive physical fields.
+- `overlappingPlantFieldsRespectDiscriminatorRegardlessOfOrder`: the screenshot values (140/1/80/30) select ground plant or FLNG according to type.nodeType, whether type appears first or last.
+- `missingMalformedUnknownAndUnsupportedTypesAreRejected`: invalid type input fails instead of guessing.
+
+VersionControllerTest (MVC, now 12 cases):
+- `groundPlantCreateAndEditUseExplicitType`: POST and PATCH accept the overlapping plant fields and pass a GroundBasedLiquefactionPlantDTO to the service.
+- `missingOrUnknownNodeTypeReturnsBadRequestWithoutSaving`: invalid requests return 400 without invoking creation.
+- Existing authorization tests now include the explicit type in their well fixtures; their 401/403 expectations remain unchanged.
+
+Validation: **740 backend tests**, **51 frontend tests**, no failures or skipped tests. Frontend build and lint passed. Backend output isolated in target/node-type-20261022.

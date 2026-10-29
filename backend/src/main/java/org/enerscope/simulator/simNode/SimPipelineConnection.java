@@ -1,53 +1,44 @@
 package org.enerscope.simulator.simNode;
-
 import lombok.Getter;
-import lombok.Setter;
 import org.enerscope.node.model.transportation.PipelineConnection;
-import org.enerscope.simulator.auxiliary.ToDeliver;
 import org.enerscope.simulator.results.ResultPerNode;
 
-
 @Getter
-@Setter
-public class SimPipelineConnection extends SimBaseNode{
+public class SimPipelineConnection extends SimBaseNode {
     private float transferCapacity;
     private float outputPriority;
     private SimBaseNode nodeBefore;
 
-    public SimPipelineConnection(PipelineConnection pipelineConnection){
-        super(pipelineConnection);
-        this.transferCapacity = pipelineConnection.getTransferCapacity();
-        this.outputPriority = pipelineConnection.getOutputPriority();
+    public SimPipelineConnection(PipelineConnection node) {
+        super(node);
+        transferCapacity = node.getTransferCapacity();
+        outputPriority = node.getOutputPriority();
     }
 
     @Override
-    protected void activeAction(int time){
-        ToDeliver totalArrived = nodeBefore.getToDeliver();
-
-        float capacity = Math.min(transferCapacity, transferCapacity - toDeliver.getAmount());
-        float toGather = totalArrived.getAmount();
-        maxPossibleProduced += transferCapacity;
-
-        if (toGather >= capacity){
-            toDeliver.mix(totalArrived.deliver(capacity));
-        } else {
-            toDeliver.mix(totalArrived.deliver(toGather));
-        }
-
+    public void addPreviousNode(SimBaseNode node) {
+        if (nodeBefore != null)
+            throw new IllegalArgumentException("A pipeline connection needs exactly one predecessor");
+        nodeBefore = node;
     }
 
     @Override
-    public void addPreviousNode(SimBaseNode simBaseNode){
-        nodeBefore = simBaseNode;
-    }
-
-    @Override
-    public ResultPerNode createResult() {
-        return new ResultPerNode(this.id, PipelineConnection.class.getSimpleName(),totalProduced,totalDeferred,maxPossibleProduced);
+    protected void activeAction(int time) {
+        if (nodeBefore == null)
+            throw new IllegalArgumentException("Pipeline connection has no predecessor");
+        float capacity = Math.max(0, transferCapacity - toDeliver.getAmount());
+        var received = receive(nodeBefore, Math.min(capacity, nodeBefore.getToDeliver().getAmount()));
+        stepOutput = received.getAmount();
+        toDeliver.mix(received); maxPossibleProduced += transferCapacity;
     }
 
     @Override
     public boolean readyToBeProcessed(int time) {
-        return nodeBefore.getLastSimulatedTime() == time;
+        return nodeBefore != null && nodeBefore.getLastSimulatedTime() == time;
+    }
+
+    @Override
+    public ResultPerNode createResult() {
+        return new ResultPerNode(id, PipelineConnection.class.getSimpleName(), totalProduced, totalDeferred, maxPossibleProduced);
     }
 }

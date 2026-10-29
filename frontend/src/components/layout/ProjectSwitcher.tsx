@@ -38,11 +38,11 @@ export function ProjectSwitcher() {
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className={
-          'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-ink-800 ' +
-          'transition-colors hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus'
+          'flex max-w-40 items-center gap-2 rounded-lg sm:max-w-none px-3 py-2 text-sm font-semibold text-ink-800 ' +
+          'transition-colors hover:bg-ink-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400'
         }
       >
-        {activeProject.name}
+        <span className="truncate">{activeProject.name}</span>
         <ChevronDownIcon
           className={`h-4 w-4 text-ink-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
         />
@@ -53,7 +53,7 @@ export function ProjectSwitcher() {
           role="listbox"
           className={
             'absolute right-0 z-20 mt-1 max-h-80 w-72 overflow-y-auto rounded-xl border ' +
-            'border-ink-100 bg-raised py-1 shadow-lg'
+            'border-ink-100 bg-white py-1 shadow-lg'
           }
         >
           {projects.map((project) => {

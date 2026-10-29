@@ -1,3 +1,4 @@
+import { projectDestination } from '../utils/workspaceRoutes';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
 import { projectsApi } from '../api/projects';
@@ -56,7 +57,7 @@ export function ActiveProjectProvider({ children }: { children: ReactNode }) {
       return null;
     }
     const byId = (id: string | null) => projects.find((project) => project.id === id) ?? null;
-    return byId(routeProjectId) ?? byId(lastProjectId) ?? projects[0];
+    return routeProjectId ? byId(routeProjectId) : byId(lastProjectId) ?? projects[0];
   }, [projects, routeProjectId, lastProjectId]);
 
   useEffect(() => {
@@ -69,8 +70,8 @@ export function ActiveProjectProvider({ children }: { children: ReactNode }) {
     (projectId: string) => {
       setLastProjectId(projectId);
       if (routeMatch) {
-        const rest = routeMatch.params['*'] ?? '';
-        navigate(`/projects/${projectId}${rest ? `/${rest}` : ''}`);
+        const previous = routeMatch.params['*'] ?? '';
+        navigate(projectDestination(projectId, previous));
       }
     },
     [routeMatch, navigate, setLastProjectId],

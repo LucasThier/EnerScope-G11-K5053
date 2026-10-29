@@ -1,8 +1,8 @@
 # Domain model
 
-The initial domain covers **users** and their **authentication**, plus
-**organizations** (SCRUM-35), **projects** with their own membership, and a
-minimal **project version** record.
+The domain covers **users** and their **authentication**, **organizations**,
+**projects** with scoped membership, **physical versions**, **simulation** and
+**economic evaluations**.
 
 ## User
 
@@ -215,6 +215,39 @@ geographical one, and vice versa.
 Edge between two nodes (`node_connection` table): `identityId`, `fromNodeId`,
 `toNodeId` (both referencing endpoint node `id`s within the version).
 
+## Economic And Configuration
+
+Persistent entity mapped to the `version` table. **Minimal slice** — only
+`name`, the owning `project` and an optional `parentVersion` self-reference.
+No creation timestamp field of its own; it reuses `createdAt` from
+`BaseEntity` instead of duplicating it.
+
+`EconomicConfigurationEntity` has a unique, required Version reference, a typed
+configuration serialized as JSON text and an optimistic-lock revision.
+`EconomicEvaluation` has a required Version reference and immutable input/output
+snapshot JSON. Both inherit `BaseEntity`. The configuration records below are
+owned values, not separate shared JPA entities:
+
+- `EconomicConfiguration`: investment year, operating horizon, currency, WACC,
+  selected boundary and all rule collections.
+- `TaxEntity`: hypothetical jurisdiction label, rate, loss carry-forward policy,
+  opening losses, expiry, compensation limit and payment lag.
+- `NodeEconomicProfile` / `Ownership`: version-specific node rules and shares.
+- `EconomicRule` / `Occurrence`: concept, income/expense direction, cash/non-cash,
+  driver, tariff, units, dates and optional internal counterparty.
+- `CommercialContract`: delivery node and revenue rule, separate from physical assets.
+- `CapitalAsset`: purchase/payment, cost, residual, service month and useful life;
+  generates capitalizable cash outflow and monthly depreciation/amortization.
+- `TaxTreatment`: classification/deductible fraction for concept, taxpayer and validity.
+- `MetricConversion`: explicit simulator-unit conversion or static driver quantity.
+
+`AnnualNodeMetrics` records raw annual operational counters. `OperationalMetric`
+contains the converted node/year/driver quantity consumed by `EconomicEngine`.
+`EconomicEntry` preserves originating rule, node, contract, entity, counterparty,
+classification, dates and allocated amount. `EconomicResult` contains entries,
+metrics, `PeriodEconomicResult`, `EntityTaxResult`, `PendingBalance` and NPV.
+`EvaluationDTO.Snapshot` also stores physical inputs and a snapshot schema version.
+
 ## Node/connection identity and clone-on-write
 
 A version's `nodeSnapshot`/`connectionSnapshot` (`Version.java`) start as a
@@ -391,3 +424,25 @@ Access tokens carry `sub` (user id), `mail`, `firstName` and `lastName`.
 On startup `AdminSeeder` ensures a default administrator exists
 (`admin@enerscope.org` by default). It is idempotent: it only creates the user
 if the email is not already present.
+
+## EconomicDraftEntity
+
+Version-owned editor draft, unique version_id, schema-versioned draft_json text 
+and optimistic-lock revision. Raw strings preserve partial amounts and dates. 
+V13 adds the table independently of economic_configuration and economic_evaluation.
+
+## Probabilistic economic jobs and rounds
+
+A Version has many EconomicJob records. Each holds immutable inputJson, rounds, seed, state, 
+completedRounds, lifecycle timestamps/error and an optional unique evaluationId. Each job owns
+up to rounds EconomicRound records, unique by (job, round number), with full snapshotJson and 
+small summaryJson. A completed job links one EconomicEvaluation; failed/interrupted jobs publish 
+none. FrozenEconomicInput and ProbabilisticSummary are value records, not shared physical JPA state.
+
+## Consumer nodes in the editor
+
+Internal Consumption has four physical demand fields: consumptionSummer, consumptionAutumn, 
+consumptionWinter and consumptionSpring. Industrial Consumption uses consumption. Both are sinks in 
+the INTERNAL_CONSUMPTION vertical, fed from treatment plants, pipelines or compressors. They use the 
+existing consumer entity tables and simulator behavior; demand is measured in simulator units per 
+hourly step. They remain eligible for non-export economic drivers and do not become LNG export nodes.

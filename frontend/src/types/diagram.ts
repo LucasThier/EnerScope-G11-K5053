@@ -26,7 +26,8 @@ export type NodeType =
   | 'FLNG_UNIT'
   | 'SEAPORT_TERMINAL'
   | 'LNG_CAMER'
-  | 'INTERNAL_CONSUMPTION';
+  | 'INTERNAL_CONSUMPTION'
+  | 'INDUSTRIAL_CONSUMPTION';
 
 /** Abstract diagram-canvas position (x/y in canvas units). */
 export interface GraphPosition {
@@ -52,7 +53,7 @@ export interface NodeTypeData {
 }
 
 export interface DiagramNode {
-  /** Table id — this is what connections reference within a version. */
+  /** Table id â€” this is what connections reference within a version. */
   id: string;
   /** Cross-version identity. */
   identity: string;
@@ -89,6 +90,7 @@ export interface NodeDetail {
   maintenanceIntervalInDays: number;
   wastePercentage: number;
   attributes: Record<string, number>;
+  declineCurve?: DeclineDistribution | null;
 }
 
 export interface VersionSummary {
@@ -119,4 +121,10 @@ export interface VersionConflict {
   mergedAt: string;
   resolved: boolean;
   resolvedAt: string | null;
+}
+
+export interface DeclineDistribution {
+  type: 'CONSTANT' | 'NORMAL' | 'UNIFORM';
+  val_a: number;
+  val_b?: number | null;
 }

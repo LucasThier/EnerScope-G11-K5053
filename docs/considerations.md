@@ -6,27 +6,13 @@ something non-obvious.** Keep entries concise, dated, and human-readable.
 
 Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 
-## Standing rules
-
-- **The backend is the source of truth when a wireframe and the backend
-  disagree.** Never implement something in the frontend that contradicts a
-  security or design decision already taken in the backend. Adjust the frontend
-  to what the backend actually allows, and record the mismatch as a separate
-  note here so the team can decide whether to reopen that decision — do not
-  reopen it on your own. Example: wireframe `1a` shows a self-service "Crear
-  cuenta" tab, but `SecurityConfig` deliberately keeps `POST /auth/register`
-  behind `hasRole("ADMIN")` because accounts are created by admins and
-  organization owners. The login screen must therefore ship without a
-  self-registration path.
-
 ## Current expectations
 
-- The `User` model carries `mail`, `firstName`, `lastName`, `passwordHash`, a
-  `platformRole` (`ADMIN`/`USER`) and an optional `jobTitle` — plus `BaseEntity`
-  audit fields. There is still **no phone number**. The seeded
-  `admin@enerscope.org` is an `ADMIN`. `platformRole` is the app-wide role;
-  organization/project membership roles are scoped and separate. `jobTitle` is
-  descriptive only and never affects authorization.
+- The `User` model carries `mail`, `firstName`, `lastName`, `passwordHash` and a
+  `platformRole` (`ADMIN`/`USER`) — plus `BaseEntity` audit fields. There is
+  still **no phone number**. The seeded `admin@enerscope.org` is an `ADMIN`.
+  `platformRole` is the app-wide role; organization/project membership roles are
+  scoped and separate.
 - Authentication is **stateless** (JWT). There is no session table; a `Session`
   is rebuilt from the token on each request. Revocation before expiry is not
   supported — keep access-token lifetimes short.
@@ -36,15 +22,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - The frontend now has the **auth portal**: an `AuthProvider`/`useAuth`
   (login/register/logout/refresh + role state), reusable `LoginForm`/
   `RegisterForm`, role-gated routes and admin/user panels. Design tokens live in
-  `src/index.css` under Tailwind v4 `@theme` (brand greens and the ink ramp, from
-  the logo); reuse `bg-brand-*`/`text-ink-*` instead of raw hex. Tailwind only;
-  no hand-written CSS beyond those tokens. **The page surface is white and brand
-  green is an accent, never a surface** — primary buttons, links and the active
-  nav item only. **`ink-500` is the floor for text** (5.69:1 on white); `ink-300`
-  and `ink-400` are for borders, decorative icons and placeholders. White text
-  needs `brand-800` or darker. Type hierarchy comes from size and weight, and
-  spacing stays on the 4px grid — the full rules are in
-  [`frontend/README.md`](../frontend/README.md) → Conventions.
+  `src/index.css` under Tailwind v4 `@theme` (brand greens, ink, cream — from the
+  logo); reuse `bg-brand-*`/`text-ink-*`/`bg-cream` instead of raw hex. Tailwind
+  only; no hand-written CSS beyond those tokens.
 
 ## Log
 
@@ -796,6 +776,115 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     (name, mail, job title, translated role), and the empty state. Note the
     projects created before the `createProject` fix show **0 members** — they
     are pre-fix data, not a defect in the current code.
+
+- 2026-09-16 — Economic evaluations are version-owned typed aggregates with immutable
+  input/output snapshots. See `economic-module/economic-module.md` for rule semantics, annual
+  365-day operational time, tax-loss expiry and explicit unit conversions. Do not
+  import `BaseNode` legacy costs implicitly, mirror an internal transfer manually,
+  or duplicate an asset purchase as an expense rule. Tax is calculated per entity
+  before consolidation; delayed collections/payments use a separate cash adjustment.
+  Capital working requirements must not duplicate receivable/payable timing.
+- 2026-09-16 — V8/V9 add economic persistence and repair operational schema gaps:
+  result year, result foreign-key mappings, maintenance duration and FLNG gas
+  consumption. V1-V7 remain unchanged. Version creation now initializes empty
+  snapshots, and `ProjectService.saveVersion` returns its saved version instead of
+  throwing the previously unfinished-method exception.
+- 2026-09-16 — The existing Draw.io pages are retained and economic views are added.
+  `docs/tools/build-economic-document.py` regenerates the economic pages and Spanish
+  PDF. The old minimal-Version descriptions are superseded by the actual snapshot
+  model. Run the explicit `PostgreSqlEconomicIT` suite against a disposable database
+  in addition to `mvn test`; it must not target an existing application database.
+- 2026-09-28 — Economic snapshots now store IRR and simple/discounted annual-close
+  Payback (schemaVersion 2, calculationVersion 1). They reuse consolidated after-tax
+  cash flows and do not change physical simulation or hourly time. IRR uses bounded
+  DECIMAL128 bisection in the discount factor for conventional flows only; unsupported
+  or failed results have explicit statuses and null values, never a substitute zero.
+- 2026-09-28 — Historical snapshots without indicators are enriched only in memory,
+  from their saved complete annual series and saved WACC, for both list and detail.
+  This qualifies the earlier "history is not recomputed" convention: existing NPV,
+  taxes and flows are not recalculated, and persisted JSON is never changed. Response
+  schemaVersion continues to identify the stored document; indicator origin/version
+  identify the enrichment. Missing data is not obtained from current configuration.
+- 2026-09-28 — Payback reports the first annual closing balance >= 0, with no
+  interpolation, and flags a later negative cumulative balance within the horizon.
+  Discounted Payback uses unrounded present values, independently of display rounding.
+  No initial negative net cash flow means NOT_APPLICABLE.
+
+- 2026-09-28 - PostgreSQL validation exposed pre-existing Result.year and
+  ResultPerNode.nodeID column mismatches plus a broken HTTP fixture path. With
+  explicit user authorization, the mappings now match existing V8/V7 columns and
+  the fixture path points to existing resources. No migration or physical
+  simulation change was required. All 215 current backend cases pass.
+
+- 2026-09-29 — Added the scenario economic frontend and a permission-checked active
+  version-summary GET endpoint. Simple editing covers one hypothetical entity,
+  fixed/volume rules, assets and annual same-year cash. WACC/tax are entered as
+  percentages; no legacy costs or physical unit factors are inferred.
+- 2026-09-29 — Existing configurations are editable only when a complete round-trip
+  through the simple adapter preserves all fields. Otherwise they remain read-only.
+  Historical evaluations always display their own snapshot, including explicit
+  unavailable indicator statuses. See economic-frontend.md.
+- 2026-09-29 — RouterProvider enables unsaved-change blocking; economic tabs retain
+  drafts, switching project returns to its scenario list, and invalid project URLs
+  no longer select another project silently. Narrow screens collapse the sidebar.
+- 2026-09-29 — Full Maven verification exposed pre-existing missing imports,
+  permission fixtures and creator authentication in ProjectServiceTest. Repaired
+  test setup without changing project production behavior or deleting test cases.
+  The full default Maven suite now passes 256 tests; stale target reports from
+  removed/explicit integration classes are not part of that invocation.
+
+- 2026-10-01 — Pinned frontend Axios to 1.20.0 and refreshed the npm lockfile for upstream security fixes. Keep HTTP requests and token refresh in the existing src/api client; no API contract changes are required.
+- 2026-09-16 — Economic evaluations are version-owned typed aggregates with immutable
+  input/output snapshots. See `economic-module/economic-module.md` for rule semantics, annual
+  365-day operational time, tax-loss expiry and explicit unit conversions. Do not
+  import `BaseNode` legacy costs implicitly, mirror an internal transfer manually,
+  or duplicate an asset purchase as an expense rule. Tax is calculated per entity
+  before consolidation; delayed collections/payments use a separate cash adjustment.
+  Capital working requirements must not duplicate receivable/payable timing.
+- 2026-09-16 — V8/V9 add economic persistence and repair operational schema gaps:
+  result year, result foreign-key mappings, maintenance duration and FLNG gas
+  consumption. V1-V7 remain unchanged. Version creation now initializes empty
+  snapshots, and `ProjectService.saveVersion` returns its saved version instead of
+  throwing the previously unfinished-method exception.
+- 2026-09-16 — The existing Draw.io pages are retained and economic views are added.
+  `docs/tools/build-economic-document.py` regenerates the economic pages and Spanish
+  PDF. The old minimal-Version descriptions are superseded by the actual snapshot
+  model. Run the explicit `PostgreSqlEconomicIT` suite against a disposable database
+  in addition to `mvn test`; it must not target an existing application database.
+- 2026-09-28 — Economic snapshots now store IRR and simple/discounted annual-close
+  Payback (schemaVersion 2, calculationVersion 1). They reuse consolidated after-tax
+  cash flows and do not change physical simulation or hourly time. IRR uses bounded
+  DECIMAL128 bisection in the discount factor for conventional flows only; unsupported
+  or failed results have explicit statuses and null values, never a substitute zero.
+- 2026-09-28 — Historical snapshots without indicators are enriched only in memory,
+  from their saved complete annual series and saved WACC, for both list and detail.
+  This qualifies the earlier "history is not recomputed" convention: existing NPV,
+  taxes and flows are not recalculated, and persisted JSON is never changed. Response
+  schemaVersion continues to identify the stored document; indicator origin/version
+  identify the enrichment. Missing data is not obtained from current configuration.
+- 2026-09-28 — Payback reports the first annual closing balance >= 0, with no
+  interpolation, and flags a later negative cumulative balance within the horizon.
+  Discounted Payback uses unrounded present values, independently of display rounding.
+  No initial negative net cash flow means NOT_APPLICABLE.
+
+- 2026-09-28 - PostgreSQL validation exposed pre-existing Result.year and
+  ResultPerNode.nodeID column mismatches plus a broken HTTP fixture path. With
+  explicit user authorization, the mappings now match existing V8/V7 columns and
+  the fixture path points to existing resources. No migration or physical
+  simulation change was required. All 215 current backend cases pass.
+
+- 2026-10-01 — Added operational/economic result tabs for the same immutable
+  evaluation. Operational volumes remain in simulator units and are shown per
+  saved node, avoiding chain double-counting. Physical names and years use saved
+  snapshots only; legacy/missing metrics are never replaced with zero. Cash flow
+  remains economic. No new simulation, backend endpoint or schema is introduced.
+
+- 2026-10-01 — Restored V6 by removing an accidental trailing 's'. Its Flyway checksum is again 1133901940, matching the existing database. Rebuilt the local API without changing schema history or deleting demo data.
+
+- 2026-10-01 — Export-volume rules now select only LNG carriers (existing enum LNG_CAMER). Switching to an incompatible driver clears the node and conversion; invalid saved rules remain visible and block saving. The service validates actual carrier classes before save/evaluation, including contract conversions. Historical reads are unchanged.
+
+- 2026-10-01 — Guardar persists incomplete editor strings in a separate version-owned economic_draft row (V13, schemaVersion 1). It never overwrites engine configuration or evaluates. Save-and-simulate retains strict validation and atomically clears the draft on configuration save. All pending sections explain their errors; simulation attempts open the first invalid section.
+
 - 2026-09-10 — Diagram editor UX pass (frontend only). Decisions:
   - **Connection rules.** The canvas now only accepts edges that follow the
     real-world gas value chain. The allowed targets per node type live in
@@ -2002,3 +2091,108 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   - Anyone whose local database already ran an earlier copy of `V9` or `V11`
     needs a fresh one (`docker compose down -v`): Flyway rejects a migration
     whose checksum changed.
+
+- 2026-10-08 — Master integration retains the economic data router and adds diagram, 
+  profile and team routes. VersionQueryController is the single 
+  GET /projects/{projectId}/versions endpoint, with node summaries, 
+  parentVersionId and createdAt for both selectors. 
+  The redundant incoming V11__add_missing_node_columns migration is omitted: 
+  existing V12 already creates both columns, and economic V11/V12/V13 retain 
+  their names and contents. Axios remains pinned at 1.20.0. 
+  No local database is reset or migrated by this merge.
+
+- 2026-10-08 — Merge verification: 684 backend executions, 24 frontend cases, build/lint and both browser acceptance scripts passed. Windows locked the old target directory, which contained classes from other branches; backend tests therefore used a temporary POM with only the output directory changed and a clean isolated build directory. The original pom.xml is unchanged. Consumption nodes now use stepOutput and participate in annual metric capture alongside the existing economic simulator. No PostgreSQL migration was applied to the user database.
+
+- 2026-10-12 — Integrated master version-conflict support into modulo-resultados-v2. The incoming V12__create_version_conflict_tables.sql is V14 on this branch because V12 aligns operational columns and V13 stores economic drafts. Existing branch migration contents are unchanged. Database histories from master need reconciliation before deployment; this merge does not migrate or reset a database. Retained the mutable-empty-snapshot regression test alongside the incoming version tests.
+
+- 2026-10-12 — Merge verification: 682 backend executions across 41 classes passed without failures, errors or skips, using a fresh isolated build directory to avoid stale/locked target classes. Frontend: 24 tests, build and lint passed. The original Maven POM is unchanged.
+
+- 2026-10-12 — V15 normalizes the legacy Cyrillic export vertical in node_type_data to ASCII EXPORT after the enum rename from master. Both active and inactive rows are covered; node identifiers, other verticals and immutable economic snapshots are preserved. Existing migration files are unchanged.
+
+- 2026-10-12 — Investment node filtering is view-only: all/general/per-node options preserve the full draft for saving and validation. Adding under a node filter preselects that node. Failed simulation clears the filter to reveal invalid assets. Top and bottom action groups share handlers and busy/permission state.
+
+- 2026-10-13 — Investment filter header now hides its visible label while retaining its accessible name, centers the selector beside the section heading, and removes the visible investment-count/save hint. Filtering and persistence are unchanged.
+
+- 2026-10-13 — Economic result cards display VAN rounded toward positive infinity to whole currency units and annual IRR with two percentage decimals. Stored calculations and cash-flow precision are unchanged. Chart bars expose year and cash flow on hover or keyboard focus.
+
+- 2026-10-13 — Cash-flow bars animate from the zero baseline when economic results become active, respecting reduced-motion preferences. The tooltip follows the pointer, anchors to keyboard focus, stays within the viewport, and dismisses on scroll/resize/Escape.
+
+- 2026-10-13 — Operational bars animate from zero when entering the tab or changing nodes, respecting reduced motion. Summary units appear beside numeric totals. Simulator volumes remain generic until an explicit physical unit or commercial conversion is chosen; raw volumes must not be relabeled as commercial units.
+
+- 2026-10-13 — Operational displays apply immutable saved commercial conversions by node/metric. A unique common node conversion also covers unconfigured volume metrics; ambiguous or missing conversions retain simulator units. Hours/events are unchanged. Differing output/export units use explicitly labeled independent chart scales.
+
+- 2026-10-13 — Economic results use grouped profitability and recovery cards, a horizon-aware recovery timeline (coincident markers merge), and collapsible annual accounting detail. Cash-flow axes cover positive/negative values and preserve pointer/keyboard tooltips and reduced-motion behavior. All figures still come from the saved backend evaluation.
+
+- 2026-10-13 — Economic context aligns left with the result heading. Profitability uses a single VAN pill label above its value, omits the repeated WACC and keeps its natural content height instead of stretching to the recovery card.
+
+- 2026-10-13 — Result tabs precede the content. Economic context and profitability share the first desktop row; recovery spans the next row at the cash-flow card width. On narrow screens the content stacks in reading order. Operational results retain their own title/date below the selector.
+
+- 2026-10-13 — The VAN heading is a sign-aware pill: VAN Positivo in green, VAN Negativo on red, VAN Nulo neutral for exact zero, and VAN neutral when unavailable. Classification uses the original value before display rounding.
+
+- 2026-10-13 — Economic results header places currency/WACC/horizon to the right of title/date; profitability now occupies the next full-width row, followed by recovery and cash flows. Header wraps on narrow screens.
+
+- 2026-10-13 — Operational annual node detail uses a native details/summary disclosure, closed by default, consistent with economic annual detail. Table values and node filtering are unchanged.
+
+- 2026-10-13 — Operational bars now use pointer-following tooltips like economic flows, with metric/year/value/unit, keyboard focus, Escape dismissal and scroll/resize cleanup. Zero metrics retain a one-pixel focusable bar; missing metrics remain absent.
+
+- 2026-10-14 - Physical uncertainty only; economics runs per round before statistics. Defaults: 10 rounds, range 1–100, ascending nearest-rank percentiles. Payback probabilities expose their applicable/determined denominator.
+
+- 2026-10-14 - Frozen inputs retain distribution parameters and 64-bit seed strings. Stable node/round seed derivation and fresh simulators avoid shared JPA random state. Exact replay requires the same simulation version and UUIDs.
+
+- 2026-10-14 - One worker application instance initially. Short transactions claim/save/publish; startup interrupts queued/running work. Retry copies frozen JSON/seed into a new job. Multi-instance startup recovery is not implemented.
+
+- 2026-10-14 - Schema 3 stores statistics separately from full round detail. Schemas 1/2 retain saved individual results and historical indicator enrichment without rewriting JSON.
+
+- 2026-10-14 - The user confirmed the probabilistic merge had not been applied to databases requiring preservation. Only conflicting incoming migration content was reconciled; V16 adds jobs/rounds. Validation used disposable PostgreSQL without repair/reset.
+
+- 2026-10-14 - Explicit user decision: exclude the physical well editor. Its numeric decline payload/detail contract remains incompatible with distributions. Use the existing node API with a distribution object until that separate adaptation.
+
+- 2026-10-14 — Economic configuration remains in Simulaciones / Escenarios. Physical node forms and detail panels exclude legacy monetary fields (upkeep, operating, DTM, treatment and hiring costs). Hidden values remain in the existing node payload contract; no automatic import into economic rules is introduced. The distribution editor remains outside this change.
+
+- 2026-10-14 — Scenario names and the explicit Configurar y simular action open the economic configuration tab via absolute project/version URLs. The five-section editor and asynchronous save-then-submit flow remain available; existing bare economics URLs still default to configuration.
+
+- 2026-10-14 — Advanced economic configurations now use a five-section full-configuration editor rather than a read-only summary. Field edits preserve shared ownership, contracts, timing, tax entities and unknown properties. Save validates the complete configuration through the existing API (no incomplete advanced draft); simple drafts retain their existing workflow.
+
+- Execution history is shown in Results/History rather than above Configuration, keeping the economic form visible when a scenario opens.
+
+- 2026-10-15 — Runtime upgrade from the October 12 database: restore its published V2/V8.5 migration contents and introduce distributions after existing history in V17. Legacy well decline values become CONSTANT distributions; retain the scalar audit column. V16 introduces evaluation jobs. Validate against a cloned database without Flyway repair, reset or disabling validation.
+
+- 2026-10-15 — V18 adds the missing FLNG ship_capacity column without removing existing columns. Local runtime now uses enerscope_run_oct15 (copy of enerscope_run_oct12), selected in ignored backend/.env. Original database and backend-api:before-oct15 image remain available. Starting the old API image against a new frontend yields Resource not found for /evaluation-jobs; rebuild the API after backend changes.
+
+- 2026-10-16 — Editor project selection shares ActiveProjectProvider with the header. Project changes remount editor state; version and diagram requests discard stale responses. Scenarios are project versions: New scenario creates an empty version or copies a parent from the same project, then opens economic configuration. ProjectService rejects foreign/inactive parent versions.
+
+- 2026-10-16 — Current checkout cannot clean-build the probabilistic backend because required physical distribution sources are absent. Local runtime was patched from the previously validated October 15 build, with ProjectService and its tests replaced; do not treat this as validation of the entire current checkout.
+
+
+- 2026-10-20 — **Separate scenario configuration and execution**
+  - Configuration owns economic and operational edits; execution owns rounds/seed and submits without saving. Map frontend and physical simulation behavior are unchanged.
+  - Joint invalid edits persist as drafts without partial publication; both legacy and joint drafts block new evaluations. Historical retry retains frozen inputs.
+  - Version locks coordinate map edits, joint saves and job acceptance. Source/content tokens detect stale forms; graph positions are excluded. Full node clones remap version-local connections and economic references.
+  - User authorized compatible fresh installation: new B18 baseline fixes the initial schema only for empty databases. V1–V18 remain unchanged; V19 introduces scenario_draft. Never repair or reset existing databases automatically
+  - User requests the simple economic form only. Preserve complex originals and offer an explicitly confirmed simple copy; remap physical UUIDs by logical identity and preserve recognition-year gaps. Copies do not promise financial equivalence. Original databases are retained; runtime now uses enerscope_restored_examples_20261020 with the previous three examples/15 evaluations and the recent example/two evaluations.
+
+- 2026-10-21 — **Optional descriptions and editable numeric inputs**
+  - Project descriptions are optional on creation; null, omitted and whitespace-only input is normalized to an empty string, preserving the non-null database column. The 500-character limit remains. Editing permits clearing the description; an omitted PATCH field remains unchanged.
+  - Node forms keep numeric input as text until submission, allowing empty fields and decimal typing. New zero-default fields start blank; the existing maintenance default of 30 days remains. Editing preserves saved values, including explicit zero. Numeric conversion occurs on submission; physical simulation rules are unchanged.
+
+- 2026-10-21 — **Well decline distribution editor**
+  - User now authorized the previously deferred map distribution editor. The map creates and edits CONSTANT, NORMAL and UNIFORM distributions using the existing node API (`type`, `val_a`, `val_b`). Constant/bounds use annual percentage points in [0,100]; normal standard deviation must be positive. Simulation clipping and additive decline are unchanged.
+  - Node detail exposes `declineCurve` with persisted parameters. Reading a well never samples its distribution. The former sampled scalar is no longer emitted in `attributes`. The frontend keeps the complete distribution on edit, along with hidden legacy costs and logical identity.
+
+- 2026-10-22 — **Explicit node request discriminator**
+  - Node creation and editing now route by the existing `type.nodeType` field. Field-name deduction was ambiguous for ground liquefaction plants because FLNG includes the same fields. NodeRequestDeserializer uses a fixed allowlist of the nine supported editor DTO types; it never resolves arbitrary class names or falls back to guessing.
+  - Missing, malformed, unknown and unsupported node types return HTTP 400. Frontend payload shape and persisted scenarios are unchanged. The concrete DTOs disable the inherited routing deserializer to avoid recursive dispatch.
+
+- 2026-10-25 — Migration reconciliation preserves every SQL file: incoming V1.5/V11.5/V13.5/V14.5 are now V20/V21/V22/V23. V20/V21 preserve existing objects and values. Published V2/V8.5/V9 were restored from the October 16 runtime to retain applied checksums; incoming variants remain verbatim in docs/migration-reconciliation-20261025. No Flyway repair, validation bypass or database reset. Both a populated database clone and a fresh database successfully reached V23.
+
+- 2026-10-25 — Startup fixes restore valid App route names, align Sidebar with SidebarProvider callbacks, restore the scoped Editor version loader and import operationalFields. Simulation listing uses /projects/:projectId/simulations, keeping version management separate.
+
+- 2026-10-26 — Route integration preserves master version management at /versions and /projects/:id/versions, and economics configuration/history/results under their existing detail URLs. Simulation listing is /projects/:id/simulations. Data router restored for useBlocker; shared module patterns drive sidebar/title and project-switch targets. No permission expansion. Full inventory and audit: route-integration-20261026.md.
+
+- 2026-10-26 — Both consumer node types are now supported by the editor and version-scoped node API. INDUSTRIAL_CONSUMPTION is a new discriminator in the existing string column; both consumers use INTERNAL_CONSUMPTION/SINK and its existing edit permissions. Treatment plants, pipelines and compressors can feed them; consumers have no outgoing editor connections. Scenario operations expose seasonal/constant demand with Spanish labels. Existing simulator units, timing and economic formulas remain unchanged. No schema migration or historical data rewrite.
+
+- 2026-10-26 — Editor diagrams exclude REMOVED nodes and connections whose endpoints are not visible, on every reload. Both diagram/minimap and geographic map share the filtered state. Soft deletion, stored snapshots and historical records are preserved.
+
+- 2026-10-26 — REMOVED nodes are excluded from current scenario operations, economic node eligibility, version summaries and newly frozen simulation inputs. Their touching connections are excluded from new inputs. Stored version rows, source tokens, historical results and historical retry inputs remain intact. Existing economic references to deleted nodes require review rather than silent financial-rule changes. Execution history can be minimized while polling continues and errors remain visible.
+
+- 2026-10-26 — Result CSV exports are generated client-side from the selected immutable evaluation. Annual financial exports include all accounting columns and indicators at stored precision. Operational exports contain the selected node with the same saved unit conversions as the UI. Round exports identify the round; summary exports contain all nodes and statistical/status/probability rows. Files use UTF-8 BOM, comma separators, quoted cells, CRLF, decimal points and blank missing values; text formula prefixes are escaped. No simulation or backend mutation is performed.

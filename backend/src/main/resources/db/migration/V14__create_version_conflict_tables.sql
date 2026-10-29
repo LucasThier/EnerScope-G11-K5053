@@ -1,4 +1,4 @@
--- V7: conflicts detected automatically when a subversion is merged into its parent.
+-- V14: conflicts detected automatically when a subversion is merged into its parent.
 -- One row per (sibling, entity) whose node/connection identityId was also changed by the merged subversion.
 CREATE TABLE version_conflict (
     id                     UUID                     NOT NULL DEFAULT gen_random_uuid(),

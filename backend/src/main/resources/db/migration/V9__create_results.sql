@@ -1,5 +1,5 @@
 -- V9: final (aggregated) result tables.
--- `result_per_node` (with its indexes) is already created by
+-- `result` and `result_per_node` (with their indexes) are already created by
 -- V8__create_results.sql; this migration only adds what V8 does not have.
 CREATE TABLE final_result (
                               id           UUID NOT NULL DEFAULT gen_random_uuid(),

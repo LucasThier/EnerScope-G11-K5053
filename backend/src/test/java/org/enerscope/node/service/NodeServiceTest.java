@@ -159,4 +159,22 @@ class NodeServiceTest {
         assertEquals(originalIdentity, edited.getIdentityId());
     }
 
+
+    @Test
+    void wellJsonPreservesAllDistributionTypesThroughSave() throws Exception {
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+        var input = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(
+            java.nio.file.Files.readString(java.nio.file.Path.of("src/test/resources/economic-examples/economic-well.json")));
+        input.set("graphData", mapper.createObjectNode());
+        when(wellRepository.save(any(Well.class))).thenAnswer(inv -> inv.getArgument(0));
+        for (String type : List.of("CONSTANT", "NORMAL", "UNIFORM")) {
+            input.set("declineCurve", mapper.createObjectNode().put("type", type).put("val_a", 1.45).put("val_b", 2.5));
+            var dto = (WellDTO) mapper.treeToValue(input, BaseNodeDTO.class);
+            var saved = nodeService.saveWell(dto);
+            var actual = ProbabilisticDistributionDTO.from(saved.getDeclineCurve());
+            assertEquals(type, actual.getType());
+            assertEquals(1.45f, actual.getVal_a());
+            if (!type.equals("CONSTANT")) assertEquals(2.5f, actual.getVal_b());
+        }
+    }
 }

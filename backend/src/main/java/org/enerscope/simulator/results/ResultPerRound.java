@@ -13,7 +13,7 @@ import java.util.List;
 @Setter
 public class ResultPerRound {
 
-    @Column(name = "`year`")
+    @Column(name = "simulation_year")
     private int year;
 
     // Foreign key on the child table (result_per_node.result_id, see V8). Without
@@ -21,7 +21,7 @@ public class ResultPerRound {
     // that no migration creates.
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "result_id", nullable = false)
-    private List<ResultPerNode> resultPerNodes;
+    private List<ResultPerNode> resultPerNodes = new ArrayList<>();
 
 
     public void addAllResultPerNodes(List<ResultPerNode> resultPerNodes){
@@ -33,7 +33,7 @@ public class ResultPerRound {
     }
 
     public float amountProduced(){
-        List<ResultPerNode> lngNodes = resultPerNodes.stream().filter(resultPerNode -> resultPerNode.getNodeClass() == LNGCarrier.class.getSimpleName()).toList();
+        List<ResultPerNode> lngNodes = resultPerNodes.stream().filter(resultPerNode -> LNGCarrier.class.getSimpleName().equals(resultPerNode.getNodeClass())).toList();
         return (float) lngNodes.stream().mapToDouble(value -> value.getTotalProduced()).sum();
     }
 }

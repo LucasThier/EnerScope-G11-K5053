@@ -298,6 +298,23 @@ All responses are wrapped in a standard envelope:
 { "success": true, "message": "...", "data": { }, "timestamp": "..." }
 ```
 
+## Economic API
+
+The economic API evaluates project versions, with persisted configuration and
+immutable NPV history. See [economic documentation and runnable example](../docs/economic-module/economic-module.md).
+Use the complete migration chain through V15. The incoming master V11 for node columns is redundant with this branch's V12 and is not included. Existing databases require reviewing their Flyway history before deployment; this merge does not reset databases or repair checksums.
+
+Economic routes use `/api/v1/projects/{projectId}/versions/{versionId}/economics`:
+`PUT/GET /configuration`, `POST/GET /evaluations`, and `GET /evaluations/{id}`.
+Read access requires `VIEW_PROJECT`; writes/calculation require `EDIT_PROJECT`.
+Platform administrators also have access. All routes require Bearer authentication.
+
+Run `mvn test` for the standard suite. For real schema/persistence verification,
+set `ECONOMIC_TEST_DATABASE_URL` to a disposable `enerscope_economic_test` PostgreSQL
+database (optionally `ECONOMIC_TEST_DATABASE_USER` and `ECONOMIC_TEST_DATABASE_PASSWORD`),
+then run `mvn -Dtest=PostgreSqlEconomicIT test`. The integration suite runs Flyway
+and Hibernate validation and rolls back its example records.
+
 ## Backend structure
 
 ```
@@ -370,3 +387,59 @@ Verbosity is controlled from the environment: `LOG_LEVEL_APP` sets the
 application logger level and `LOG_LEVEL_ROOT` the framework level
 (`TRACE < DEBUG < INFO < WARN < ERROR < OFF`). For example, set
 `LOG_LEVEL_APP=DEBUG` in `.env` to see debug output locally.
+
+## Scenario selection
+
+GET /api/v1/projects/{projectId}/versions returns active version summaries with
+node identifiers, names and types. Requires VIEW_PROJECT through an active project
+membership/role, or a platform administrator. Responses use ApiResponse.
+See [economic frontend](../docs/economic-module/economic-frontend.md).
+
+Economic drafts: migration V13 adds economic_draft. 
+GET/PUT /projects/{projectId}/versions/{versionId}/economics/draft reads/stores 
+editor drafts with VIEW_PROJECT/EDIT_PROJECT checks. 
+Drafts are structurally validated separately from simulation-ready configuration.
+
+Version-conflict support from master uses V14__create_version_conflict_tables.sql on 
+this branch (upstream calls it V12). Review Flyway history before switching an existing
+database between these branches.
+
+V15 normalizes legacy export vertical values so existing export nodes remain readable 
+after the enum rename. Apply through Flyway; no database reset is needed.
+
+## Probabilistic economic evaluations
+
+POST /api/v1/projects/{projectId}/versions/{versionId}/economics/evaluation-jobs 
+accepts {"rounds":10,"seed":"42"} and returns 202 with persisted progress. 
+The worker uses economic.worker.enabled (default true) and 
+economic.worker.poll-ms (default 1000); deploy one worker instance. 
+POST /evaluations remains synchronous and single-round. 
+V16 adds jobs/rounds. See [economic module](../docs/economic-module/economic-module.md) for migration 
+reconciliation, restart/retry, permissions and the example script. Use a disposable 
+ECONOMIC_TEST_DATABASE_URL for the explicit PostgreSqlEconomicIT suite.
+
+### Updating a running local instance
+
+After pulling backend changes, rebuild the API rather than only starting an old 
+container: `docker compose up -d --build --no-deps api`. Keep `DATASOURCE_DB` set to 
+the intended database in the local `.env`. The probabilistic frontend requires 
+the `/economics/evaluation-jobs` endpoints. Legacy scalar well declines are preserved 
+as constant distributions by V17; V18 adds the FLNG capacity column. Do not repair or 
+reset historical migrations to bypass incompatibilities.
+
+
+### Scenario configuration migration and verification 
+
+Fresh PostgreSQL installations execute the individual V1–V23 migrations. The former B18 snapshot is archived outside Flyway in docs/migration-reconciliation. Databases that recorded B18 require a separate compatibility review before upgrading; do not repair or reset their history automatically. V19 adds joint scenario drafts. Run `mvn test`, then `mvn -Dtest=PostgreSqlEconomicIT,ScenarioConfigurationPostgreSqlIT test` with ECONOMIC_TEST_DATABASE_URL pointing exclusively to a disposable enerscope_economic_test database. See docs/economic-module.md for the joint configuration/readiness API.
+
+### Project description input
+
+POST `/projects` accepts an omitted, null or blank `description` and stores an empty string. The maximum length remains 500 characters. PATCH accepts an empty description to clear it; an omitted or null description leaves it unchanged.
+
+### Explicit node type 
+
+POST `/version/{versionId}/node` and PATCH `/version/{versionId}/node/{nodeId}` require `type.nodeType`. The backend chooses the concrete DTO using that value, not overlapping physical fields. Supported values are WELL, GATHERING_NETWORK, TREATMENT_PLANT, PIPELINE, COMPRESSING_PLANT, GROUND_LIQUEFACTION_PLANT, FLNG_UNIT, SEAPORT_TERMINAL and LNG_CAMER (existing enum spelling). Missing or unsupported values return 400. Existing editor payloads already contain the discriminator; no migration is required.
+
+### Migration reconciliation 
+
+Use docker compose up -d --build api to compile current sources and wait for the database health check. Pending migrations now continue through V23. Previously published V2/V8.5/V9 retain their historical contents; incoming alternatives are preserved in docs/migration-reconciliation-20261025 outside Flyway discovery. Do not repair checksums or reset existing databases to resolve a conflicting migration number.

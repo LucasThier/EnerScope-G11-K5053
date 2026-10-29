@@ -1,5 +1,4 @@
 # EnerScope
-
 **Grupo 11 — Curso K5053 — Año 2026**
 
 ### Integrantes
