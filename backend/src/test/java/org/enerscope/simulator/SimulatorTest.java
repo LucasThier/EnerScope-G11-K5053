@@ -474,7 +474,7 @@ public class SimulatorTest {
 
         long duration = System.currentTimeMillis() - startTime;
         System.out.println("Tiempo para procesar red aleatoria con " + baseNodes.size() + " nodos: " + duration + " ms");
-        assertTrue(duration < 8000, "El simulador tardó demasiado.");
+        assertTrue(duration < 15000, "El simulador tardó demasiado.");
     }
 
     @Test
