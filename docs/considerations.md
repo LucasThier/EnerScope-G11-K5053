@@ -38,13 +38,44 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   `RegisterForm`, role-gated routes and admin/user panels. Design tokens live in
   `src/index.css` under Tailwind v4 `@theme` (brand greens and the ink ramp, from
   the logo); reuse `bg-brand-*`/`text-ink-*` instead of raw hex. Tailwind only;
-  no hand-written CSS beyond those tokens. **The page surface is white and brand
-  green is an accent, never a surface** — primary buttons, links and the active
-  nav item only. **`ink-500` is the floor for text** (5.69:1 on white); `ink-300`
-  and `ink-400` are for borders, decorative icons and placeholders. White text
-  needs `brand-800` or darker. Type hierarchy comes from size and weight, and
+  no hand-written CSS beyond those tokens. **The page is `ink-50`, the sheets on
+  it (cards, the chrome, the form controls) are white, and brand green is an
+  accent, never a surface** — primary buttons, links and the active nav item
+  only. **`ink-500` is the floor for text** (5.69:1 on white in the light theme;
+  the dark theme restates the ramp and the floor holds there too); `ink-300` and
+  `ink-400` are for borders, decorative icons and placeholders. White text needs
+  `brand-800` or darker. Type hierarchy comes from size and weight, and
   spacing stays on the 4px grid — the full rules are in
   [`frontend/README.md`](../frontend/README.md) → Conventions.
+- The design tokens are **two themes of one system**: every token is declared
+  under `@theme` and restated under `html[data-theme='dark']`, keeping its
+  **role** and changing only its **value**. Beyond colour they cover shape
+  (`--radius-control`, `--radius-card`), control height (`--spacing-control`,
+  `--spacing-control-compact`) and elevation (`--color-shadow`,
+  `--shadow-raise`, `--shadow-float`). The accessibility bar for the whole app
+  is **WCAG AA: 4.5:1 for text, 3:1 for non-text UI**; the one border that
+  carries that 3:1 contract itself is `--color-control-border`, which is
+  deliberately the same value in both themes. The sign-in screen has its own
+  `auth-*` namespace and a panel that stays a light surface in both themes.
+- **Forms and dialogs are assembled from `src/components/ui`**, not hand-rolled:
+  `Field`/`useField` + `TextField`/`TextArea`/`SelectField` for inputs,
+  `SearchField`/`FilterSelect` for filters, `Button`, `Card`, `Modal` +
+  `ModalFooter`, `Alert`. They are what guarantees the labelling, the
+  `aria-describedby`/`aria-invalid` wiring, the focus trap and the single set of
+  control heights. Add a variant to the component rather than a one-off in a
+  screen.
+- The signed-in sidebar is a **transient overlay**, not a persistent rail: the
+  app opens it once on `/app`, the left screen edge and `Ctrl`/`Cmd`+`B` open
+  it, any navigation closes it, and below `64rem` it is a drawer.
+  `useNavigationTree` **hides** the sections the caller cannot reach.
+- **Membership has three independent role scopes** (platform, organization,
+  project), belonging to the organization is a prerequisite for belonging to one
+  of its projects, and an organization's last owner / a project's last
+  administrator cannot be removed or demoted — **not even by a platform
+  admin**. See [`domain-model.md`](domain-model.md) → *Membership rules*.
+- The frontend still has **no test runner**: the bar for a frontend change is
+  `npm run build` (type-check) plus `npm run lint`, and the rest is the manual
+  checklist in [`testing.md`](testing.md) → *Manual verification*.
 
 ## Log
 
@@ -2002,3 +2033,417 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   - Anyone whose local database already ran an earlier copy of `V9` or `V11`
     needs a fresh one (`docker compose down -v`): Flyway rejects a migration
     whose checksum changed.
+
+- 2026-10-17 — **The sign-in headline's second line is green in the light
+  theme.** `Una visión clara.` now takes `auth-accent` (`#1b5e20`) instead of
+  repeating the heading ink, so the accent that used to be carried by the lone
+  full stop carries the whole line. Nothing else about the headline moved: same
+  single `h1`, same text, same size, weight, tracking and line breaks.
+  - **`--color-auth-headline-accent` is gone.** It existed only to colour that
+    line, and once the line takes `auth-accent` the token was a second name for
+    a value `auth-accent` already held in both themes (`#1d2b2b`/`#66b86b` →
+    `#1b5e20`/`#66b86b`). That is the duplication this palette is trying to
+    avoid, and unlike `auth-focus` it carried no contract of its own, so it was
+    deleted rather than kept as an alias.
+  - **The dark theme is untouched by construction.** There the old token and
+    `auth-accent` were both `#66b86b`, so the line keeps its colour: screenshots
+    of the whole page before and after are pixel-identical at 768 and 1440 px
+    (0 of 768 000 and 0 of 1 296 000 pixels differ), and the computed styles of
+    the `h1` and both lines differ only by the absence of the deleted custom
+    property.
+  - **Contrast of the green over the photograph**, measured on the composited
+    pixels in the x-height band of the line, worst pixel against `#1b5e20`:
+    **7.27:1** at 390 px, **4.27:1** at 768 px, **3.70:1** at 1440 px. The bar is
+    3:1 — the line is 34–68 px bold, large text everywhere. The margin narrows
+    as the viewport widens because the veil over the photo thins out, so 1440 px
+    (and wider, where the headline keeps growing over the same veil) is the
+    width to re-measure if the artwork, the veils or the accent ever change.
+  - **The hero is `sr-only` below `lg` when the viewport is 850 px tall or
+    less**, so on a 390×844 phone the headline is not drawn at all; the 390 px
+    measurement above is at 390×900, where it is.
+
+- 2026-10-18 — **The design system grew a second axis: shape and elevation, and
+  the one border with a contrast contract of its own.** Colour was already a
+  token; a radius, a control height and a shadow were still numbers repeated in
+  every component. They are tokens now, under `@theme` in `src/index.css`, and
+  the shared components read them so a screen asks for the role and never
+  repeats the number:
+  - `--radius-control` (0.75rem/12px) for fields, buttons, error blocks and
+    filter pills; `--radius-card` (1rem/16px) for cards and modals. Two steps,
+    deliberately: a third would be a decision nobody can make consistently.
+  - `--spacing-control` (3rem/48px) is the height of a control in a form and
+    `--spacing-control-compact` (2.5rem/40px) the height of one inside a table
+    row. Tailwind derives `h-control`/`h-control-compact` from them.
+  - `--color-shadow` carries the tint (`#152c2626` in the light theme,
+    `#00000059` in the dark one) and `--shadow-raise` / `--shadow-float` are
+    the only two elevations: a card off the page, and a modal or popover above
+    everything. **Every elevation shadow is tinted, never a neutral grey.** In
+    the dark theme a drop shadow does almost nothing, so elevation there is
+    carried by the four surface steps (`page` → `surface` → `raised` → the
+    `ink-50` hover fill) and by borders a notch more visible than their light
+    counterparts.
+  - `--color-nav`, `--color-nav-hover` and `--color-nav-active` are the
+    navigation rail (and the mobile drawer). The rail is **not a sheet**: in the
+    light theme it is a step *darker* than the page (`#ecf0f5` against
+    `#f5f7f9`), the opposite direction from a card, so the chrome recedes and
+    the content reads first; in the dark theme it sits between the page and the
+    surface (`#141a21` between `#0f141a` and `#181f26`), which reads as the same
+    recession there. `nav-hover` is one step further from the page in whichever
+    direction the theme went. `nav-active` is the fill behind the current
+    section's row and is the one place green is a surface; it is never a large
+    one.
+  - `--color-control-border` (`#76838f`) is **the same value in both themes**,
+    and that is not an oversight. It is the only band that clears 3:1 against a
+    near-white and a near-black control fill at once: 3.88:1 on a white
+    surface, 3.61:1 on the page and 3.39:1 on the navigation rail in the light
+    theme, 4.29:1 on a card and 3.65:1 on a modal's raised panel in the dark
+    one. `ink-200` — what a control's border used to be — is 1.48:1 on the
+    navigation rail in the light theme and 2.22:1 in the dark one, which left a
+    resting control with no edge a low-vision reader could find. It is therefore
+    the **one border that does not come from the ink ramp**, because it is the
+    only border carrying a contrast contract rather
+    than a decorative job. `ink-200` keeps the decorative work: dividers,
+    swatches, an alert's edge.
+  - **The accessibility bar, written down once:** WCAG **AA** — 4.5:1 for text
+    against its background, **3:1 for non-text UI** (a control's resting
+    border, the focus indicator, a filled accent's edge). Large text (≥18.66px
+    bold or ≥24px) is allowed AA's 3:1 large-text threshold; the sign-in
+    headline over the photograph is where that matters, and the 2026-10-17 entry
+    has the measurements. The ratios quoted in `index.css` are the budget:
+    `ink-500` is the floor for text in both themes (5.69:1 on white, 7.60:1 on
+    the dark `surface`); `ink-300` is never text in either, and `ink-400` is
+    never text in the light theme (3.44:1) but clears 5.42:1 in the dark one,
+    where it is allowed on placeholders and disabled labels; white text needs
+    `brand-800` or darker.
+
+- 2026-10-18 — **The sign-in screen's palette is a namespace of its own
+  (`auth-*`), and the panel is a fixed light surface in both themes.** The login
+  is a photograph with a translucent panel over it, which needs colours the rest
+  of the app has no use for; keeping them under an `auth-` prefix is what stops
+  them leaking into the app's own semantic roles. Two rules before changing any
+  of them:
+  - **Only the cover follows the theme.** `auth-page`, `auth-heading`,
+    `auth-copy` and `auth-accent` invert in the dark block; everything that
+    lands *inside* the panel (`auth-panel`, `auth-panel-ink`,
+    `auth-panel-ink-strong`, `auth-panel-muted`, `auth-control`,
+    `auth-divider`, `auth-action`, `auth-action-hover`, `auth-action-text`,
+    `auth-focus`, `auth-error`, `auth-error-surface`, `auth-shadow`) keeps its
+    light value, because the section carries `color-scheme: light`. Those tokens
+    are **restated in the dark block rather than left to inherit**, so that
+    block is the whole dark theme and not most of it.
+  - **`auth-panel-ink-strong` (`#16201f`) exists for one reason:** small text on
+    the glass panel, where the photograph showing through eats the ink's
+    contrast. From `sm` up — exactly where the panel turns from an opaque sheet
+    into glass — the two footer lines under "¿Necesitás una cuenta?" and the
+    paragraph inside the "¿Olvidaste tu contraseña?" disclosure swap
+    `auth-panel-muted` for it (`sm:text-auth-panel-ink-strong`); below `sm` the
+    panel is opaque, so the muted grey is legible and stays. The disclosure's
+    own `summary` is 14px on glass at every width, so it takes the strong ink
+    unconditionally.
+  - **`auth-focus` stays a token of its own** even though it equals
+    `auth-action` in both themes: it carries the 3:1 focus contract and every
+    element that draws it sits inside the light panel. The same reasoning is why
+    `--color-auth-headline-accent` was deleted on 2026-10-17 and this one was
+    not.
+  - **The veils and the subtitle halo are tokens, not component logic.** The
+    cover changes *treatment* between themes, not only colour: over the pale
+    photo the veil stays thin and the halo is a wide, faint ellipse; over the
+    night photo both close up and go nearly opaque. That lives in
+    `--color-auth-veil-top/-mid`, `--color-auth-subtitle`,
+    `--color-auth-subtitle-halo` and the three `--auth-subtitle-halo-*` values,
+    so `LoginPage`/`LoginScene` never branch on the resolved theme to draw it.
+  - `LoginScene` does not render below 640px at all, so the photograph is never
+    fetched on a phone, and the hero section is `sr-only` below `lg` when the
+    viewport is 850px tall or less.
+
+- 2026-10-18 — **The shared component layer, and when to reach for which.**
+  Every screen used to assemble its own label/input/error markup, which is how
+  `aria-describedby` goes missing and how a control ends up 44px tall on one
+  page and 48 on the next. The pieces now live in `src/components/ui`:
+  - **`useField(id, { hint, error })`** is the wiring and nothing else. It
+    returns `fieldId`/`hintId`/`errorId` plus a `controlProps` carrying `id`,
+    `aria-invalid` (only when there is an error) and `aria-describedby` (the
+    hint and the error, whichever exist). Reach for it directly when you own an
+    exotic control — `ImportUsersCsvFlow`'s file input does.
+  - **`Field`** is the layout around a control: the `<label>`, the children, the
+    hint (`text-xs text-ink-500`) and the error (`text-xs text-danger-600` with
+    an `AlertIcon`). It takes the ids from `useField`; it does not call it, so a
+    component can own the hook and the markup separately.
+  - **`TextField`** (`input`, plus an optional `endAdornment` for a
+    show-password eye), **`TextArea`** (`rows` defaults to 4, resizes
+    vertically) and **`SelectField`** (`density="md" | "compact"`) are the
+    Field + control + `useField` combination for the three ordinary cases. All
+    three forward the native props, so `type`, `required`, `autoComplete` and
+    the rest work as usual.
+  - **`SearchField`** is deliberately *not* a `Field`: it is a compact search
+    input with an `sr-only` label and a leading icon, for filtering a table. It
+    takes no hint and no error, because a filter that can fail validation is a
+    form, not a filter. **`FilterSelect`** is its `select` counterpart (sr-only
+    label, compact height, `onChange` hands you the value).
+  - **`controlClasses.ts`** holds the four box styles the above share —
+    `controlField`, `controlCompact`, `controlTextArea`, `controlFile` — so the
+    resting border, the hover, the focus ring, the `aria-invalid` state and the
+    disabled state are written once. A new control type is a fifth export here,
+    not a pile of utilities in a screen.
+  - **`Button`**: variants `primary` (brand fill), `secondary` (neutral ink
+    fill), `danger`, `ghost` (text on a hover fill) and `link` (underlined,
+    no box, ignores `size`); sizes `md` (48px) and `compact` (40px, for a table
+    row). `loading` shows a `Spinner`, disables the button and sets
+    `aria-busy`. **`type` defaults to `"button"`** so a secondary button in a
+    form never submits it by accident — a submit button must say `type="submit"`.
+  - **`Card`**: white sheet on the page, `elevation="sm"` (`shadow-raise`) by
+    default and `"md"` (`shadow-float`) for a card that carries a page on its
+    own; `padded={false}` for content that runs to the edges, which is what a
+    table wants.
+  - **`Modal`** owns the dialog mechanics: `role="dialog"`, `aria-modal`,
+    `aria-labelledby` on the title, Escape to close, the body's scroll locked
+    while open, the initial focus on the first focusable element **of the body**
+    (not the close button), Tab trapped inside the panel, focus handed back to
+    the opener on close, and a mousedown on the scrim — but not on the panel —
+    closing it. `size="md"` carries a form, `"lg"` a table. **`ModalFooter`** is
+    the right-aligned, wrapping action row; use it instead of hand-rolling the
+    flex row, which is how two dialogs end up with their buttons in different
+    orders.
+  - **`Alert`**: tones `info`, `success`, `warning`, `error`. The tone picks the
+    **ARIA role too** — `status` for `info`/`success`, `alert` for
+    `warning`/`error` — so an error announces itself and a confirmation does
+    not interrupt. It is live by default; **`live={false}`** drops the role
+    entirely, which is what an alert that is part of the page on first paint
+    wants (static guidance, a form's standing note), because announcing
+    something the reader did not trigger is noise. Nothing passes it yet — every
+    `Alert` in the app today is a reaction to an action — so it exists for the
+    first static one.
+
+- 2026-10-18 — **Navigation: the sidebar is an overlay the app opens for you,
+  and the tree hides what you cannot reach.** The rail used to be a pinnable,
+  persistent column; it is now transient, and `SidebarProvider` holds the whole
+  policy in one place (`origin`, which records *why* it is open, is what makes
+  the rules expressible):
+  - **It opens by itself once**, on first landing on `/app` on a desktop
+    viewport (`origin: 'route'`), and that is the only state where it **pushes
+    the content** aside instead of floating over it. Any navigation closes it.
+  - **The left edge opens it.** A mouse resting within 4px of the left edge,
+    below the 64px top bar, with no button held, opens it after 150ms of hover
+    intent (`origin: 'hover'`); moving into the panel promotes it to
+    `'pointer'`, and leaving closes it after 300ms unless focus is inside.
+    Pointer type is checked, so touch never triggers it.
+  - **`Ctrl`/`Cmd`+`B` toggles it** (the top-bar button's tooltip says so), and
+    it is ignored while the caret is in an input, textarea, select or
+    contenteditable, or while a dialog is open. `Escape` closes it, but defers
+    to an open dialog or menu.
+  - **Below `64rem` it is a drawer**: it slides over the content under a scrim,
+    traps Tab, and a row's click closes it. Crossing the breakpoint in either
+    direction closes it, rather than leaving a drawer open as a desktop rail.
+  - When hidden the `<aside>` is `inert`, so its links are out of the tab order
+    and out of the accessibility tree instead of merely invisible.
+  - **Modules and submodules.** `navItems.tsx` is the map: three groups
+    (`Trabajo`, `Análisis`, `Administración`), each item either a leaf or a
+    module with children (`Proyectos`, `Versionado`, `Organizaciones`). A module
+    row is a disclosure that starts open when one of its children is the current
+    page. `fullLabel` is the long name for the tooltip and the accessible name,
+    so the visible label can stay short.
+  - **`useNavigationTree` removes what the caller has no access to**, rather
+    than showing it disabled: `requires: 'platformAdmin'` (from
+    `user.platformRole`), `'ownedOrganization'` (from `useOwnedOrganizations`;
+    the label becomes "Mis organizaciones" past one), `'manageableProject'`
+    (from `canManageProject` in `utils/projectPermissions.ts` — a project
+    `ADMIN` or a platform admin) and `'activeProject'` (any active project).
+    **A module left with a single child collapses into a plain row** so nobody
+    expands a disclosure to find one item; a module left with none disappears,
+    and so does a group left empty. The collapse waits until the two async
+    sources have settled, so the row does not flip shape mid-load.
+  - **Locked entries are a different thing from hidden ones.** An item with no
+    `to` is a section that exists in the product design and has no page yet; it
+    renders with a padlock, keeps full-contrast text (`ink-500`) and signals the
+    state through the icon and a lighter weight. Dimming the label is what made
+    those rows unreadable before.
+  - **The tab title follows the route.** `documentSectionFor` reuses the
+    breadcrumb trail, takes its last crumb and appends the project or
+    organization name when the route is scoped to one; `useDocumentTitle` then
+    renders `<section> · <entity> · EnerScope`, falling back to `EnerScope`
+    alone on a route with no title. The sign-in page sets `Ingresar`.
+  - **`frontend/README.md` → *The application shell* still describes the old
+    rail** ("the collapsed state is remembered per browser"), which stopped
+    being true when the pin was removed. That file is outside the scope of this
+    documentation pass; this entry is the accurate description until it is
+    updated.
+  - **`public/favicon.svg` is PROVISIONAL.** It is a hand-drawn 64×64 rounded
+    tile with an `E` built from a vertical spine and three bars, drawn to stand
+    in until the vector isotype exists — it is **not** the brand mark and must be replaced
+    with the real artwork, at which point it should also stop disagreeing with
+    `<Logo variant="mark">`, which is the "ES" monogram. It carries its own
+    `@media (prefers-color-scheme: dark)` block (the tile flips to the dark
+    theme's `brand-800`, the glyph to `on-accent`), which means it follows the
+    **operating system**, not the app's theme toggle — see the debt entry below.
+
+- 2026-10-18 — **The last owner of an organization and the last administrator of
+  a project are now protected, and the organization cascade is refused rather
+  than trimmed.** The rules, the exact messages and the reasoning are in
+  [`domain-model.md`](domain-model.md) → *Membership rules*; what matters for
+  future work:
+  - `countOwnersByOrganization` and `countProjectsLeftWithoutAdmin` are JPQL
+    counts that join through the roles and require **both** the membership and
+    the user to be active, so a deactivated owner does not keep a seat warm.
+    Anything that adds a new way to lose a role (a bulk operation, a
+    deactivation path, a transfer) has to run the same guards: they live in the
+    service, not in a controller or a DTO validation, precisely so a second
+    caller cannot skip them.
+  - **A platform `ADMIN` does not bypass them.** That is a deliberate split:
+    the role check answers *may this caller act*, the guard answers *may the
+    organization or project end up headless*. Those are different questions and
+    the second one has no exemption.
+  - The frontend disables the row's action with a reason before it is tried
+    (`utils/membershipGuards.ts`), but it only knows the members of the screen
+    it is on; the backend is the authority and its three messages are
+    translated in `src/api/errors.ts`.
+
+- 2026-10-18 — **Bulk user import by CSV, and adding an account that already
+  exists to an organization.** Two separate paths into the same screen
+  (`OrganizationTeamPage` for an owner, `OrganizationMembersModal` for a
+  platform admin), both gated on the same rule.
+  - **Who.** A platform `ADMIN`, or an active organization member holding
+    `MANAGE_ORGANIZATION` (i.e. an `OWNER`). The frontend mirrors it with
+    `canManageOrganizationUsers`; the backend enforces it with
+    `OrganizationService.assertCanManageUsers`, which the bulk service calls
+    **once up front**.
+  - **The endpoint** is `POST /organizations/{organizationId}/users/bulk`,
+    multipart, field name `file`. The client allows it a 180s timeout, because
+    hashing a password per row is slow and the default would cut a 100-row file
+    off mid-flight.
+  - **The format.** A header row is required. `mail`, `firstName` and
+    `lastName` are mandatory; `role` is optional and takes `OWNER`/`MEMBER`
+    (case-insensitive), defaulting to `MEMBER`. Column names are matched
+    case-insensitively against the same alias list on both sides:
+    `mail` | `email` | `e-mail` | `correo`, `firstName` | `first_name` |
+    `first name` | `nombre`, `lastName` | `last_name` | `last name` |
+    `apellido`, `role` | `rol` | `memberType` | `member_type` |
+    `member type` | `tipo`. A missing mandatory column is rejected for the whole
+    file, not row by row.
+  - **The frontend normalises before sending, which is the only reason Excel
+    files work.** `utils/csvImport.ts` strips a UTF-8 **BOM**, folds `\r\n`/`\r`
+    to `\n`, detects the delimiter by counting unquoted `,` against `;` on the
+    first non-empty line, parses quoted fields and embedded newlines, then
+    **re-emits a canonical comma-separated file** with the header
+    `mail,firstName,lastName,role` and **only the valid rows**. The backend
+    therefore never sees a semicolon or a BOM from this screen — which is also
+    why it was never taught to handle them (see the limitations below).
+  - **Validation happens twice on purpose.** The browser checks the email shape,
+    names of 2–60 characters, duplicate addresses within the file
+    (case-insensitively) and an unknown role, shows every row in a preview with
+    its reason, and imports only the valid ones. The backend re-checks all of it
+    and reports per-row failures with `line` (1-based, header is line 1) and
+    `mail`. The two message sets are kept in step by `translateBackendMessage`.
+  - **The limits are 100 data rows and 1 MB per file, and both are enforced in
+    the browser only.** 100 because each account costs seconds of password
+    hashing; 1 MB because that is exactly Spring's default multipart
+    `max-file-size`, so the browser refuses the file the server would have
+    refused badly (see below). Over either limit the preview still renders, the
+    import button stays disabled, and the message says to split the file.
+  - **The generated passwords are shown once.** The response's `credentialsCsv`
+    (`mail,password`) is never persisted and cannot be re-fetched. The screen
+    says so, the download is a BOM-prefixed
+    `credenciales-YYYY-MM-DD-HHMM.csv`, and closing the dialog without having
+    downloaded it asks for confirmation first. The template
+    (`plantilla-usuarios.csv`) is written with a BOM so Excel opens it as UTF-8,
+    and its fields are guarded against formula injection (`=`, `+`, `-`, `@`,
+    tab, CR get a leading apostrophe); the normalised upload is not, because
+    nothing opens it in a spreadsheet.
+  - **"Ya existía" is derived from the backend's message, not from a status
+    code.** `countAlreadyExisting` matches the exact string
+    `An account with that email already exists` to split the failure list into
+    "ya existían" and real errors. **That coupling is load-bearing**: change the
+    message in `UserService.register` and the summary silently reclassifies
+    those rows as errors. The copy then points the operator at "Agregar a la
+    organización" to attach the existing account by email.
+  - **Adding an existing account** goes through
+    `POST /organizations/{organizationId}/members` (`userId` + `memberType`).
+    `AddOrganizationMemberCard` has two lookup modes: `lookup="email"` (the
+    default) searches `GET /users/search?mail=` for an **exact** address, which
+    is the only lookup an organization owner is allowed — `UserService.searchByMail`
+    refuses a caller who neither is a platform admin nor owns an active
+    organization; `lookup="list"` loads `GET /users` and offers a keyboard
+    combobox over it, which is why it is only used in the platform-admin modal,
+    and it falls back to the email mode if that request fails. Candidates
+    already in the organization are filtered out client-side via
+    `excludeUserIds`.
+  - **Known backend limitations, all of them reachable by calling the endpoint
+    directly:**
+    - **The batch is not transactional.** `OrganizationBulkRegistrationService.register`
+      carries no `@Transactional`, so each row's account and membership commit on
+      their own. A crash or a timeout halfway through leaves the earlier
+      accounts created **with their passwords lost** — the client warns about
+      exactly this when a request fails with no response or a `5xx`, and tells
+      the operator to check the member list before retrying, because a retry of
+      the same file will report those rows as already existing.
+    - **A file over the multipart limit answers `500`, not `400`.**
+      `MaxUploadSizeExceededException` has no handler, so it falls through to
+      `GlobalExceptionHandler`'s catch-all and comes back as
+      `Internal error`. The 1 MB guard in the browser is a workaround, not a
+      fix; the fix is a handler (and an explicit
+      `spring.servlet.multipart.max-file-size`).
+    - **`common/CsvUtil` normalises neither the BOM nor the delimiter.** It
+      splits on commas only and does not strip a BOM, so a file saved by Excel
+      as "CSV UTF-8" or with a semicolon delimiter, uploaded straight to the
+      API, fails with `CSV header is missing required column(s): mail,
+      firstName, lastName` — a message that tells the caller nothing about the
+      real cause. Any second client of this endpoint has to repeat the
+      frontend's normalisation or the parser has to grow it.
+
+- 2026-10-18 — **Known technical debt, carried knowingly.** Collected here so
+  none of it has to be rediscovered; none of these are blockers, all of them are
+  real.
+  - **The sign-in hero's subtitle is 4.21:1 in the light theme at 1440px.** The
+    bar for it is 4.5:1 — it is `text-[1.375rem]` (22px) at `xl`, not bold, so
+    it does not qualify as large text at that width. *The 4.21:1 figure comes
+    from the design pass that built the screen; it was not re-measured when this
+    entry was written, so re-measure before acting on the exact number — the
+    shortfall itself follows from the type size and the thinning veil either
+    way.* It reads over the pale photograph,
+    where the veil thins out as the viewport widens, which is the same mechanism
+    that narrows the headline's margin (2026-10-17). The headline clears its own
+    3:1 large-text bar; the subtitle does not clear 4.5:1. Fixes, in order of
+    preference: thicken `--color-auth-veil-*` at the wide breakpoints, darken
+    `--color-auth-subtitle`, or widen the halo. **Re-measure at 1440px and
+    wider, in the light theme, after touching the artwork, the veils or that
+    token.**
+  - **`theme-color` does not follow the app's theme toggle.** `index.html`
+    declares two `<meta name="theme-color">` entries keyed on
+    `(prefers-color-scheme)`, while the app's theme comes from the `theme`
+    LocalStorage preference applied as `data-theme` by the inline boot script.
+    Pick dark in Configuración on a light OS and the browser's own chrome stays
+    `#ffffff`. The same mismatch applies to `public/favicon.svg`, which switches
+    on `prefers-color-scheme` inside the SVG. Fixing it means updating the
+    `theme-color` meta from `useTheme` (the favicon cannot be fixed that way and
+    would need two files).
+  - **`GET /organizations/owned` is fetched several times per page.**
+    `useOwnedOrganizations` is a plain `useState` + `useEffect` per consumer
+    with **no cache and no shared provider**, and it has five callers —
+    `useNavigationTree`, `AppLayout`'s title hook, `QuickActions`,
+    `OrganizationOwnerRoute` and `OrganizationTeamPage` — so a signed-in page
+    issues the same request once per mounted consumer. It is cheap and
+    idempotent, which is why it was left; the fix is the pattern the rest of the
+    app already uses, an `OwnedOrganizationsProvider` beside
+    `ActiveProjectProvider`.
+  - **Radio groups have no shared component.** `AppearanceSettings` (the theme
+    picker) and `ResolveConflictsDialog` (accept/reject) each hand-roll
+    `type="radio"` inputs and their own labels and focus styling. They are the
+    only two, which is why there is no `RadioField` yet; a third one is the
+    signal to write it, with `useField` for the wiring and `controlClasses` for
+    the box.
+  - **`sidebarPinned` and `sidebarExpanded` are orphaned LocalStorage keys.**
+    The pin and the per-module expansion both moved into React state when the
+    sidebar became an overlay (the expansion now lives in `Sidebar`'s
+    `expanded` map and resets on reload). Nothing reads or writes either key any
+    more and nothing clears them, so they linger in the browsers of anyone who
+    used an earlier build. Harmless, but do not reuse those names for something
+    with a different shape — a stale value would be parsed as the new one.
+  - **The frontend has no test runner.** `package.json` has `dev`, `build`,
+    `lint` and `preview` and no test dependency, so the bar for a frontend
+    change is `npm run build` (which type-checks) plus `npm run lint`, and
+    everything else is manual — see [`testing.md`](testing.md) → *Manual
+    verification*. The pure functions written on these branches
+    (`utils/csvImport.ts`, `utils/membershipGuards.ts`,
+    `utils/projectPermissions.ts`, `navItems.tsx`'s `moduleTitleFor` /
+    `breadcrumbsFor` / `documentSectionFor`) were deliberately kept free of
+    React and of the API client so they are unit-testable the day a runner
+    exists; that is the first thing to cover.

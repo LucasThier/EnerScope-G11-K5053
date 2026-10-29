@@ -19,6 +19,16 @@ public interface OrganizationMemberRepository extends JpaRepository<Organization
 
     long countByOrganizationId(UUID organizationId);
 
+    @Query("""
+            SELECT COUNT(DISTINCT m) FROM OrganizationMember m
+            JOIN m.roles r
+            WHERE m.organization.id = :organizationId
+              AND m.active = true
+              AND m.user.active = true
+              AND r.memberType = org.enerscope.organization.model.enums.OrganizationMemberType.OWNER
+            """)
+    long countOwnersByOrganization(@Param("organizationId") UUID organizationId);
+
     /**
      * Members of an organization with their user and roles already fetched, so
      * mapping to a DTO never triggers a lazy load per row.

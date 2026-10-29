@@ -9,7 +9,7 @@ interface CardProps {
   className?: string;
 }
 
-const ELEVATIONS = { sm: 'shadow-sm', md: 'shadow-md' };
+const ELEVATIONS = { sm: 'shadow-raise', md: 'shadow-float' };
 
 /** Card surface: white on the ink-50 page, lifted by a border and a soft
  * shadow so it reads as a sheet rather than merging with the background. */
@@ -17,7 +17,7 @@ export function Card({ children, elevation = 'sm', padded = true, className = ''
   return (
     <div
       className={
-        `rounded-2xl border border-ink-100 bg-surface ${padded ? 'p-6' : ''} ` +
+        `rounded-card border border-ink-100 bg-surface ${padded ? 'p-6' : ''} ` +
         `${ELEVATIONS[elevation]} ${className}`
       }
     >

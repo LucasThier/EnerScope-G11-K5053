@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
+import { PlusIcon, UploadIcon } from '../ui/icons';
+import { ImportUsersCsvFlow } from '../import/ImportUsersCsvFlow';
 import { MembersTable } from '../members/MembersTable';
+import { AddOrganizationMemberCard } from './AddOrganizationMemberCard';
 import { MEMBER_TYPE_LABELS } from './memberTypeLabels';
 import { OrganizationRoleChangeConfirmation } from './OrganizationRoleChangeConfirmation';
 import { organizationsApi } from '../../api/organizations';
 import { getErrorMessage } from '../../api/errors';
 import { useAuth } from '../../hooks/useAuth';
+import { useCsvUserImport } from '../../hooks/useCsvUserImport';
 import { useMemberRoleChange } from '../../hooks/useMemberRoleChange';
+import { canManageOrganizationUsers, lastOwnerReason } from '../../utils/membershipGuards';
 import type {
   OrganizationMemberSummary,
   OrganizationMemberType,
@@ -32,6 +37,8 @@ export function OrganizationMembersModal({
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<OrganizationMemberSummary | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   const organizationId = organization?.id ?? null;
 
@@ -63,11 +70,36 @@ export function OrganizationMembersModal({
   });
   const cancelRoleChange = roleChange.cancel;
 
+  const reloadMembers = useCallback(async () => {
+    if (!organizationId) {
+      return;
+    }
+    try {
+      const res = await organizationsApi.members(organizationId);
+      setMembers(res.data.data ?? []);
+    } catch (err) {
+      setError(getErrorMessage(err, 'No se pudieron cargar los integrantes'));
+    }
+  }, [organizationId]);
+
+  const handleImported = useCallback(async () => {
+    await reloadMembers();
+    await onChanged();
+  }, [onChanged, reloadMembers]);
+
+  const importFlow = useCsvUserImport({
+    organizationId: organizationId ?? '',
+    onImported: handleImported,
+    onClose: () => setImporting(false),
+  });
+
   useEffect(() => {
     cancelRoleChange();
   }, [organizationId, cancelRoleChange]);
 
   useEffect(() => {
+    setImporting(false);
+    setAdding(false);
     if (!organizationId) {
       setMembers([]);
       setError(null);
@@ -103,18 +135,6 @@ export function OrganizationMembersModal({
     };
   }, [organizationId]);
 
-  async function reloadMembers() {
-    if (!organizationId) {
-      return;
-    }
-    try {
-      const res = await organizationsApi.members(organizationId);
-      setMembers(res.data.data ?? []);
-    } catch (err) {
-      setError(getErrorMessage(err, 'No se pudieron cargar los integrantes'));
-    }
-  }
-
   async function handleRemove() {
     if (!organizationId || !confirming) {
       return;
@@ -138,17 +158,43 @@ export function OrganizationMembersModal({
   return (
     <Modal
       open={organization !== null}
-      onClose={onClose}
+      onClose={importing ? importFlow.requestClose : adding ? () => setAdding(false) : onClose}
       title={
-        roleChange.pending
-          ? 'Cambiar el rol'
-          : confirming
-            ? 'Quitar de la organización'
-            : (organization?.name ?? '')
+        importing
+          ? 'Importar usuarios por CSV'
+          : adding
+            ? 'Agregar integrante'
+            : roleChange.pending
+              ? 'Cambiar el rol'
+              : confirming
+                ? 'Quitar de la organización'
+                : (organization?.name ?? '')
       }
+      subtitle={importing || adding ? (organization?.name ?? undefined) : undefined}
       size="lg"
     >
-      {roleChange.pending ? (
+      {importing ? (
+        <ImportUsersCsvFlow flow={importFlow} organizationName={organization?.name ?? ''} />
+      ) : adding ? (
+        <div className="flex flex-col gap-4">
+          <AddOrganizationMemberCard
+            organizationId={organizationId ?? ''}
+            onAdded={handleImported}
+            variant="plain"
+            lookup="list"
+            excludeUserIds={members.map((member) => member.userId)}
+          />
+          <p className="text-sm text-ink-500">
+            La persona tiene que tener una cuenta en la plataforma. Si todavía no la tiene,
+            creala desde «Gestión de usuarios» o sumá varias de una vez con «Importar CSV».
+          </p>
+          <div className="flex justify-end border-t border-ink-100 pt-4">
+            <Button variant="ghost" onClick={() => setAdding(false)}>
+              Volver a los integrantes
+            </Button>
+          </div>
+        </div>
+      ) : roleChange.pending ? (
         <OrganizationRoleChangeConfirmation
           change={roleChange.pending}
           organizationName={organization?.name ?? ''}
@@ -169,8 +215,9 @@ export function OrganizationMembersModal({
             de <span className="font-semibold text-ink-800">{organization?.name}</span>.
           </p>
           <p className="text-sm text-ink-700">
-            También se le quitan sus membresías en los proyectos de esta organización. Si era
-            el único administrador de alguno de ellos, ese proyecto queda sin administrador.
+            También se le quitan sus membresías en los proyectos de esta organización. Si es la
+            única persona con rol Administrador en alguno de ellos, la operación se rechaza y te
+            lo avisamos.
           </p>
           <p className="text-sm text-ink-500">
             La cuenta de plataforma no se toca: sigue pudiendo iniciar sesión y conserva sus
@@ -185,7 +232,7 @@ export function OrganizationMembersModal({
             </Alert>
           )}
 
-          <div className="mt-2 flex justify-end gap-2">
+          <ModalFooter>
             <Button
               type="button"
               variant="ghost"
@@ -197,11 +244,30 @@ export function OrganizationMembersModal({
             <Button type="button" variant="danger" onClick={handleRemove} loading={removing}>
               Quitar integrante
             </Button>
-          </div>
+          </ModalFooter>
         </div>
       ) : (
         <div>
           {error && <Alert tone="error">{error}</Alert>}
+
+          {canManageOrganizationUsers(caller, members) && (
+            <div className="mb-4 flex flex-wrap justify-end gap-2">
+              <Button variant="secondary" onClick={() => setAdding(true)}>
+                <PlusIcon className="h-4 w-4" />
+                Agregar integrante
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  importFlow.reset();
+                  setImporting(true);
+                }}
+              >
+                <UploadIcon className="h-4 w-4" />
+                Importar CSV
+              </Button>
+            </div>
+          )}
 
           <div className="mt-1">
             {loading ? (
@@ -216,6 +282,7 @@ export function OrganizationMembersModal({
                 roleLabels={MEMBER_TYPE_LABELS}
                 onRemove={setConfirming}
                 onChangeRole={roleChange.requestChange}
+                disabledReason={(member) => lastOwnerReason(members, member)}
                 busyMemberId={roleChange.busyMemberId}
                 roleError={roleChange.error}
               />

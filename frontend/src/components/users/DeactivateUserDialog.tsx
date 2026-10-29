@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
 import { usersApi } from '../../api/users';
 import { getErrorMessage } from '../../api/errors';
 import { useAuth } from '../../hooks/useAuth';
@@ -72,14 +72,14 @@ export function DeactivateUserDialog({
           </Alert>
         )}
 
-        <div className="mt-2 flex justify-end gap-2">
+        <ModalFooter>
           <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
           <Button type="button" variant="danger" onClick={handleConfirm} loading={submitting}>
             Dar de baja
           </Button>
-        </div>
+        </ModalFooter>
       </div>
     </Modal>
   );

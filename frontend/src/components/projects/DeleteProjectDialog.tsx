@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
 import { projectsApi } from '../../api/projects';
 import { getErrorMessage } from '../../api/errors';
 import type { ProjectSummary } from '../../types/project';
@@ -53,14 +53,14 @@ export function DeleteProjectDialog({ project, onClose, onDeleted }: DeleteProje
           de plataforma puede recuperarlo.
         </p>
 
-        <div className="mt-2 flex justify-end gap-2">
+        <ModalFooter>
           <Button type="button" variant="ghost" onClick={onClose} disabled={deleting}>
             Cancelar
           </Button>
           <Button type="button" variant="danger" onClick={handleConfirm} loading={deleting}>
             Eliminar proyecto
           </Button>
-        </div>
+        </ModalFooter>
       </div>
     </Modal>
   );
