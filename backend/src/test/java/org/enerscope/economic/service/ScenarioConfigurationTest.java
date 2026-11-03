@@ -89,6 +89,30 @@ class ScenarioConfigurationTest {
   assertThrows(IllegalArgumentException.class,()->economics.validateConfiguration(economics.get(projectId,versionId),em.find(Version.class,versionId)));
  }
 
+ @Test
+ void validationDoesNotPublishOrCreateDraftAndReturnsOperationalField() {
+  var state=scenarios.get(projectId,versionId);var input=request(state);
+  input.operations().get(well.getId()).put("maxCollectionCapacity",mapper.valueToTree("250"));
+  assertTrue(scenarios.validate(projectId,versionId,input).errors().isEmpty());
+  em.flush();
+  assertEquals(state.token(),scenarios.get(projectId,versionId).token());
+  assertEquals(100,well.getMaxCollectionCapacity());
+  assertNull(scenarios.get(projectId,versionId).draft());
+  input.operations().get(well.getId()).put("maxCollectionCapacity",mapper.valueToTree("invalid"));
+  var error=scenarios.validate(projectId,versionId,input).errors().getFirst();
+  assertEquals(well.getId().toString(),error.nodeId());assertEquals("maxCollectionCapacity",error.field());
+  assertEquals(state.token(),scenarios.get(projectId,versionId).token());
+  assertNull(scenarios.get(projectId,versionId).draft());
+ }
+
+ @Test
+ void validationRejectsStaleSnapshotAndForeignProject() {
+  var state=scenarios.get(projectId,versionId);var input=request(state);
+  assertThrows(ScenarioConflictException.class,()->scenarios.validate(projectId,versionId,
+   new SaveRequest("stale",input.sourceToken(),input.editor(),input.configuration(),input.operations())));
+  assertThrows(org.enerscope.common.EntityNotFoundException.class,()->scenarios.validate(UUID.randomUUID(),versionId,input));
+ }
+
  @AfterEach
  void clear(){SecurityContextHolder.clearContext();}
  SaveRequest request(ScenarioConfigurationDTO state) {

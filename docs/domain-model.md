@@ -446,3 +446,11 @@ consumptionWinter and consumptionSpring. Industrial Consumption uses consumption
 the INTERNAL_CONSUMPTION vertical, fed from treatment plants, pipelines or compressors. They use the 
 existing consumer entity tables and simulator behavior; demand is measured in simulator units per 
 hourly step. They remain eligible for non-export economic drivers and do not become LNG export nodes.
+
+## ScenarioComparison
+
+Project-owned immutable comparison, stored by V24 in `scenario_comparison`.
+It owns configuration/result JSON with named alternatives, discrete contexts,
+probabilities, criteria/references/weights/limits, historical version/evaluation
+references, extracted measurements and ranking. Alternative/context pairs are
+user mappings over existing evaluations, not new physical Version entities.

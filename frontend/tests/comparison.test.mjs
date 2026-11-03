@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import ts from 'typescript';
+const source = await readFile(new URL('../src/utils/comparison.ts', import.meta.url), 'utf8');
+const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+const { comparisonErrors, newCriterion, comparisonNumber } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
+const valid = () => ({ name: 'Test', scopeDescription: 'Common boundary', assumptionsConfirmed: true, contexts: [{ id: 'base', name: 'Base', probability: 100 }], alternatives: ['a', 'b'].map(id => ({ id, name: id, cells: [{ contextId: 'base', versionId: id, evaluationId: id, deliveryNodeIds: [] }] })), criteria: [{ ...newCriterion('NPV', 100), unfavorable: 0, favorable: 100 }] });
+test('accepts a complete comparison with fixed references', () => { assert.deepEqual(comparisonErrors(valid()), []); });
+test('requires explicit reference values instead of inventing financial targets', () => { const r = valid(); r.criteria = [newCriterion('NPV', 100)]; assert.ok(comparisonErrors(r).some(e => e.includes('referencias'))); });
+test('rejects invalid probabilities and weights', () => { const r = valid(); r.contexts[0].probability = 90; r.criteria[0].weight = NaN; assert.equal(comparisonErrors(r).length, 2); });
+test('requires every context cell and explicit scope confirmation', () => { const r = valid(); r.assumptionsConfirmed = false; r.alternatives[0].cells = []; assert.equal(comparisonErrors(r).length, 2); });
+test('rejects reversed cost references and contradictory limits', () => { const r = valid(); r.criteria[0] = { ...r.criteria[0], metric: 'OPERATING_COST', minimum: 10, maximum: 5 }; assert.equal(comparisonErrors(r).length, 2); });
+test('requires delivery measurement points in every cell', () => { const r = valid(); r.criteria[0].metric = 'DELIVERED_VOLUME'; assert.ok(comparisonErrors(r).some(e => e.includes('puntos de entrega'))); });
+test('formats missing values distinctly from zero', () => { assert.equal(comparisonNumber(0), '0'); assert.equal(comparisonNumber(null), 'No disponible'); assert.equal(comparisonNumber(NaN), 'No disponible'); });

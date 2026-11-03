@@ -34,6 +34,7 @@ export function Sidebar() {
   const { owned } = useOwnedOrganizations();
   const items = NAV_ITEMS.map((item) => {
     if (item.key === 'team' && owned.length > 0) return { ...item, to: '/organizations/' + owned[0].id };
+    if (item.key === 'comparison') return { ...item, to: activeProject ? '/projects/' + activeProject.id + '/comparisons' : '/projects' };
     if (item.key === 'configuration' || item.key === 'simulation') {
       const module = item.key === 'configuration' ? 'scenario-configurations' : 'simulations';
       return { ...item, to: activeProject ? '/projects/' + activeProject.id + '/' + module : '/projects' };

@@ -26,7 +26,7 @@ class MigrationCatalogTest {
     @Test
     void executableCatalogUsesOnlyVersionedMigrations() throws Exception {
         var resources = new PathMatchingResourcePatternResolver().getResources("classpath*:db/migration/*.sql");
-        assertEquals(23, resources.length);
+        assertEquals(24, resources.length);
         for (var resource : resources) assertTrue(resource.getFilename().matches("V[0-9]+([._][0-9]+)*__.+\\.sql"), resource.getFilename());
     }
 

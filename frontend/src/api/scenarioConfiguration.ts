@@ -8,6 +8,7 @@ function data<T>(r: { data: ApiResponse<T> }): T {
 }
 export const scenarioConfigurationApi = {
  get: (p: string, v: string) => client.get<ApiResponse<ScenarioConfiguration>>(base(p,v)).then(data),
+ validate: (p: string,v: string,request: ScenarioSave) => client.post<ApiResponse<{errors: {nodeId: string | null; field: string; message: string}[]}>>(base(p,v)+'/validate',request).then(data),
  save: (p: string, v: string, request: ScenarioSave) => client.put<ApiResponse<ScenarioConfiguration>>(base(p,v),request).then(data),
  discard: (p: string,v: string,token: string) => client.delete<ApiResponse<ScenarioConfiguration>>(base(p,v)+'/draft',{ headers: { 'If-Match': token } }).then(data),
  readiness: (p: string) => client.get<ApiResponse<ScenarioReadiness[]>>('/projects/'+p+'/versions/simulation-readiness').then(data),

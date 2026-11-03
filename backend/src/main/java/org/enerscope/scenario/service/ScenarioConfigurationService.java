@@ -64,29 +64,10 @@ public class ScenarioConfigurationService {
   var before=view(project,version,List.of());
   if(request==null || !Objects.equals(request.token(),before.token()) || !Objects.equals(request.sourceToken(),before.sourceToken()))
    throw new ScenarioConflictException();
-  if(request.editor()==null || !request.editor().isObject() ||
-     !Set.of("simple","advanced").contains(request.editor().path("mode").asText()) ||
-     !request.editor().path("value").isObject() || mapper.valueToTree(request).toString().length()>2000000)
-   throw new IllegalArgumentException("Invalid scenario draft");
-  if(request.editor().path("mode").asText().equals("simple"))
-   new EconomicDraftDTO(1,request.editor().path("value")).validateStructure();
-  else for(String field:List.of("taxEntities","boundary","nodeProfiles","adjustments","contracts","assets","taxTreatments","conversions"))
-   if(!request.editor().path("value").path(field).isArray()) throw new IllegalArgumentException("Invalid advanced editor collection: "+field);
-  var errors=new ArrayList<String>();
-  var prepared=new LinkedHashMap<UUID,BaseNode>();
-  var supplied=request.operations();
-  if(supplied==null || !supplied.keySet().equals(economics.nodeIds(version))) errors.add("La lista de nodos no coincide con el escenario.");
-  else for(var node:CurrentScenarioNodes.nodes(version)) {
-   try { prepared.put(node.getId(),operations.prepare(node,supplied.get(node.getId()))); }
-   catch(IllegalArgumentException e) { errors.add(e.getMessage()); }
-  }
-  EconomicConfiguration configuration=null;
-  try {
-   if(request.configuration()==null || request.configuration().isNull()) throw new IllegalArgumentException("Completá las secciones económicas pendientes.");
-   configuration=mapper.treeToValue(request.configuration(),EconomicConfiguration.class);
-   economics.validateConfiguration(configuration,version);
-   if(errors.isEmpty()) codec.validatePrepared(version,configuration,prepared);
-  } catch(com.fasterxml.jackson.core.JsonProcessingException | IllegalArgumentException e) { errors.add(e.getMessage()); }
+  var validation=prepare(version,request);
+  var errors=validation.errors();
+  var prepared=validation.nodes();
+  var configuration=validation.configuration();
   if(!errors.isEmpty()) {
    var entity=drafts.findByVersionId(id).orElseGet(()->new ScenarioDraft(version,""));
    entity.replace(json(request));drafts.saveAndFlush(entity);
@@ -123,6 +104,56 @@ public class ScenarioConfigurationService {
   em.flush();
   logger.info("Scenario configuration published for version {}",id);
   return view(project,version,List.of());
+ }
+
+ private record Prepared(EconomicConfiguration configuration, Map<UUID,BaseNode> nodes, List<String> errors) {}
+ public record ValidationIssue(String nodeId, String field, String message) {}
+ public record ValidationResult(List<ValidationIssue> errors) {}
+
+ @Transactional(readOnly=true)
+ public ValidationResult validate(UUID project,UUID id,SaveRequest request) {
+  var version=economics.authorize(project,id,ProjectMemberPermission.EDIT_PROJECT);
+  var before=view(project,version,List.of());
+  if(request==null || !Objects.equals(request.token(),before.token()) || !Objects.equals(request.sourceToken(),before.sourceToken()))
+   throw new ScenarioConflictException();
+  var result=prepare(version,request);
+  var issues=result.errors().stream().map(message->{
+   for(var node:before.nodes()) for(var field:node.fields()) {
+    String prefix=node.name()+" / "+field.name()+": ";
+    if(message.startsWith(prefix)) return new ValidationIssue(node.id().toString(),field.name(),
+      "Valor operativo inválido. Revisá el formato, el rango y los parámetros de la distribución.");
+   }
+   return new ValidationIssue(null,"configuration", "Configuración inválida: "+message);
+  }).toList();
+  logger.debug("Scenario configuration validation for version {}: {} issues",id,issues.size());
+  return new ValidationResult(issues);
+ }
+
+ private Prepared prepare(Version version,SaveRequest request) {
+  if(request.editor()==null || !request.editor().isObject() ||
+     !Set.of("simple","advanced").contains(request.editor().path("mode").asText()) ||
+     !request.editor().path("value").isObject() || mapper.valueToTree(request).toString().length()>2000000)
+   throw new IllegalArgumentException("Invalid scenario draft");
+  if(request.editor().path("mode").asText().equals("simple"))
+   new EconomicDraftDTO(1,request.editor().path("value")).validateStructure();
+  else for(String field:List.of("taxEntities","boundary","nodeProfiles","adjustments","contracts","assets","taxTreatments","conversions"))
+   if(!request.editor().path("value").path(field).isArray()) throw new IllegalArgumentException("Invalid advanced editor collection: "+field);
+  var errors=new ArrayList<String>();
+  var prepared=new LinkedHashMap<UUID,BaseNode>();
+  var supplied=request.operations();
+  if(supplied==null || !supplied.keySet().equals(economics.nodeIds(version))) errors.add("La lista de nodos no coincide con el escenario.");
+  else for(var node:CurrentScenarioNodes.nodes(version)) {
+   try { prepared.put(node.getId(),operations.prepare(node,supplied.get(node.getId()))); }
+   catch(IllegalArgumentException e) { errors.add(e.getMessage()); }
+  }
+  EconomicConfiguration configuration=null;
+  try {
+   if(request.configuration()==null || request.configuration().isNull()) throw new IllegalArgumentException("Completá las secciones económicas pendientes.");
+   configuration=mapper.treeToValue(request.configuration(),EconomicConfiguration.class);
+   economics.validateConfiguration(configuration,version);
+   if(errors.isEmpty()) codec.validatePrepared(version,configuration,prepared);
+  } catch(com.fasterxml.jackson.core.JsonProcessingException | IllegalArgumentException e) { errors.add(e.getMessage()); }
+  return new Prepared(configuration,prepared,errors);
  }
 
  public static void remapReferences(JsonNode tree, Map<String, String> ids) {

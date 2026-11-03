@@ -12,6 +12,7 @@ import { AdminOrganizationsPage } from './pages/AdminOrganizationsPage';
 import { WorkspacePage } from './pages/WorkspacePage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ScenarioConfigurationPage } from './pages/ScenarioConfigurationPage';
+import { ComparisonsPage } from './pages/ComparisonsPage';
 import { ScenariosPage } from './pages/ScenariosPage';
 import { EconomicsPage } from './pages/EconomicsPage';
 import { EditorPage } from './pages/EditorPage';
@@ -35,6 +36,7 @@ const router = createBrowserRouter(createRoutesFromElements(<>
                   <Route path="/projects" element={<ProjectsPage />} />
                   <Route path="/projects/:projectId/team" element={<ProjectTeamPage />} />
                   <Route path="/projects/:projectId/scenario-configurations" element={<ScenariosPage configuration />} />
+                  <Route path="/projects/:projectId/comparisons" element={<ComparisonsPage />} />
                   <Route path="/projects/:projectId/simulations" element={<ScenariosPage />} />
                   <Route path="/projects/:projectId/versions" element={<VersionsPage />} />
                   <Route path="/projects/:projectId/versions/:versionId/economics" element={<ScenarioConfigurationPage />} />

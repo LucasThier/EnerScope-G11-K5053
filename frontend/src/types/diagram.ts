@@ -53,7 +53,7 @@ export interface NodeTypeData {
 }
 
 export interface DiagramNode {
-  /** Table id â€” this is what connections reference within a version. */
+  /** Table id - this is what connections reference within a version. */
   id: string;
   /** Cross-version identity. */
   identity: string;

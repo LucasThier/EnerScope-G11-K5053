@@ -74,3 +74,4 @@ the one that creates the first users (see [backend/README.md](backend/README.md)
 
 - Swagger UI: `/api/v1/swagger-ui.html`
 - OpenAPI JSON: `/api/v1/v3/api-docs`
+

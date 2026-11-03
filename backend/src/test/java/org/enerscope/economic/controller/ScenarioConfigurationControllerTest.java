@@ -52,6 +52,17 @@ class ScenarioConfigurationControllerTest {
   doThrow(new ForbiddenException("Read only")).when(service).save(any(),any(),any());
   mvc.perform(put(path).header("Authorization","Bearer token").contentType("application/json").content("{}")).andExpect(status().isForbidden());
  }
+ @Test void validationUsesEnvelopeAndRequiresAuthorization() throws Exception {
+  mvc.perform(post(path+"/validate").contentType("application/json").content("{}")).andExpect(status().isUnauthorized());
+  when(service.validate(any(),any(),any())).thenReturn(new ScenarioConfigurationService.ValidationResult(List.of(
+   new ScenarioConfigurationService.ValidationIssue("node","consumption","Valor inválido"))));
+  mvc.perform(post(path+"/validate").header("Authorization","Bearer token").contentType("application/json").content("{}"))
+   .andExpect(status().isOk()).andExpect(jsonPath("$.data.errors[0].field").value("consumption"));
+  when(service.validate(any(),any(),any())).thenThrow(new ForbiddenException("Read only"));
+  mvc.perform(post(path+"/validate").header("Authorization","Bearer token").contentType("application/json").content("{}"))
+   .andExpect(status().isForbidden());
+  verify(service,never()).save(any(),any(),any());
+ }
  @Test void discardRequiresAndPassesConcurrencyToken() throws Exception {
   mvc.perform(delete(path+"/draft").header("Authorization","Bearer token").header("If-Match","revision")).andExpect(status().isOk());
   verify(service).discard(any(),any(),eq("revision"));

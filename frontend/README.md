@@ -216,3 +216,15 @@ Project selection is shared with the global header.
 ### Scenario configuration and simulation
 
 Configuration is at `/projects/:projectId/scenario-configurations`; scenario forms retain `/projects/:projectId/versions/:versionId/economics/configuration`. Simulation remains `/projects/:projectId/versions`, with a rounds/seed dialog. The map is unchanged. Browser acceptance: economic-browser.mjs, projectScoping-browser.mjs, results-browser.mjs and probabilistic-browser.mjs under tests; set APP_URL and PLAYWRIGHT_MODULE for a local Vite server and Playwright installation.
+
+### Importar configuración CSV
+
+La pantalla Configuración del Escenario permite descargar una plantilla, exportar el formulario e importar Economía y Operación con validación y vista previa. Solo Guardar publica los cambios. Consultá [formato e instrucciones](public/scenario-configuration-csv.md). La validación previa requiere el endpoint `/scenario-configuration/validate` del backend actualizado.
+
+## Scenario comparison
+
+`/projects/:projectId/comparisons` selects historical evaluations in an
+alternative/context matrix, validates weights/probabilities and displays server
+calculated rankings with source values, weighted contributions and limit failures.
+Save creates immutable history; editing invalidates the result until recalculation.
+Backend V24 must be applied through normal Flyway startup.

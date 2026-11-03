@@ -19,6 +19,10 @@ public class ScenarioConfigurationController {
  public ResponseEntity<ApiResponse<ScenarioConfigurationDTO>> save(@PathVariable UUID projectId,@PathVariable UUID versionId,@RequestBody SaveRequest request) {
   return Responses.ok("Scenario saved",service.save(projectId,versionId,request));
  }
+ @PostMapping("/{versionId}/scenario-configuration/validate")
+ public ResponseEntity<ApiResponse<ScenarioConfigurationService.ValidationResult>> validate(@PathVariable UUID projectId,@PathVariable UUID versionId,@RequestBody SaveRequest request) {
+  return Responses.ok("Scenario validation",service.validate(projectId,versionId,request));
+ }
  @DeleteMapping("/{versionId}/scenario-configuration/draft")
  public ResponseEntity<ApiResponse<ScenarioConfigurationDTO>> discard(@PathVariable UUID projectId,@PathVariable UUID versionId,@RequestHeader("If-Match") String token) {
   return Responses.ok("Scenario draft discarded",service.discard(projectId,versionId,token));

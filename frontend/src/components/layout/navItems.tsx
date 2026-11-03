@@ -37,7 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Configuración del Escenario', icon: <FolderIcon />, key: 'configuration', matchPattern: CONFIGURATION_PATTERN },
   { label: 'Simulación de Escenarios', icon: <FlaskIcon />, key: 'simulation', matchPattern: SIMULATION_PATTERN },
   { label: 'Versionado', icon: <BranchIcon />, to: '/versions', matchPattern: VERSIONS_PATH_PATTERN },
-  { label: 'Comparar Escenarios', icon: <CompareIcon /> },
+  { label: 'Comparar Escenarios', icon: <CompareIcon />, key: 'comparison', matchPattern: /^\/projects\/[^/]+\/comparisons\/?$/ },
   { label: 'Reportes', icon: <ReportIcon /> },
   { label: 'Gestión de organización', icon: <TeamIcon />, key: 'team' },
 ];
@@ -49,6 +49,7 @@ export const ADMIN_ITEMS: NavItem[] = [
 ];
 
 const MODULE_TITLES: { pattern: RegExp; title: string }[] = [
+  { pattern: /^\/projects\/[^/]+\/comparisons\/?$/, title: 'Comparar Escenarios' },
   { pattern: /^\/app\/?$/, title: 'Inicio' },
   { pattern: CONFIGURATION_PATTERN, title: 'Configuración del Escenario' },
   { pattern: SIMULATION_PATTERN, title: 'Simulación de Escenarios' },

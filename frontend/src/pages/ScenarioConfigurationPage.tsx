@@ -8,6 +8,7 @@ import { getErrorMessage } from '../api/errors';
 import { initialScenario, prepareScenario, scenarioConflict } from '../utils/scenarioConfiguration';
 import type { ScenarioConfiguration, ScenarioSave } from '../types/scenarioConfiguration';
 import type { Scenario } from '../types/economics';
+import { ScenarioCsvImport } from '../components/economics/ScenarioCsvImport';
 import { EconomicEditor } from '../components/economics/EconomicEditor';
 import { createSimpleCopyDraft } from '../utils/economicDraft';
 import { ScenarioOperationsEditor } from '../components/economics/ScenarioOperationsEditor';
@@ -106,6 +107,7 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
  {snapshot.errors.length>0&&<Alert tone="error"><ul>{snapshot.errors.map((e,i)=><li key={i}>{e}</li>)}</ul></Alert>}
  {conflict&&<Alert tone="error">El escenario cambió desde otra pantalla. Tus cambios se conservan; para evitar sobrescribir datos, recargá descartando los cambios afectados.<Button variant="ghost" disabled={busy} onClick={()=>void discard()}>Descartar y recargar</Button></Alert>}
  {blocker.state==='blocked'&&<Alert>Hay cambios sin guardar.<Button variant="ghost" onClick={()=>blocker.reset()}>Seguir editando</Button><Button variant="ghost" disabled={busy} onClick={()=>blocker.proceed()}>Salir sin guardar</Button></Alert>}
+ <ScenarioCsvImport projectId={projectId} versionId={versionId} form={form} nodes={snapshot.nodes} disabled={disabled||busy} dirty={dirty||!!snapshot.draft||!!snapshot.legacyDraft} onApply={next=>{setForm(next);setNotice('Configuración CSV cargada. Pulsá Guardar para persistirla.');}}/>
  <nav aria-label="Configuración económica y operativa" className="flex gap-3 border-b border-ink-200">
  <Button variant="ghost" aria-pressed={!operationTab} onClick={()=>setOperationTab(false)}>Economía</Button>
  <Button variant="ghost" aria-pressed={operationTab} onClick={()=>setOperationTab(true)}>Operación</Button></nav>

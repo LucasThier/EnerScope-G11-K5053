@@ -18,7 +18,7 @@ interface NodeDataPanelProps {
 }
 
 function fmt(n: number | null | undefined): string {
-  return n == null ? 'â€”' : String(Number(n.toFixed(4)));
+  return n == null ? '-' : String(Number(n.toFixed(4)));
 }
 
 /** Details of the selected node, with lightweight rename/state edit and delete. */
@@ -121,7 +121,7 @@ export function NodeDataPanel({
         </dd>
         <dt className="text-ink-500">Id</dt>
         <dd className="truncate text-ink-500" title={node.id}>
-          {node.id.slice(0, 8)}â€¦
+          {node.id.slice(0, 8)}-¦
         </dd>
       </dl>
 
@@ -146,7 +146,7 @@ export function NodeDataPanel({
       )}
 
       <Button variant="secondary" onClick={() => onStartConnect(node.id)}>
-        Connect to another nodeâ€¦
+        Connect to another node¦
       </Button>
 
       {removed ? (

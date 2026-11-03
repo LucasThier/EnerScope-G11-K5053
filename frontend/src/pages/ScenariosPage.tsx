@@ -18,6 +18,7 @@ export function ScenariosPage({ configuration = false }: { configuration?: boole
   const { projectId = '' } = useParams();
   return <ScenariosWorkspace key={projectId + String(configuration)} projectId={projectId} configuration={configuration} />;
 }
+
 function ScenariosWorkspace({ projectId, configuration }: { projectId: string; configuration: boolean }) {
   const [readiness,setReadiness]=useState<ScenarioReadiness[]>([]);
   const [simulating,setSimulating]=useState<Scenario|null>(null);
@@ -44,6 +45,7 @@ function ScenariosWorkspace({ projectId, configuration }: { projectId: string; c
     }).catch(error => { if (!cancelled) setState({ project: projectId, scenarios: [], error: getErrorMessage(error, 'No se pudieron cargar los escenarios.'), loading: false }); });
     return () => { cancelled = true; };
   }, [projectId, retry, user?.id, user?.platformRole, configuration]);
+
   async function create() {
     if (inFlight.current || !canEdit || !name.trim() || (parent && !state.scenarios.some(s => s.id === parent))) return;
     inFlight.current = true; setBusy(true); setCreateError('');
@@ -54,6 +56,7 @@ function ScenariosWorkspace({ projectId, configuration }: { projectId: string; c
     } catch (e) { if (mounted.current) setCreateError(getErrorMessage(e, 'No se pudo crear el escenario.')); }
     finally { inFlight.current = false; if (mounted.current) setBusy(false); }
   }
+
   const loading = state.loading || state.project !== projectId;
   const filtered = state.scenarios.filter(s => s.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
   return <div className="space-y-6">

@@ -2163,7 +2163,6 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 
 - 2026-10-16 — Current checkout cannot clean-build the probabilistic backend because required physical distribution sources are absent. Local runtime was patched from the previously validated October 15 build, with ProjectService and its tests replaced; do not treat this as validation of the entire current checkout.
 
-
 - 2026-10-20 — **Separate scenario configuration and execution**
   - Configuration owns economic and operational edits; execution owns rounds/seed and submits without saving. Map frontend and physical simulation behavior are unchanged.
   - Joint invalid edits persist as drafts without partial publication; both legacy and joint drafts block new evaluations. Historical retry retains frozen inputs.
@@ -2196,3 +2195,11 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - 2026-10-26 — REMOVED nodes are excluded from current scenario operations, economic node eligibility, version summaries and newly frozen simulation inputs. Their touching connections are excluded from new inputs. Stored version rows, source tokens, historical results and historical retry inputs remain intact. Existing economic references to deleted nodes require review rather than silent financial-rule changes. Execution history can be minimized while polling continues and errors remain visible.
 
 - 2026-10-26 — Result CSV exports are generated client-side from the selected immutable evaluation. Annual financial exports include all accounting columns and indicators at stored precision. Operational exports contain the selected node with the same saved unit conversions as the UI. Round exports identify the round; summary exports contain all nodes and statistical/status/probability rows. Files use UTF-8 BOM, comma separators, quoted cells, CRLF, decimal points and blank missing values; text formula prefixes are escaped. No simulation or backend mutation is performed.
+
+- 2026-10-29 - **Scenario comparison**
+  - Alternatives and contexts map explicitly to historical evaluations. Scope equivalence is confirmed by the user; currency, valuation year, horizon, WACC, boundary and known simulator versions are checked.
+  - Fixed references and Decimal128 scoring keep existing scores stable when adding competitors. Missing selected indicators block the full recommendation; failed mandatory bounds exclude an alternative in any context.
+  - Probabilistic cells use all-round indicator means before scoring and applying limits; this is not a per-realization guarantee. Undefined IRR/payback in any round blocks those criteria. Context probabilities are separate from simulation sampling.
+  - Output totals require explicit observed conversions and independent delivery nodes; deferred production and capacity utilization remain unavailable until their source metrics are recorded.
+  - V24 adds immutable comparison history. Existing migration contents, live configuration, jobs and historical evaluations are untouched. VIEW_PROJECT permits preview/read; EDIT_PROJECT is required to save.
+  - Backend verification uses a temporary POM with only source/resource/output/working-directory paths overridden because OneDrive locks target and stale classes from a prior package layout otherwise contaminate compilation. Repository pom.xml stays unchanged.
