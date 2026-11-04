@@ -1916,3 +1916,12 @@ VersionControllerTest (MVC, now 12 cases):
 - Existing authorization tests now include the explicit type in their well fixtures; their 401/403 expectations remain unchanged.
 
 Validation: **740 backend tests**, **51 frontend tests**, no failures or skipped tests. Frontend build and lint passed. Backend output isolated in target/node-type-20261022.
+
+### Economic navigation regression
+
+`frontend/tests/economicNavigation.test.mjs`: 3 unit cases.
+- Economic links follow the active project and preserve navigation groups.
+- Economic links lead to project selection without an active project.
+- Economic routes keep their module titles and project breadcrumbs, without activating Version management.
+
+Validation: 64 frontend cases passed, zero failures or skips; production build and lint passed. The existing node editor cases also cover the shared decline selector fix.

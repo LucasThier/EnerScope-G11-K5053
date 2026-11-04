@@ -2661,3 +2661,7 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     `breadcrumbsFor` / `documentSectionFor`) were deliberately kept free of
     React and of the API client so they are unit-testable the day a runner
     exists; that is the first thing to cover.
+
+- 2026-11-04 - Keep economic configuration and simulation links in the Analysis navigation group. Resolve destinations from the active project (fall back to Projects), and reuse workspaceRoutes patterns so economic pages never activate Version management. Preserve the grouped sidebar layout.
+
+- 2026-11-04 - The well decline selector uses the shared SelectField; the merged selectClass reference was undefined and prevented frontend compilation.

@@ -183,11 +183,10 @@ export function NodeFormPanel({
 
       {type === 'WELL' && <fieldset className="flex flex-col gap-2 border-t border-ink-100 pt-3">
         <legend className="text-sm font-medium">Decline curve</legend>
-        <label htmlFor="decline-type" className="text-sm">Distribución de declinación</label>
-        <select id="decline-type" className={selectClass} value={declineType}
+        <SelectField label="Distribución de declinación" id="decline-type" value={declineType}
           onChange={e => setDeclineType(e.target.value as typeof declineType)}>
           <option value="CONSTANT">Constante</option><option value="NORMAL">Normal</option><option value="UNIFORM">Uniforme</option>
-        </select>
+        </SelectField>
         <TextField label={declineType === 'CONSTANT' ? 'Declinación anual (puntos porcentuales)' : declineType === 'NORMAL' ? 'Media anual (puntos porcentuales)' : 'Mínimo anual (puntos porcentuales)'} type="number" step="any" value={declineA} onChange={e => setDeclineA(e.target.value)} />
         {declineType !== 'CONSTANT' && <TextField label={declineType === 'NORMAL' ? 'Desviación estándar' : 'Máximo anual (puntos porcentuales)'} type="number" step="any" value={declineB} onChange={e => setDeclineB(e.target.value)} />}
         {!validDecline && <p role="status" className="text-xs text-red-600">Completá los parámetros: constante entre 0 y 100; uniforme con mínimo menor al máximo entre 0 y 100; normal con desviación mayor a cero.</p>}
