@@ -90,14 +90,17 @@ import org.enerscope.node.model.enums.ChangeTypeEnum;
 public class VersionService {
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager scenarioEntityManager;
     @org.springframework.beans.factory.annotation.Autowired private ScenarioReferenceService scenarioReferences;
+    @org.springframework.beans.factory.annotation.Autowired private org.enerscope.scenario.service.ScenarioRevisionService scenarioRevisions;
     private void lockScenario(Version version) {
         if(scenarioEntityManager != null && scenarioEntityManager.getLockMode(version) != jakarta.persistence.LockModeType.PESSIMISTIC_WRITE) {
             scenarioEntityManager.flush();
             scenarioEntityManager.refresh(version, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         }
+        if (scenarioRevisions != null) scenarioRevisions.beforeWorkspaceEdit(version);
     }
 
 
+    @org.springframework.beans.factory.annotation.Autowired private org.enerscope.scenario.service.ScenarioMergeService scenarioMerges;
     private final VersionRepository versionRepository;
     private final NodeConnectionRepository connectionRepository;
     private final BaseNodeRepository nodeRepository;
@@ -156,16 +159,17 @@ public class VersionService {
             // touches the parent. Each cloned node keeps its cross-version
             // identity so branches can be compared later; connections are
             // remapped to the new node ids.
+            Version branchSource = scenarioRevisions == null ? parentVersion : scenarioRevisions.branchWorkspace(parentVersion);
             Map<UUID, BaseNode> idMap = new HashMap<>();
-            if (parentVersion.getNodeSnapshot() != null) {
-                for (BaseNode src : parentVersion.getNodeSnapshot()) {
+            if (branchSource.getNodeSnapshot() != null) {
+                for (BaseNode src : branchSource.getNodeSnapshot()) {
                     BaseNode saved = nodeRepository.save(cloneNodeForBranch(src));
                     idMap.put(src.getId(), saved);
                     nodeSnapshot.add(saved);
                 }
             }
-            if (parentVersion.getConnectionSnapshot() != null) {
-                for (NodeConnection src : parentVersion.getConnectionSnapshot()) {
+            if (branchSource.getConnectionSnapshot() != null) {
+                for (NodeConnection src : branchSource.getConnectionSnapshot()) {
                     BaseNode newFrom = idMap.get(src.getFromNodeId());
                     BaseNode newTo = idMap.get(src.getToNodeId());
                     if (newFrom == null || newTo == null) {
@@ -996,6 +1000,7 @@ public class VersionService {
 
     @Transactional
     public Version mergeSubVersionIntoParent(UUID subVersionId) {
+        if (scenarioMerges != null && scenarioMerges.supports(subVersionId)) return scenarioMerges.prepareLegacy(subVersionId);
         Objects.requireNonNull(subVersionId, "Subversion ID cannot be null");
         accessGuard.assertCanManageVersion(subVersionId);
 

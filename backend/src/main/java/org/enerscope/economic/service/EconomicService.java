@@ -45,6 +45,9 @@ public class EconomicService {
     @org.springframework.beans.factory.annotation.Autowired
     private ScenarioDraftRepository scenarioDrafts;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.enerscope.scenario.service.ScenarioRevisionService scenarioRevisions;
+
     //TODO: revisar parametros de entrada
     public void lock(Version version) {
         if (entityManager != null && entityManager.getLockMode(version) != jakarta.persistence.LockModeType.PESSIMISTIC_WRITE) {
@@ -55,12 +58,14 @@ public class EconomicService {
 
     void assertNoDraft(Version version) {
         lock(version);
+        if (scenarioRevisions != null) scenarioRevisions.assertPublished(version);
         if ((scenarioDrafts != null && scenarioDrafts.existsByVersionId(version.getId())) || drafts.findByVersionId(version.getId()).isPresent())
             throw new IllegalArgumentException("Hay un borrador pendiente. Completá o descartá los cambios en Configuración del Escenario.");
     }
     public EconomicConfiguration save(UUID projectId, UUID versionId, EconomicConfiguration configuration) {
         Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
         lock(version);
+        if (scenarioRevisions != null) { scenarioRevisions.assertCanEdit(versionId); scenarioRevisions.beforeWorkspaceEdit(version); }
         validateConfiguration(configuration, version);
         var entity = configurations.findByVersionId(versionId).orElseGet(() -> new EconomicConfigurationEntity(version, ""));
         entity.replace(json(configuration)); configurations.save(entity);
@@ -84,6 +89,7 @@ public class EconomicService {
                                       EconomicDraftDTO draft) {
         Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
         lock(version);
+        if(scenarioRevisions!=null)scenarioRevisions.assertCanEdit(versionId);
         EconomicValidator.require(draft != null, "Draft is required");
         draft.validateStructure();
         var entity = drafts.findByVersionId(versionId).orElseGet(() -> new EconomicDraftEntity(version, ""));
@@ -107,6 +113,7 @@ public class EconomicService {
 
     public EvaluationDTO evaluate(UUID projectId, UUID versionId) {
         Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        if(scenarioRevisions!=null)scenarioRevisions.assertCanSimulate(versionId);
         assertNoDraft(version);
         EconomicConfiguration c = configuration(versionId); validator.validate(c, nodeIds(version));
         validateExportNodes(c, version);
@@ -119,11 +126,13 @@ public class EconomicService {
                 || result.indicators().discountedPayback().status() == org.enerscope.economic.model.enums.PaybackStatus.NUMERICAL_FAILURE)
             logger.warn("Economic indicator numerical failure for version {}; evaluation remains available", versionId);
         // Node entities have no back-reference to versions; Jackson captures their concrete physical parameters.
-        Snapshot snapshot = new Snapshot(2, c, codec.displayNodes(input),
-                input.connections(), operational.rawMetrics(), result, input.simulation(), null);
-        EconomicEvaluation stored = evaluations.saveAndFlush(new EconomicEvaluation(version, json(snapshot)));
+        UUID revisionId = scenarioRevisions == null ? null : scenarioRevisions.current(version).getId();
+        Snapshot snapshot = new Snapshot(revisionId == null ? 2 : 4, revisionId == null ? c : null,
+                revisionId == null ? codec.displayNodes(input) : null, revisionId == null ? input.connections() : null,
+                operational.rawMetrics(), result, input.simulation(), null);
+        EconomicEvaluation stored = evaluations.saveAndFlush(new EconomicEvaluation(version, json(snapshot), revisionId));
         logger.info("Economic evaluation {} completed for version {}", stored.getId(), versionId);
-        return new EvaluationDTO(stored.getId(), stored.getCreatedAt(), snapshot);
+        return revisionId == null ? new EvaluationDTO(stored.getId(), stored.getCreatedAt(), snapshot) : dto(stored);
     }
 
     @Transactional(readOnly = true)
@@ -148,6 +157,13 @@ public class EconomicService {
 
     private EvaluationDTO dto(EconomicEvaluation e) {
         Snapshot stored = read(e.getSnapshotJson(), Snapshot.class);
+        if (stored.schemaVersion() == 4) {
+            if (e.getScenarioRevisionId() == null) throw new IllegalStateException("Revision-backed evaluation has no revision");
+            var input = scenarioRevisions.savedInput(e.getScenarioRevisionId(), stored.simulation());
+            var codec = new EconomicInputCodec(mapper);
+            stored = new Snapshot(4,input.configuration(),codec.displayNodes(input),input.connections(),stored.rawMetrics(),
+                    stored.result(),stored.simulation(),stored.summary());
+        }
         if (stored.schemaVersion() < 3 && (stored.result() == null || stored.result().indicators() == null)) {
             var result = stored.result();
             var config = stored.configuration();
@@ -163,7 +179,7 @@ public class EconomicService {
             stored = new Snapshot(stored.schemaVersion(), config, stored.physicalNodes(),
                     stored.physicalConnections(), stored.rawMetrics(), result, stored.simulation(), stored.summary());
         }
-        return new EvaluationDTO(e.getId(), e.getCreatedAt(), stored);
+        return new EvaluationDTO(e.getId(), e.getCreatedAt(), stored,scenarioRevisions==null?null:scenarioRevisions.tag(e.getScenarioRevisionId()));
     }
 
     private boolean hasPeriodData(com.fasterxml.jackson.databind.JsonNode snapshot) {
@@ -195,6 +211,7 @@ public class EconomicService {
     //TODO: revisar alcance
     public Version authorize(UUID projectId, UUID versionId, ProjectMemberPermission permission) {
         var project=authorizeProject(projectId,permission);
+        if(scenarioRevisions!=null)scenarioRevisions.assertCanView(versionId);
         return project.getVersions().stream().filter(v -> v.getId().equals(versionId) && v.isActive()).findFirst()
                 .orElseThrow(() -> new EntityNotFoundException("Version does not belong to project"));
     }

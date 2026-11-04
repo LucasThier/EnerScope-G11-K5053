@@ -41,6 +41,8 @@ public class ScenarioConfigurationService {
  private final AppLogger logger;
  @PersistenceContext
  private EntityManager em;
+ @org.springframework.beans.factory.annotation.Autowired private ScenarioRevisionService revisions;
+ @org.springframework.beans.factory.annotation.Autowired private EconomicEvaluationRepository evaluationRepository;
 
  public ScenarioConfigurationDTO get(UUID project,UUID id) {
   Version version = economics.authorize(project,id,ProjectMemberPermission.VIEW_PROJECT);
@@ -48,6 +50,7 @@ public class ScenarioConfigurationService {
  }
 
  private ScenarioConfigurationDTO view(UUID project,Version version,List<String> errors) {
+  if(revisions!=null) revisions.beforeWorkspaceEdit(version);
   var configuration=configurations.findByVersionId(version.getId()).map(e->read(e.getConfigurationJson(),EconomicConfiguration.class)).orElse(null);
   var draft=drafts.findByVersionId(version.getId()).map(e->read(e.getDraftJson(),SaveRequest.class)).orElse(null);
   String source=source(version,configuration);
@@ -55,12 +58,14 @@ public class ScenarioConfigurationService {
       legacyDrafts.findByVersionId(version.getId()).map(e->e.getRevision()+":"+e.getDraftJson()).orElse(""));
   return new ScenarioConfigurationDTO(token,source,configuration,
       CurrentScenarioNodes.nodes(version).stream().sorted(Comparator.comparing(n->n.getId().toString())).map(operations::describe).toList(),
-      draft,economics.getDraft(project,version.getId()),errors);
+      draft,economics.getDraft(project,version.getId()),errors,revisions==null?null:revisions.status(project,version.getId()));
  }
 
  public ScenarioConfigurationDTO save(UUID project,UUID id,SaveRequest request) {
   var version=economics.authorize(project,id,ProjectMemberPermission.EDIT_PROJECT);
   economics.lock(version);
+  if(revisions!=null) revisions.assertCanEdit(id);
+  UUID baseRevision=revisions==null?null:revisions.current(version).getId();
   var before=view(project,version,List.of());
   if(request==null || !Objects.equals(request.token(),before.token()) || !Objects.equals(request.sourceToken(),before.sourceToken()))
    throw new ScenarioConflictException();
@@ -77,7 +82,11 @@ public class ScenarioConfigurationService {
   var supplied=request.operations();
   if(supplied==null || !supplied.keySet().equals(economics.nodeIds(version))) errors.add("La lista de nodos no coincide con el escenario.");
   else for(var node:CurrentScenarioNodes.nodes(version)) {
-   try { prepared.put(node.getId(),operations.prepare(node,supplied.get(node.getId()))); }
+   try {
+    var candidate=operations.prepare(node,supplied.get(node.getId()));
+    if(revisions!=null && !operations.describe(node).values().equals(operations.describe(candidate).values())) revisions.assertCanEditNode(id,node);
+    prepared.put(node.getId(),candidate);
+   }
    catch(IllegalArgumentException e) { errors.add(e.getMessage()); }
   }
   EconomicConfiguration configuration=null;
@@ -121,7 +130,10 @@ public class ScenarioConfigurationService {
   economics.save(project,id,configuration);
   codec.freeze(version,configuration,1,0);
   em.flush();
-  logger.info("Scenario configuration published for version {}",id);
+  if(revisions!=null && revisions.canPublish(id)) {
+   revisions.publishValidated(version,baseRevision,org.enerscope.util.AuthUtil.requireSession().getUser().getId());
+   logger.info("Scenario configuration published for version {}",id);
+  } else logger.info("Scenario shared workspace saved without publication for version {}",id);
   return view(project,version,List.of());
  }
 
@@ -139,7 +151,9 @@ public class ScenarioConfigurationService {
 
  public ScenarioConfigurationDTO discard(UUID project,UUID id,String token) {
   var version = economics.authorize(project,id,ProjectMemberPermission.EDIT_PROJECT);economics.lock(version);
+  if(revisions!=null && !revisions.canPublish(id)) throw new org.enerscope.common.ForbiddenException("Only scenario administrators can discard the shared draft");
   if(!Objects.equals(token,view(project,version,List.of()).token())) throw new ScenarioConflictException();
+  if(revisions!=null) revisions.discardWorkspace(version);
   drafts.deleteByVersionId(id);legacyDrafts.deleteByVersionId(id);em.flush();
   return view(project,version,List.of());
  }
@@ -150,11 +164,19 @@ public class ScenarioConfigurationService {
   economics.authorizeProject(project,ProjectMemberPermission.VIEW_PROJECT);
   return p.getVersions().stream().filter(Version::isActive).map(v->{
    var errors=new ArrayList<String>();
+   if(revisions!=null && revisions.hasPendingPublication(v)) errors.add("Hay cambios pendientes de publicación.");
    if(drafts.existsByVersionId(v.getId()) || legacyDrafts.findByVersionId(v.getId()).isPresent()) errors.add("Hay un borrador pendiente en Configuración del Escenario.");
    try {
     var config = economics.configuration(v.getId());economics.validateConfiguration(config,v);codec.freeze(v,config,1,0);
    } catch(EntityNotFoundException | IllegalArgumentException e) { errors.add(e.getMessage()); }
-   return new Readiness(v.getId(),errors.isEmpty(),errors);
+   if(revisions==null || evaluationRepository==null)return new Readiness(v.getId(),errors.isEmpty(),errors);
+   var current=revisions.current(v);
+   var content=read(current.getSnapshotJson(),EconomicInputCodec.RevisionContent.class);
+   String resultState=evaluationRepository.existsByVersionIdAndScenarioRevisionId(v.getId(),current.getId())?"SIMULATED":
+       evaluationRepository.existsByVersionIdAndScenarioRevisionIdIsNotNull(v.getId())?"OUTDATED":
+       evaluationRepository.existsByVersionId(v.getId())?"LEGACY":"NOT_SIMULATED";
+   return new Readiness(v.getId(),errors.isEmpty(),errors,current.getNumber(),content.configuration()==null?null:content.configuration().years(),
+       evaluationRepository.latestFinishedAt(v.getId()),resultState);
   }).toList();
  }
 

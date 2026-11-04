@@ -11,13 +11,25 @@ import org.enerscope.version.model.Version;
 @Table(name="economic_job")
 @Getter
 @NoArgsConstructor
-public class EconomicJob extends BaseEntity {
+public class Simulation extends BaseEntity {
     @ManyToOne(fetch=FetchType.LAZY, optional=false)
     @JoinColumn(name="version_id",nullable=false)
     private Version version;
 
     @Column(name="input_json",nullable=false,updatable=false,columnDefinition="text")
     private String inputJson;
+
+    @Column(name="scenario_revision_id",updatable=false)
+    private UUID scenarioRevisionId;
+
+    @Column(name="economic_calculation_version",nullable=false,updatable=false)
+    private int economicCalculationVersion = 1;
+
+    public static Simulation forRevision(Version version, UUID revisionId, String metadataJson, int rounds, String seed) {
+        var result = new Simulation(version, metadataJson, rounds, seed);
+        result.scenarioRevisionId = java.util.Objects.requireNonNull(revisionId);
+        return result;
+    }
 
     @Enumerated(EnumType.STRING) @Column(nullable=false,length=24)
     private EconomicJobStatus status;
@@ -43,7 +55,7 @@ public class EconomicJob extends BaseEntity {
     @Column(name="evaluation_id")
     private UUID evaluationId;
 
-    public EconomicJob(Version version,String inputJson,int rounds,String seed) {
+    public Simulation(Version version,String inputJson,int rounds,String seed) {
         this.version = version;
         this.inputJson = inputJson;
         this.rounds = rounds;

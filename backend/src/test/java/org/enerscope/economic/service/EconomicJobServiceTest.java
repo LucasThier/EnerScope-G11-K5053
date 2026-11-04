@@ -20,8 +20,8 @@ class EconomicJobServiceTest {
     final EconomicInputCodec codec=new EconomicInputCodec(MAPPER);
     final EconomicJobService service=new EconomicJobService(economics,new EconomicValidator(),codec,jobs,rounds,evaluations,MAPPER,mock(AppLogger.class));
     final UUID project=UUID.randomUUID(),versionId=version().getId(),id=UUID.randomUUID();
-    EconomicJob job() throws Exception {
-        var job=new EconomicJob(version(),MAPPER.writeValueAsString(codec.freeze(version(),configuration(),2,42)),2,"42");
+    Simulation job() throws Exception {
+        var job=new Simulation(version(),MAPPER.writeValueAsString(codec.freeze(version(),configuration(),2,42)),2,"42");
         ReflectionTestUtils.setField(job,"id",id);
         return job;
     }
@@ -44,7 +44,7 @@ class EconomicJobServiceTest {
         when(economics.authorize(project,versionId,ProjectMemberPermission.EDIT_PROJECT)).thenReturn(version());
         when(jobs.findByIdAndVersionId(id,versionId)).thenReturn(Optional.of(old));
         when(jobs.saveAndFlush(any())).thenAnswer(c->{
-            EconomicJob copy=c.getArgument(0);
+            Simulation copy=c.getArgument(0);
             assertEquals(old.getInputJson(),copy.getInputJson());return copy;
         });
         var retry=service.retry(project,versionId,id);

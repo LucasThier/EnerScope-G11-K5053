@@ -17,7 +17,7 @@ class ScenarioConfigurationPostgreSqlIT extends ScenarioConfigurationTest {
     statement.execute("CREATE TABLE preservation_probe (value integer)");statement.execute("INSERT INTO preservation_probe VALUES (42)");
     // Upgrade real versioned history in a disposable schema, never an application database.
     var flyway=org.flywaydb.core.Flyway.configure().dataSource(url,user,password).schemas(schema).defaultSchema(schema).load();
-    org.junit.jupiter.api.Assertions.assertEquals(5,flyway.migrate().migrationsExecuted);
+    org.junit.jupiter.api.Assertions.assertEquals(7,flyway.migrate().migrationsExecuted);
     org.junit.jupiter.api.Assertions.assertEquals(0,flyway.migrate().migrationsExecuted);
     try(var rows=statement.executeQuery("SELECT value FROM preservation_probe")) { org.junit.jupiter.api.Assertions.assertTrue(rows.next());org.junit.jupiter.api.Assertions.assertEquals(42,rows.getInt(1)); }
     try(var rows=statement.executeQuery("SELECT count(*) FROM flyway_schema_history WHERE type='SQL_BASELINE'")) {rows.next();org.junit.jupiter.api.Assertions.assertEquals(0,rows.getInt(1));}

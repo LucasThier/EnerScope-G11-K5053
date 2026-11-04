@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/projects/{projectId}/versions/{versionId}/economics")
+@RequestMapping({"/projects/{projectId}/versions/{versionId}/economics","/projects/{projectId}/scenarios/{versionId}/economics"})
 public class EconomicController {
     private final EconomicService service;@PutMapping("/draft")
     public ResponseEntity<ApiResponse<EconomicDraftDTO>> saveDraft(

@@ -8,7 +8,7 @@ import org.enerscope.util.*;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 @RestController @RequiredArgsConstructor
-@RequestMapping("/projects/{projectId}/versions")
+@RequestMapping({"/projects/{projectId}/versions","/projects/{projectId}/scenarios"})
 public class ScenarioConfigurationController {
  private final ScenarioConfigurationService service;
  @GetMapping("/{versionId}/scenario-configuration")

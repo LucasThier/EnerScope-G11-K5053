@@ -1598,3 +1598,31 @@ VersionControllerTest (MVC, now 12 cases):
 - Existing authorization tests now include the explicit type in their well fixtures; their 401/403 expectations remain unchanged.
 
 Validation: **740 backend tests**, **51 frontend tests**, no failures or skipped tests. Frontend build and lint passed. Backend output isolated in target/node-type-20261022.
+
+## Configuration version selection — 2026-11-03
+
+- projectScoping-browser.mjs: retains editor isolation and stale-response checks; replaces creation-from-configuration acceptance with absence of the creation button/form, exact version labels/subtitle, existing-version search/navigation, empty-project guidance and zero mutation requests.
+- startup-browser.mjs: configuration navigation expects Buscar Versión; simulation still expects Buscar escenario. Existing Versionado navigation and access checks remain.
+- Backend: 801 tests passed, no failures/skips, using isolated target/config-list-20261103. Frontend: 61 tests passed, no failures/skips; no new unit test cases. Both browser suites passed.
+
+## Evaluation tab visibility — 2026-11-03
+
+probabilistic-browser.mjs now checks the active tab's aria-current/style in History and Results (including detail URLs), absence of the execution block and polling in Results, remounting History for completion/retry, and retained desktop/mobile results behavior. Existing visibility polling, round selection and failure tests remain.
+
+Validation: 61 frontend unit tests passed with no failures or skips; build, lint and the probabilistic browser suite passed. Desktop screenshot inspected. Backend unchanged; its latest complete validation remains 801 passing tests.
+
+## Compact probabilistic summary — 2026-11-03
+
+summaryVisuals.test.mjs (8 unit/component cases):
+- `summary domains contain negative positive and zero values without degenerate scales`: bounds include signed data/zero and remain finite for constant/empty samples.
+- `summary bands preserve zero and reject absent unordered or empty statistics`: real zero is drawable, missing/invalid percentiles are not.
+- `annual bands split missing years and missing values without mutating their input`: gap segmentation and immutable sorting.
+- `recovery probability distinguishes zero recovery from a zero denominator`: missing/invalid frequencies never become zero.
+- `percentile ranges retain exact values and show no dispersion only when extrema coincide`: constant and single-round markers; equal percentiles with different extrema are not called constant.
+- `annual chart supports a single point empty data and keyboard values`: accessible points, empty state and finite coordinates.
+- `recovery meters expose their percentage and omit indeterminate meters`: available zero versus unavailable denominator.
+- `statistical details are initially closed and retain their children`: disclosure preserves complete detail.
+
+probabilistic-browser.mjs extends existing progress/round/retry/mobile checks with summary cards, closed details, metric selection, point focus/Escape, partial IRR, unavailable recovery, negative NPV detail, a missing-year gap and visual captures. Existing operational conversion and CSV tests remain unchanged.
+
+Validation: **801 backend tests** and **69 frontend tests**, zero failures/skips. Frontend build, lint and probabilistic browser acceptance passed. Inspected desktop/mobile summary and annual-band screenshots, including negative values and a missing period. Backend code, API contracts and persisted data remain unchanged.

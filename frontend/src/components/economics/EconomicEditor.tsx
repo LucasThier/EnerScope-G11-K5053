@@ -12,9 +12,9 @@ function Select({ label, value, onChange, children, hideLabel = false }: { hideL
 }
 export const assumptions = 'Una entidad con participación del 100 %. Régimen hipotético: ingresos gravados, costos deducibles y depreciación lineal. Sin traslado de pérdidas. Cobros, pagos operativos e impuestos al cierre del mismo año. Sin inflación, financiamiento, cambio de moneda ni cobro automático del residual. Los costos físicos existentes no se importan.';
 
-export function EconomicEditor({ draft: d, onChange, nodes, disabled, save, busy, dirty, discard, saveOnly = false }: {
+export function EconomicEditor({ draft: d, onChange, nodes, disabled, save, busy, dirty, discard, saveOnly = false, saveLabel = 'Guardar', canDiscard = true }: {
   draft: EconomicDraft; onChange: (d: EconomicDraft) => void; nodes: Scenario['nodes'];
-  saveOnly?: boolean;
+  saveOnly?: boolean; saveLabel?: string; canDiscard?: boolean;
   disabled: boolean; save: (simulate: boolean) => void; busy: boolean; dirty: boolean; discard: () => void;
 }) {
   const [section, setSection] = useState<Section>('General');
@@ -42,8 +42,8 @@ export function EconomicEditor({ draft: d, onChange, nodes, disabled, save, busy
   }] });
   const nodeOptions = <>{nodes.map(n => <option key={n.id} value={n.id}>{n.name} · {n.type}</option>)}</>;
   const actionBar = (label: string) => (<div role="group" aria-label={label} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-ink-200 bg-white p-4">
-      <Button variant="ghost" disabled={disabled || !dirty || busy} onClick={discard}>Descartar cambios</Button>
-      <div className="flex flex-wrap gap-3"><Button variant="secondary" disabled={disabled || busy} onClick={() => save(false)}>Guardar</Button>
+      <Button variant="ghost" disabled={disabled || !canDiscard || !dirty || busy} onClick={discard}>Descartar cambios</Button>
+      <div className="flex flex-wrap gap-3"><Button variant="secondary" disabled={disabled || busy} onClick={() => save(false)}>{saveLabel}</Button>
         {!saveOnly && <Button loading={busy} disabled={disabled || busy} onClick={() => {
           setAttemptedSimulation(true);
           if (!valid) { setAssetNodeFilter('*'); setSection(sections.find(s => errors[s].length) ?? 'General'); return; }

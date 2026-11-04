@@ -401,6 +401,7 @@ function EditorWorkspace() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <p className="border-b border-ink-200 bg-brand-50 px-4 py-2 text-sm text-ink-700">Los cambios del mapa se guardan en el borrador del escenario. Publicalos desde Configuración del Escenario antes de simular.</p>
       {/* Toolbar */}
       <div className="flex flex-wrap items-end gap-3 border-b border-ink-100 bg-surface px-4 py-2.5">
         <Field label="Organization">

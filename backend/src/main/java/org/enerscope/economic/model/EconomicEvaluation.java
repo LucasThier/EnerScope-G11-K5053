@@ -16,6 +16,12 @@ public class EconomicEvaluation extends BaseEntity {
     private Version version;
     @Column(name = "snapshot_json", nullable = false, columnDefinition = "text", updatable = false)
     private String snapshotJson;
+    @Column(name = "scenario_revision_id", updatable = false)
+    private java.util.UUID scenarioRevisionId;
+    public EconomicEvaluation(Version version, String snapshotJson, java.util.UUID revisionId) {
+        this(version, snapshotJson);
+        this.scenarioRevisionId = revisionId;
+    }
     public EconomicEvaluation(Version version, String snapshotJson) {
         this.version = version;
         this.snapshotJson = snapshotJson;

@@ -5,6 +5,8 @@ import type { Evaluation, EconomicRound, NumericStatistics } from '../../types/e
 import { money, percent } from '../../utils/economicFormat';
 import { operationalColumns, operationalDisplay, operationalNumber } from '../../utils/operationalResults';
 import { roundEvaluation } from '../../utils/probabilisticResults';
+import { AnnualBandChart, PercentileRange, RecoveryBar, StatisticsDetails, SummaryMetric } from './SummaryVisuals';
+import { finiteValue, recoveryProbability } from '../../utils/summaryVisuals';
 import { ScenarioResults } from './ScenarioResults';
 import { downloadCsv, summaryCsv } from '../../utils/resultsCsv';
 import { Button } from '../ui/Button';
@@ -22,6 +24,7 @@ export function ProbabilisticResults({ evaluation, projectId, versionId }: { eva
   const [round, setRound] = useState<EconomicRound | null>(null);
   const [error, setError] = useState('');
   const [node, setNode] = useState('');
+  const [metric, setMetric] = useState('output');
   useEffect(() => {
     if (selection === 'summary') return;
     let cancelled = false;
@@ -42,38 +45,61 @@ export function ProbabilisticResults({ evaluation, projectId, versionId }: { eva
     const values = { ...m.values };
     statistics.forEach((key, i) => { values[key] = display.rows[i][m.metric]; });
     const label = operationalColumns.find(([field]) => field === m.metric)?.[1] ?? m.metric;
-    return { label: `${(evaluation.snapshot.configuration?.startYear ?? 0) + m.period} · ${label} (${display.units[m.metric]})`, values };
+    return { period:m.period, metric:m.metric, unit:display.units[m.metric], year:evaluation.snapshot.configuration?.startYear == null ? `Período ${m.period}` : String(evaluation.snapshot.configuration.startYear+m.period), label: `${evaluation.snapshot.configuration?.startYear == null ? `Período ${m.period}` : evaluation.snapshot.configuration.startYear+m.period} · ${label} (${display.units[m.metric]})`, values };
   });
+  const operationalSeries=operational.filter(p=>p.metric===metric);
+  const discountedProbability=recoveryProbability(summary.discountedPayback.denominator,summary.discountedPayback.recoveredProbability);
+  const cashFormat=(n:number|null)=>money(n,currency);
   return <div className="space-y-5">
     <Card><label className="block text-sm font-semibold" htmlFor="round-selection">Vista de resultados</label>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><select id="round-selection" value={selection} onChange={e => { setSelection(e.target.value); setError(''); setRound(null); }} className="w-full rounded-lg border border-ink-200 bg-white p-3 sm:max-w-sm">
         <option value="summary">Resumen de {summary.rounds} rondas</option>
         {Array.from({ length: summary.rounds }, (_, i) => <option key={i + 1} value={i + 1}>Ronda {i + 1}</option>)}
-      </select><Button variant="secondary" onClick={() => downloadCsv('resumen-rondas-' + evaluation.id, summaryCsv(evaluation))}>Descargar resumen CSV</Button></div><p className="mt-3 break-all text-sm text-ink-600">Semilla principal: {evaluation.snapshot.simulation?.seed} · {summary.rounds} rondas</p>
+      </select><Button variant="secondary" onClick={() => downloadCsv('resumen-rondas-' + evaluation.id, summaryCsv(evaluation))}>Descargar resumen CSV</Button></div><p className="mt-3 text-sm text-ink-600">{summary.rounds} rondas · {currency ?? 'Moneda no disponible'} · WACC {percent(evaluation.snapshot.configuration?.wacc)}</p>
+      <details className="mt-3 text-xs text-ink-500"><summary className="cursor-pointer">Datos de la ejecución</summary><p className="mt-2 break-all">Semilla principal: {evaluation.snapshot.simulation?.seed ?? 'No disponible'}</p><p>Algoritmo: {evaluation.snapshot.simulation?.algorithm ?? 'No disponible'} · Versión de cálculo: {evaluation.snapshot.simulation?.calculationVersion ?? 'No disponible'}</p></details>
     </Card>
     {error && <Alert tone="error">{error}</Alert>}
     {selection !== 'summary' ? round && round.round === Number(selection) ?
       <><p className="text-sm text-ink-600">Ronda {round.round} · Semilla {round.seed}</p><ScenarioResults evaluation={roundEvaluation(evaluation, round)} round={round.round} /></>
       : !error && <p role="status">Cargando ronda…</p> : <>
-      <Alert>P10 representa valores bajos y P90 valores altos. Cada indicador se resume por separado; las bandas anuales no representan una ronda completa. Las probabilidades son frecuencias de esta muestra.</Alert>
-      <Card><h2 className="text-lg font-semibold">Rentabilidad</h2><p className="my-3">Rondas con VAN positivo: <strong>{percent(summary.positiveNpvProbability)}</strong> de {summary.rounds}.</p>
-        <StatisticsTable rows={[{ label: 'VAN', values: summary.npv }]} format={n => money(n, currency)} />
-        <StatisticsTable rows={[{ label: 'TIR anual calculable', values: summary.irr }]} format={percent} />
-        <p className="mt-3 text-sm text-ink-600">TIR calculable: {summary.irr.count} de {summary.rounds} rondas. Estados: {Object.entries(summary.irrStatuses).map(([s,n]) => `${statusLabels[s] ?? s}: ${n}`).join(' · ')}.</p>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryMetric label="VAN medio" value={cashFormat(summary.npv.count>0?summary.npv.mean:null)} caption={`Muestra: ${summary.npv.count} de ${summary.rounds} rondas`}/>
+        <SummaryMetric label="Rondas con VAN positivo" value={percent(recoveryProbability(summary.rounds,summary.positiveNpvProbability))} caption={`Sobre ${summary.rounds} rondas simuladas`}/>
+        <SummaryMetric label="TIR mediana" value={percent(summary.irr.count>0?summary.irr.p50:null)} caption={`Calculable en ${summary.irr.count} de ${summary.rounds} rondas`}/>
+        <SummaryMetric label="Recuperación descontada" value={percent(discountedProbability)} caption={`Sobre ${summary.discountedPayback.denominator} rondas aplicables con resultado determinado`}/>
+      </div>
+      <p className="text-xs leading-relaxed text-ink-500">P10: bajo · P50: mediana · P90: alto. Las frecuencias describen esta muestra. Las bandas anuales no representan una ronda individual ni un intervalo de confianza.</p>
+      <Card><h2 className="text-lg font-semibold">Rentabilidad</h2>
+        <div className="mt-5 grid gap-8 md:grid-cols-2"><PercentileRange label="VAN" values={summary.npv} format={cashFormat}/><PercentileRange label="TIR anual calculable" values={summary.irr} format={percent}/></div>
+        <p className="mt-4 text-xs text-ink-500">TIR calculable: {summary.irr.count} de {summary.rounds} rondas. Estados: {Object.entries(summary.irrStatuses).map(([s,n]) => `${statusLabels[s] ?? s}: ${n}`).join(' · ')}.</p>
+        <StatisticsDetails><StatisticsTable rows={[{label:'VAN',values:summary.npv}]} format={cashFormat}/><StatisticsTable rows={[{label:'TIR anual calculable',values:summary.irr}]} format={percent}/></StatisticsDetails>
       </Card>
-      <Card><h2 className="mb-3 text-lg font-semibold">Recuperación de la inversión</h2>
-        {[['Simple',summary.simplePayback],['Descontada',summary.discountedPayback]] .map(([label, value]) => {
-          const p = value as typeof summary.simplePayback;
-          return <div key={String(label)} className="mb-5"><h3 className="font-semibold">{String(label)}: {percent(p.recoveredProbability)} recuperada</h3>
-            <p className="my-2 text-sm text-ink-600">Base: {p.denominator} rondas aplicables con resultado determinado. {p.becomesNegativeAgainCount} vuelven a saldo negativo después de recuperar.</p>
-            <StatisticsTable rows={[{ label: 'Período de recuperación (solo recuperadas)', values: p.recoveryPeriods }]} format={operationalNumber} />
-            <p className="text-sm text-ink-600">{Object.entries(p.statuses).map(([s,n]) => `${statusLabels[s] ?? s}: ${n}`).join(' · ')}</p></div>;
-        })}
+      <Card><h2 className="text-lg font-semibold">Recuperación de la inversión</h2>
+        <div className="mt-5 grid gap-6 md:grid-cols-2">{([{label:'Simple',value:summary.simplePayback},{label:'Descontada',value:summary.discountedPayback}]).map(({label,value:p})=>{
+          const probability=recoveryProbability(p.denominator,p.recoveredProbability);
+          const median=p.recoveryPeriods.count>0&&finiteValue(p.recoveryPeriods.p50)?p.recoveryPeriods.p50:null;
+          const start=evaluation.snapshot.configuration?.startYear;
+          return <section key={label} className="min-w-0 rounded-xl border border-ink-100 p-4">
+            <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">{label}</h3><span className="font-semibold">{percent(probability)} recuperada</span></div>
+            <RecoveryBar label={`Recuperación ${label.toLowerCase()}`} value={probability}/>
+            <p className="text-xs text-ink-500">Base: {p.denominator} rondas aplicables con resultado determinado.</p>
+            <p className="mt-3 text-sm">{median===null?'Recuperación mediana: No disponible':`Mediana: período ${median}${start==null?'':` · Año ${start+median}`}`}</p>
+            <p className="mt-1 text-xs text-ink-500">Solo las {p.recoveryPeriods.count} rondas recuperadas.</p>
+            <p className="mt-3 text-xs text-ink-600">{Object.entries(p.statuses).map(([s,n])=>`${statusLabels[s]??s}: ${n}`).join(' · ')}</p>
+            <p className="mt-2 text-xs text-ink-500">{p.becomesNegativeAgainCount} vuelven a saldo negativo después de recuperar.</p>
+            <StatisticsDetails><StatisticsTable rows={[{label:'Período de recuperación (solo recuperadas)',values:p.recoveryPeriods}]} format={operationalNumber}/></StatisticsDetails>
+          </section>;
+        })}</div>
       </Card>
-      <Card><h2 className="mb-3 text-lg font-semibold">Dispersión de flujos anuales</h2><StatisticsTable rows={summary.cashFlows.map(p => ({ label: String(p.year), values: p.values }))} format={n => money(n, currency)} /></Card>
-      <Card><h2 className="mb-3 text-lg font-semibold">Rangos operativos por nodo</h2>
-        <label className="text-sm" htmlFor="summary-node">Nodo</label><select id="summary-node" value={selectedNode ?? ''} onChange={e => setNode(e.target.value)} className="ml-3 max-w-full rounded-lg border border-ink-200 p-2">{nodeIds.map(id => <option key={id} value={id}>{names.get(id) || id}</option>)}</select>
-        <StatisticsTable rows={operational} format={operationalNumber} />
+      <Card><h2 className="text-lg font-semibold">Dispersión de flujos anuales</h2>
+        <AnnualBandChart label="Flujos anuales: mediana y rango P10–P90" points={summary.cashFlows.map(p=>({period:p.period,label:String(p.year),values:p.values}))} format={cashFormat} unit={currency??'Moneda no disponible'}/>
+        <StatisticsDetails><StatisticsTable rows={summary.cashFlows.map(p=>({label:String(p.year),values:p.values}))} format={cashFormat}/></StatisticsDetails>
+      </Card>
+      <Card><h2 className="text-lg font-semibold">Rangos operativos por nodo</h2>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="flex min-w-0 flex-col gap-1 text-sm"><label htmlFor="summary-node">Nodo</label><select id="summary-node" value={selectedNode??''} onChange={e=>setNode(e.target.value)} className="w-full min-w-0 rounded-lg border border-ink-200 bg-white p-2">{nodeIds.map(id=><option key={id} value={id}>{names.get(id)||id}</option>)}</select></div>
+        <div className="flex min-w-0 flex-col gap-1 text-sm"><label htmlFor="summary-metric">Métrica</label><select id="summary-metric" value={metric} onChange={e=>setMetric(e.target.value)} className="w-full rounded-lg border border-ink-200 bg-white p-2">{operationalColumns.map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div></div>
+        <AnnualBandChart key={selectedNode+metric} label="Operación anual del nodo: mediana y rango P10–P90" points={operationalSeries.map(p=>({period:p.period,label:p.year,values:p.values}))} format={operationalNumber} unit={operationalSeries[0]?.unit??'Unidad no disponible'}/>
+        <StatisticsDetails><StatisticsTable rows={operational} format={operationalNumber}/></StatisticsDetails>
       </Card>
     </>}
   </div>;

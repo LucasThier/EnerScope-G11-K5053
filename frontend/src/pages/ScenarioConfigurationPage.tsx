@@ -68,7 +68,7 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
  async function save() {
   if(!form||!canEdit||inFlight.current||conflict)return;inFlight.current=true;setBusy(true);setError('');
   try {const state=await api.save(projectId,versionId,prepareScenario(form,nodes));hydrate(state);
-   setNotice(state.draft?'Borrador guardado. Hay datos pendientes; el escenario todavía no puede simularse.':'Configuración económica y operativa guardada. El escenario está listo para simular.');
+   setNotice(state.draft||state.legacyDraft||state.revision?.workspaceChanges?'Borrador guardado. Un administrador debe publicar el conjunto antes de simular.':'Configuración económica y operativa guardada. El escenario está listo para simular.');
   }catch(e){setError(getErrorMessage(e,'No se pudo guardar el escenario.'));if((e as {response?:{status:number}}).response?.status===409)setConflict(true);}
   finally{inFlight.current=false;setBusy(false);}
  }
@@ -90,7 +90,7 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
   finally{inFlight.current=false;setBusy(false);}
  }
  async function discard() {
-  if(!canEdit||inFlight.current||!window.confirm('¿Descartar los cambios locales y el borrador y cargar la configuración publicada actual?'))return;
+  if(!snapshot?.revision?.canPublish||inFlight.current||!window.confirm('¿Descartar los cambios locales y el borrador y cargar la configuración publicada actual?'))return;
   inFlight.current=true;setBusy(true);setError('');
   try { const current=await api.get(projectId,versionId);hydrate(await api.discard(projectId,versionId,current.token));setConflict(false); }
   catch(e){setError(getErrorMessage(e,'No se pudieron descartar los cambios.'));}
@@ -98,30 +98,33 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
  }
  if(!snapshot||!form||!scenario)return error?<Alert tone="error">{error}</Alert>:<p role="status">Cargando configuración…</p>;
  const disabled=!canEdit||conflict;
+ const canPublish=snapshot.revision?.canPublish ?? false;
+ const saveLabel=canPublish ? 'Guardar y publicar' : 'Guardar borrador';
  return <div className="space-y-5">
  <Link className="text-brand-800 underline" to={'/projects/'+projectId+'/scenario-configurations'}>← Configuración del Escenario / {scenario.name}</Link>
  <header className="flex flex-wrap justify-between gap-3"><h1 className="text-2xl font-semibold">Configuración del Escenario</h1><span role="status">{busy?'Guardando…':dirty?'Cambios sin guardar':'Sin cambios pendientes'}</span></header>
  <p className="text-sm text-ink-500">Guardá la configuración económica y operativa. La ejecución se inicia desde Simulación de Escenarios.</p>
  {error&&<Alert tone="error">{error}</Alert>}{notice&&<Alert>{notice}</Alert>}
  {snapshot.errors.length>0&&<Alert tone="error"><ul>{snapshot.errors.map((e,i)=><li key={i}>{e}</li>)}</ul></Alert>}
+ {snapshot.revision&&<div className="rounded-lg border border-ink-200 bg-white p-3 text-sm">Revisión publicada {snapshot.revision.number} · {snapshot.revision.workspaceChanges||snapshot.draft||snapshot.legacyDraft?'Borrador pendiente de publicación':'Sin cambios pendientes'}</div>}
  {conflict&&<Alert tone="error">El escenario cambió desde otra pantalla. Tus cambios se conservan; para evitar sobrescribir datos, recargá descartando los cambios afectados.<Button variant="ghost" disabled={busy} onClick={()=>void discard()}>Descartar y recargar</Button></Alert>}
  {blocker.state==='blocked'&&<Alert>Hay cambios sin guardar.<Button variant="ghost" onClick={()=>blocker.reset()}>Seguir editando</Button><Button variant="ghost" disabled={busy} onClick={()=>blocker.proceed()}>Salir sin guardar</Button></Alert>}
  <nav aria-label="Configuración económica y operativa" className="flex gap-3 border-b border-ink-200">
  <Button variant="ghost" aria-pressed={!operationTab} onClick={()=>setOperationTab(false)}>Economía</Button>
  <Button variant="ghost" aria-pressed={operationTab} onClick={()=>setOperationTab(true)}>Operación</Button></nav>
  {operationTab ? <>
- <div className="flex justify-between gap-3"><Button variant="ghost" disabled={!canEdit||busy} onClick={()=>void discard()}>Descartar cambios</Button><Button disabled={disabled} loading={busy} onClick={()=>void save()}>Guardar</Button></div>
+ <div className="flex justify-between gap-3"><Button variant="ghost" disabled={!canPublish||busy} onClick={()=>void discard()}>Descartar cambios</Button><Button disabled={disabled} loading={busy} onClick={()=>void save()}>{saveLabel}</Button></div>
  <ScenarioOperationsEditor nodes={snapshot.nodes} values={form.operations} disabled={disabled||busy} onChange={operations=>setForm({...form,operations})}/>
- <div className="flex justify-end"><Button disabled={disabled} loading={busy} onClick={()=>void save()}>Guardar</Button></div>
+ <div className="flex justify-end"><Button disabled={disabled} loading={busy} onClick={()=>void save()}>{saveLabel}</Button></div>
  </> : form.editor.mode==='simple' ?
- <EconomicEditor saveOnly draft={form.editor.value} nodes={nodes} disabled={disabled} busy={busy} dirty={dirty||!!snapshot.draft||!!snapshot.legacyDraft} onChange={value=>setForm({...form,editor:{mode:'simple',value}})} save={()=>void save()} discard={()=>void discard()}/> :
+ <EconomicEditor saveOnly saveLabel={saveLabel} canDiscard={canPublish} draft={form.editor.value} nodes={nodes} disabled={disabled} busy={busy} dirty={dirty||!!snapshot.draft||!!snapshot.legacyDraft||!!snapshot.revision?.workspaceChanges} onChange={value=>setForm({...form,editor:{mode:'simple',value}})} save={()=>void save()} discard={()=>void discard()}/> :
  <section className="space-y-4 rounded-xl border border-ink-200 bg-white p-5">
   <h2 className="text-lg font-semibold">Configuración original conservada</h2>
   <p>Este escenario contiene reglas que el formulario simple no representa. Sus datos y resultados se conservan intactos. Podés crear una copia para editarla con el formulario simple.</p>
   <dl className="grid gap-3 sm:grid-cols-2"><div><dt>Año de inversión</dt><dd>{form.editor.value.startYear}</dd></div><div><dt>Años operativos</dt><dd>{form.editor.value.years}</dd></div><div><dt>Moneda</dt><dd>{form.editor.value.currency}</dd></div><div><dt>Entidades fiscales</dt><dd>{form.editor.value.taxEntities.length}</dd></div></dl>
   <p className="text-sm text-ink-500">La copia usa una entidad al 100 %, ingresos gravados y costos deducibles. Debés revisar importes y vigencias: no reproduce participaciones, quebrantos, transferencias internas ni cobros diferidos.</p>
   <Button disabled={disabled||busy||dirty||!!snapshot.draft||!!snapshot.legacyDraft} onClick={()=>void createSimpleCopy()}>Crear copia simple</Button>
-  {(snapshot.draft||snapshot.legacyDraft)&&<><p>Hay un borrador conservado. Descartalo explícitamente para crear una copia desde la configuración publicada.</p><Button variant="ghost" disabled={!canEdit||busy} onClick={()=>void discard()}>Descartar cambios</Button></>}
+  {(snapshot.draft||snapshot.legacyDraft)&&<><p>Hay un borrador conservado. Descartalo explícitamente para crear una copia desde la configuración publicada.</p><Button variant="ghost" disabled={!canPublish||busy} onClick={()=>void discard()}>Descartar cambios</Button></>}
  </section>}
  </div>;
 }

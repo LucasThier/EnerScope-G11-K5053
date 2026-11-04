@@ -40,9 +40,15 @@ class ScenarioConfigurationTest {
  @Autowired EconomicJobService jobs;
  @Autowired org.enerscope.version.service.VersionService versions;
  @Autowired ObjectMapper mapper;
+ @Autowired org.enerscope.scenario.service.ScenarioRevisionService revisions;
+ @Autowired org.enerscope.scenario.service.ScenarioMergeService merges;
+ @Autowired org.enerscope.project.service.ProjectService projects;
+ @Autowired org.enerscope.economic.repository.EconomicJobRepository jobRepository;
+
  UUID projectId,versionId;Well well;
  @BeforeEach void setup() throws Exception {
-  var user=User.fromJwtClaims(UUID.randomUUID(),"scenario@example.com","Scenario","Admin",PlatformRole.ADMIN);
+  var user=new User("scenario-"+UUID.randomUUID()+"@example.com","Scenario","Admin","test-hash",PlatformRole.ADMIN);
+  em.persist(user);
   var authentication=new UsernamePasswordAuthenticationToken(user.getId(),null,List.of());
   authentication.setDetails(new Session("test",user,Instant.now().plusSeconds(3600)));SecurityContextHolder.getContext().setAuthentication(authentication);
   var source=EconomicExample.version();var nodes=new ArrayList<BaseNode>();var ids=new HashMap<String,String>();
@@ -60,6 +66,8 @@ class ScenarioConfigurationTest {
   projectId=project.getId();versionId=version.getId();
   String json=mapper.writeValueAsString(EconomicExample.configuration());for(var e:ids.entrySet())json=json.replace(e.getKey(),e.getValue());
   economics.save(projectId,versionId,mapper.readValue(json,EconomicConfiguration.class));
+  var initial=scenarios.get(projectId,versionId);
+  scenarios.save(projectId,versionId,request(initial));
  }
 
  @Test
@@ -188,5 +196,79 @@ class ScenarioConfigurationTest {
   assertThrows(org.enerscope.common.EntityNotFoundException.class,()->scenarios.get(projectId,UUID.randomUUID()));
   SecurityContextHolder.clearContext();
   assertThrows(org.enerscope.common.UnauthorizedException.class,()->scenarios.get(projectId,versionId));
+ }
+
+ @Test void mapDraftBlocksSimulationAndPublishedRevisionRemainsImmutable() {
+  var current=revisions.current(em.find(Version.class,versionId));String original=current.getSnapshotJson();
+  var basics=new org.enerscope.node.dto.NodeBasicsDTO();basics.setName("Pending name");
+  versions.updateNodeBasics(versionId,well.getId(),basics);
+  assertThrows(IllegalArgumentException.class,()->jobs.submit(projectId,versionId,new EconomicJobRequest(1,"1")));
+  assertEquals(original,current.getSnapshotJson());
+  var state=scenarios.get(projectId,versionId);scenarios.save(projectId,versionId,request(state));
+  assertEquals(current.getNumber()+1,revisions.current(em.find(Version.class,versionId)).getNumber());
+  assertEquals(original,current.getSnapshotJson());
+ }
+ @Test void restoringOldRevisionCreatesDraftWithoutMovingCurrentPointer() {
+  var old=revisions.current(em.find(Version.class,versionId));
+  var basics=new org.enerscope.node.dto.NodeBasicsDTO();basics.setName("Published name");
+  versions.updateNodeBasics(versionId,well.getId(),basics);
+  var state=scenarios.get(projectId,versionId);scenarios.save(projectId,versionId,request(state));
+  var status=revisions.status(projectId,versionId);
+  var restored=revisions.restore(projectId,versionId,old.getId(),status.token(),false);
+  assertEquals(status.revisionId(),restored.revisionId());assertTrue(restored.workspaceChanges());
+  assertThrows(IllegalArgumentException.class,()->jobs.submit(projectId,versionId,new EconomicJobRequest(1,"1")));
+ }
+ @Test void branchUsesPublishedRevisionInsteadOfPendingMapChanges() {
+  var before=scenarios.get(projectId,versionId).nodes().stream().filter(n->n.identity().equals(well.getIdentityId())).findFirst().orElseThrow().name();
+  var basics=new org.enerscope.node.dto.NodeBasicsDTO();basics.setName("Do not copy draft");
+  versions.updateNodeBasics(versionId,well.getId(),basics);
+  var branch=projects.saveVersion(projectId,new org.enerscope.version.dto.VersionDTO("Published branch",versionId));
+  assertEquals(before,scenarios.get(projectId,branch.getId()).nodes().stream().filter(n->n.identity().equals(well.getIdentityId())).findFirst().orElseThrow().name());
+  assertNotNull(revisions.ensure(branch).getBranchRevisionId());
+ }
+ @Test void operationalMergePreservesTargetEconomicsUntilPublication() {
+  var branch=projects.saveVersion(projectId,new org.enerscope.version.dto.VersionDTO("Merge branch",versionId));
+  var state=scenarios.get(projectId,branch.getId());var input=request(state);
+  input.operations().get(state.nodes().stream().filter(n->n.identity().equals(well.getIdentityId())).findFirst().orElseThrow().id()).put("maxCollectionCapacity",mapper.valueToTree("250"));
+  ((com.fasterxml.jackson.databind.node.ObjectNode)input.configuration()).put("wacc",0.5);
+  scenarios.save(projectId,branch.getId(),input);
+  var current=revisions.current(em.find(Version.class,versionId));
+  var prepared=merges.prepare(projectId,branch.getId());assertTrue(prepared.conflicts().isEmpty());
+  assertEquals(current.getId(),revisions.current(em.find(Version.class,versionId)).getId());
+  var target=scenarios.get(projectId,versionId);
+  assertEquals(250,target.nodes().stream().filter(n->n.identity().equals(well.getIdentityId())).findFirst().orElseThrow().values().get("maxCollectionCapacity").asInt());
+  assertEquals(0,new java.math.BigDecimal("0.1").compareTo(target.configuration().wacc()));
+  scenarios.save(projectId,versionId,request(target));
+  assertNotNull(revisions.current(em.find(Version.class,versionId)).getMergeSourceRevisionId());
+ }
+ @Test void newSimulationReferencesRevisionWithoutDuplicatingPhysicalInputs() throws Exception {
+  var job=jobs.submit(projectId,versionId,new EconomicJobRequest(1,"42"));
+  var persisted=jobRepository.findById(job.id()).orElseThrow();
+  assertEquals(revisions.current(em.find(Version.class,versionId)).getId(),persisted.getScenarioRevisionId());
+  var input=mapper.readTree(persisted.getInputJson());
+  assertFalse(input.has("configuration"));assertFalse(input.has("nodes"));assertEquals("42",input.path("seed").asText());
+ }
+ @Test void editorSavesSharedOperationDraftWithoutPublishingAndMapReadsIt() {
+  var current=revisions.current(em.find(Version.class,versionId));
+  var user=new User("editor-"+UUID.randomUUID()+"@example.com","Scenario","Editor","test-hash",PlatformRole.USER);
+  em.persist(user);
+  var project=em.find(Project.class,projectId);
+  var member=new org.enerscope.project.model.ProjectMember(user,project);
+  var role=org.enerscope.project.model.enums.ProjectMemberType.EDITOR;
+  member.changeRole(role,org.enerscope.project.model.ProjectMember.defaultPermissionsFor(role));
+  project.addMember(member);em.persist(member);em.flush();
+  var authentication=new UsernamePasswordAuthenticationToken(user.getId(),null,List.of());
+  authentication.setDetails(new Session("editor",user,Instant.now().plusSeconds(3600)));
+  SecurityContextHolder.getContext().setAuthentication(authentication);
+  var state=scenarios.get(projectId,versionId);var input=request(state);
+  input.operations().get(well.getId()).put("maxCollectionCapacity",mapper.valueToTree("234"));
+  var saved=scenarios.save(projectId,versionId,input);
+  assertTrue(saved.errors().isEmpty());
+  assertTrue(saved.revision().workspaceChanges());assertFalse(saved.revision().canPublish());
+  assertEquals(current.getId(),revisions.current(em.find(Version.class,versionId)).getId());
+  var node=saved.nodes().stream().filter(n->n.identity().equals(well.getIdentityId())).findFirst().orElseThrow();
+  assertEquals(234.0,versions.getNodeDetail(versionId,node.id()).typeAttributes().get("maxCollectionCapacity"));
+  assertFalse(scenarios.readiness(projectId).getFirst().ready());
+  assertThrows(org.enerscope.common.ForbiddenException.class,()->scenarios.discard(projectId,versionId,saved.token()));
  }
 }

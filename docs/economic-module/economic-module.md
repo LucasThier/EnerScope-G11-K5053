@@ -757,3 +757,20 @@ copia simple independiente. La instancia local utiliza esa base restaurada; las
 bases originales y sus historiales Flyway permanecen intactos. La restauración de
 datos se hizo sobre el esquema B18/V19 validado, sin reparar historiales existentes.
 
+## Configuration listing 
+
+Configuración del Escenario lists existing project versions and opens their economic/operational configuration. The listing has no creation action or form. Its search is Buscar Versión and its first column is Versión. New versions are managed in Versionado; the shared backend creation endpoint remains available for that feature. No scenario-specific backend creation endpoint exists.
+
+## Evaluation navigation 
+
+Historial and Resultados visibly identify the active section. The execution block (progress, refresh, minimize and retry) belongs exclusively to Historial. Resultados shows the saved evaluation without this block. Switching sections does not stop server-side simulations.
+
+## Resumen visual de rondas 
+
+El resumen presenta cuatro tarjetas: VAN medio, frecuencia de VAN positivo, TIR mediana calculable y recuperación descontada. Cada tarjeta identifica su muestra/base. La semilla, el algoritmo y su versión permanecen disponibles en Datos de la ejecución. El encabezado muestra moneda, WACC y número de rondas.
+
+Rentabilidad representa P10–P90 mediante barras con P50 marcado. Recuperación compara las frecuencias simple y descontada, informa período/año mediano entre las rondas recuperadas y conserva todos los estados, incluidas las recuperaciones que vuelven a saldo negativo. Los flujos anuales muestran P50 y una banda P10–P90 desde t=0; operación usa el mismo gráfico con selección de nodo y métrica, inicialmente Producción / salida.
+
+Los valores proceden del snapshot: no se solicita ninguna nueva simulación, no se calculan indicadores sobre promedios ni se modifican contratos API. Las bandas son estadísticas marginales, no trayectorias individuales ni intervalos de confianza. Los huecos significan datos ausentes; no se reemplazan por cero. Con extremos iguales se indica Sin dispersión observada. Una base de recuperación cero muestra No disponible.
+
+Cada sección conserva las tablas completas en Ver detalle estadístico, inicialmente cerrado. Descargar resumen CSV conserva el detalle completo de todos los nodos. Los gráficos permiten consultar valores mediante foco/teclado, cursor o toque, y Escape cierra la ayuda; el diseño móvil mantiene los gráficos anchos dentro de su propio desplazamiento horizontal.

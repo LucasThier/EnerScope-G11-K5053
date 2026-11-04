@@ -41,6 +41,7 @@ class PostgreSqlEconomicIT {
     }
     @Autowired EntityManager em;
     @Autowired EconomicService service;
+    @Autowired org.enerscope.scenario.service.ScenarioConfigurationService scenarios;
     @Autowired EconomicJobService jobs;
     @Autowired EconomicInputCodec codec;
     @Autowired EconomicSimulationAdapter adapter;
@@ -54,7 +55,8 @@ class PostgreSqlEconomicIT {
     @Test void completeHttpExampleCreatesVersionNodesAndEvaluation() throws Exception {
         Organization organization=new Organization("HTTP example");em.persist(organization);
         Project project=new Project("HTTP example","Disposable fixture",organization);em.persist(project);em.flush();
-        String token=jwt.generateAccessToken(User.fromJwtClaims(UUID.randomUUID(),"api@example.com","API","Admin",PlatformRole.ADMIN));
+        var apiUser=new User("api-"+UUID.randomUUID()+"@example.com","API","Admin","test-hash",PlatformRole.ADMIN);em.persist(apiUser);em.flush();
+        String token=jwt.generateAccessToken(apiUser);
         var response=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/projects/"+project.getId()+"/version")
                 .header("Authorization","Bearer "+token).contentType("application/json").content("{\"name\":\"HTTP economic example\"}"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk()).andReturn();
@@ -74,6 +76,14 @@ class PostgreSqlEconomicIT {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(economic+"/configuration")
                 .header("Authorization","Bearer "+token).contentType("application/json").content(config))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk());
+        String joint="/projects/"+project.getId()+"/versions/"+versionId+"/scenario-configuration";
+        var jointResponse=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(joint).header("Authorization","Bearer "+token))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk()).andReturn();
+        var jointState=MAPPER.treeToValue(MAPPER.readTree(jointResponse.getResponse().getContentAsString()).path("data"),org.enerscope.scenario.dto.ScenarioConfigurationDTO.class);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(joint).header("Authorization","Bearer "+token)
+                .contentType("application/json").content(MAPPER.writeValueAsString(publication(jointState))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.data.errors").isEmpty());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(economic+"/evaluations")
                 .header("Authorization","Bearer "+token))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isCreated())
@@ -88,11 +98,13 @@ class PostgreSqlEconomicIT {
         SecurityContextHolder.clearContext();
         new EconomicJobWorker(jobs,codec,adapter,engine,statistics,logger).process(claimed);
         em.flush();em.clear();
-        var finished=em.find(org.enerscope.economic.model.EconomicJob.class,jobId);
+        var finished=em.find(org.enerscope.economic.model.Simulation.class,jobId);
         assertEquals(org.enerscope.economic.model.enums.EconomicJobStatus.COMPLETED,finished.getStatus());
         assertEquals(2,finished.getCompletedRounds());
         var snapshot=MAPPER.readTree(em.find(org.enerscope.economic.model.EconomicEvaluation.class,finished.getEvaluationId()).getSnapshotJson());
-        assertEquals(3,snapshot.path("schemaVersion").asInt());
+        assertEquals(4,snapshot.path("schemaVersion").asInt());
+        assertTrue(snapshot.path("configuration").isNull());
+        assertNotNull(finished.getScenarioRevisionId());
         assertEquals(0,new BigDecimal("169.20").compareTo(snapshot.path("summary").path("npv").path("mean").decimalValue()));
         assertTrue(snapshot.path("result").isNull());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(economic+"/evaluations/"+finished.getEvaluationId()+"/rounds/2")
@@ -108,19 +120,22 @@ class PostgreSqlEconomicIT {
             Well well=(Well)original; String old=well.getId().toString(); ReflectionTestUtils.setField(well,"id",null);
             well.setType(new NodeTypeData(VerticalEnum.EXTRACTION,StructuralRoleEnum.GENERATOR,NodeTypeEnum.WELL));
             well.setGraphData(new NodeGraphData(new org.enerscope.node.model.GraphPosition(0d,0d), null));well.setInvestmentCost(new InvestmentCost(new ArrayList<>()));
-            well.setUpkeepCosts(MoneyAmount.of(0));well.setOperatingCosts(MoneyAmount.of(0));well.setDTMCost(MoneyAmount.of(0));well.setIdentityId(UUID.randomUUID());
+            well.setUpkeepCosts(MoneyAmount.of(0));well.setOperatingCosts(MoneyAmount.of(0));well.setDTMCost(MoneyAmount.of(0));well.setIdentityId(UUID.randomUUID());well.setDeclineCurve(new org.enerscope.probabilistic.ConstantValue(0));
             em.persist(well);ids.put(old,well.getId().toString());nodes.add(well);
         }
         Organization organization=new Organization("Economic integration");em.persist(organization);
         Project project=new Project("Economic integration","Disposable fixture",organization);
         Version version=new Version("Economic integration",null,nodes,List.of(),new ArrayList<>(),new ArrayList<>(),new ArrayList<>());
         em.persist(version);project.addVersion(version);em.persist(project);em.flush();
-        var caller=User.fromJwtClaims(UUID.randomUUID(),"admin@example.com","Admin","Test",PlatformRole.ADMIN);
+        var caller=new User("admin-"+UUID.randomUUID()+"@example.com","Admin","Test","test-hash",PlatformRole.ADMIN);em.persist(caller);
         var auth=new UsernamePasswordAuthenticationToken(caller.getId(),null,List.of());
         auth.setDetails(new Session("test",caller,Instant.now().plusSeconds(3600)));SecurityContextHolder.getContext().setAuthentication(auth);
         String json=MAPPER.writeValueAsString(configuration()); for(var entry:ids.entrySet()) json=json.replace(entry.getKey(),entry.getValue());
         EconomicConfiguration config=MAPPER.readValue(json,EconomicConfiguration.class);
         service.save(project.getId(),version.getId(),config);
+        var published=scenarios.save(project.getId(),version.getId(),publication(scenarios.get(project.getId(),version.getId())));
+        assertTrue(published.errors().isEmpty(),published.errors().toString());
+        assertNull(published.draft());
         var evaluation=service.evaluate(project.getId(),version.getId());
         assertEquals(new BigDecimal("169.20"),evaluation.snapshot().result().npv());
         var changed=(com.fasterxml.jackson.databind.node.ObjectNode)MAPPER.valueToTree(config);changed.put("wacc",0);
@@ -128,7 +143,7 @@ class PostgreSqlEconomicIT {
         UUID projectId=project.getId(), versionId=version.getId();em.flush();em.clear();
         var loaded=service.getEvaluation(projectId,versionId,evaluation.id());
         assertEquals(new BigDecimal("169.20"),loaded.snapshot().result().npv());
-        assertEquals(2, loaded.snapshot().schemaVersion());
+        assertEquals(4, loaded.snapshot().schemaVersion());
         assertEquals(evaluation.snapshot().result().indicators(), loaded.snapshot().result().indicators());
         assertEquals(org.enerscope.economic.model.enums.IndicatorOrigin.STORED, loaded.snapshot().result().indicators().origin());
         assertEquals(5, loaded.snapshot().result().indicators().discountedPayback().period());
@@ -149,14 +164,14 @@ class PostgreSqlEconomicIT {
         em.persist(current);
         Project project=new Project("Interrupted jobs","Disposable fixture",organization);project.addVersion(current);em.persist(project);
         String input=MAPPER.writeValueAsString(codec.freeze(version(),configuration(),2,42));
-        var queued=new org.enerscope.economic.model.EconomicJob(current,input,2,"42");
-        var running=new org.enerscope.economic.model.EconomicJob(current,input,2,"42");
+        var queued=new org.enerscope.economic.model.Simulation(current,input,2,"42");
+        var running=new org.enerscope.economic.model.Simulation(current,input,2,"42");
         ReflectionTestUtils.setField(running,"status",org.enerscope.economic.model.enums.EconomicJobStatus.RUNNING);
         em.persist(queued);em.persist(running);em.flush();
         UUID queuedId=queued.getId(),runningId=running.getId(),projectId=project.getId(),versionId=current.getId();
         jobs.interruptPending();em.clear();
         for(UUID id:List.of(queuedId,runningId)) {
-            var interrupted=em.find(org.enerscope.economic.model.EconomicJob.class,id);
+            var interrupted=em.find(org.enerscope.economic.model.Simulation.class,id);
             assertEquals(org.enerscope.economic.model.enums.EconomicJobStatus.INTERRUPTED,interrupted.getStatus());
             assertNotNull(interrupted.getFinishedAt());assertEquals(input,interrupted.getInputJson());
         }
@@ -167,14 +182,14 @@ class PostgreSqlEconomicIT {
         var repeated=jobs.retry(projectId,versionId,queuedId);
         assertNotEquals(queuedId,repeated.id());assertEquals("42",repeated.seed());assertEquals(0,repeated.completedRounds());
         em.flush();em.clear();
-        assertEquals(input,em.find(org.enerscope.economic.model.EconomicJob.class,repeated.id()).getInputJson());
-        assertEquals(input,em.find(org.enerscope.economic.model.EconomicJob.class,queuedId).getInputJson());
+        assertEquals(input,em.find(org.enerscope.economic.model.Simulation.class,repeated.id()).getInputJson());
+        assertEquals(input,em.find(org.enerscope.economic.model.Simulation.class,queuedId).getInputJson());
         var claimed=jobs.claimNext();assertEquals(repeated.id(),claimed.id());
         SecurityContextHolder.clearContext();
         new EconomicJobWorker(jobs,codec,adapter,engine,statistics,logger).process(claimed);
         em.flush();em.clear();
         assertEquals(org.enerscope.economic.model.enums.EconomicJobStatus.COMPLETED,
-                em.find(org.enerscope.economic.model.EconomicJob.class,repeated.id()).getStatus());
+                em.find(org.enerscope.economic.model.Simulation.class,repeated.id()).getStatus());
     }
 
     @Test void historicalIndicatorsAreDerivedWithoutUpdatingPersistedJson() throws Exception {
@@ -208,5 +223,12 @@ class PostgreSqlEconomicIT {
         assertEquals(0, single.snapshot().configuration().wacc().compareTo(new BigDecimal("0.1")));
         em.flush(); em.clear();
         assertEquals(original, em.find(org.enerscope.economic.model.EconomicEvaluation.class, evaluationId).getSnapshotJson());
+    }
+
+    private org.enerscope.scenario.dto.ScenarioConfigurationDTO.SaveRequest publication(org.enerscope.scenario.dto.ScenarioConfigurationDTO state) {
+        var operations=new HashMap<UUID,Map<String,com.fasterxml.jackson.databind.JsonNode>>();
+        state.nodes().forEach(node->operations.put(node.id(),new TreeMap<>(node.values())));
+        return new org.enerscope.scenario.dto.ScenarioConfigurationDTO.SaveRequest(state.token(),state.sourceToken(),
+            MAPPER.valueToTree(Map.of("mode","advanced","value",state.configuration())),MAPPER.valueToTree(state.configuration()),operations);
     }
 }

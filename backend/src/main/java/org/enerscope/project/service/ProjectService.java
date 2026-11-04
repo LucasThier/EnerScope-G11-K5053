@@ -35,6 +35,7 @@ import java.util.UUID;
 
 @Service
 public class ProjectService {
+        @org.springframework.beans.factory.annotation.Autowired private org.enerscope.scenario.service.ScenarioRevisionService scenarioRevisions;
 
         private final ProjectRepository projectRepository;
         private final ProjectMemberRepository projectMemberRepository;
@@ -327,6 +328,7 @@ public class ProjectService {
 
                 project.addVersion(version);
                 projectRepository.save(project);
+                if(scenarioRevisions!=null) scenarioRevisions.registerNew(version);
 
                 logger.info("Created version {} in project {}", version.getName(), project.getName());
                 return version;

@@ -2163,7 +2163,6 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 
 - 2026-10-16 — Current checkout cannot clean-build the probabilistic backend because required physical distribution sources are absent. Local runtime was patched from the previously validated October 15 build, with ProjectService and its tests replaced; do not treat this as validation of the entire current checkout.
 
-
 - 2026-10-20 — **Separate scenario configuration and execution**
   - Configuration owns economic and operational edits; execution owns rounds/seed and submits without saving. Map frontend and physical simulation behavior are unchanged.
   - Joint invalid edits persist as drafts without partial publication; both legacy and joint drafts block new evaluations. Historical retry retains frozen inputs.
@@ -2196,3 +2195,16 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - 2026-10-26 — REMOVED nodes are excluded from current scenario operations, economic node eligibility, version summaries and newly frozen simulation inputs. Their touching connections are excluded from new inputs. Stored version rows, source tokens, historical results and historical retry inputs remain intact. Existing economic references to deleted nodes require review rather than silent financial-rule changes. Execution history can be minimized while polling continues and errors remain visible.
 
 - 2026-10-26 — Result CSV exports are generated client-side from the selected immutable evaluation. Annual financial exports include all accounting columns and indicators at stored precision. Operational exports contain the selected node with the same saved unit conversions as the UI. Round exports identify the round; summary exports contain all nodes and statistical/status/probability rows. Files use UTF-8 BOM, comma separators, quoted cells, CRLF, decimal points and blank missing values; text formula prefixes are escaped. No simulation or backend mutation is performed.
+
+- 2026-11-03 — **Configure existing versions only**
+  - Scenario configuration listing no longer creates versions: removed the button, inline form, local creation state, submission handler and its mutation call. Labels now say Versión / Buscar Versión; the subtitle directs users to select an available version. Empty projects point to Versionado.
+  - Backend audit: the removed action called the shared ProjectController POST /projects/{projectId}/version endpoint. There is no dedicated scenario-creation endpoint or service to delete. The shared endpoint remains required by Versionado and the previously authorized simple-copy workflow. No existing version, evaluation, permission or database row was removed.
+
+- 2026-11-03 — **Evaluation tabs and job visibility**
+  - History/Results navigation uses an active background, bold text and underline, preserving aria-current and visible keyboard focus. Nested evaluation result URLs highlight Results.
+  - EconomicJobs is mounted only in History. Switching to Results removes the execution list and its polling; returning to History reloads progress. Background server jobs continue independently.
+
+- 2026-11-03 — **Compact probabilistic summary**
+  - Summary visuals use immutable stored statistics only. Cards show mean NPV, positive-NPV frequency, median calculable IRR and discounted recovery frequency with their denominators. No indicators are recalculated from average cash flows.
+  - SVG ranges/annual bands show P10/P50/P90; ranges of different indicators use independent scales. Annual plots split missing values/periods and expose values by pointer, keyboard and touch. Static drawing respects reduced-motion without animation. Recovery bars use applicable/determined rounds; median recovery uses only recovered rounds.
+  - No-dispersion text requires equal saved extrema, not just equal percentiles. A zero denominator is unavailable, never 0%. Operational selection remains node-specific with snapshot conversions. Complete tables are collapsed initially; CSV and individual-round/historical views retain their existing data.

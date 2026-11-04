@@ -16,5 +16,6 @@ export interface ScenarioConfiguration {
  nodes: OperationalNode[]; draft: ScenarioSave | null;
  legacyDraft: { schemaVersion: number; draft: EconomicDraft } | null;
  errors: string[];
+ revision?: { revisionId: string; number: number; workspaceChanges: boolean; canPublish: boolean };
 }
-export interface ScenarioReadiness { versionId: string; ready: boolean; errors: string[] }
+export interface ScenarioReadiness { versionId: string; ready: boolean; errors: string[]; revisionNumber?: number; years?: number | null; lastSimulation?: string | null; resultsState?: string }

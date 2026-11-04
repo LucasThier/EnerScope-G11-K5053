@@ -145,7 +145,7 @@ public class ProjectController {
         return Responses.ok("Member candidates", projectService.listMemberCandidates(projectId, q));
     }
 
-    @PostMapping(value = "/{projectId}/version", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = {"/{projectId}/version", "/{projectId}/scenarios"}, consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Create a new version", description = "Create a new Version with all required properties.")
     public ResponseEntity<ApiResponse<Version>> createVersion(
             @PathVariable UUID projectId,

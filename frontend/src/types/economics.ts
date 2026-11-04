@@ -69,6 +69,7 @@ export interface AnnualNodeMetrics {
 }
 export interface PhysicalNodeSnapshot { id: string; name?: string | null }
 export interface Evaluation {
+  revision?: { id: string; number: number; outdated: boolean } | null;
   id: string; createdAt: string;
   snapshot: { simulation?: SimulationMetadata | null; summary?: ProbabilisticSummary | null; schemaVersion: number; rawMetrics?: AnnualNodeMetrics[] | null; physicalNodes?: PhysicalNodeSnapshot[] | null; configuration: EconomicConfiguration | null;
     result: { npv: number | null; indicators: Indicators | null; periods: EconomicPeriod[] | null;

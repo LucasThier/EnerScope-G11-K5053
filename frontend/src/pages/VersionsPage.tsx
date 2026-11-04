@@ -1,3 +1,4 @@
+import { ScenarioRevisionHistory } from '../components/versions/ScenarioRevisionHistory';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
@@ -6,7 +7,7 @@ import { Card } from '../components/ui/Card';
 import { PageLoader } from '../components/ui/PageLoader';
 import { PlusIcon } from '../components/ui/icons';
 import { DeleteVersionDialog } from '../components/versions/DeleteVersionDialog';
-import { MergeVersionDialog } from '../components/versions/MergeVersionDialog';
+import { RevisionMergeDialog } from '../components/versions/RevisionMergeDialog';
 import { NewVersionModal } from '../components/versions/NewVersionModal';
 import { ResolveConflictsDialog } from '../components/versions/ResolveConflictsDialog';
 import { VersionTree } from '../components/versions/VersionTree';
@@ -30,10 +31,10 @@ export function VersionsPage() {
 function VersionsWorkspace({ projectId }: { projectId?: string }) {
   const { user } = useAuth();
   const { projects, isLoading: projectsLoading } = useActiveProject();
-  const { versions, loading, error, errorStatus, reload, deleteVersion, mergeVersion } = useVersions(
+  const { versions, loading, error, errorStatus, reload, deleteVersion } = useVersions(
     projectId ?? null,
   );
-  const { unresolvedByVersion, reload: reloadConflicts, reloadVersion } =
+  const { unresolvedByVersion, reloadVersion } =
     useVersionConflicts(versions);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleting, setDeleting] = useState<PendingDeletion | null>(null);
@@ -56,34 +57,6 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
   );
   const mergeParent = useMemo(() => parentOf(merging), [parentOf, merging]);
   const resolveParent = useMemo(() => parentOf(resolving), [parentOf, resolving]);
-  const mergeSiblings = useMemo(
-    () =>
-      merging
-        ? versions.filter(
-            (candidate) =>
-              candidate.parentVersionId === merging.parentVersionId &&
-              candidate.id !== merging.id,
-          )
-        : [],
-    [versions, merging],
-  );
-
-  const handleMerge = useCallback(
-    async (subId: string) => {
-      await mergeVersion(subId);
-      await reloadConflicts();
-    },
-    [mergeVersion, reloadConflicts],
-  );
-
-  const openResolve = useCallback(
-    (versionId: string) => {
-      setMerging(null);
-      setResolving(versions.find((candidate) => candidate.id === versionId) ?? null);
-    },
-    [versions],
-  );
-
   const handleMergeNow = useCallback((version: VersionSummary) => {
     setResolving(null);
     setMerging(version);
@@ -153,6 +126,8 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
         )}
       </Card>
 
+      <ScenarioRevisionHistory projectId={projectId} scenarios={versions} />
+
       <ResolveConflictsDialog
         version={resolving}
         parent={resolveParent}
@@ -180,15 +155,7 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
             onClose={() => setDeleting(null)}
           />
 
-          <MergeVersionDialog
-            version={merging}
-            parent={mergeParent}
-            siblings={mergeSiblings}
-            onMerge={handleMerge}
-            onRefresh={reload}
-            onResolveConflicts={openResolve}
-            onClose={() => setMerging(null)}
-          />
+          {merging && mergeParent && <RevisionMergeDialog key={merging.id} projectId={projectId} source={merging} target={mergeParent} onClose={() => { setMerging(null); void reload(); }} />}
         </>
       )}
     </div>

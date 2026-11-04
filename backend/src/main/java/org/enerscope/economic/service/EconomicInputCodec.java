@@ -47,6 +47,23 @@ public class EconomicInputCodec {
         mapper.addMixIn(ProbabilisticDistribution.class, DistributionType.class);
     }
 
+    /** Complete persisted configuration, including presentation and inactive nodes, without execution parameters. */
+    public record RevisionContent(EconomicConfiguration configuration, List<PhysicalNode> nodes, JsonNode connections) {}
+
+    public RevisionContent captureRevision(Version version, EconomicConfiguration configuration) {
+        List<PhysicalNode> nodes = version.getNodeSnapshot().stream().map(node -> {
+            var type = TYPES.stream().filter(t -> t.isInstance(node)).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Unsupported physical node"));
+            return new PhysicalNode(type.getSimpleName(), mapper.valueToTree(node));
+        }).toList();
+        return new RevisionContent(configuration, nodes, mapper.valueToTree(version.getConnectionSnapshot()));
+    }
+
+    public Version restoreRevision(String name, RevisionContent content) {
+        var metadata = new SimulationMetadata(1, "0", Simulator.ALGORITHM, Simulator.CALCULATION_VERSION);
+        return thaw(new FrozenEconomicInput(content.configuration(), name, content.nodes(), content.connections(), metadata));
+    }
+
     public JsonNode physicalNodes(Version version) { return mapper.valueToTree(version.getNodeSnapshot()); }
 
     /** Validate proposed values before publishing any managed entity changes. */

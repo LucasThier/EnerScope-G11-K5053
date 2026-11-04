@@ -32,8 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.AllArgsConstructor;
 
 @Service
-@AllArgsConstructor
+@lombok.RequiredArgsConstructor
 public class VersionConflictService {
+    @org.springframework.beans.factory.annotation.Autowired private org.enerscope.scenario.service.ScenarioRevisionService scenarioRevisions;
 
     private final VersionRepository versionRepository;
     private final VersionConflictRepository conflictRepository;
@@ -153,6 +154,7 @@ public class VersionConflictService {
         VersionConflict conflict = conflictRepository.findById(conflictId)
                 .orElseThrow(() -> new EntityNotFoundException("Version conflict not found with id: " + conflictId));
         accessGuard.assertCanManageVersion(conflict.getConflictingVersion().getId());
+        if(scenarioRevisions!=null)scenarioRevisions.beforeWorkspaceEdit(conflict.getConflictingVersion());
 
         if (conflict.getEntityType() == ConflictEntityType.NODE) {
             resolveNodeConflict(conflict, decision);
