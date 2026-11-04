@@ -3,7 +3,6 @@ import { createContext, useContext, type RefObject } from 'react';
 export type SidebarOrigin = 'route' | 'pointer' | 'hover' | 'keyboard';
 
 export interface SidebarContextValue {
-  isPinned: boolean;
   origin: SidebarOrigin | null;
   isVisible: boolean;
   pushes: boolean;
@@ -12,7 +11,6 @@ export interface SidebarContextValue {
   menuButtonRef: RefObject<HTMLButtonElement | null>;
   panelRef: RefObject<HTMLElement | null>;
   toggleFromButton: (viaKeyboard: boolean) => void;
-  togglePinned: () => void;
   close: () => void;
   keepOpen: () => void;
 }

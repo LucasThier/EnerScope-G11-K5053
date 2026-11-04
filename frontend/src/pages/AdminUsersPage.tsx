@@ -2,9 +2,9 @@ import { useId, useMemo, useState } from 'react';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { controlClasses } from '../components/ui/controlClasses';
 import { FilterSelect } from '../components/ui/FilterSelect';
-import { PlusIcon, SearchIcon } from '../components/ui/icons';
+import { SearchField } from '../components/ui/SearchField';
+import { PlusIcon } from '../components/ui/icons';
 import { ChangeRoleModal } from '../components/users/ChangeRoleModal';
 import { DeactivateUserDialog } from '../components/users/DeactivateUserDialog';
 import { NewUserModal } from '../components/users/NewUserModal';
@@ -104,20 +104,14 @@ export function AdminUsersPage() {
 
       <Card padded={false} className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-ink-100 px-4 py-4">
-          <div className="relative min-w-56 flex-1">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-            <label htmlFor={searchId} className="sr-only">
-              Buscar usuarios
-            </label>
-            <input
-              id={searchId}
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nombre, email o puesto"
-              className={`w-full pl-9 placeholder:text-ink-500 ${controlClasses}`}
-            />
-          </div>
+          <SearchField
+            id={searchId}
+            label="Buscar usuarios"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, email o puesto"
+            wrapperClassName="min-w-56 flex-1"
+          />
           <FilterSelect
             label="Filtrar por rol"
             value={role}

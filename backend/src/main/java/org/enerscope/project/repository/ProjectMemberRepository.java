@@ -54,4 +54,27 @@ public interface ProjectMemberRepository extends JpaRepository<ProjectMember, UU
             """)
     List<ProjectMember> findByUserInOrganization(@Param("userId") UUID userId,
                                                  @Param("organizationId") UUID organizationId);
+
+    @Query("""
+            SELECT COUNT(DISTINCT p) FROM Project p
+            WHERE p.organization.id = :organizationId
+              AND p.active = true
+              AND EXISTS (
+                  SELECT 1 FROM ProjectMember pmLeaving
+                  JOIN pmLeaving.roles rLeaving
+                  WHERE pmLeaving.project = p
+                    AND pmLeaving.user.id = :userId
+                    AND pmLeaving.active = true
+                    AND pmLeaving.user.active = true
+                    AND rLeaving.memberType = org.enerscope.project.model.enums.ProjectMemberType.ADMIN)
+              AND (
+                  SELECT COUNT(DISTINCT pmAdmin) FROM ProjectMember pmAdmin
+                  JOIN pmAdmin.roles rAdmin
+                  WHERE pmAdmin.project = p
+                    AND pmAdmin.active = true
+                    AND pmAdmin.user.active = true
+                    AND rAdmin.memberType = org.enerscope.project.model.enums.ProjectMemberType.ADMIN) <= 1
+            """)
+    long countProjectsLeftWithoutAdmin(@Param("userId") UUID userId,
+                                       @Param("organizationId") UUID organizationId);
 }

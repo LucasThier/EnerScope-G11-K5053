@@ -37,6 +37,22 @@ public interface OrganizationRepository extends JpaRepository<Organization, UUID
     @Query("""
             SELECT DISTINCT new org.enerscope.organization.dto.OrganizationDTO(
                     o.id, o.name, o.createdAt, o.active,
+                    (SELECT COUNT(om) FROM OrganizationMember om WHERE om.organization = o),
+                    r.memberType)
+            FROM Organization o
+            JOIN o.members m
+            LEFT JOIN m.roles r
+            WHERE o.active = true
+              AND m.active = true
+              AND m.user.id = :userId
+              AND m.user.active = true
+            ORDER BY o.name
+            """)
+    List<OrganizationDTO> findSummariesForMemberWithRole(@Param("userId") UUID userId);
+
+    @Query("""
+            SELECT DISTINCT new org.enerscope.organization.dto.OrganizationDTO(
+                    o.id, o.name, o.createdAt, o.active,
                     (SELECT COUNT(om) FROM OrganizationMember om WHERE om.organization = o))
             FROM Organization o
             JOIN o.members m

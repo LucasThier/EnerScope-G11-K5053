@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -72,14 +73,36 @@ public class OrganizationService {
     /**
      * Organizations visible to the current caller: a platform ADMIN sees every
      * organization; anyone else sees the organizations they are a member of.
+     * Each row carries the caller's {@code memberType} when they hold an active
+     * membership in it, and {@code null} otherwise.
      */
     @Transactional(readOnly = true)
     public List<OrganizationDTO> listForCurrentUser() {
         User caller = AuthUtil.requireSession().getUser();
-        if (AuthUtil.isPlatformAdmin(caller)) {
-            return organizationRepository.findSummaries();
+        List<OrganizationDTO> visible = AuthUtil.isPlatformAdmin(caller)
+                ? organizationRepository.findSummaries()
+                : organizationRepository.findSummariesForMember(caller.getId());
+
+        Map<UUID, OrganizationMemberType> callerTypes = new HashMap<>();
+        for (OrganizationDTO membership : organizationRepository.findSummariesForMemberWithRole(caller.getId())) {
+            if (membership.memberType() != null) {
+                callerTypes.putIfAbsent(membership.id(), membership.memberType());
+            }
         }
-        return organizationRepository.findSummariesForMember(caller.getId());
+        return visible.stream()
+                .map(organization -> organization.withMemberType(callerTypes.get(organization.id())))
+                .toList();
+    }
+
+    /**
+     * Only the active organizations where the caller holds an active
+     * membership, each with the caller's {@code memberType}. Platform admins
+     * get the same filter, so one with no memberships receives an empty list.
+     */
+    @Transactional(readOnly = true)
+    public List<OrganizationDTO> listMineForCurrentUser() {
+        User caller = AuthUtil.requireSession().getUser();
+        return organizationRepository.findSummariesForMemberWithRole(caller.getId());
     }
 
     /**
@@ -195,6 +218,9 @@ public class OrganizationService {
             return member;
         }
 
+        if (newType != OrganizationMemberType.OWNER) {
+            assertNotLastOwner(organizationId, member);
+        }
         member.changeRole(newType, DEFAULT_PERMISSIONS.get(newType));
         OrganizationMember saved = organizationMemberRepository.save(member);
         logger.info("Changed the role of user {} in organization {} to {}",
@@ -236,7 +262,11 @@ public class OrganizationService {
                 .findByIdAndOrganizationId(memberId, organizationId)
                 .orElseThrow(() -> new EntityNotFoundException("Member not found"));
 
+        assertNotLastOwner(organizationId, member);
+
         User user = member.getUser();
+        assertNoProjectLeftWithoutAdmin(user.getId(), organizationId);
+
         List<ProjectMember> projectMemberships =
                 projectMemberRepository.findByUserInOrganization(user.getId(), organizationId);
         if (!projectMemberships.isEmpty()) {
@@ -337,6 +367,23 @@ public class OrganizationService {
     private void requireActiveOrganization(UUID organizationId) {
         if (!organizationRepository.existsByIdAndActiveTrue(organizationId)) {
             throw new IllegalArgumentException("Organization not found");
+        }
+    }
+
+    private void assertNotLastOwner(UUID organizationId, OrganizationMember member) {
+        boolean countsAsOwner = member.isActive()
+                && member.getUser().isActive()
+                && member.getRoles().stream()
+                        .anyMatch(role -> role.getMemberType() == OrganizationMemberType.OWNER);
+        if (countsAsOwner && organizationMemberRepository.countOwnersByOrganization(organizationId) <= 1) {
+            throw new IllegalArgumentException("The organization would be left without an owner");
+        }
+    }
+
+    private void assertNoProjectLeftWithoutAdmin(UUID userId, UUID organizationId) {
+        if (projectMemberRepository.countProjectsLeftWithoutAdmin(userId, organizationId) > 0) {
+            throw new IllegalArgumentException(
+                    "A project in this organization would be left without an administrator");
         }
     }
 

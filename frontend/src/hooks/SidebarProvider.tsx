@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useLocalPreference } from './useLocalPreference';
 import { SidebarContext, type SidebarContextValue, type SidebarOrigin } from './useSidebar';
 
-const PINNED_KEY = 'sidebarPinned';
 const DESKTOP_QUERY = '(min-width: 64rem)';
 const HOME_PATH = '/app';
 const ENTRY_PATH = '/';
@@ -38,9 +36,8 @@ function hasOpenMenu(): boolean {
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
-  const [isPinned, setIsPinned] = useLocalPreference(PINNED_KEY, false);
   const [origin, setOrigin] = useState<SidebarOrigin | null>(() =>
-    !isPinned && pathname === HOME_PATH && readDesktop() ? 'route' : null,
+    pathname === HOME_PATH && readDesktop() ? 'route' : null,
   );
   const [isDesktop, setIsDesktop] = useState(readDesktop);
 
@@ -49,9 +46,8 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   const leaveTimer = useRef<number | null>(null);
   const menuId = useId();
 
-  const isLocked = isPinned && isDesktop;
-  const isVisible = isLocked || origin !== null;
-  const pushes = isDesktop && (isPinned || origin === 'route');
+  const isVisible = origin !== null;
+  const pushes = isDesktop && origin === 'route';
   const isDrawer = !isDesktop;
 
   const clearLeaveTimer = useCallback(() => {
@@ -78,27 +74,13 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     (viaKeyboard: boolean) => {
       clearLeaveTimer();
       if (isVisible) {
-        if (isPinned) {
-          setIsPinned(false);
-        }
         setOrigin(null);
         return;
       }
       setOrigin(viaKeyboard ? 'keyboard' : 'pointer');
     },
-    [isVisible, isPinned, setIsPinned, clearLeaveTimer],
+    [isVisible, clearLeaveTimer],
   );
-
-  const togglePinned = useCallback(() => {
-    clearLeaveTimer();
-    if (isPinned) {
-      setIsPinned(false);
-      setOrigin('pointer');
-      return;
-    }
-    setIsPinned(true);
-    setOrigin(null);
-  }, [isPinned, setIsPinned, clearLeaveTimer]);
 
   const keepOpen = useCallback(() => {
     clearLeaveTimer();
@@ -151,16 +133,16 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     previousPath.current = pathname;
     if (!hasEntered.current) {
       hasEntered.current = true;
-      if (!isPinned && isDesktop && pathname === HOME_PATH) {
+      if (isDesktop && pathname === HOME_PATH) {
         setOrigin('route');
         return;
       }
     }
     close();
-  }, [pathname, close, isPinned, isDesktop]);
+  }, [pathname, close, isDesktop]);
 
   useEffect(() => {
-    if (isPinned || !isDesktop || isVisible) {
+    if (!isDesktop || isVisible) {
       return;
     }
     let intentTimer: number | null = null;
@@ -191,7 +173,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('pointermove', onPointerMove);
       cancel();
     };
-  }, [isPinned, isDesktop, isVisible, open]);
+  }, [isDesktop, isVisible, open]);
 
   useEffect(() => {
     if (!isDesktop || (origin !== 'hover' && origin !== 'pointer')) {
@@ -238,7 +220,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   }, [isVisible, pushes, close]);
 
   useEffect(() => {
-    if (!isVisible || isLocked) {
+    if (!isVisible) {
       return;
     }
     function onKeyDown(event: KeyboardEvent) {
@@ -250,7 +232,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     }
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isVisible, isLocked, close]);
+  }, [isVisible, close]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -264,22 +246,14 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
         return;
       }
       event.preventDefault();
-      if (isVisible) {
-        if (isPinned) {
-          setIsPinned(false);
-        }
-        close();
-        return;
-      }
-      open('keyboard');
+      toggleFromButton(true);
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isVisible, isPinned, setIsPinned, close, open]);
+  }, [toggleFromButton]);
 
   const value = useMemo<SidebarContextValue>(
     () => ({
-      isPinned,
       origin,
       isVisible,
       pushes,
@@ -288,22 +262,10 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
       menuButtonRef,
       panelRef,
       toggleFromButton,
-      togglePinned,
       close,
       keepOpen,
     }),
-    [
-      isPinned,
-      origin,
-      isVisible,
-      pushes,
-      isDrawer,
-      menuId,
-      toggleFromButton,
-      togglePinned,
-      close,
-      keepOpen,
-    ],
+    [origin, isVisible, pushes, isDrawer, menuId, toggleFromButton, close, keepOpen],
   );
 
   return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;

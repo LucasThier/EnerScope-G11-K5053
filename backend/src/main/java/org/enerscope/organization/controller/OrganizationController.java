@@ -57,9 +57,14 @@ public class OrganizationController {
 
     @GetMapping
     @Operation(summary = "List organizations",
-            description = "Platform admins get every organization; other users get the ones they belong to.")
-    public ResponseEntity<ApiResponse<List<OrganizationDTO>>> listOrganizations() {
-        return Responses.ok("Organizations", organizationService.listForCurrentUser());
+            description = "Platform admins get every organization; other users get the ones they belong to. "
+                    + "With mine=true, only the organizations where the caller has an active membership "
+                    + "(admins included). memberType is the caller's role there, or null.")
+    public ResponseEntity<ApiResponse<List<OrganizationDTO>>> listOrganizations(
+            @RequestParam(name = "mine", defaultValue = "false") boolean mine) {
+        return Responses.ok("Organizations", mine
+                ? organizationService.listMineForCurrentUser()
+                : organizationService.listForCurrentUser());
     }
 
     @PostMapping

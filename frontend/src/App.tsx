@@ -20,7 +20,9 @@ import { OrganizationTeamPage } from './pages/OrganizationTeamPage';
 import { ProjectTeamPage } from './pages/ProjectTeamPage';
 import { VersionsPage } from './pages/VersionsPage';
 import { VersionsIndexPage } from './pages/VersionsIndexPage';
+import { OrganizationMemberRoute } from './routes/OrganizationMemberRoute';
 import { OrganizationOwnerRoute } from './routes/OrganizationOwnerRoute';
+import { MyOrganizationsPage } from './pages/MyOrganizationsPage';
 
 const router = createBrowserRouter(createRoutesFromElements(<>
             <Route path="/login" element={<LoginPage />} />
@@ -46,6 +48,9 @@ const router = createBrowserRouter(createRoutesFromElements(<>
                     path="/settings"
                     element={<Navigate to="/profile#configuracion" replace />}
                   />
+                  <Route element={<OrganizationMemberRoute />}>
+                    <Route path="/organizations" element={<MyOrganizationsPage />} />
+                  </Route>
                   <Route element={<OrganizationOwnerRoute />}>
                     <Route
                       path="/organizations/:organizationId"

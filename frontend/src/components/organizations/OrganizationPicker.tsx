@@ -1,7 +1,10 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import type { OrganizationSummary } from '../../types/auth';
 import { getErrorMessage } from '../../api/errors';
 import { Button } from '../ui/Button';
+import { Field } from '../ui/Field';
+import { useField } from '../ui/useField';
+import { controlField } from '../ui/controlClasses';
 
 interface OrganizationPickerProps {
   organizations: OrganizationSummary[];
@@ -14,10 +17,6 @@ interface OrganizationPickerProps {
   emptyLabel?: string;
   className?: string;
 }
-
-const selectClasses =
-  'rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 ' +
-  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60';
 
 /**
  * Chooses an organization from the existing ones, with an inline "create a new
@@ -32,11 +31,13 @@ export function OrganizationPicker({
   emptyLabel = 'Sin organización',
   className = '',
 }: OrganizationPickerProps) {
-  const selectId = useId();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { fieldId, hintId, errorId, controlProps } = useField(undefined, {
+    error: error ?? undefined,
+  });
 
   async function handleCreate() {
     if (!name.trim() || submitting) return;
@@ -55,56 +56,57 @@ export function OrganizationPicker({
   }
 
   return (
-    <div className={`flex flex-col gap-2 ${className}`}>
-      <label htmlFor={selectId} className="text-sm font-medium text-ink-600">
-        Organización <span className="font-normal text-ink-500">(opcional)</span>
-      </label>
-
+    <Field
+      label="Organización (opcional)"
+      error={error ?? undefined}
+      fieldId={fieldId}
+      hintId={hintId}
+      errorId={errorId}
+      className={className}
+    >
       {creating ? (
         // No nested <form> here: this picker is rendered inside the create-user
         // form, and nested forms are invalid HTML (the inner submit would submit
         // the outer form and reload the page). Create runs via an onClick button
         // and an explicit Enter handler instead.
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            <input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  void handleCreate();
-                }
-              }}
-              placeholder="Nombre de la nueva organización"
-              className={`flex-1 ${selectClasses}`}
-            />
-            <Button type="button" loading={submitting} onClick={() => void handleCreate()} className="shrink-0">
-              Crear
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setCreating(false);
-                setError(null);
-                setName('');
-              }}
-            >
-              Cancelar
-            </Button>
-          </div>
-          {error && <span className="text-xs text-danger-600">{error}</span>}
+        <div className="flex gap-2">
+          <input
+            {...controlProps}
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                void handleCreate();
+              }
+            }}
+            placeholder="Nombre de la nueva organización"
+            className={`${controlField} flex-1`}
+          />
+          <Button type="button" loading={submitting} onClick={() => void handleCreate()} className="shrink-0">
+            Crear
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setCreating(false);
+              setError(null);
+              setName('');
+            }}
+          >
+            Cancelar
+          </Button>
         </div>
       ) : (
         <div className="flex gap-2">
           <select
-            id={selectId}
+            {...controlProps}
             value={value ?? ''}
             disabled={loading}
             onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
-            className={`flex-1 ${selectClasses} disabled:opacity-60`}
+            className={`${controlField} flex-1`}
           >
             <option value="">{loading ? 'Cargando organizaciones…' : emptyLabel}</option>
             {organizations.map((org) => (
@@ -118,6 +120,6 @@ export function OrganizationPicker({
           </Button>
         </div>
       )}
-    </div>
+    </Field>
   );
 }

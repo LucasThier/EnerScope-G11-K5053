@@ -19,6 +19,7 @@ import {
 } from '../components/editor/nodeCatalog';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
+import { controlCompact } from '../components/ui/controlClasses';
 import { Spinner } from '../components/ui/Spinner';
 import type { NodeDetail, NodeType, VersionSummary } from '../types/diagram';
 
@@ -56,9 +57,7 @@ function editStateFromDetail(detail: NodeDetail): EditState {
 
 const PANEL_WIDTH = 320;
 
-const selectClass =
-  'rounded-lg border border-ink-200 bg-surface px-2.5 py-1.5 text-sm text-ink-700 shadow-sm ' +
-  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60 disabled:opacity-50';
+const selectClass = controlCompact;
 
 /** A labelled select for the toolbar. */
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -74,7 +73,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function FloatingPanel({ style, children }: { style: CSSProperties; children: ReactNode }) {
   return (
     <div
-      className="absolute z-20 flex max-h-[calc(100%-2rem)] w-80 flex-col overflow-hidden rounded-2xl border border-ink-100 bg-raised shadow-xl ring-1 ring-black/5"
+      className="absolute z-20 flex max-h-[calc(100%-2rem)] w-80 flex-col overflow-hidden rounded-card border border-ink-100 bg-raised shadow-float"
       style={style}
     >
       {children}
@@ -421,7 +420,7 @@ function EditorWorkspace() {
                 </option>
               ))}
             </select>
-            <Button variant="ghost" onClick={handleCreateOrganization} className="px-2 py-1.5 text-xs">
+            <Button variant="ghost" size="compact" onClick={handleCreateOrganization} className="px-3">
               +
             </Button>
           </div>
@@ -449,7 +448,8 @@ function EditorWorkspace() {
               variant="ghost"
               onClick={handleCreateProject}
               disabled={!orgId}
-              className="px-2 py-1.5 text-xs"
+              size="compact"
+              className="px-3"
             >
               +
             </Button>
@@ -478,7 +478,8 @@ function EditorWorkspace() {
               variant="ghost"
               onClick={() => setIsNewVersionModalOpen(true)}
               disabled={!projectId}
-              className="px-2 py-1.5 text-xs"
+              size="compact"
+              className="px-3"
             >
               +
             </Button>
@@ -488,7 +489,7 @@ function EditorWorkspace() {
         <div className="mx-1 h-8 w-px self-center bg-ink-100" />
 
         <Field label="View">
-          <div className="inline-flex overflow-hidden rounded-lg border border-ink-200 shadow-sm">
+          <div className="inline-flex h-control-compact overflow-hidden rounded-control border border-control-border">
             {(['diagram', 'map'] as Mode[]).map((m) => (
               <button
                 key={m}
@@ -509,7 +510,7 @@ function EditorWorkspace() {
 
         {mode === 'map' && (
           <Field label="Projection">
-            <div className="inline-flex overflow-hidden rounded-lg border border-ink-200 shadow-sm">
+            <div className="inline-flex h-control-compact overflow-hidden rounded-control border border-control-border">
               {(['mercator', 'globe'] as Projection[]).map((p) => (
                 <button
                   key={p}
@@ -604,7 +605,7 @@ function EditorWorkspace() {
             {/* Rejected-connection warning */}
             {connectError && (
               <div className="absolute left-1/2 top-4 z-30 -translate-x-1/2">
-                <div className="flex items-center gap-3 rounded-full border border-warn-200 bg-warn-50 px-4 py-2 text-sm text-warn-800 shadow-md">
+                <div className="flex items-center gap-3 rounded-full border border-warn-200 bg-warn-50 px-4 py-2 text-sm text-warn-800 shadow-float">
                   <span>{connectError}</span>
                   <button
                     onClick={() => setConnectError(null)}
@@ -619,7 +620,7 @@ function EditorWorkspace() {
             {/* Connect-mode hint */}
             {connectingFrom && (
               <div className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2">
-                <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-brand-200 bg-brand-50 px-4 py-2 text-sm text-brand-800 shadow-md">
+                <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-brand-200 bg-brand-50 px-4 py-2 text-sm text-brand-800 shadow-float">
                   <span>
                     Connecting from <strong>{connectingNode?.name ?? 'node'}</strong> — click a target
                     node

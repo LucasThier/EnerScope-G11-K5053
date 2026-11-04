@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { Alert } from '../ui/Alert';
-import { controlClasses } from '../ui/controlClasses';
-import { SearchIcon } from '../ui/icons';
+import { SearchField } from '../ui/SearchField';
+import { SelectField } from '../ui/SelectField';
 import { AddMemberCard, type SelectedUser } from '../members/AddMemberCard';
 import { projectsApi } from '../../api/projects';
 import { getErrorMessage } from '../../api/errors';
@@ -82,23 +82,16 @@ export function AddProjectMemberCard({ projectId, onAdded }: AddProjectMemberCar
         <>
           {error && <Alert tone="error">{error}</Alert>}
 
-          <div className="relative">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-            <label htmlFor={searchId} className="sr-only">
-              Buscar por nombre, apellido o email
-            </label>
-            <input
-              id={searchId}
-              type="search"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setSelectedId('');
-              }}
-              placeholder="Buscar por nombre, apellido o email"
-              className={`w-full pl-9 placeholder:text-ink-500 ${controlClasses}`}
-            />
-          </div>
+          <SearchField
+            id={searchId}
+            label="Buscar por nombre, apellido o email"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelectedId('');
+            }}
+            placeholder="Buscar por nombre, apellido o email"
+          />
 
           {!loading && !error && candidates.length === 0 ? (
             <Alert tone="info">
@@ -107,27 +100,22 @@ export function AddProjectMemberCard({ projectId, onAdded }: AddProjectMemberCar
                 : 'Todas las personas de la organización ya integran este proyecto.'}
             </Alert>
           ) : (
-            <div className="flex flex-col gap-2">
-              <label htmlFor={candidateId} className="text-sm font-medium text-ink-600">
-                Persona
-              </label>
-              <select
-                id={candidateId}
-                value={selectedId}
-                onChange={(e) => setSelectedId(e.target.value)}
-                disabled={loading || error !== null}
-                className={controlClasses}
-              >
-                <option value="">
-                  {loading ? 'Cargando personas…' : `Elegí una persona (${candidates.length})`}
+            <SelectField
+              id={candidateId}
+              label="Persona"
+              value={selectedId}
+              onChange={(e) => setSelectedId(e.target.value)}
+              disabled={loading || error !== null}
+            >
+              <option value="">
+                {loading ? 'Cargando personas…' : `Elegí una persona (${candidates.length})`}
+              </option>
+              {candidates.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.firstName} {candidate.lastName} — {candidate.mail}
                 </option>
-                {candidates.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.firstName} {candidate.lastName} — {candidate.mail}
-                  </option>
-                ))}
-              </select>
-            </div>
+              ))}
+            </SelectField>
           )}
         </>
       }

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
 import { getErrorMessage } from '../../api/errors';
 
 interface RemoveMemberDialogProps {
@@ -53,14 +53,14 @@ export function RemoveMemberDialog({
 
         {warning && <Alert tone="error">{warning}</Alert>}
 
-        <div className="mt-2 flex justify-end gap-2">
+        <ModalFooter>
           <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
           <Button type="button" variant="danger" onClick={handleConfirm} loading={submitting}>
             Quitar integrante
           </Button>
-        </div>
+        </ModalFooter>
       </div>
     </Modal>
   );

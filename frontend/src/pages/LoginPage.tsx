@@ -1,97 +1,56 @@
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useTheme } from '../hooks/useTheme';
 import { LoginForm } from '../components/auth/LoginForm';
-import { Card } from '../components/ui/Card';
+import { LoginScene } from '../components/auth/LoginScene';
 import { Logo } from '../components/ui/Logo';
-import { NodeGraph } from '../components/ui/NodeGraph';
 import { PageLoader } from '../components/ui/PageLoader';
-
-const HEADLINE = 'Modelá toda la cadena de valor del GNL.';
-const SUBHEAD = 'Un solo espacio para los proyectos, escenarios y costos de tu equipo.';
-
-/** The three points carry their own numeral: it replaces the icon that used to
- * sit beside them and does the graphic work the icon was too small to do. */
-const HIGHLIGHTS = [
-  { number: '01', text: 'Mapeá la cadena de valor de un proyecto, nodo por nodo.' },
-  { number: '02', text: 'Simulá escenarios sobre un proyecto versionado.' },
-  { number: '03', text: 'Compará escenarios y sus costos en una sola vista.' },
-];
 
 export function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const { resolved } = useTheme();
   const navigate = useNavigate();
 
-  if (isLoading) {
-    return <PageLoader />;
-  }
-  if (isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
+  useDocumentTitle('Ingresar');
+
+  if (isLoading) return <PageLoader />;
+  if (isAuthenticated) return <Navigate to="/" replace />;
 
   return (
-    <div className="flex min-h-screen flex-col bg-page lg:flex-row">
-      <BrandPanel />
-      <div className="flex flex-1 items-center justify-center px-6 pt-10 pb-24">
-        <div className="w-full max-w-sm">
-          <div className="mb-8 flex justify-center lg:hidden">
-            <Logo variant="full" size="lg" tone={resolved === 'dark' ? 'light' : 'dark'} />
-          </div>
-          <Card elevation="md">
-            <h1 className="text-2xl font-semibold text-ink-800">Iniciar sesión</h1>
-            <p className="mt-1 mb-6 text-sm text-ink-500">
-              Ingresá tus credenciales para continuar.
+    <div className="relative isolate min-h-dvh overflow-x-clip bg-auth-page font-sans text-auth-heading">
+      <LoginScene />
+      <div className="relative mx-auto flex min-h-dvh max-w-[1680px] flex-col">
+        <header className="relative z-10 flex items-center justify-between gap-4 px-6 py-[clamp(0.75rem,2vh,1.5rem)] sm:px-10 lg:px-12 xl:px-16">
+          <Logo variant="full" size="sm" tone={resolved === 'dark' ? 'light' : 'dark'} />
+        </header>
+
+        <main className="grid flex-1 grid-cols-1 content-start pb-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] lg:items-start lg:gap-4 lg:pb-6 xl:gap-6">
+          <section aria-labelledby="login-headline" className="max-lg:[@media(max-height:850px)]:sr-only px-6 pt-4 sm:px-10 sm:pt-8 lg:col-start-1 lg:row-start-1 lg:pl-12 lg:pr-0 lg:pt-8 xl:pl-16">
+            <h1 id="login-headline" className="text-[clamp(2.125rem,4.75vw,4.625rem)] leading-[1.06] font-bold tracking-[-0.035em]">
+              <span className="block">Toda la cadena.</span>
+              <span className="block text-auth-accent">Una visión clara.</span>
+            </h1>
+            <p className="relative isolate mt-4 max-w-[34rem] before:pointer-events-none before:absolute before:-z-10 before:[inset:var(--auth-subtitle-halo-inset)] before:[border-radius:var(--auth-subtitle-halo-radius)] before:bg-auth-subtitle-halo before:[filter:blur(var(--auth-subtitle-halo-blur))] before:content-[''] text-base leading-relaxed text-auth-subtitle sm:text-xl sm:leading-7 xl:text-[1.375rem] xl:leading-8">
+              Modelá la cadena de valor del GNL y seguí cada versión de tu proyecto.
             </p>
-            <LoginForm onSuccess={() => navigate('/', { replace: true })} />
-          </Card>
-        </div>
+          </section>
+
+          <section aria-labelledby="login-title" className="relative z-10 mx-4 mt-2 rounded-[28px] border border-auth-panel/40 bg-linear-to-br from-auth-panel/65 via-auth-panel/55 to-auth-panel/50 px-6 py-[clamp(1rem,3vh,3rem)] text-auth-panel-ink shadow-[0_20px_80px_-24px_var(--color-auth-shadow)] backdrop-blur-[6px] [color-scheme:light] max-sm:border-auth-divider/65 max-sm:bg-none max-sm:bg-auth-panel max-sm:backdrop-blur-none sm:mx-auto sm:w-[calc(100%-5rem)] sm:max-w-[440px] sm:px-10 lg:col-start-2 lg:row-start-1 lg:mx-0 lg:mt-4 lg:w-[calc(100%-2.5rem)] lg:max-w-[440px] lg:justify-self-end lg:mr-10 xl:mr-16 xl:w-[calc(100%-4rem)] xl:px-10 ">
+            <h2 id="login-title" className="text-[clamp(1.875rem,2.8vw,2.5rem)] leading-tight font-bold tracking-[-0.035em]">Iniciar sesión</h2>
+            <p className="mt-3 text-base leading-6 text-auth-panel-ink">Ingresá tus credenciales para continuar.</p>
+            <LoginForm className="mt-[clamp(1rem,3vh,2.5rem)]" onSuccess={() => navigate('/', { replace: true })} />
+            {/* The footer's grey is legible on the opaque phone panel but not on the
+                glass one, where the photograph shows through behind 14px type, so
+                from `sm` up — exactly where the panel turns to glass — both lines
+                take the panel's ink. */}
+            <div className="mt-[clamp(1rem,3vh,2.5rem)] border-t border-auth-divider/65 pt-[clamp(0.75rem,2vh,2rem)]">
+              <h3 className="text-sm font-medium text-auth-panel-muted sm:text-auth-panel-ink-strong">¿Necesitás una cuenta?</h3>
+              <p className="mt-1 text-sm leading-6 text-auth-panel-muted sm:text-auth-panel-ink-strong">Contactá al administrador de tu organización.</p>
+            </div>
+          </section>
+        </main>
       </div>
     </div>
-  );
-}
-
-/**
- * Brand half of the sign-in screen: a solid ink-900 plate carrying an oversized
- * headline anchored to the bottom, with the value-chain network bleeding off
- * the top-right corner. The empty space sits above the type rather than below
- * it, which is what keeps the composition from reading as centred.
- *
- * It only appears from `lg` up, where the empty width is the problem it solves;
- * below that the layout collapses to the centred card with the logo above it.
- */
-function BrandPanel() {
-  return (
-    <aside className="relative hidden overflow-hidden bg-hero lg:flex lg:w-[52%] lg:max-w-3xl lg:flex-col lg:justify-between">
-      <NodeGraph
-        className="pointer-events-none absolute -right-20 -top-8 h-[38%] w-auto"
-        lineClass="text-hero-line"
-        nodeClass="text-hero-node"
-        accentClass="text-brand-500"
-      />
-
-      {/* In the flow rather than positioned: the headline block grows with the
-          copy, and an absolute logo would eventually collide with it. */}
-      <div className="relative px-12 pt-12">
-        <Logo variant="full" size="lg" tone="light" />
-      </div>
-
-      <div className="relative px-12 pb-16">
-        <h2 className="max-w-[15ch] text-[clamp(2.75rem,3.4vw,3rem)] font-semibold leading-[1.02] tracking-[-0.03em] text-white">
-          {HEADLINE}
-        </h2>
-        <p className="mt-6 max-w-lg text-xl leading-snug text-hero-text">{SUBHEAD}</p>
-        <ul className="mt-8 max-w-xl border-t border-hero-line">
-          {HIGHLIGHTS.map((item) => (
-            <li key={item.number} className="flex items-baseline gap-6 border-b border-hero-line py-3">
-              <span className="w-12 shrink-0 text-2xl font-semibold tracking-tight text-brand-500">
-                {item.number}
-              </span>
-              <span className="text-sm text-hero-text">{item.text}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </aside>
   );
 }

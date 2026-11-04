@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
 import { Spinner } from '../ui/Spinner';
 import { projectsApi } from '../../api/projects';
 import { getErrorMessage, getErrorStatus } from '../../api/errors';
@@ -235,14 +235,14 @@ export function MergeVersionDialog({
         ) : checkFailed ? (
           <>
             <Alert tone="error">{CONFLICT_CHECK_ERROR}</Alert>
-            <div className="mt-2 flex justify-end gap-2">
+            <ModalFooter>
               <Button type="button" variant="ghost" onClick={onClose}>
                 Cerrar
               </Button>
               <Button type="button" onClick={() => setCheckToken((token) => token + 1)}>
                 Reintentar
               </Button>
-            </div>
+            </ModalFooter>
           </>
         ) : blocked ? (
           <>
@@ -252,7 +252,7 @@ export function MergeVersionDialog({
             </p>
             <Alert tone="error">{MERGE_BLOCKED_MESSAGE}.</Alert>
 
-            <div className="mt-2 flex justify-end gap-2">
+            <ModalFooter>
               <Button type="button" variant="ghost" onClick={onClose}>
                 Cerrar
               </Button>
@@ -261,7 +261,7 @@ export function MergeVersionDialog({
                   Resolver conflictos
                 </Button>
               )}
-            </div>
+            </ModalFooter>
           </>
         ) : (
           <>
@@ -277,14 +277,14 @@ export function MergeVersionDialog({
 
             <Alert tone="error">Esta acción no se puede deshacer.</Alert>
 
-            <div className="mt-2 flex justify-end gap-2">
+            <ModalFooter>
               <Button type="button" variant="ghost" onClick={onClose} disabled={merging}>
                 Cancelar
               </Button>
               <Button type="button" onClick={handleConfirm} loading={merging}>
                 Mergear
               </Button>
-            </div>
+            </ModalFooter>
           </>
         )}
       </div>

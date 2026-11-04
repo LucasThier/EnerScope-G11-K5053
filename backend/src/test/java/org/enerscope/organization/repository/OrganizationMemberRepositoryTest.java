@@ -2,6 +2,9 @@ package org.enerscope.organization.repository;
 
 import org.enerscope.organization.model.Organization;
 import org.enerscope.organization.model.OrganizationMember;
+import org.enerscope.organization.model.OrganizationMemberRole;
+import org.enerscope.organization.model.enums.OrganizationMemberPermission;
+import org.enerscope.organization.model.enums.OrganizationMemberType;
 import org.enerscope.project.dto.ProjectMemberCandidateDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
@@ -16,6 +19,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.EnumSet;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -203,5 +207,77 @@ class OrganizationMemberRepositoryTest {
 
         assertEquals(List.of("3@enerscope.org", "2@enerscope.org", "1@enerscope.org"),
                 found.stream().map(ProjectMemberCandidateDTO::mail).toList());
+    }
+
+    private OrganizationMember joinAs(Organization organization, User user, OrganizationMemberType type) {
+        OrganizationMember member = new OrganizationMember(user, organization);
+        member.addRole(new OrganizationMemberRole(type.name(), type,
+                type == OrganizationMemberType.OWNER
+                        ? EnumSet.of(OrganizationMemberPermission.MANAGE_ORGANIZATION,
+                                OrganizationMemberPermission.VIEW_ORGANIZATION)
+                        : EnumSet.of(OrganizationMemberPermission.VIEW_ORGANIZATION)));
+        organization.addMember(member);
+        return entityManager.persist(member);
+    }
+
+    private void sync() {
+        entityManager.flush();
+        entityManager.clear();
+    }
+
+    @Test
+    void countsTheActiveOwnersOfAnOrganization() {
+        joinAs(acme, user("jane@enerscope.org", "Jane", "Doe"), OrganizationMemberType.OWNER);
+        joinAs(acme, user("joe@enerscope.org", "Joe", "Roe"), OrganizationMemberType.OWNER);
+        sync();
+
+        assertEquals(2L, organizationMemberRepository.countOwnersByOrganization(acme.getId()));
+    }
+
+    @Test
+    void doesNotCountPlainMembersAsOwners() {
+        joinAs(acme, user("jane@enerscope.org", "Jane", "Doe"), OrganizationMemberType.OWNER);
+        joinAs(acme, user("joe@enerscope.org", "Joe", "Roe"), OrganizationMemberType.MEMBER);
+        sync();
+
+        assertEquals(1L, organizationMemberRepository.countOwnersByOrganization(acme.getId()));
+    }
+
+    @Test
+    void doesNotCountAnOwnerWhoseUserIsInactive() {
+        joinAs(acme, user("jane@enerscope.org", "Jane", "Doe"), OrganizationMemberType.OWNER);
+        User deactivated = user("joe@enerscope.org", "Joe", "Roe");
+        deactivated.deactivate();
+        joinAs(acme, deactivated, OrganizationMemberType.OWNER);
+        sync();
+
+        assertEquals(1L, organizationMemberRepository.countOwnersByOrganization(acme.getId()));
+    }
+
+    @Test
+    void doesNotCountAnOwnerWhoseMembershipIsInactive() {
+        joinAs(acme, user("jane@enerscope.org", "Jane", "Doe"), OrganizationMemberType.OWNER);
+        joinAs(acme, user("joe@enerscope.org", "Joe", "Roe"), OrganizationMemberType.OWNER).deactivate();
+        sync();
+
+        assertEquals(1L, organizationMemberRepository.countOwnersByOrganization(acme.getId()));
+    }
+
+    @Test
+    void doesNotCountTheOwnersOfAnotherOrganization() {
+        joinAs(acme, user("jane@enerscope.org", "Jane", "Doe"), OrganizationMemberType.OWNER);
+        joinAs(globex, user("joe@enerscope.org", "Joe", "Roe"), OrganizationMemberType.OWNER);
+        joinAs(globex, user("ann@enerscope.org", "Ann", "Vega"), OrganizationMemberType.OWNER);
+        sync();
+
+        assertEquals(1L, organizationMemberRepository.countOwnersByOrganization(acme.getId()));
+    }
+
+    @Test
+    void countsZeroOwnersForAnOrganizationWithNone() {
+        joinAs(acme, user("jane@enerscope.org", "Jane", "Doe"), OrganizationMemberType.MEMBER);
+        sync();
+
+        assertEquals(0L, organizationMemberRepository.countOwnersByOrganization(acme.getId()));
     }
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
 import { Spinner } from '../ui/Spinner';
 import { projectsApi } from '../../api/projects';
 import { getErrorMessage } from '../../api/errors';
@@ -212,7 +212,7 @@ export function ResolveConflictsDialog({
           </>
         )}
 
-        <div className="mt-2 flex justify-end gap-2">
+        <ModalFooter>
           {items.length === 0 && canEdit && version && parent && !loading && !loadError ? (
             <>
               <Button type="button" variant="ghost" onClick={onClose}>
@@ -241,7 +241,7 @@ export function ResolveConflictsDialog({
               Cerrar
             </Button>
           )}
-        </div>
+        </ModalFooter>
       </div>
     </Modal>
   );

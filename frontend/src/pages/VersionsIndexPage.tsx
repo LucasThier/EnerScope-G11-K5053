@@ -3,14 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { BranchIcon, SearchIcon } from '../components/ui/icons';
+import { SearchField } from '../components/ui/SearchField';
+import { BranchIcon } from '../components/ui/icons';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { formatDate } from '../utils/date';
 import type { ProjectSummary } from '../types/project';
-
-const controlClasses =
-  'rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 ' +
-  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60';
 
 export function VersionsIndexPage() {
   const searchId = useId();
@@ -47,20 +44,14 @@ export function VersionsIndexPage() {
       <Card padded={false} className="overflow-hidden">
         {projects.length > 1 && (
           <div className="flex flex-wrap items-center gap-3 border-b border-ink-100 px-4 py-4">
-            <div className="relative min-w-56 flex-1">
-              <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-              <label htmlFor={searchId} className="sr-only">
-                Buscar proyectos
-              </label>
-              <input
-                id={searchId}
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar proyectos"
-                className={`w-full pl-9 placeholder:text-ink-500 ${controlClasses}`}
-              />
-            </div>
+            <SearchField
+              id={searchId}
+              label="Buscar proyectos"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar proyectos"
+              wrapperClassName="min-w-56 flex-1"
+            />
           </div>
         )}
 

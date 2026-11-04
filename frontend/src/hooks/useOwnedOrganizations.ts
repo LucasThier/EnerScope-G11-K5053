@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { organizationsApi } from '../api/organizations';
-import { getErrorMessage } from '../api/errors';
 import type { OrganizationSummary } from '../types/auth';
+import { useMyOrganizations } from './useMyOrganizations';
 
 interface UseOwnedOrganizations {
   owned: OrganizationSummary[];
@@ -11,26 +9,6 @@ interface UseOwnedOrganizations {
 }
 
 export function useOwnedOrganizations(): UseOwnedOrganizations {
-  const [owned, setOwned] = useState<OrganizationSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const reload = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await organizationsApi.owned();
-      setOwned(res.data.data ?? []);
-    } catch (err) {
-      setError(getErrorMessage(err, 'No se pudieron cargar tus organizaciones'));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
+  const { owned, loading, error, reload } = useMyOrganizations();
   return { owned, loading, error, reload };
 }

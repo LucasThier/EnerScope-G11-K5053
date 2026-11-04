@@ -144,6 +144,64 @@ owns its own role instance(s).
 permissions, `EDITOR` gets `EDIT_PROJECT` + `VIEW_PROJECT`). There is no API
 yet to define custom roles or permission sets.
 
+## Membership rules (platform, organization, project)
+
+Three role scopes exist and they are independent of each other:
+
+| Scope | Where it lives | Values | What it governs |
+| --- | --- | --- | --- |
+| Platform | `User.platformRole` | `ADMIN` \| `USER` | App-wide administration (user ABM, organization ABM, detached versions). |
+| Organization | `OrganizationMemberRole.memberType` | `OWNER` \| `MEMBER` | Who may manage an organization's people (`MANAGE_ORGANIZATION`). |
+| Project | `ProjectMemberRole.memberType` | `ADMIN` \| `EDITOR` | Who may manage a project and who may only edit its content. |
+
+- **A project member must belong to the project's organization.** `ProjectService.addMember`
+  looks the candidate up in `organization_member` first and rejects the request
+  with `User is not a member of the project's organization` otherwise — *also*
+  for a platform `ADMIN`, who gets no exemption here. An inactive organization
+  membership counts as not belonging.
+- **Removing someone from an organization removes them from its projects.**
+  `OrganizationService.removeMember` deletes every `ProjectMember` row of that
+  user inside the organization (`findByUserInOrganization`) before deleting the
+  organization membership, in one transaction.
+- **The reverse does not hold:** removing someone from a project leaves their
+  organization membership untouched.
+
+### The last owner and the last administrator are protected
+
+Both guards count only memberships that are **active and belong to an active
+user**; a membership or account that is already deactivated does not keep a
+seat warm, and a guard that does not apply is not even queried.
+
+| Rule | Where | Message (HTTP `400`) |
+| --- | --- | --- |
+| An organization must keep one owner | `OrganizationService.assertNotLastOwner`, via `OrganizationMemberRepository.countOwnersByOrganization` | `The organization would be left without an owner` |
+| A project must keep one administrator | `ProjectService.assertNotLastAdmin`, via `ProjectMemberRepository.countAdminsByProject` | `The project would be left without an administrator` |
+| Leaving an organization must not orphan a project | `OrganizationService.assertNoProjectLeftWithoutAdmin`, via `ProjectMemberRepository.countProjectsLeftWithoutAdmin` | `A project in this organization would be left without an administrator` |
+
+- The first two guards fire on **both** paths that could empty the role:
+  removing the member and demoting them. A *promotion* never consults the count,
+  and asking for the role the member already has is a no-op that never reaches
+  the guard. The third guard runs on the organization **removal** only —
+  changing an organization role cannot touch a project role, so there is nothing
+  for it to orphan.
+- **A platform `ADMIN` does not skip them.** The checks run after
+  `assertCanManageUsers` / `assertCanManageProject`, so being a platform admin
+  decides only *whether the caller may act*, never *whether the organization or
+  project may be left headless*. The way out of a one-owner organization is to
+  promote somebody else first.
+- **The third rule rejects the cascade rather than trimming it.** When the
+  person being removed from the organization is the only administrator of one of
+  its active projects, the whole removal is refused — nothing is deleted, not
+  the organization membership and not the project memberships — instead of
+  removing them from the organization and quietly leaving that project without
+  an administrator. The frontend surfaces it as "algún proyecto de la
+  organización quedaría sin administrador".
+
+`frontend/src/utils/membershipGuards.ts` mirrors the first two rules in the UI
+(the action is disabled with a reason before it is attempted), and
+`src/api/errors.ts` translates all three backend messages. The backend remains
+the authority: the UI mirror only sees the members of the screen it is on.
+
 ## Version
 
 Persistent entity mapped to the `version` table. **Minimal slice** — only

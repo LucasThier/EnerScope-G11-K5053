@@ -2,7 +2,8 @@ import { useId, useMemo, useState } from 'react';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { PlusIcon, SearchIcon } from '../components/ui/icons';
+import { SearchField } from '../components/ui/SearchField';
+import { PlusIcon } from '../components/ui/icons';
 import { DeactivateOrganizationDialog } from '../components/organizations/DeactivateOrganizationDialog';
 import { EditOrganizationModal } from '../components/organizations/EditOrganizationModal';
 import { NewOrganizationModal } from '../components/organizations/NewOrganizationModal';
@@ -12,10 +13,6 @@ import { organizationsApi } from '../api/organizations';
 import { getErrorMessage } from '../api/errors';
 import { useOrganizations } from '../hooks/useOrganizations';
 import type { OrganizationSummary } from '../types/auth';
-
-const controlClasses =
-  'rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 ' +
-  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60';
 
 export function AdminOrganizationsPage() {
   const searchId = useId();
@@ -70,20 +67,14 @@ export function AdminOrganizationsPage() {
 
       <Card padded={false} className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-ink-100 px-4 py-4">
-          <div className="relative min-w-56 flex-1">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
-            <label htmlFor={searchId} className="sr-only">
-              Buscar organizaciones
-            </label>
-            <input
-              id={searchId}
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar organizaciones"
-              className={`w-full pl-9 placeholder:text-ink-500 ${controlClasses}`}
-            />
-          </div>
+          <SearchField
+            id={searchId}
+            label="Buscar organizaciones"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar organizaciones"
+            wrapperClassName="min-w-56 flex-1"
+          />
         </div>
 
         {loading ? (

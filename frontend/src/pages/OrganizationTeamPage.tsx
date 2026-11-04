@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
+import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
+import { FilterSelect } from '../components/ui/FilterSelect';
+import { UploadIcon } from '../components/ui/icons';
+import { ImportUsersCsvFlow } from '../components/import/ImportUsersCsvFlow';
 import { MembersTable } from '../components/members/MembersTable';
 import { AddOrganizationMemberCard } from '../components/organizations/AddOrganizationMemberCard';
 import { MEMBER_TYPE_LABELS } from '../components/organizations/memberTypeLabels';
@@ -10,23 +14,23 @@ import { OrganizationRoleChangeConfirmation } from '../components/organizations/
 import { RemoveOrganizationMemberDialog } from '../components/organizations/RemoveOrganizationMemberDialog';
 import { organizationsApi } from '../api/organizations';
 import { getErrorMessage } from '../api/errors';
+import { useAuth } from '../hooks/useAuth';
+import { useCsvUserImport } from '../hooks/useCsvUserImport';
 import { useMemberRoleChange } from '../hooks/useMemberRoleChange';
 import { useOwnedOrganizations } from '../hooks/useOwnedOrganizations';
+import { canManageOrganizationUsers, lastOwnerReason } from '../utils/membershipGuards';
 import type { OrganizationMemberSummary, OrganizationMemberType } from '../types/auth';
-
-const controlClasses =
-  'rounded-lg border border-ink-200 bg-surface px-3 py-2 text-sm text-ink-800 ' +
-  'focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/60';
 
 export function OrganizationTeamPage() {
   const { organizationId } = useParams();
   const navigate = useNavigate();
-  const switcherId = useId();
+  const { user: caller } = useAuth();
   const { owned, reload: reloadOwned } = useOwnedOrganizations();
   const [members, setMembers] = useState<OrganizationMemberSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<OrganizationMemberSummary | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const organization = owned.find((candidate) => candidate.id === organizationId);
 
@@ -80,6 +84,12 @@ export function OrganizationTeamPage() {
     [organizationId],
   );
 
+  const importFlow = useCsvUserImport({
+    organizationId: organizationId ?? '',
+    onImported: reloadMembers,
+    onClose: () => setImporting(false),
+  });
+
   const roleChange = useMemberRoleChange({
     members,
     adminRole: 'OWNER',
@@ -104,25 +114,31 @@ export function OrganizationTeamPage() {
             estado de la organización los administra la plataforma.
           </p>
         </div>
-        {owned.length > 1 && (
-          <div>
-            <label htmlFor={switcherId} className="sr-only">
-              Elegir organización
-            </label>
-            <select
-              id={switcherId}
-              value={organizationId}
-              onChange={(e) => navigate(`/organizations/${e.target.value}`)}
-              className={controlClasses}
+        <div className="flex flex-wrap items-center gap-3">
+          {canManageOrganizationUsers(caller, members) && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                importFlow.reset();
+                setImporting(true);
+              }}
             >
-              {owned.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+              <UploadIcon className="h-4 w-4" />
+              Importar CSV
+            </Button>
+          )}
+          {owned.length > 1 && (
+            <FilterSelect
+              label="Elegir organización"
+              value={organizationId ?? ''}
+              options={owned.map((candidate) => ({
+                value: candidate.id,
+                label: candidate.name,
+              }))}
+              onChange={(next) => navigate(`/organizations/${next}`)}
+            />
+          )}
+        </div>
       </header>
 
       <Card padded={false} className="overflow-hidden">
@@ -142,6 +158,7 @@ export function OrganizationTeamPage() {
             roleLabels={MEMBER_TYPE_LABELS}
             onRemove={setRemoving}
             onChangeRole={roleChange.requestChange}
+            disabledReason={(member) => lastOwnerReason(members, member)}
             busyMemberId={roleChange.busyMemberId}
             roleError={roleChange.pending ? null : roleChange.error}
           />
@@ -165,6 +182,16 @@ export function OrganizationTeamPage() {
             onConfirm={() => void roleChange.confirm()}
           />
         )}
+      </Modal>
+
+      <Modal
+        open={importing}
+        onClose={importFlow.requestClose}
+        title="Importar usuarios por CSV"
+        subtitle={organization?.name}
+        size="lg"
+      >
+        <ImportUsersCsvFlow flow={importFlow} organizationName={organization?.name ?? ''} />
       </Modal>
 
       <RemoveOrganizationMemberDialog

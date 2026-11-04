@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
 import { FilterSelect } from '../ui/FilterSelect';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
 import { TextField } from '../ui/TextField';
 import { getErrorMessage } from '../../api/errors';
 import { useVersions } from '../../hooks/useVersions';
@@ -103,14 +103,14 @@ export function NewVersionModal({
           </div>
         )}
 
-        <div className="mt-2 flex justify-end gap-2">
+        <ModalFooter>
           <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
           <Button type="submit" loading={submitting}>
             Crear versión
           </Button>
-        </div>
+        </ModalFooter>
       </form>
     </Modal>
   );
