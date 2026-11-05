@@ -1,11 +1,16 @@
 package org.enerscope.probabilistic;
 
+import java.util.function.DoubleSupplier;
+import java.util.Random;
+
 import jakarta.persistence.*;
 import lombok.NoArgsConstructor;
 import org.apache.commons.rng.UniformRandomProvider;
-import org.apache.commons.rng.sampling.distribution.ContinuousSampler;
+import org.apache.commons.statistics.distribution.ContinuousDistribution;
 import org.apache.commons.rng.simple.RandomSource;
 import org.apache.commons.statistics.distribution.UniformContinuousDistribution;
+
+@lombok.Getter
 @Entity
 @DiscriminatorValue("UNIFORM")
 @NoArgsConstructor
@@ -16,7 +21,8 @@ public class UniformDistributionCase extends ProbabilisticDistribution {
     private float max_val;
 
     @Transient
-    private ContinuousSampler sampler;
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private ContinuousDistribution.Sampler sampler;
 
     public UniformDistributionCase(float min, float max) {
         this.min_val = min;
@@ -28,7 +34,15 @@ public class UniformDistributionCase extends ProbabilisticDistribution {
     private void initSampler() {
         UniformContinuousDistribution distribution = UniformContinuousDistribution.of(min_val, max_val);
         UniformRandomProvider rng = RandomSource.MWC_256.create();
-        this.sampler = (ContinuousSampler) distribution.createSampler(rng);
+        this.sampler = distribution.createSampler(rng);
+    }
+
+    @Override
+    public DoubleSupplier sampler(long seed) {
+        if (!Float.isFinite(min_val) || !Float.isFinite(max_val) || min_val >= max_val)
+            throw new IllegalArgumentException("Invalid distribution parameters");
+        Random random = new Random(seed);
+        return () -> min_val + (max_val - (double) min_val) * random.nextDouble();
     }
 
     @Override

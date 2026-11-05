@@ -38,4 +38,5 @@ public class NodeDetailDTO {
 
     // Type-specific fields keyed by the frontend field keys.
     private Map<String, Double> attributes;
+    private ProbabilisticDistributionDTO declineCurve;
 }

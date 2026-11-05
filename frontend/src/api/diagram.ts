@@ -18,7 +18,7 @@ export const diagramApi = {
   ): Promise<AxiosResponse<ApiResponse<NodeDetail>>> =>
     client.get(`/version/${versionId}/node/${nodeId}`),
 
-  /** Create a node. The payload's type-specific fields let the backend deduce the node subtype. */
+  /** Create a node. The backend selects the subtype using the explicit type.nodeType field. */
   addNode: (
     versionId: string,
     node: Record<string, unknown>,

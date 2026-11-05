@@ -62,3 +62,32 @@ Passwords are hashed with BCrypt (strength 12) and never returned by the API.
 
 `springdoc-openapi` exposes interactive docs at `/api/v1/swagger-ui.html` with a
 Bearer security scheme, so protected endpoints can be exercised from the UI.
+
+## Economic aggregates and reproducible evaluations
+
+- Configuration uses immutable typed Java records stored as a complete JSON text
+  document per Version. Child objects are not shared across versions. A database
+  uniqueness constraint and optimistic-lock revision protect the configuration row.
+- Evaluations snapshot physical inputs, configuration, operational metrics and all
+  financial outputs in an immutable document. Historical results are not recomputed
+  on read. A schema version permits future snapshot readers to evolve explicitly.
+- The calculation engine is independent of JPA and the simulator. It uses BigDecimal,
+  explicit annual dates, a single currency, external fixed WACC and configured
+  hypothetical fiscal rules. Fiscal entities are distinct from organizations/users.
+- Economic configuration does not automatically import legacy node costs. Explicit
+  conversions and rule creation prevent double counting or guessing physical units.
+- PostgreSQL integration tests complement the H2 wiring test: Hibernate schema
+  validation and actual persistence caught legacy mapping/migration gaps hidden by H2.
+
+## Durable economic editor drafts
+
+Incomplete editor strings are persisted separately from the validated engine aggregate. Draft save validates structure and size only. GET/PUT economics/draft reuse VIEW_PROJECT/EDIT_PROJECT authorization. The simulation path publishes a fully validated configuration and clears the draft in the same transaction; historical results remain immutable.
+
+## Probabilistic economics 
+
+Compute fiscal results and indicators per physical realization before aggregation: 
+tax-loss rules make economics on average production incorrect. Use nearest-rank 
+ascending percentiles and explicit conditional denominators. Persist immutable job 
+inputs and separate round JSON, with atomic claims and startup interruption under a 
+single-worker-instance deployment. Preserve old individual snapshots unchanged; 
+see [economic module](economic-module/economic-module.md).

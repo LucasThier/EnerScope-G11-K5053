@@ -30,7 +30,7 @@ public class SimIndustrialConsumption extends SimBaseNode{
             calculateAndTakeAll(simBaseNodes);
         }
 
-        totalProduced += Math.min(toGather,consumption);
+        stepOutput = Math.min(toGather,consumption);
     }
 
     @Override

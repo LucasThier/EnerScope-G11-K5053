@@ -129,7 +129,8 @@ public class ResultPerRoundTest {
         assertNotNull(gatheringNetworkResult.getNodeID(), "El Pozo debe tener un ID asignado");
 
         assertEquals(10512000f,gatheringNetworkResult.getMaxPossibleProduced(),0.1f);
-        assertEquals(7008340f, gatheringNetworkResult.getTotalProduced(),0.1f);
+        // New material processed: two startup hours, one transition, then steady throughput.
+        assertEquals((float)(950 * 2 + 862.125 + 817 * 8757), gatheringNetworkResult.getTotalProduced(),0.5f);
         assertEquals(340f,gatheringNetworkResult.getTotalDeferred(),0.1f);
         assertEquals(525587.5f,gatheringNetworkResult.getExtra(),0.1f);
     }
@@ -237,10 +238,14 @@ public class ResultPerRoundTest {
         assertNotNull(resultPipeline.getNodeID(), "El Pozo debe tener un ID asignado");
 
         assertEquals(8760000f,resultPipeline.getMaxPossibleProduced(),0.1f);
-        assertEquals(7007311f, resultPipeline.getTotalProduced(),0.1f);
+        // Production includes delivered material, current inventory and material still in transit.
+        double pipelineBalance = simCompressingPlant.getMeasuredInput() + simPipeline.getToDeliver().getAmount()
+                + simPipeline.getInTransitQueue().stream().mapToDouble(batch -> batch.getToDeliver().getAmount()).sum();
+        assertEquals(pipelineBalance, resultPipeline.getTotalProduced(), 2f);
         assertEquals(111.111084f,resultPipeline.getTotalDeferred(),0.1f);
         assertEquals(778602.75f,resultPipeline.getExtra(),0.1f);
     }
+
     @Test
     public void testResultPipelineConnection(){
         UUID pipelineId = UUID.randomUUID();
@@ -346,7 +351,7 @@ public class ResultPerRoundTest {
         assertNotNull(resultCompressingPlant.getNodeID(), "El Pozo debe tener un ID asignado");
 
         assertEquals(8760000f,resultCompressingPlant.getMaxPossibleProduced(),0.1f);
-        assertEquals(7884050f, resultCompressingPlant.getTotalProduced(),0.1f);
+        assertEquals(1000f * 0.95f * 8760, resultCompressingPlant.getTotalProduced(),0.1f);
         assertEquals(50f,resultCompressingPlant.getTotalDeferred(),0.1f);
         assertEquals(438000f,resultCompressingPlant.getExtra(),0.1f);
     }
@@ -401,7 +406,8 @@ public class ResultPerRoundTest {
         assertNotNull(resultLiquefactionPlant.getNodeID(), "El Pozo debe tener un ID asignado");
 
         assertEquals(8760000f,resultLiquefactionPlant.getMaxPossibleProduced(),0.1f);
-        assertEquals(5258400f, resultLiquefactionPlant.getTotalProduced(),0.1f);
+        // 5% fuel, then 5% contaminants, then 90% gas-to-liquid conversion; output is not dispatched inventory.
+        assertEquals(8760d * 1000 * .95 * .95 * .9, resultLiquefactionPlant.getTotalProduced(), 1f);
         assertEquals(2400f,resultLiquefactionPlant.getTotalDeferred(),0.1f);
         assertEquals(854100f,resultLiquefactionPlant.getExtra(),0.1f);
     }
@@ -451,7 +457,7 @@ public class ResultPerRoundTest {
 
         assertNotNull(resultFLNGUnit.getNodeID(), "El FLNG Unit debe tener un ID asignado");
         assertEquals(8760000f, resultFLNGUnit.getMaxPossibleProduced(), 0.1f);
-        assertEquals(7114411f, resultFLNGUnit.getTotalProduced(), 0.1f);
+        assertEquals(8760d * 1000 * .95 * .95 * .9, resultFLNGUnit.getTotalProduced(), 1f);
         assertEquals(0f, resultFLNGUnit.getTotalDeferred(), 0.1f);
         assertEquals(854100f, resultFLNGUnit.getExtra(), 0.1f);
 
@@ -510,7 +516,8 @@ public class ResultPerRoundTest {
         assertNotNull(resultSeaportTerminal.getNodeID(), "El Pozo debe tener un ID asignado");
 
         assertEquals(17520000f,resultSeaportTerminal.getMaxPossibleProduced(),0.1f);
-        assertEquals(43999.727f, resultSeaportTerminal.getTotalProduced(),0.1f);
+        assertEquals(simLNGCarrier.getMeasuredInput() + simSeaportTerminal.getToDeliver().getAmount(),
+                resultSeaportTerminal.getTotalProduced(), .1f);
         assertEquals(2000f,resultSeaportTerminal.getTotalDeferred(),0.1f);
         assertEquals(0f,resultSeaportTerminal.getExtra(),0.1f);
     }

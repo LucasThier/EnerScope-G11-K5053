@@ -10,6 +10,7 @@ import lombok.Setter;
  */
 @Getter
 @Setter
+@com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.fasterxml.jackson.databind.JsonDeserializer.None.class)
 public class FLNGUnitDTO extends BaseNodeDTO {
 
     // FLNGUnit-specific fields

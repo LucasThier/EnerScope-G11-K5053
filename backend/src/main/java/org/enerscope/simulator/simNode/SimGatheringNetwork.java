@@ -26,6 +26,7 @@ public class SimGatheringNetwork extends SimBaseNode{
 
     @Override
     protected void activeAction(int time){
+        double inputBefore = measuredInput;
         float capacity = maxTransportCapacity - toDeliver.getAmount();
         float toGather = (float) simWells.stream().mapToDouble(simWell -> simWell.getToDeliver().getAmount()).sum();
 
@@ -39,6 +40,8 @@ public class SimGatheringNetwork extends SimBaseNode{
 
         float lost = toDeliver.getAmount() * loss /100;
         totalLoss += lost;
+        measuredLosses += lost;
+        stepOutput = Math.max(0, (float)(measuredInput - inputBefore) * (1 - loss / 100));
         toDeliver.setAmount(toDeliver.getAmount() - lost);
 
     }

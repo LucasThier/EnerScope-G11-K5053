@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components -- Navigation data contains icon elements; this module exports no components. */
+import { CONFIGURATION_PATTERN, SIMULATION_PATTERN, VERSION_MANAGEMENT_PATTERN } from '../../utils/workspaceRoutes';
 import type { ReactNode } from 'react';
 import {
   BranchIcon,
@@ -11,7 +13,7 @@ import {
   ValueChainIcon,
 } from '../ui/icons';
 
-export const VERSIONS_PATH_PATTERN = /^\/projects\/[^/]+\/versions(\/|$)/;
+export const VERSIONS_PATH_PATTERN = VERSION_MANAGEMENT_PATTERN;
 export const PROJECTS_PATH_PATTERN = /^\/projects\/?$/;
 export const PROJECT_TEAM_PATH_PATTERN = /^\/projects\/[^/]+\/team(\/|$)/;
 export const VERSIONS_INDEX_PATH_PATTERN = /^\/versions\/?$/;
@@ -28,7 +30,9 @@ export type NavRequirement =
   | 'platformAdmin'
   | 'organizationMember'
   | 'manageableProject'
-  | 'activeProject';
+  | 'activeProject'
+  | 'scenarioConfiguration'
+  | 'scenarioSimulation';
 
 export interface NavItem {
   label: string;
@@ -105,10 +109,17 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Análisis',
     items: [
       {
+        label: 'Configuración del Escenario',
+        icon: <FolderIcon />,
+        matchPattern: CONFIGURATION_PATTERN,
+        requires: 'scenarioConfiguration',
+      },
+      {
         label: 'Simulaciones',
-        fullLabel: 'Simulaciones / Escenarios',
+        fullLabel: 'Simulación de Escenarios',
         icon: <FlaskIcon />,
-        availability: 'soon',
+        matchPattern: SIMULATION_PATTERN,
+        requires: 'scenarioSimulation',
       },
       { label: 'Comparaciones', icon: <CompareIcon />, availability: 'soon' },
       { label: 'Reportes', icon: <ReportIcon />, availability: 'soon' },
@@ -151,6 +162,8 @@ export const NAV_GROUPS: NavGroup[] = [
 
 const MODULE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/app\/?$/, title: 'Inicio' },
+  { pattern: CONFIGURATION_PATTERN, title: 'Configuración del Escenario' },
+  { pattern: SIMULATION_PATTERN, title: 'Simulación de Escenarios' },
   { pattern: VERSIONS_PATH_PATTERN, title: 'Versionado' },
   { pattern: /^\/projects\/[^/]+\/team(\/|$)/, title: 'Equipo del proyecto' },
   { pattern: /^\/projects\/?$/, title: 'Proyectos' },
@@ -172,7 +185,7 @@ export interface Crumb {
   to?: string;
 }
 
-const PROJECT_SCOPED = /^\/projects\/[^/]+\/(team|versions)(\/|$)/;
+const PROJECT_SCOPED = /^\/projects\/[^/]+\/(team|versions|scenario-configurations|simulations)(\/|$)/;
 
 export function breadcrumbsFor(pathname: string, projectName: string | null): Crumb[] {
   const title = moduleTitleFor(pathname);

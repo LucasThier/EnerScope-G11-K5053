@@ -100,6 +100,14 @@ function resolveLeaf(item: NavItem, context: NavContext): NavItem | null {
             to: `/projects/${context.teamProjectId}/team`,
             fullLabel: withProjectName(item.label, context.projectName),
           };
+    case 'scenarioConfiguration':
+    case 'scenarioSimulation':
+      return {
+        ...item,
+        to: context.versionsProjectId === null
+          ? '/projects'
+          : `/projects/${context.versionsProjectId}/${item.requires === 'scenarioConfiguration' ? 'scenario-configurations' : 'simulations'}`,
+      };
     case 'activeProject':
       return context.versionsProjectId === null
         ? null

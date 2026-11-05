@@ -2,6 +2,7 @@ package org.enerscope.simulator.simNode;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.transportation.Pipeline;
 import org.enerscope.simulator.auxiliary.ToDeliver;
 import org.enerscope.simulator.auxiliary.TransitBatch;
@@ -34,6 +35,7 @@ public class SimPipeline extends SimBaseNode{
 
     @Override
     protected void activeAction(int time){
+        double inputBefore = measuredInput;
         ToDeliver totalArrived = new ToDeliver(0,0);
         List<TransitBatch> arrivedTransitQueue = inTransitQueue.stream().filter(aTransitBatch -> aTransitBatch.getTimeOfArrival() <= time).toList();
         inTransitQueue.removeAll(arrivedTransitQueue);
@@ -45,6 +47,7 @@ public class SimPipeline extends SimBaseNode{
 
         TransitBatch transitBatch =new TransitBatch();
         transitBatch.setTimeOfArrival(time + travelTimeInHours);
+
         if (toGather >= capacity){
             transitBatch.setToDeliver(takeEqualAmounts(nodesBefore,capacity));
         } else {
@@ -53,6 +56,10 @@ public class SimPipeline extends SimBaseNode{
         float batchAmount = transitBatch.getToDeliver().getAmount();
         float lost = batchAmount * (loss / 100);
         totalLost += lost;
+
+        measuredLosses += lost;
+        stepOutput = Math.max(0, (float)(measuredInput - inputBefore) * (1 - loss / 100));
+
         transitBatch.getToDeliver().setAmount(batchAmount - lost);
         inTransitQueue.add(transitBatch);
 
@@ -71,6 +78,7 @@ public class SimPipeline extends SimBaseNode{
             toDeliver.mix(toMix);
         }
     }
+
     @Override
     public boolean readyToBeProcessed(int time) {
         return nodesBefore.stream().allMatch(node -> node.getLastSimulatedTime() == time);

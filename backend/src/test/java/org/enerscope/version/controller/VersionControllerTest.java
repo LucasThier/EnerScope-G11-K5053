@@ -167,6 +167,7 @@ class VersionControllerTest {
         UUID versionId = UUID.randomUUID();
         WellDTO wellDTO = new WellDTO();
         wellDTO.setName("Test Well");
+        wellDTO.setType(new org.enerscope.node.dto.NodeTypeDataDTO(null, null, org.enerscope.node.model.enums.NodeTypeEnum.WELL));
         when(versionService.addNodeToVersion(eq(versionId), any()))
                 .thenThrow(new ForbiddenException("You are not allowed to edit this project"));
 
@@ -182,6 +183,7 @@ class VersionControllerTest {
     void addNodeToVersionRequiresAuthenticationWith401() throws Exception {
         WellDTO wellDTO = new WellDTO();
         wellDTO.setName("Test Well");
+        wellDTO.setType(new org.enerscope.node.dto.NodeTypeDataDTO(null, null, org.enerscope.node.model.enums.NodeTypeEnum.WELL));
 
         mockMvc.perform(post("/version/" + UUID.randomUUID() + "/node")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -348,5 +350,32 @@ class VersionControllerTest {
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].mail").value("jane@enerscope.org"));
+    }
+
+    @Test
+    void groundPlantCreateAndEditUseExplicitType() throws Exception {
+        UUID versionId = UUID.randomUUID(); UUID nodeId = UUID.randomUUID();
+        String payload = """
+            {"name":"Ground plant","type":{"nodeType":"GROUND_LIQUEFACTION_PLANT"},
+             "maxProcessingCapacity":140,"mtpaRatio":1,"intermediateStorage":80,"gasConsumption":30}
+            """;
+        mockMvc.perform(post("/version/" + versionId + "/node")
+                .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                .contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isOk());
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/version/" + versionId + "/node/" + nodeId)
+                .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                .contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isOk());
+        verify(versionService).addNodeToVersion(eq(versionId), any(org.enerscope.node.dto.GroundBasedLiquefactionPlantDTO.class));
+        verify(versionService).editNodeInVersion(eq(versionId), eq(nodeId), any(org.enerscope.node.dto.GroundBasedLiquefactionPlantDTO.class));
+    }
+
+    @Test
+    void missingOrUnknownNodeTypeReturnsBadRequestWithoutSaving() throws Exception {
+        for (String payload : new String[]{"{}", "{\"type\":{\"nodeType\":\"UNKNOWN\"}}"}) {
+            mockMvc.perform(post("/version/" + UUID.randomUUID() + "/node")
+                    .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                    .contentType(MediaType.APPLICATION_JSON).content(payload)).andExpect(status().isBadRequest());
+        }
+        verify(versionService, never()).addNodeToVersion(any(), any());
     }
 }

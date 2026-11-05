@@ -26,6 +26,8 @@ public class SimTreatmentPlant extends SimBaseNode{
 
     @Override
     protected void activeAction(int time){
+        float dischargedBefore = totalDischarged;
+        float outputBefore = toDeliver.getAmount();
         float amountToTake =  (float) simGatheringNetworks.stream().mapToDouble(simGatheringNetwork -> simGatheringNetwork.getToDeliver().getAmount()).sum();
         float capacity = maxTreatmentCapacity + intermediateStorage - amountInIntermediateStorage.getAmount();
         ToDeliver toProcess;
@@ -44,11 +46,14 @@ public class SimTreatmentPlant extends SimBaseNode{
             toDeliver.mix(new ToDeliver(amountToClean,toProcess.getContaminant()));
             totalDischarged += toDeliver.clean();
             amountInIntermediateStorage.setAmount(toProcess.getAmount() - amountToClean);
+            stepOutput = Math.max(0, toDeliver.getAmount() - outputBefore);
         } else {
             totalDischarged += toProcess.clean();
             toDeliver = toProcess;
             amountInIntermediateStorage = new ToDeliver(0,0);
+            stepOutput = toProcess.getAmount();
         }
+        measuredLosses += totalDischarged - dischargedBefore;
     }
 
     @Override

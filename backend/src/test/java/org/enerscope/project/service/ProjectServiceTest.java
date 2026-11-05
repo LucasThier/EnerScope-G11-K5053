@@ -214,6 +214,21 @@ class ProjectServiceTest {
                 verify(projectMemberRepository, never()).save(any());
         }
 
+        @Test
+        void createProjectNormalizesMissingAndBlankDescription() {
+                UUID orgId = UUID.randomUUID();
+                Organization organization = new Organization("Acme");
+                User creator = creator();
+                authenticateAs(creator);
+                when(userRepository.findById(creator.getId())).thenReturn(Optional.of(creator));
+                when(organizationRepository.findByIdAndActiveTrue(orgId)).thenReturn(Optional.of(organization));
+                when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+                for (String value : new String[]{null, "", "   "}) {
+                        assertEquals("", projectService.createProject(new CreateProjectRequestDTO("Example", value, orgId)).getDescription());
+                }
+        }
+
         // ---- addMember -------------------------------------------------------
 
         @Test
@@ -455,12 +470,13 @@ class ProjectServiceTest {
         }
 
         @Test
-        void updateProjectRejectsABlankDescription() {
+        void updateProjectAllowsClearingDescription() {
+                authenticateAs(admin());
                 UUID projectId = UUID.randomUUID();
-
-                assertThrows(IllegalArgumentException.class, () -> projectService.updateProject(
-                                projectId, new UpdateProjectRequestDTO(null, "   ")));
-                verify(projectRepository, never()).save(any());
+                Project project = new Project("Example", "Old description", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectRepository.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+                assertEquals("", projectService.updateProject(projectId, new UpdateProjectRequestDTO(null, "   ")).getDescription());
         }
 
         @Test
@@ -649,6 +665,36 @@ class ProjectServiceTest {
 
                 assertEquals(version, saved);
                 assertTrue(project.getVersions().contains(version));
+                verify(projectRepository).save(project);
+        }
+
+
+        @Test
+        void saveVersionRejectsParentFromAnotherProject() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                assertThrows(IllegalArgumentException.class, () -> projectService.saveVersion(
+                        projectId, new VersionDTO("Copy", UUID.randomUUID())));
+                verify(versionService, never()).saveVersion(any());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void saveVersionAcceptsParentFromSameProject() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = new Version();
+                org.springframework.test.util.ReflectionTestUtils.setField(parent, "id", UUID.randomUUID());
+                project.addVersion(parent);
+                Version child = new Version();
+                VersionDTO data = new VersionDTO("Copy", parent.getId());
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(data)).thenReturn(child);
+                assertEquals(child, projectService.saveVersion(projectId, data));
+                assertTrue(project.getVersions().contains(child));
                 verify(projectRepository).save(project);
         }
 
@@ -1388,5 +1434,18 @@ class ProjectServiceTest {
         private ProjectSummaryDTO summary(String name, long memberCount) {
                 return new ProjectSummaryDTO(UUID.randomUUID(), name, "A project", UUID.randomUUID(), "Acme",
                                 memberCount, Instant.now(), null);
+        }
+        @Test
+        void saveVersionReturnsCreatedVersionAndLinksItToProject() {
+                authenticateAs(admin());
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("Economic project", "Example", new Organization("Example"));
+                var request = new org.enerscope.version.dto.VersionDTO("Economic version", null);
+                var version = new org.enerscope.version.model.Version();
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(request)).thenReturn(version);
+                assertEquals(version, projectService.saveVersion(projectId, request));
+                assertTrue(project.getVersions().contains(version));
+                verify(projectRepository).save(project);
         }
 }

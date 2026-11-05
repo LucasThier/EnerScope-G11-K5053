@@ -95,6 +95,12 @@ const paths: Record<NodeType, ReactElement> = {
       <circle cx="15" cy="11" r="2" />
     </>
   ),
+  INDUSTRIAL_CONSUMPTION: (
+    <>
+      <path d="M3 21V10l6 3V8l6 3V3h4v18Z" />
+      <path d="M6 17h1m4 0h1m4 0h1" />
+    </>
+  ),
   // A flame — internal gas consumption.
   INTERNAL_CONSUMPTION: (
     <>

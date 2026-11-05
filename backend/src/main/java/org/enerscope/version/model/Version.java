@@ -2,7 +2,7 @@ package org.enerscope.version.model;
 
 import java.util.ArrayList;
 import java.util.List;
-    
+
 import org.enerscope.common.BaseEntity;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.ConnectionChange;
@@ -26,7 +26,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @NoArgsConstructor
-@AllArgsConstructor
 @Getter
 @Setter
 @Entity
@@ -83,11 +82,19 @@ public class Version extends BaseEntity {
         this.nodeChanges = orEmpty(nodeChanges);
     }
 
+    public Version(String name, Version parentVersion, List<BaseNode> nodeSnapshot,
+                   List<NodeConnection> connectionSnapshot, List<ConnectionChange> connectionChanges,
+                   List<NodeChange> nodeChanges, List<FinalResult> results) {
+        this(name, parentVersion, nodeSnapshot, connectionSnapshot, connectionChanges, nodeChanges);
+        this.finalResults = orEmpty(results);
+    }
+
     private static <T> List<T> orEmpty(List<T> values) {
         return values == null ? new ArrayList<>() : values;
     }
 
-    public void addResult(FinalResult finalResult){
-        this.finalResults.add(finalResult);
+    public void addResult(FinalResult result){
+        if (this.finalResults == null) this.finalResults = new java.util.ArrayList<>();
+        this.finalResults.add(result);
     }
 }

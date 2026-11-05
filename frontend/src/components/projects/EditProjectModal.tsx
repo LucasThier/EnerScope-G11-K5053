@@ -46,9 +46,7 @@ export function EditProjectModal({ project, onClose, onUpdated }: EditProjectMod
       errors.name = `El nombre debe tener entre ${NAME_MIN} y ${NAME_MAX} caracteres.`;
     }
     const trimmedDescription = description.trim();
-    if (!trimmedDescription) {
-      errors.description = 'La descripción es obligatoria.';
-    } else if (trimmedDescription.length > DESCRIPTION_MAX) {
+    if (trimmedDescription.length > DESCRIPTION_MAX) {
       errors.description = `La descripción no puede superar los ${DESCRIPTION_MAX} caracteres.`;
     }
     return errors;
@@ -106,7 +104,7 @@ export function EditProjectModal({ project, onClose, onUpdated }: EditProjectMod
         />
 
         <TextArea
-          label="Descripción"
+          label="Descripción (opcional)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={fieldErrors.description}

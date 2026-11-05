@@ -1,198 +1,171 @@
 package org.enerscope.simulator;
 
-import lombok.Getter;
-import lombok.Setter;
-import org.enerscope.node.model.BaseNode;
-import org.enerscope.node.model.export.IndustrialConsumption;
-import org.enerscope.node.model.export.InternalConsumption;
-import org.enerscope.node.model.export.LNGCarrier;
-import org.enerscope.node.model.export.SeaportTerminal;
-import org.enerscope.node.model.extraction.GatheringNetwork;
-import org.enerscope.node.model.extraction.TreatmentPlant;
-import org.enerscope.node.model.extraction.Well;
-import org.enerscope.node.model.liquefaction.FLNGUnit;
-import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
-import org.enerscope.node.model.transportation.CompressingPlant;
-import org.enerscope.node.model.transportation.Pipeline;
-import org.enerscope.node.model.transportation.PipelineConnection;
-import org.enerscope.simulator.results.FinalResult;
-import org.enerscope.simulator.results.ResultPerRound;
+import java.math.BigDecimal;
+import java.time.*;
+import java.util.*;
+import org.enerscope.node.model.*;
+import org.enerscope.node.model.extraction.*;
+import org.enerscope.node.model.export.*;
+import org.enerscope.node.model.liquefaction.*;
+import org.enerscope.node.model.transportation.*;
 import org.enerscope.simulator.simNode.*;
+import org.enerscope.simulator.results.*;
 import org.enerscope.version.model.Version;
 
-import java.util.*;
-
-@Getter
-@Setter
+/** One isolated physical realization. Public duration is years; each step is one hour. */
 public class Simulator {
-    private UUID versionID;
+    public static final int HOURS_PER_YEAR = 8760;
+    public static final String ALGORITHM = "JAVA_RANDOM_V1";
+    public static final int CALCULATION_VERSION = 1;
+    private final List<SimBaseNode> executionOrder;
+    private final Map<UUID, BaseNode> physicalNodes = new HashMap<>();
+    private final List<AnnualNodeMetrics> annualMetrics = new ArrayList<>();
+    private final Map<UUID, double[]> previousMetrics = new HashMap<>();
+    private final Integer operatingStartYear;
+    private boolean executed;
+    private ResultPerRound result;
 
-    private List<SimBaseNode> executionOrder;
+    public Simulator(Version version) {
+        this(version, null, 0L);
+    }
 
-    private Version version;
-    private List<ResultPerRound> resultsPerRound;
-    private FinalResult finalResult;
+    public Simulator(Version version, int operatingStartYear) {
+        this(version, operatingStartYear, 0L);
+    }
 
-
-
-    Simulator(Version version){
+    public Simulator(Version version, Integer operatingStartYear, long roundSeed) {
+        this.operatingStartYear = operatingStartYear;
+        Map<UUID, SimBaseNode> nodes = new HashMap<>();
+        for (BaseNode physical : Objects.requireNonNull(version.getNodeSnapshot(), "Node snapshot required")) {
+            if (physical.getId() == null || nodes.containsKey(physical.getId()))
+                throw new IllegalArgumentException("Unique node identifiers required");
+            SimBaseNode node = transform(physical);
+            if (node instanceof SimWell well) well.configureRandom(seedForNode(roundSeed, physical.getId()));
+            nodes.put(physical.getId(), node);
+            physicalNodes.put(physical.getId(), physical);
+        }
+        Map<UUID, List<UUID>> successors = new HashMap<>();
+        Map<UUID, Integer> degrees = new HashMap<>();
+        nodes.keySet().forEach(id -> { successors.put(id, new ArrayList<>()); degrees.put(id, 0); });
+        Set<String> edges = new HashSet<>();
+        for (NodeConnection connection : Objects.requireNonNull(version.getConnectionSnapshot(), "Connections required")) {
+            UUID from = connection.getFromNodeId(), to = connection.getToNodeId();
+            if (!nodes.containsKey(from) || !nodes.containsKey(to) || !edges.add(from + ":" + to))
+                throw new IllegalArgumentException("Invalid or duplicate connection");
+            successors.get(from).add(to); degrees.put(to, degrees.get(to) + 1);
+            nodes.get(to).addPreviousNode(nodes.get(from));
+        }
+        Comparator<UUID> priority = Comparator.<UUID>comparingDouble(id ->
+                nodes.get(id) instanceof SimPipelineConnection p ? p.getOutputPriority() : 0)
+                .thenComparing(UUID::toString);
+        PriorityQueue<UUID> ready = new PriorityQueue<>(priority);
+        degrees.forEach((id, degree) -> { if (degree == 0) ready.add(id); });
         executionOrder = new ArrayList<>();
-
-        this.version = version;
-        resultsPerRound = new ArrayList<>();
-
-        Map<UUID, SimBaseNode> simNodesById = new HashMap<>();
-        List<SimBaseNode> allNodes = new ArrayList<>();
-
-        version.getNodeSnapshot().forEach(baseNode -> {
-            SimBaseNode simNode = transformNode(baseNode);
-            if (simNode != null) {
-                simNodesById.put(baseNode.getId(), simNode);
-                allNodes.add(simNode);
-            }
-        });
-
-        Map<SimBaseNode, List<SimBaseNode>> successors = new HashMap<>();
-        Map<SimBaseNode, Integer> inDegree = new HashMap<>();
-
-        allNodes.forEach(node -> {
-            successors.put(node, new ArrayList<>());
-            inDegree.put(node, 0);
-        });
-
-        version.getConnectionSnapshot().forEach(connection -> {
-            SimBaseNode fromNode = simNodesById.get(connection.getFromNodeId());
-            SimBaseNode toNode = simNodesById.get(connection.getToNodeId());
-
-            if (fromNode != null && toNode != null) {
-                successors.get(fromNode).add(toNode);
-                inDegree.put(toNode, inDegree.get(toNode) + 1);
-                toNode.addPreviousNode(fromNode);
-            }
-        });
-
-        this.executionOrder = computeTopologicalOrderWithPriority(allNodes, successors, inDegree);
+        while (!ready.isEmpty()) {
+            UUID id = ready.remove(); executionOrder.add(nodes.get(id));
+            for (UUID next : successors.get(id)) if (degrees.merge(next, -1, Integer::sum) == 0) ready.add(next);
+        }
+        if (executionOrder.size() != nodes.size()) throw new IllegalArgumentException("Simulation graph contains a cycle");
     }
-    private List<SimBaseNode> computeTopologicalOrderWithPriority(List<SimBaseNode> allNodes, Map<SimBaseNode, List<SimBaseNode>> successors, Map<SimBaseNode, Integer> inDegree) {
 
-        Queue<SimBaseNode> queue = new LinkedList<>();
+    public static long seedForRound(long seed, int round) {
+        return mix(seed ^ (0x9e3779b97f4a7c15L * (round + 1L)));
+    }
 
-        allNodes.stream().filter(node -> inDegree.get(node) == 0).forEach(queue::add);
+    public static long seedForNode(long seed, UUID id) {
+        return mix(seed ^ id.getMostSignificantBits() ^ Long.rotateLeft(id.getLeastSignificantBits(), 17));
+    }
 
-        List<SimBaseNode> sortedList = new ArrayList<>();
+    private static long mix(long z) {
+        z = (z ^ (z >>> 30)) * 0xbf58476d1ce4e5b9L;
+        z = (z ^ (z >>> 27)) * 0x94d049bb133111ebL;
+        return z ^ (z >>> 31);
+    }
 
-        while (!queue.isEmpty()) {
-            SimBaseNode current = queue.poll();
-            sortedList.add(current);
+    public void simulate(int years) {
+        if (executed) throw new IllegalStateException("Create a fresh simulator for each round");
+        if (years < 1 || years > 100) throw new IllegalArgumentException("Simulation years must be 1 to 100");
+        executed = true;
+        for (int hour = 0; hour < years * HOURS_PER_YEAR; hour++) {
+            if (Thread.currentThread().isInterrupted()) throw new IllegalStateException("Simulation interrupted");
+            for (SimBaseNode node : executionOrder) step(node, hour);
+            if ((hour + 1) % HOURS_PER_YEAR == 0) captureYear((hour + 1) / HOURS_PER_YEAR);
+        }
+        result = new ResultPerRound();
+        result.setYear(years);
+        result.addAllResultPerNodes(executionOrder.stream().map(SimBaseNode::createResult).toList());
+    }
 
-            List<SimBaseNode> nextNodes = new ArrayList<>(successors.get(current));
+    public List<AnnualNodeMetrics> getAnnualMetrics() {
+        return List.copyOf(annualMetrics);
+    }
 
-            nextNodes.sort((n1, n2) -> {
-                if (n1 instanceof SimPipelineConnection p1 && n2 instanceof SimPipelineConnection p2) {
-                    return Float.compare(p1.getOutputPriority(), p2.getOutputPriority());
-                }
-                return 0;
-            });
+    public ResultPerRound getResult() {
+        return result;
+    }
 
-            for (SimBaseNode neighbor : nextNodes) {
-                inDegree.put(neighbor, inDegree.get(neighbor) - 1);
-                if (inDegree.get(neighbor) == 0) {
-                    queue.add(neighbor);
-                }
+    public List<SimBaseNode> getExecutionOrder() {
+        return List.copyOf(executionOrder);
+    }
+
+    private void step(SimBaseNode node, int time) {
+        if (operatingStartYear != null) {
+            BaseNode physical = physicalNodes.get(node.getId());
+            LocalDate start = physical.getStartupDate() == null ? LocalDate.of(operatingStartYear, 1, 1)
+                    : physical.getStartupDate().atZone(ZoneOffset.UTC).toLocalDate();
+            long startHour = (long) (start.getYear() - operatingStartYear) * HOURS_PER_YEAR
+                    + Math.min(start.getDayOfYear() - 1, 364) * 24L;
+            long endHour = startHour + Math.round(physical.getLifespanInMonths() * HOURS_PER_YEAR / 12.0);
+            node.setCalendarControlled(true);
+            node.setOperatingAgeHours(Math.toIntExact(time - startHour));
+            if (!physical.isActive() || time < startHour || time >= endHour) {
+                node.setLastSimulatedTime(time); return;
             }
         }
-
-        return sortedList;
+        node.simulate(time);
     }
-    public void simulate(int time){
-        int timeInHours = time * 24*365;
-        for(int amount = 0; amount < 10; amount ++){
-            for (int count = 0; count <= timeInHours; count ++){
-                int exactTime = count;
-                executionOrder.forEach(node -> node.simulate(exactTime));
+
+    private void captureYear(int period) {
+        for (SimBaseNode node : executionOrder) {
+            double[] current = { node.getMeasuredInput(), node.getMeasuredOutput(), node.getMeasuredExported(),
+                    node.getMeasuredLosses(), node.getMeasuredOperatingHours(), node.getMeasuredEvents() };
+            double[] previous = previousMetrics.getOrDefault(node.getId(), new double[6]);
+            BigDecimal[] delta = new BigDecimal[6];
+            for (int i = 0; i < current.length; i++) {
+                if (!Double.isFinite(current[i]) || current[i] < previous[i])
+                    throw new IllegalArgumentException("Invalid simulator quantity for node " + node.getId());
+                delta[i] = BigDecimal.valueOf(current[i] - previous[i]);
             }
-            ResultPerRound resultPerRound = new ResultPerRound();
-            resultPerRound.addAllResultPerNodes(executionOrder.stream().map(SimBaseNode::createResult).toList());
-            resultsPerRound.add(resultPerRound);
-            executionOrder.forEach(node -> node.reset());
+            annualMetrics.add(new AnnualNodeMetrics(node.getId(), period, delta[0], delta[1], delta[2], delta[3], delta[4], delta[5]));
+            previousMetrics.put(node.getId(), current);
         }
-        orderResults();
-        createFinalResult(time);
-
-        version.addResult(finalResult);
     }
 
-    private void orderResults() {
-        List<ResultPerRound> resultsPerRoundOrder = this.resultsPerRound.stream().sorted(Comparator.comparingDouble(ResultPerRound::amountProduced)).toList();
-        this.resultsPerRound = resultsPerRoundOrder;
+    private SimBaseNode transform(BaseNode node) {
+        if (node instanceof Well n)
+            return new SimWell(n);
+        if (node instanceof GatheringNetwork n)
+            return new SimGatheringNetwork(n);
+        if (node instanceof TreatmentPlant n)
+            return new SimTreatmentPlant(n);
+        if (node instanceof Pipeline n)
+            return new SimPipeline(n);
+        if (node instanceof PipelineConnection n)
+            return new SimPipelineConnection(n);
+        if (node instanceof CompressingPlant n)
+            return new SimCompressingPlant(n);
+        if (node instanceof GroundBasedLiquefactionPlant n)
+            return new SimGroundBasedLiquefactionPlant(n);
+        if (node instanceof FLNGUnit n)
+            return new SimFLNGUnit(n);
+        if (node instanceof SeaportTerminal n)
+            return new SimSeaportTerminal(n);
+        if (node instanceof LNGCarrier n)
+            return new SimLNGCarrier(n);
+        if (node instanceof InternalConsumption n)
+            return new SimInternalConsumption(n);
+        if (node instanceof IndustrialConsumption n)
+            return new SimIndustrialConsumption(n);
+        throw new IllegalArgumentException("Unsupported simulation node " + node.getClass().getSimpleName());
     }
-
-    private void createFinalResult(int time) {
-        FinalResult finalResult = new FinalResult(time);
-        finalResult.setMediaOutput(mediaOutput());
-        finalResult.setPercentile90(getPercentile(90).getResultPerNodes());
-        finalResult.setPercentile50(getPercentile(50).getResultPerNodes());
-        finalResult.setPercentile10(getPercentile(10).getResultPerNodes());
-        this.finalResult = finalResult;
-    }
-
-    private float mediaOutput(){
-        int size = this.resultsPerRound.size();
-        float sum = (float) this.resultsPerRound.stream().mapToDouble(value -> value.amountProduced()).sum();
-        return sum / size;
-    }
-
-    private ResultPerRound getPercentile(double percentile) {
-        int index = (int) Math.ceil((percentile / 100.0) * resultsPerRound.size()) - 1;
-        if (index < 0) index = 0;
-        if (index >= resultsPerRound.size()) index = resultsPerRound.size() - 1;
-        return resultsPerRound.get(index);
-    }
-
-    private SimBaseNode transformNode(BaseNode baseNode) {
-        SimBaseNode simNode = null;
-
-        if (baseNode instanceof Well well) {
-            SimWell simWell = new SimWell(well);
-            simNode = simWell;
-        } else if (baseNode instanceof GatheringNetwork gatheringNetwork) {
-            SimGatheringNetwork simGatheringNetwork = new SimGatheringNetwork(gatheringNetwork);
-            simNode = simGatheringNetwork;
-        } else if (baseNode instanceof TreatmentPlant treatmentPlants) {
-            SimTreatmentPlant simTreatmentPlant = new SimTreatmentPlant(treatmentPlants);
-            simNode = simTreatmentPlant;
-        } else if (baseNode instanceof Pipeline pipeline) {
-            SimPipeline simPipeline = new SimPipeline(pipeline);
-            simNode = simPipeline;
-        } else if (baseNode instanceof PipelineConnection pipelineConnection) {
-            SimPipelineConnection simPipelineConnection = new SimPipelineConnection(pipelineConnection);
-            simNode = simPipelineConnection;
-        } else if (baseNode instanceof CompressingPlant compressingPlant) {
-            SimCompressingPlant simCompressingPlant = new SimCompressingPlant(compressingPlant);
-            simNode = simCompressingPlant;
-        } else if (baseNode instanceof GroundBasedLiquefactionPlant groundBasedLiquefactionPlant) {
-            SimGroundBasedLiquefactionPlant simGroundBasedLiquefactionPlant = new SimGroundBasedLiquefactionPlant(groundBasedLiquefactionPlant);
-            simNode = simGroundBasedLiquefactionPlant;
-        } else if (baseNode instanceof FLNGUnit flngUnit) {
-            SimFLNGUnit simFLNGUnit = new SimFLNGUnit(flngUnit);
-            simNode = simFLNGUnit;
-        } else if (baseNode instanceof SeaportTerminal seaportTerminal) {
-            SimSeaportTerminal simSeaportTerminal = new SimSeaportTerminal(seaportTerminal);
-            simNode = simSeaportTerminal;
-        } else if (baseNode instanceof LNGCarrier lngCarrier) {
-            SimLNGCarrier simLNGCarrier = new SimLNGCarrier(lngCarrier);
-            simNode = simLNGCarrier;
-        } else if (baseNode instanceof InternalConsumption internalConsumption) {
-            SimInternalConsumption simInternalConsumption = new SimInternalConsumption(internalConsumption);
-            simNode = simInternalConsumption;
-        } else if (baseNode instanceof IndustrialConsumption industrialConsumption) {
-            SimIndustrialConsumption simIndustrialConsumption = new SimIndustrialConsumption(industrialConsumption);
-            simNode = simIndustrialConsumption;
-        }
-
-        return simNode;
-    }
-
 }
-
-

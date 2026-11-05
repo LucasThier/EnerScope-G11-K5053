@@ -155,13 +155,6 @@ public class ProjectController {
         return Responses.ok("Version created successfully", version);
     }
 
-    @GetMapping("/{projectId}/versions")
-    @Operation(summary = "List the versions of a project", description = "Return the versions of a project as lightweight summaries, so the editor can pick one to open.")
-    public ResponseEntity<ApiResponse<List<VersionSummaryDTO>>> listVersions(
-            @PathVariable UUID projectId) {
-        List<VersionSummaryDTO> versions = projectService.listVersions(projectId);
-        return Responses.ok("Versions retrieved successfully", versions);
-    }
 
     private ProjectDTO toDTO(Project project) {
         return new ProjectDTO(

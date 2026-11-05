@@ -217,6 +217,27 @@ class ProjectControllerTest {
     }
 
     @Test
+    void createProjectAcceptsMissingOrBlankDescription() throws Exception {
+        Project created = new Project("Example", "", new Organization("Acme"));
+        when(projectService.createProject(any(CreateProjectRequestDTO.class))).thenReturn(created);
+        for (String field : new String[]{"", ",\"description\":null", ",\"description\":\"\""}) {
+            mockMvc.perform(post("/projects").header("Authorization", "Bearer " + ACCESS_TOKEN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"name\":\"Example\",\"organizationId\":\"" + UUID.randomUUID() + "\"" + field + "}"))
+                    .andExpect(status().isCreated());
+        }
+    }
+
+    @Test
+    void createProjectRejectsOverlongDescription() throws Exception {
+        mockMvc.perform(post("/projects").header("Authorization", "Bearer " + ACCESS_TOKEN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Example\",\"organizationId\":\"" + UUID.randomUUID() + "\",\"description\":\"" + "x".repeat(501) + "\"}"))
+                .andExpect(status().isBadRequest());
+        verify(projectService, never()).createProject(any());
+    }
+
+    @Test
     void createProjectRejectsBlankFieldsWithValidationError() throws Exception {
         mockMvc.perform(post("/projects")
                         .header("Authorization", "Bearer " + ACCESS_TOKEN)

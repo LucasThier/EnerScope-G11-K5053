@@ -1,0 +1,681 @@
+{
+  "startYear": 2030,
+  "years": 5,
+  "currency": "USD",
+  "wacc": 0.1,
+  "taxEntities": [
+    {
+      "id": "A",
+      "name": "Entity A",
+      "jurisdiction": "HYPOTHETICAL",
+      "taxRate": 0.3,
+      "carryLosses": true,
+      "openingLoss": 0,
+      "lossExpiryYears": null,
+      "lossOffsetLimit": 1,
+      "taxPaymentLagYears": 0
+    },
+    {
+      "id": "B",
+      "name": "Entity B",
+      "jurisdiction": "HYPOTHETICAL",
+      "taxRate": 0.3,
+      "carryLosses": true,
+      "openingLoss": 0,
+      "lossExpiryYears": null,
+      "lossOffsetLimit": 1,
+      "taxPaymentLagYears": 0
+    }
+  ],
+  "boundary": [
+    "A",
+    "B"
+  ],
+  "nodeProfiles": [
+    {
+      "nodeId": "11111111-1111-1111-1111-111111111111",
+      "ownership": [
+        {
+          "taxEntityId": "A",
+          "share": 0.6
+        },
+        {
+          "taxEntityId": "B",
+          "share": 0.4
+        }
+      ],
+      "rules": [
+        {
+          "id": "variable0",
+          "concept": "variable",
+          "taxEntityId": null,
+          "counterpartyId": null,
+          "direction": "EXPENSE",
+          "cashClassification": "CASH",
+          "driver": "OUTPUT_VOLUME",
+          "unitValue": 0.1,
+          "unit": "UNIT",
+          "currency": "USD",
+          "validFrom": "2030-01-01",
+          "validTo": "2035-12-31",
+          "occurrences": [
+            {
+              "recognitionDate": "2031-12-31",
+              "cashDate": "2031-12-31"
+            },
+            {
+              "recognitionDate": "2032-12-31",
+              "cashDate": "2032-12-31"
+            },
+            {
+              "recognitionDate": "2033-12-31",
+              "cashDate": "2033-12-31"
+            },
+            {
+              "recognitionDate": "2034-12-31",
+              "cashDate": "2034-12-31"
+            },
+            {
+              "recognitionDate": "2035-12-31",
+              "cashDate": "2035-12-31"
+            }
+          ]
+        },
+        {
+          "id": "fixed",
+          "concept": "fixed",
+          "taxEntityId": null,
+          "counterpartyId": null,
+          "direction": "EXPENSE",
+          "cashClassification": "CASH",
+          "driver": "FIXED",
+          "unitValue": 50,
+          "unit": "UNIT",
+          "currency": "USD",
+          "validFrom": "2030-01-01",
+          "validTo": "2035-12-31",
+          "occurrences": [
+            {
+              "recognitionDate": "2031-12-31",
+              "cashDate": "2031-12-31"
+            },
+            {
+              "recognitionDate": "2032-12-31",
+              "cashDate": "2032-12-31"
+            },
+            {
+              "recognitionDate": "2033-12-31",
+              "cashDate": "2033-12-31"
+            },
+            {
+              "recognitionDate": "2034-12-31",
+              "cashDate": "2034-12-31"
+            },
+            {
+              "recognitionDate": "2035-12-31",
+              "cashDate": "2035-12-31"
+            }
+          ]
+        },
+        {
+          "id": "general",
+          "concept": "general",
+          "taxEntityId": null,
+          "counterpartyId": null,
+          "direction": "EXPENSE",
+          "cashClassification": "CASH",
+          "driver": "FIXED",
+          "unitValue": 10,
+          "unit": "UNIT",
+          "currency": "USD",
+          "validFrom": "2030-01-01",
+          "validTo": "2035-12-31",
+          "occurrences": [
+            {
+              "recognitionDate": "2031-12-31",
+              "cashDate": "2031-12-31"
+            },
+            {
+              "recognitionDate": "2032-12-31",
+              "cashDate": "2032-12-31"
+            },
+            {
+              "recognitionDate": "2033-12-31",
+              "cashDate": "2033-12-31"
+            },
+            {
+              "recognitionDate": "2034-12-31",
+              "cashDate": "2034-12-31"
+            },
+            {
+              "recognitionDate": "2035-12-31",
+              "cashDate": "2035-12-31"
+            }
+          ]
+        },
+        {
+          "id": "nondeductible",
+          "concept": "nondeductible",
+          "taxEntityId": null,
+          "counterpartyId": null,
+          "direction": "EXPENSE",
+          "cashClassification": "CASH",
+          "driver": "FIXED",
+          "unitValue": 5,
+          "unit": "UNIT",
+          "currency": "USD",
+          "validFrom": "2030-01-01",
+          "validTo": "2035-12-31",
+          "occurrences": [
+            {
+              "recognitionDate": "2031-12-31",
+              "cashDate": "2031-12-31"
+            },
+            {
+              "recognitionDate": "2032-12-31",
+              "cashDate": "2032-12-31"
+            },
+            {
+              "recognitionDate": "2033-12-31",
+              "cashDate": "2033-12-31"
+            },
+            {
+              "recognitionDate": "2034-12-31",
+              "cashDate": "2034-12-31"
+            },
+            {
+              "recognitionDate": "2035-12-31",
+              "cashDate": "2035-12-31"
+            }
+          ]
+        },
+        {
+          "id": "working-capital",
+          "concept": "working-capital",
+          "taxEntityId": null,
+          "counterpartyId": null,
+          "direction": "EXPENSE",
+          "cashClassification": "CASH",
+          "driver": "FIXED",
+          "unitValue": 100,
+          "unit": "UNIT",
+          "currency": "USD",
+          "validFrom": "2030-01-01",
+          "validTo": "2035-12-31",
+          "occurrences": [
+            {
+              "recognitionDate": "2030-12-31",
+              "cashDate": "2030-12-31"
+            }
+          ]
+        },
+        {
+          "id": "recovery",
+          "concept": "recovery",
+          "taxEntityId": null,
+          "counterpartyId": null,
+          "direction": "INCOME",
+          "cashClassification": "CASH",
+          "driver": "FIXED",
+          "unitValue": 100,
+          "unit": "UNIT",
+          "currency": "USD",
+          "validFrom": "2030-01-01",
+          "validTo": "2035-12-31",
+          "occurrences": [
+            {
+              "recognitionDate": "2035-12-31",
+              "cashDate": "2035-12-31"
+            }
+          ]
+        },
+        {
+          "id": "grant",
+          "concept": "grant",
+          "taxEntityId": null,
+          "counterpartyId": null,
+          "direction": "INCOME",
+          "cashClassification": "CASH",
+          "driver": "FIXED",
+          "unitValue": 20,
+          "unit": "UNIT",
+          "currency": "USD",
+          "validFrom": "2030-01-01",
+          "validTo": "2035-12-31",
+          "occurrences": [
+            {
+              "recognitionDate": "2030-12-31",
+              "cashDate": "2030-12-31"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "nodeId": "22222222-2222-2222-2222-222222222222",
+      "ownership": [
+        {
+          "taxEntityId": "A",
+          "share": 0.6
+        },
+        {
+          "taxEntityId": "B",
+          "share": 0.4
+        }
+      ],
+      "rules": [
+        {
+          "id": "variable1",
+          "concept": "variable",
+          "taxEntityId": null,
+          "counterpartyId": null,
+          "direction": "EXPENSE",
+          "cashClassification": "CASH",
+          "driver": "OUTPUT_VOLUME",
+          "unitValue": 0.1,
+          "unit": "UNIT",
+          "currency": "USD",
+          "validFrom": "2030-01-01",
+          "validTo": "2035-12-31",
+          "occurrences": [
+            {
+              "recognitionDate": "2031-12-31",
+              "cashDate": "2031-12-31"
+            },
+            {
+              "recognitionDate": "2032-12-31",
+              "cashDate": "2032-12-31"
+            },
+            {
+              "recognitionDate": "2033-12-31",
+              "cashDate": "2033-12-31"
+            },
+            {
+              "recognitionDate": "2034-12-31",
+              "cashDate": "2034-12-31"
+            },
+            {
+              "recognitionDate": "2035-12-31",
+              "cashDate": "2035-12-31"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "adjustments": [
+    {
+      "id": "internal",
+      "concept": "internal",
+      "taxEntityId": "A",
+      "counterpartyId": "B",
+      "direction": "INCOME",
+      "cashClassification": "CASH",
+      "driver": "FIXED",
+      "unitValue": 20,
+      "unit": "UNIT",
+      "currency": "USD",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "occurrences": [
+        {
+          "recognitionDate": "2031-12-31",
+          "cashDate": "2031-12-31"
+        },
+        {
+          "recognitionDate": "2032-12-31",
+          "cashDate": "2032-12-31"
+        },
+        {
+          "recognitionDate": "2033-12-31",
+          "cashDate": "2033-12-31"
+        },
+        {
+          "recognitionDate": "2034-12-31",
+          "cashDate": "2034-12-31"
+        },
+        {
+          "recognitionDate": "2035-12-31",
+          "cashDate": "2035-12-31"
+        }
+      ]
+    }
+  ],
+  "contracts": [
+    {
+      "id": "sale-base",
+      "deliveryNodeId": "11111111-1111-1111-1111-111111111111",
+      "revenueRule": {
+        "id": "sale-base",
+        "concept": "sales",
+        "taxEntityId": null,
+        "counterpartyId": null,
+        "direction": "INCOME",
+        "cashClassification": "CASH",
+        "driver": "OUTPUT_VOLUME",
+        "unitValue": 1,
+        "unit": "UNIT",
+        "currency": "USD",
+        "validFrom": "2030-01-01",
+        "validTo": "2035-12-31",
+        "occurrences": [
+          {
+            "recognitionDate": "2031-12-31",
+            "cashDate": "2031-12-31"
+          },
+          {
+            "recognitionDate": "2033-12-31",
+            "cashDate": "2033-12-31"
+          },
+          {
+            "recognitionDate": "2034-12-31",
+            "cashDate": "2034-12-31"
+          },
+          {
+            "recognitionDate": "2035-12-31",
+            "cashDate": "2035-12-31"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sale-2032-cash",
+      "deliveryNodeId": "11111111-1111-1111-1111-111111111111",
+      "revenueRule": {
+        "id": "sale-2032-cash",
+        "concept": "sales",
+        "taxEntityId": null,
+        "counterpartyId": null,
+        "direction": "INCOME",
+        "cashClassification": "CASH",
+        "driver": "OUTPUT_VOLUME",
+        "unitValue": 0.4,
+        "unit": "UNIT",
+        "currency": "USD",
+        "validFrom": "2030-01-01",
+        "validTo": "2035-12-31",
+        "occurrences": [
+          {
+            "recognitionDate": "2032-12-31",
+            "cashDate": "2032-12-31"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sale-2032-credit",
+      "deliveryNodeId": "11111111-1111-1111-1111-111111111111",
+      "revenueRule": {
+        "id": "sale-2032-credit",
+        "concept": "sales",
+        "taxEntityId": null,
+        "counterpartyId": null,
+        "direction": "INCOME",
+        "cashClassification": "CASH",
+        "driver": "OUTPUT_VOLUME",
+        "unitValue": 0.6,
+        "unit": "UNIT",
+        "currency": "USD",
+        "validFrom": "2030-01-01",
+        "validTo": "2035-12-31",
+        "occurrences": [
+          {
+            "recognitionDate": "2032-12-31",
+            "cashDate": "2033-12-31"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sale-expansion",
+      "deliveryNodeId": "22222222-2222-2222-2222-222222222222",
+      "revenueRule": {
+        "id": "sale-expansion",
+        "concept": "sales",
+        "taxEntityId": null,
+        "counterpartyId": null,
+        "direction": "INCOME",
+        "cashClassification": "CASH",
+        "driver": "OUTPUT_VOLUME",
+        "unitValue": 1,
+        "unit": "UNIT",
+        "currency": "USD",
+        "validFrom": "2030-01-01",
+        "validTo": "2035-12-31",
+        "occurrences": [
+          {
+            "recognitionDate": "2031-12-31",
+            "cashDate": "2031-12-31"
+          },
+          {
+            "recognitionDate": "2032-12-31",
+            "cashDate": "2032-12-31"
+          },
+          {
+            "recognitionDate": "2033-12-31",
+            "cashDate": "2033-12-31"
+          },
+          {
+            "recognitionDate": "2034-12-31",
+            "cashDate": "2034-12-31"
+          },
+          {
+            "recognitionDate": "2035-12-31",
+            "cashDate": "2035-12-31"
+          }
+        ]
+      }
+    }
+  ],
+  "assets": [
+    {
+      "id": "equipment",
+      "nodeId": "11111111-1111-1111-1111-111111111111",
+      "taxEntityId": null,
+      "concept": "equipment",
+      "currency": "USD",
+      "cost": 1000,
+      "residualValue": 0,
+      "purchaseDate": "2030-12-31",
+      "paymentDate": "2030-12-31",
+      "serviceDate": "2031-01-01",
+      "usefulLifeMonths": 60
+    }
+  ],
+  "taxTreatments": [
+    {
+      "concept": "sales",
+      "taxEntityId": "A",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "TAXABLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "variable",
+      "taxEntityId": "A",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "DEDUCTIBLE",
+      "deductibleFraction": 1
+    },
+    {
+      "concept": "fixed",
+      "taxEntityId": "A",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "DEDUCTIBLE",
+      "deductibleFraction": 1
+    },
+    {
+      "concept": "general",
+      "taxEntityId": "A",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "DEDUCTIBLE",
+      "deductibleFraction": 1
+    },
+    {
+      "concept": "nondeductible",
+      "taxEntityId": "A",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "NON_DEDUCTIBLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "working-capital",
+      "taxEntityId": "A",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "NON_DEDUCTIBLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "recovery",
+      "taxEntityId": "A",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "NON_TAXABLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "grant",
+      "taxEntityId": "A",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "NON_TAXABLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "equipment",
+      "taxEntityId": "A",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "CAPITALIZABLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "equipment.depreciation",
+      "taxEntityId": "A",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "DEDUCTIBLE",
+      "deductibleFraction": 1
+    },
+    {
+      "concept": "internal",
+      "taxEntityId": "A",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "TAXABLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "sales",
+      "taxEntityId": "B",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "TAXABLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "variable",
+      "taxEntityId": "B",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "DEDUCTIBLE",
+      "deductibleFraction": 1
+    },
+    {
+      "concept": "fixed",
+      "taxEntityId": "B",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "DEDUCTIBLE",
+      "deductibleFraction": 1
+    },
+    {
+      "concept": "general",
+      "taxEntityId": "B",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "DEDUCTIBLE",
+      "deductibleFraction": 1
+    },
+    {
+      "concept": "nondeductible",
+      "taxEntityId": "B",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "NON_DEDUCTIBLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "working-capital",
+      "taxEntityId": "B",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "NON_DEDUCTIBLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "recovery",
+      "taxEntityId": "B",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "NON_TAXABLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "grant",
+      "taxEntityId": "B",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "NON_TAXABLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "equipment",
+      "taxEntityId": "B",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "CAPITALIZABLE",
+      "deductibleFraction": 0
+    },
+    {
+      "concept": "equipment.depreciation",
+      "taxEntityId": "B",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "DEDUCTIBLE",
+      "deductibleFraction": 1
+    },
+    {
+      "concept": "internal",
+      "taxEntityId": "B",
+      "validFrom": "2030-01-01",
+      "validTo": "2035-12-31",
+      "classification": "DEDUCTIBLE",
+      "deductibleFraction": 1
+    }
+  ],
+  "conversions": [
+    {
+      "nodeId": "11111111-1111-1111-1111-111111111111",
+      "metric": "OUTPUT_VOLUME",
+      "rawUnit": "SIMULATOR_UNIT",
+      "unit": "UNIT",
+      "factor": 0.000114155251,
+      "annualQuantity": null
+    },
+    {
+      "nodeId": "22222222-2222-2222-2222-222222222222",
+      "metric": "OUTPUT_VOLUME",
+      "rawUnit": "SIMULATOR_UNIT",
+      "unit": "UNIT",
+      "factor": 0.000114155251,
+      "annualQuantity": null
+    }
+  ]
+}

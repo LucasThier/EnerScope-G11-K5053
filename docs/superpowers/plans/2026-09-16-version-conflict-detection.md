@@ -4,7 +4,7 @@
 
 **Goal:** Implement conflict detection after version merge so that child versions can be notified of changes and decide whether to incorporate them.
 
-**Architecture:** 
+**Architecture:**
 - Extend the Version entity to track merged parent information
 - Add a service method to detect conflicts between a version and its ancestors
 - Create REST endpoints to fetch conflicts and mark them as resolved
@@ -156,13 +156,13 @@ public class VersionConflictService {
 
         // Get all siblings (other children of the same parent)
         List<Version> siblings = versionRepository.findByParentVersionId(
-                mergedParent.getParentVersion() != null ? 
+                mergedParent.getParentVersion() != null ?
                 mergedParent.getParentVersion().getId() : null);
 
         // Filter to only siblings that were merged after our merge timestamp
         Set<UUID> relevantSiblingIds = new HashSet<>();
         for (Version sibling : siblings) {
-            if (sibling.getMergeTimestamp() != null && 
+            if (sibling.getMergeTimestamp() != null &&
                 version.getMergeTimestamp() != null &&
                 sibling.getMergeTimestamp().isAfter(version.getMergeTimestamp())) {
                 relevantSiblingIds.add(sibling.getId());
@@ -174,12 +174,12 @@ public class VersionConflictService {
         for (UUID siblingId : relevantSiblingIds) {
             Version sibling = versionRepository.findById(siblingId)
                     .orElseThrow(() -> new IllegalArgumentException("Sibling version not found: " + siblingId));
-            
+
             // Detect node conflicts
             List<NodeConflictDTO> nodeConflicts = detectNodeConflicts(version, sibling);
-            // Detect connection conflicts  
+            // Detect connection conflicts
             List<ConnectionConflictDTO> connectionConflicts = detectConnectionConflicts(version, sibling);
-            
+
             if (!nodeConflicts.isEmpty() || !connectionConflicts.isEmpty()) {
                 conflicts.add(new VersionConflictDTO(
                     sibling.getId(),
@@ -196,13 +196,13 @@ public class VersionConflictService {
 
     private List<NodeConflictDTO> detectNodeConflicts(Version version, Version sibling) {
         List<NodeConflictDTO> conflicts = new ArrayList<>();
-        
+
         // Get nodes that exist in sibling but not in version
         Set<UUID> versionNodeIds = getNodeIds(version.getNodeSnapshot());
         Set<UUID> siblingNodeIds = getNodeIds(sibling.getNodeSnapshot());
-        
+
         siblingNodeIds.removeAll(versionNodeIds); // Keep only nodes in sibling but not in version
-        
+
         for (UUID nodeId : siblingNodeIds) {
             // Find the actual node in sibling's snapshot
             BaseNode node = findNodeById(sibling.getNodeSnapshot(), nodeId);
@@ -215,19 +215,19 @@ public class VersionConflictService {
                 ));
             }
         }
-        
+
         return conflicts;
     }
 
     private List<ConnectionConflictDTO> detectConnectionConflicts(Version version, Version sibling) {
         List<ConnectionConflictDTO> conflicts = new ArrayList<>();
-        
+
         // Get connections that exist in sibling but not in version
         Set<UUID> versionConnectionIds = getConnectionIds(version.getConnectionSnapshot());
         Set<UUID> siblingConnectionIds = getConnectionIds(sibling.getConnectionSnapshot());
-        
+
         siblingConnectionIds.removeAll(versionConnectionIds); // Keep only connections in sibling but not in version
-        
+
         for (UUID connectionId : siblingConnectionIds) {
             // Find the actual connection in sibling's snapshot
             NodeConnection connection = findConnectionById(sibling.getConnectionSnapshot(), connectionId);
@@ -239,7 +239,7 @@ public class VersionConflictService {
                 ));
             }
         }
-        
+
         return conflicts;
     }
 
@@ -509,7 +509,7 @@ Modify VersionConflictService to add:
 private final VersionConflictResolutionRepository conflictResolutionRepository;
 
 // Add constructor parameter
-public VersionConflictService(VersionRepository versionRepository, 
+public VersionConflictService(VersionRepository versionRepository,
                               VersionConflictResolutionRepository conflictResolutionRepository,
                               AppLogger logger) {
     this.versionRepository = versionRepository;
@@ -521,10 +521,10 @@ public VersionConflictService(VersionRepository versionRepository,
 public void resolveConflict(UUID versionId, UUID conflictingVersionId) {
     Version version = versionRepository.findById(versionId)
             .orElseThrow(() -> new IllegalArgumentException("Version not found: " + versionId));
-            
+
     VersionConflictResolution resolution = new VersionConflictResolution(conflictingVersionId, version);
     conflictResolutionRepository.save(resolution);
-    
+
     logger.info("Resolved conflict for version {} with conflicting version {}", versionId, conflictingVersionId);
 }
 
@@ -713,7 +713,7 @@ class VersionConflictServiceTest {
         parentId = UUID.randomUUID();
         siblingId = UUID.randomUUID();
         conflictingSiblingId = UUID.randomUUID();
-        
+
         // Using mocks for testing
         versionConflictService = new VersionConflictService(
                 versionRepository,
@@ -795,8 +795,8 @@ class VersionConflictServiceTest {
                 // Set other required fields...
             }
         };
-        
-        Version sibling = new Version("Sibling Version", parentVersion, 
+
+        Version sibling = new Version("Sibling Version", parentVersion,
                 List.of(newNode), new ArrayList<>(), // Has the new node
                 new ArrayList<>(), new ArrayList<>());
         sibling.setId(siblingId);
@@ -816,12 +816,12 @@ class VersionConflictServiceTest {
         assertEquals("Sibling Version", conflict.getVersionName());
         assertEquals(1, conflict.getNodeConflicts().size());
         assertEquals(0, conflict.getConnectionConflicts().size());
-        
+
         NodeConflictDTO nodeConflict = conflict.getNodeConflicts().get(0);
         assertEquals(newNode.getId(), nodeConflict.getNodeId());
         assertEquals("New Node", nodeConflict.getNodeName());
         assertEquals("ADDED", nodeConflict.getChangeType());
-        
+
         verify(versionRepository).findById(versionId);
         verify(versionRepository).findByParentVersionId(parentId);
     }
@@ -935,7 +935,7 @@ void mergeAndDetectConflicts_ShouldWorkEndToEnd() {
     UUID parentId = UUID.randomUUID();
     UUID subId = UUID.randomUUID();
     UUID siblingSubId = UUID.randomUUID();
-    
+
     Well parentWell = new Well(
             "Parent Well",
             NodeStateEnum.PROPOSED,
@@ -1042,24 +1042,24 @@ void mergeAndDetectConflicts_ShouldWorkEndToEnd() {
     when(versionRepository.findById(subId)).thenReturn(Optional.of(subVersion));
     when(versionRepository.findById(siblingSubId)).thenReturn(Optional.of(siblingSubVersion));
     when(versionRepository.save(any(Version.class))).thenAnswer(invocation -> invocation.getArgument(0));
-    
+
     // Mock parent repository calls for version service
     when(versionRepository.findByParentVersionId(null)).thenReturn(List.of(subVersion, siblingSubVersion));
-    
+
     Version mergedParent = versionService.mergeSubVersionIntoParent(subId);
-    
+
     // Then - Detect conflicts in sibling subversion (should see the merge as a conflict)
     List<VersionConflictDTO> conflicts = versionConflictService.detectConflicts(siblingSubId);
-    
+
     // The sibling should detect that the parent was modified by our merge
     assertEquals(1, conflicts.size());
     VersionConflictDTO conflict = conflicts.get(0);
     assertEquals(parentId, conflict.getVersionId());
     assertEquals("Parent Version", conflict.getVersionName());
-    
+
     // Verify that we can resolve the conflict
     versionConflictService.resolveConflict(siblingSubId, parentId);
-    
+
     // Verify conflict is now resolved
     boolean isResolved = versionConflictService.isConflictResolved(siblingSubId, parentId);
     assertTrue(isResolved);

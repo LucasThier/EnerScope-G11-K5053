@@ -10,7 +10,7 @@ public record CreateProjectRequestDTO(
         @NotBlank @Size(min = 2, max = 120)
         String name,
 
-        @NotBlank @Size(max = 500)
+        @Size(max = 500)
         String description,
 
         @NotNull

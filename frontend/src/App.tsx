@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/AuthProvider';
 import { ThemeProvider } from './hooks/ThemeProvider';
 import { ProtectedRoute } from './routes/ProtectedRoute';
@@ -11,6 +11,9 @@ import { AdminUsersPage } from './pages/AdminUsersPage';
 import { AdminOrganizationsPage } from './pages/AdminOrganizationsPage';
 import { WorkspacePage } from './pages/WorkspacePage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { ScenarioConfigurationPage } from './pages/ScenarioConfigurationPage';
+import { ScenariosPage } from './pages/ScenariosPage';
+import { EconomicsPage } from './pages/EconomicsPage';
 import { EditorPage } from './pages/EditorPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { OrganizationTeamPage } from './pages/OrganizationTeamPage';
@@ -21,12 +24,7 @@ import { OrganizationMemberRoute } from './routes/OrganizationMemberRoute';
 import { OrganizationOwnerRoute } from './routes/OrganizationOwnerRoute';
 import { MyOrganizationsPage } from './pages/MyOrganizationsPage';
 
-export default function App() {
-  return (
-    <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
+const router = createBrowserRouter(createRoutesFromElements(<>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
@@ -38,7 +36,12 @@ export default function App() {
                   <Route path="/app" element={<WorkspacePage />} />
                   <Route path="/projects" element={<ProjectsPage />} />
                   <Route path="/projects/:projectId/team" element={<ProjectTeamPage />} />
+                  <Route path="/projects/:projectId/scenario-configurations" element={<ScenariosPage configuration />} />
+                  <Route path="/projects/:projectId/simulations" element={<ScenariosPage />} />
                   <Route path="/projects/:projectId/versions" element={<VersionsPage />} />
+                  <Route path="/projects/:projectId/versions/:versionId/economics" element={<ScenarioConfigurationPage />} />
+                  <Route path="/projects/:projectId/versions/:versionId/economics/configuration" element={<ScenarioConfigurationPage />} />
+                  <Route path="/projects/:projectId/versions/:versionId/economics/:tab/:evaluationId?" element={<EconomicsPage />} />
                   <Route path="/versions" element={<VersionsIndexPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route
@@ -62,9 +65,8 @@ export default function App() {
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </ThemeProvider>
-  );
+</>));
+
+export default function App() {
+  return <ThemeProvider><AuthProvider><RouterProvider router={router} /></AuthProvider></ThemeProvider>;
 }

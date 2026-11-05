@@ -67,6 +67,46 @@ class VersionServiceTest {
         @InjectMocks
         private VersionService versionService;
 
+        @Test
+        void consumersCreateEditAndReloadWithinTheirVersion() throws Exception {
+            var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+            for (String type : List.of("INTERNAL_CONSUMPTION", "INDUSTRIAL_CONSUMPTION")) {
+                UUID versionId = UUID.randomUUID(), nodeId = UUID.randomUUID();
+                var version = new Version("Consumers", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+                when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                String json = "{\"name\":\"Consumer\",\"state\":\"RUNNING\",\"lifespanInMonths\":120,\"maintenanceIntervalInDays\":30,\"wastePercentage\":0,\"consumption\":50,\"consumptionSummer\":10,\"consumptionAutumn\":20,\"consumptionWinter\":30,\"consumptionSpring\":40,\"type\":{\"vertical\":\"INTERNAL_CONSUMPTION\",\"role\":\"SINK\",\"nodeType\":\"" + type + "\"}}";
+                mapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+                var dto = mapper.readValue(json, org.enerscope.node.dto.BaseNodeDTO.class);
+                BaseNode saved;
+                if (dto instanceof org.enerscope.node.dto.InternalConsumptionDTO d) {
+                    var n = new org.enerscope.node.model.export.InternalConsumption();
+                    org.mockito.Mockito.doCallRealMethod().when(nodeService).editInternalConsumption(any(), any());
+                    when(nodeService.saveInternalConsumption(d)).thenAnswer(inv -> { n.setIdentityId(d.getIdentity()); return nodeService.editInternalConsumption(n,d); });
+                    saved = n;
+                } else {
+                    var d = (org.enerscope.node.dto.IndustrialConsumptionDTO) dto;
+                    var n = new org.enerscope.node.model.export.IndustrialConsumption();
+                    org.mockito.Mockito.doCallRealMethod().when(nodeService).editIndustrialConsumption(any(), any());
+                    when(nodeService.saveIndustrialConsumption(d)).thenAnswer(inv -> { n.setIdentityId(d.getIdentity()); return nodeService.editIndustrialConsumption(n,d); });
+                    saved = n;
+                }
+                org.springframework.test.util.ReflectionTestUtils.setField(saved, "id", nodeId);
+                assertSame(saved, versionService.addNodeToVersion(versionId, dto));
+                when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(saved));
+                String field = type.equals("INTERNAL_CONSUMPTION") ? "consumptionWinter" : "consumption";
+                assertEquals(type.equals("INTERNAL_CONSUMPTION") ? 30d : 50d, versionService.getNodeDetail(versionId,nodeId).getAttributes().get(field));
+                if (dto instanceof org.enerscope.node.dto.InternalConsumptionDTO d) d.setConsumptionWinter(12.5f);
+                else ((org.enerscope.node.dto.IndustrialConsumptionDTO)dto).setConsumption(12.5f);
+                versionService.editNodeInVersion(versionId,nodeId,dto);
+                assertEquals(12.5d, versionService.getNodeDetail(versionId,nodeId).getAttributes().get(field));
+                verify(accessGuard, org.mockito.Mockito.atLeastOnce()).assertCanEditNodeVertical(versionId, org.enerscope.node.model.enums.VerticalEnum.INTERNAL_CONSUMPTION);
+                var foreign = new Version("Other", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+                UUID foreignId = UUID.randomUUID(); when(versionRepository.findById(foreignId)).thenReturn(Optional.of(foreign));
+                assertThrows(IllegalArgumentException.class, () -> versionService.editNodeInVersion(foreignId,nodeId,dto));
+                assertThrows(IllegalArgumentException.class, () -> versionService.getNodeDetail(foreignId,nodeId));
+            }
+        }
+
         @BeforeEach
         void setUp() {
                 // Using mocks for testing
@@ -823,5 +863,43 @@ class VersionServiceTest {
 
                 assertEquals("Version has no parent version to merge into", ex.getMessage());
                 verifyNoInteractions(versionConflictService);
+        }
+
+    @Test
+    void newVersionInitializesMutableEmptySnapshots() {
+        when(versionRepository.save(any(Version.class))).thenAnswer(inv -> inv.getArgument(0));
+        Version version = versionService.saveVersion(new org.enerscope.version.dto.VersionDTO("Economic example", null));
+        assertNotNull(version.getNodeSnapshot());
+        assertNotNull(version.getConnectionSnapshot());
+        assertTrue(version.getNodeSnapshot().isEmpty());
+        version.getNodeSnapshot().add(new Well());
+        assertEquals(1, version.getNodeSnapshot().size());
+    }
+
+        @Test
+        void nodeDetailPreservesDistributionParametersWithoutSampling() {
+                var distributions = List.of(
+                    org.mockito.Mockito.spy(new org.enerscope.probabilistic.ConstantValue(1.45f)),
+                    org.mockito.Mockito.spy(new org.enerscope.probabilistic.NormalDistributionCase(2f, .5f)),
+                    org.mockito.Mockito.spy(new org.enerscope.probabilistic.UniformDistributionCase(1f, 3f)));
+                String[] types = {"CONSTANT", "NORMAL", "UNIFORM"};
+                float[] first = {1.45f, 2f, 1f};
+                Float[] second = {null, .5f, 3f};
+                for (int index = 0; index < distributions.size(); index++) {
+                    var well = new Well();
+                    well.setDeclineCurve(distributions.get(index));
+                    var version = new Version("Test", null, new ArrayList<>(List.of(well)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+                    var versionId = UUID.randomUUID(); var nodeId = UUID.randomUUID();
+                    when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+                    when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(well));
+                    for (int read = 0; read < 2; read++) {
+                        var detail = versionService.getNodeDetail(versionId, nodeId);
+                        assertEquals(types[index], detail.getDeclineCurve().getType());
+                        assertEquals(first[index], detail.getDeclineCurve().getVal_a());
+                        assertEquals(second[index], detail.getDeclineCurve().getVal_b());
+                        assertTrue(!detail.getAttributes().containsKey("declineCurve"));
+                    }
+                    verify(distributions.get(index), org.mockito.Mockito.never()).generateValue();
+                }
         }
 }
