@@ -1626,3 +1626,101 @@ summaryVisuals.test.mjs (8 unit/component cases):
 probabilistic-browser.mjs extends existing progress/round/retry/mobile checks with summary cards, closed details, metric selection, point focus/Escape, partial IRR, unavailable recovery, negative NPV detail, a missing-year gap and visual captures. Existing operational conversion and CSV tests remain unchanged.
 
 Validation: **801 backend tests** and **69 frontend tests**, zero failures/skips. Frontend build, lint and probabilistic browser acceptance passed. Inspected desktop/mobile summary and annual-band screenshots, including negative values and a missing period. Backend code, API contracts and persisted data remain unchanged.
+
+
+## 2026-11-04 — Scenario revisions v4 test additions
+
+### ScenarioRevisionTest — unit, 7 cases
+
+- `revisionRejectsInvalidNumber`: verifies revision Rejects Invalid Number.
+- `revisionRequiresSnapshotAndHash`: verifies revision Requires Snapshot And Hash.
+- `importedRevisionAllowsUnknownAuthor`: verifies imported Revision Allows Unknown Author.
+- `revisionCannotBeActivatedOrDeactivated`: verifies revision Cannot Be Activated Or Deactivated.
+- `mergeBaseRequiresMergeSource`: verifies merge Base Requires Merge Source.
+- `publicationRejectsUnpersistedRevision`: verifies publication Rejects Unpersisted Revision.
+- `scenarioDescriptionIsOptionalAndNameIsRequired`: verifies scenario Description Is Optional And Name Is Required.
+
+### OperationalThreeWayMergeTest — unit, 10 cases
+
+- `independentChangesAreCombined`: verifies independent Changes Are Combined.
+- `deletionAgainstModificationRequiresResolution`: verifies deletion Against Modification Requires Resolution.
+- `choosingSourceCanResolveDeletion`: verifies choosing Source Can Resolve Deletion.
+- `choosingTargetKeepsItsValue`: verifies choosing Target Keeps Its Value.
+- `unknownBaseRequiresReviewEvenForSourceOnlyAddition`: verifies unknown Base Requires Review Even For Source Only Addition.
+- `identicalChangesDoNotConflict`: verifies identical Changes Do Not Conflict.
+- `unchangedSourcePreservesTargetDeletion`: verifies unchanged Source Preserves Target Deletion.
+- `inputTreesAreNotSharedWithResult`: verifies input Trees Are Not Shared With Result.
+- `staleResolutionIsRejected`: verifies stale Resolution Is Rejected.
+- `resolutionForNonConflictIsRejected`: verifies resolution For Non Conflict Is Rejected.
+
+### RevisionContentHashTest — unit, 3 cases
+
+- `objectPropertyOrderAndAuditTimesDoNotChangeHash`: verifies object Property Order And Audit Times Do Not Change Hash.
+- `presentationChangesArePartOfRevision`: verifies presentation Changes Are Part Of Revision.
+- `arrayOrderIsNotSilentlyDiscarded`: verifies array Order Is Not Silently Discarded.
+
+### ScenarioRevisionServiceTest — unit, 8 cases
+
+- `initialCapturePreservesIncompleteConfiguration`: verifies initial Capture Preserves Incomplete Configuration.
+- `unchangedPublicationDoesNotCreateRevision`: verifies unchanged Publication Does Not Create Revision.
+- `stalePublicationFailsWithoutAppending`: verifies stale Publication Fails Without Appending.
+- `crossProjectReadIsRejected`: verifies cross Project Read Is Rejected.
+- `inaccessibleRevisionCannotBeRead`: verifies inaccessible Revision Cannot Be Read.
+- `preparedMergeBlocksSimulationEvenWithoutWorkspaceChanges`: verifies prepared Merge Blocks Simulation Even Without Workspace Changes.
+- `unresolvedMergeReportsActionablePublicationError`: verifies unresolved Merge Reports Actionable Publication Error.
+- `savedFormDraftBlocksSimulationEvenWithoutWorkspaceChanges`: verifies saved Form Draft Blocks Simulation Even Without Workspace Changes.
+
+### ScenarioConfigurationTest — H2 integration, 22 cases
+
+- `removedNodesStayInHistoryButLeaveConfigurationAndNewInputs`: verifies removed Nodes Stay In History But Leave Configuration And New Inputs.
+- `removingReferencedNodeRequiresEconomicRulesToBeReviewed`: verifies removing Referenced Node Requires Economic Rules To Be Reviewed.
+- `publishesPhysicsAndEconomicsTogetherAndRemapsReferencesWithoutMutatingParent`: verifies publishes Physics And Economics Together And Remaps References Without Mutating Parent.
+- `incompleteSavePreservesPublishedValuesAndBlocksJobUntilDiscarded`: verifies incomplete Save Preserves Published Values And Blocks Job Until Discarded.
+- `draftSurvivesReloadAndDiscardEnablesSimulation`: verifies draft Survives Reload And Discard Enables Simulation.
+- `mapEditAppearsInConfigurationAndRejectsStaleSave`: verifies map Edit Appears In Configuration And Rejects Stale Save.
+- `persistedDraftKeepsOriginalSourceAfterMapEdit`: verifies persisted Draft Keeps Original Source After Map Edit.
+- `fullMapEditRemapsEconomicAndConnectionReferences`: verifies full Map Edit Remaps Economic And Connection References.
+- `malformedEditorIsRejectedWithoutPersistingDraft`: verifies malformed Editor Is Rejected Without Persisting Draft.
+- `rejectsForeignVersionAndUnauthorizedUser`: verifies rejects Foreign Version And Unauthorized User.
+- `mapDraftBlocksSimulationAndPublishedRevisionRemainsImmutable`: verifies map Draft Blocks Simulation And Published Revision Remains Immutable.
+- `restoringOldRevisionCreatesDraftWithoutMovingCurrentPointer`: verifies restoring Old Revision Creates Draft Without Moving Current Pointer.
+- `branchUsesPublishedRevisionInsteadOfPendingMapChanges`: verifies branch Uses Published Revision Instead Of Pending Map Changes.
+- `operationalMergePreservesTargetEconomicsUntilPublication`: verifies operational Merge Preserves Target Economics Until Publication.
+- `newSimulationReferencesRevisionWithoutDuplicatingPhysicalInputs`: verifies new Simulation References Revision Without Duplicating Physical Inputs.
+- `editorSavesSharedOperationDraftWithoutPublishingAndMapReadsIt`: verifies editor Saves Shared Operation Draft Without Publishing And Map Reads It.
+- `historicalImportIsIdempotentAndPreservesSnapshotAndCurrentRevision`: verifies historical Import Is Idempotent And Preserves Snapshot And Current Revision.
+- `incompleteHistoricalInputRemainsLegacy`: verifies incomplete Historical Input Remains Legacy.
+- `successiveMergesUseLastPublishedSourceAndDiscardDoesNotIntegrate`: verifies successive Merges Use Last Published Source And Discard Does Not Integrate.
+- `movingLegacySharedNodePreservesOtherScenarioAndPublishedMap`: verifies moving Legacy Shared Node Preserves Other Scenario And Published Map.
+- `independentCopyUsesPublishedRevisionAndRetainsOriginWithoutResults`: verifies independent Copy Uses Published Revision And Retains Origin Without Results.
+- `staleForkTokenRejectsCreationAfterWorkspaceChange`: verifies stale Fork Token Rejects Creation After Workspace Change.
+
+### EconomicJobServiceTest — unit, 8 cases
+
+- `submissionFreezesInputsAndQueuesWithoutPublishingEvaluation`: verifies submission Freezes Inputs And Queues Without Publishing Evaluation.
+- `retryUsesFrozenInputAndSeedWithoutReadingCurrentConfiguration`: verifies retry Uses Frozen Input And Seed Without Reading Current Configuration.
+- `runningJobCannotBeRetried`: verifies running Job Cannot Be Retried.
+- `lostAtomicClaimDoesNotStartDuplicateWork`: verifies lost Atomic Claim Does Not Start Duplicate Work.
+- `successfulAtomicClaimDefersInputLoadingUntilAfterClaim`: verifies successful Atomic Claim Defers Input Loading Until After Claim.
+- `readsRequireViewPermissionAndScopeJobToVersion`: verifies reads Require View Permission And Scope Job To Version.
+- `invalidExecutionOptionsAreRejectedWithoutSilentCoercion`: verifies invalid Execution Options Are Rejected Without Silent Coercion.
+- `roundsMustBeSequentialAndCompletionRequiresAllRounds`: verifies rounds Must Be Sequential And Completion Requires All Rounds.
+
+### EconomicJobWorkerTest — unit, 5 cases
+
+- `completedJobSimulatesEachRoundOnceAndPublishesAfterSavingAllRounds`: verifies completed Job Simulates Each Round Once And Publishes After Saving All Rounds.
+- `physicalFailureKeepsCompletedRoundsButNeverPublishesPartialEvaluation`: verifies physical Failure Keeps Completed Rounds But Never Publishes Partial Evaluation.
+- `startupInterruptsUnfinishedJobsBeforePollingAndEmptyQueueDoesNothing`: verifies startup Interrupts Unfinished Jobs Before Polling And Empty Queue Does Nothing.
+- `nonCalculableIrrDoesNotFailAnOtherwiseValidJob`: verifies non Calculable Irr Does Not Fail An Otherwise Valid Job.
+- `revisionLoadingFailureMarksClaimedJobFailedWithoutSimulation`: verifies revision Loading Failure Marks Claimed Job Failed Without Simulation.
+
+ScenarioConfigurationPostgreSqlIT executes the entire ScenarioConfigurationTest catalog against PostgreSQL, plus its existing V18-to-latest migration case. PostgreSqlEconomicIT retains 4 cases and now publishes fixtures before revision-bound evaluation; historical enrichment remains read-only. MigrationCatalogTest expects 25 versioned migrations, with the B18 baseline in its separate location.
+
+Browser acceptance additions:
+
+- `revisions-browser.mjs`: prepares one operational merge, resolves it once with If-Match, consults revisions and immutable content, closes via Escape, inspects mobile layout and confirms restoration with the latest token.
+- `probabilistic-browser.mjs`: schema-4 enriched result, job revision metadata, combined revision filter (including jobs without evaluations), progress, polling, retry, round selection, summary and CSV-compatible views.
+- `startup-browser.mjs`: Versionado and renamed scenario creation, project switching, separate configuration/simulation routes and history navigation.
+- `projectScoping-browser.mjs`: existing-scenario configuration listing, search and absence of creation requests.
+
+Upgrade acceptance: the disposable clone of B18/V23 reached V25 with unchanged evaluation count (18), exact input/output JSON hashes and 8 linked historical jobs. Original database remained V23. No repairs or resets.

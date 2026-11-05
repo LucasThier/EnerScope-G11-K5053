@@ -11,8 +11,8 @@ const indicators={irr:{status:'CALCULATED',rate:.1483447840},simplePayback:payba
 const result={npv:169.20,indicators,pendingBalances:[],periods:[-1080,25,382,451,391,491].map((cashFlow,period)=>({period,year:2030+period,cashFlow,discountedCashFlow:cashFlow/1.1**period,taxableIncome:0,deductibleExpenses:0,nonCashExpenses:0,resultBeforeTax:0,taxes:0,resultAfterTax:0,nonTaxableIncome:0,nonTaxableExpenses:0,nonCashAdjustments:0,cashTimingAdjustment:0}))};
 const rawMetrics=[1,2,3,4,5].map(period=>({nodeId:n1,period,input:0,output:876000,exported:0,losses:0,operatingHours:8760,events:0}));
 const paybackStats={denominator:2,recoveredProbability:1,recoveryPeriods:stats(4),statuses:{RECOVERED:2},becomesNegativeAgainCount:0};
-const evaluation={id:'e1',createdAt:'2030-01-01T00:00:00Z',snapshot:{schemaVersion:3,configuration,physicalNodes:[{id:n1,name:'Pozo guardado'}],simulation:{rounds:2,seed:'9223372036854775807',algorithm:'JAVA_RANDOM_V1',calculationVersion:1},summary:{rounds:2,npv:stats(169.20),positiveNpvProbability:1,irr:stats(.1483447840),irrStatuses:{CALCULATED:2},simplePayback:paybackStats,discountedPayback:{...paybackStats,recoveryPeriods:stats(5)},cashFlows:result.periods.map(p=>({period:p.period,year:p.year,values:stats(p.cashFlow)})),operational:rawMetrics.flatMap(m=>['input','output','exported','losses','operatingHours','events'].map(metric=>({nodeId:n1,period:m.period,metric,values:stats(m[metric])})))}}};
-let job={id:'j1',status:'RUNNING',rounds:2,completedRounds:0,seed:'9223372036854775807',createdAt:evaluation.createdAt,evaluationId:null};
+const evaluation={revision:{id:'r1',number:1,outdated:false},id:'e1',createdAt:'2030-01-01T00:00:00Z',snapshot:{schemaVersion:4,configuration,physicalNodes:[{id:n1,name:'Pozo guardado'}],simulation:{rounds:2,seed:'9223372036854775807',algorithm:'JAVA_RANDOM_V1',calculationVersion:1},summary:{rounds:2,npv:stats(169.20),positiveNpvProbability:1,irr:stats(.1483447840),irrStatuses:{CALCULATED:2},simplePayback:paybackStats,discountedPayback:{...paybackStats,recoveryPeriods:stats(5)},cashFlows:result.periods.map(p=>({period:p.period,year:p.year,values:stats(p.cashFlow)})),operational:rawMetrics.flatMap(m=>['input','output','exported','losses','operatingHours','events'].map(metric=>({nodeId:n1,period:m.period,metric,values:stats(m[metric])})))}}};
+let job={revision:{id:'r1',number:1,outdated:false},id:'j1',status:'RUNNING',rounds:2,completedRounds:0,seed:'9223372036854775807',createdAt:evaluation.createdAt,evaluationId:null};
 let polls=0,retries=0,failRound=false;
 const user={id:'u1',mail:'test@example.com',firstName:'Test',lastName:'User',platformRole:'ADMIN'};
 const browser=await chromium.launch({channel:'chrome',headless:true});
@@ -45,6 +45,12 @@ await mkdir(output,{recursive:true});
 try {
  await page.goto(base+'/history');
  await page.getByRole('progressbar').waitFor();
+ await page.getByRole('combobox',{name:'Revisión',exact:true}).selectOption('legacy');
+ await page.getByText('No hay ejecuciones para esta revisión.',{exact:true}).waitFor();
+ assert.equal(await page.getByRole('progressbar').count(),0);
+ await page.getByRole('combobox',{name:'Revisión',exact:true}).selectOption('r1');
+ await page.getByRole('progressbar').waitFor();
+ await page.getByRole('combobox',{name:'Revisión',exact:true}).selectOption('all');
  const historyTab=page.getByRole('navigation',{name:'Evaluaciones'}).getByRole('link',{name:'Historial',exact:true});
  const resultsTab=page.getByRole('navigation',{name:'Evaluaciones'}).getByRole('link',{name:'Resultados',exact:true});
  assert.equal(await historyTab.getAttribute('aria-current'),'page');

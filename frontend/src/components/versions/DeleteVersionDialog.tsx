@@ -48,7 +48,7 @@ export function DeleteVersionDialog({
         onClose();
         return;
       }
-      setError(getErrorMessage(err, 'No se pudo eliminar la versión'));
+      setError(getErrorMessage(err, 'No se pudo archivar el escenario'));
     } finally {
       setDeleting(false);
     }
@@ -58,20 +58,20 @@ export function DeleteVersionDialog({
   const remaining = descendants.length - listed.length;
 
   return (
-    <Modal open={version !== null} onClose={onClose} title="Eliminar versión">
+    <Modal open={version !== null} onClose={onClose} title="Archivar escenario">
       <div className="flex flex-col gap-4">
         {error && <Alert tone="error">{error}</Alert>}
 
         <p className="text-sm text-ink-700">
-          Se va a eliminar la versión <span className="font-semibold text-ink-800">{version?.name}</span>
+          Se va a archivar el escenario <span className="font-semibold text-ink-800">{version?.name}</span>
           {descendants.length > 0 ? ' y todo lo que deriva de ella.' : '.'}
         </p>
 
         {isRoot && (
           <p className="text-sm text-ink-500">
             {descendants.length > 0
-              ? 'Es la versión base del proyecto: se elimina junto con todas sus versiones derivadas.'
-              : 'Es la versión base del proyecto, así que el proyecto queda sin versiones.'}
+              ? 'Se archivan este escenario y sus ramas derivadas.'
+              : 'El escenario dejará de aparecer en los listados activos.'}
           </p>
         )}
 
@@ -79,8 +79,8 @@ export function DeleteVersionDialog({
           <div className="flex flex-col gap-2">
             <p className="text-sm font-medium text-ink-600">
               {descendants.length === 1
-                ? 'Versión derivada que se elimina:'
-                : `Versiones derivadas que se eliminan (${descendants.length}):`}
+                ? 'Rama que se archiva:'
+                : `Ramas que se archivan (${descendants.length}):`}
             </p>
             <ul className="list-disc pl-5 text-sm text-ink-700">
               {listed.map((descendant) => (
@@ -92,7 +92,7 @@ export function DeleteVersionDialog({
         )}
 
         <Alert tone="error">
-          Esta acción no se puede deshacer: las versiones y sus datos se borran definitivamente.
+          Se retiran de los listados activos. Sus revisiones, simulaciones y resultados se conservan.
         </Alert>
 
         <div className="mt-2 flex justify-end gap-2">
@@ -100,7 +100,7 @@ export function DeleteVersionDialog({
             Cancelar
           </Button>
           <Button type="button" variant="danger" onClick={handleConfirm} loading={deleting}>
-            Eliminar versión
+            Archivar escenario
           </Button>
         </div>
       </div>

@@ -98,7 +98,14 @@ public class EconomicJobService {
         UUID id=candidate.get().getId();
         if(jobs.claim(id,QUEUED,RUNNING,Instant.now())!=1) return null;
         logger.info("Economic job {} started",id);
-        return new ClaimedJob(id,input(jobs.findById(id).orElseThrow()));
+        return new ClaimedJob(id,null);
+    }
+
+    @Transactional(readOnly=true)
+    public FrozenEconomicInput loadClaimedInput(UUID id) {
+        var job=jobs.findById(id).orElseThrow();
+        if(job.getStatus()!=RUNNING) throw new IllegalStateException("Simulation is not running");
+        return input(job);
     }
 
     public void saveRound(UUID id,EconomicRoundResult result) {
@@ -144,7 +151,8 @@ public class EconomicJobService {
 
     private EconomicJobDTO dto(Simulation job) {
         return new EconomicJobDTO(job.getId(),job.getStatus(),job.getRounds(),job.getCompletedRounds(),job.getSeed(),
-                job.getCreatedAt(),job.getStartedAt(),job.getFinishedAt(),job.getErrorMessage(),job.getEvaluationId());
+                job.getCreatedAt(),job.getStartedAt(),job.getFinishedAt(),job.getErrorMessage(),job.getEvaluationId(),
+                revisions==null?null:revisions.tag(job.getScenarioRevisionId()));
     }
 
     private String json(Object value) {

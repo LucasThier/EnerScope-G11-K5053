@@ -8,7 +8,9 @@ export interface ProbabilisticSummary {
   cashFlows: { period: number; year: number; values: NumericStatistics }[];
   operational: { nodeId: string; period: number; metric: Exclude<keyof AnnualNodeMetrics, 'nodeId' | 'period'>; values: NumericStatistics }[];
 }
+export interface RevisionTag { id: string; number: number; outdated: boolean }
 export interface EconomicJob {
+  revision?: RevisionTag | null;
   id: string; status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'INTERRUPTED';
   rounds: number; completedRounds: number; seed: string; createdAt: string; startedAt: string | null;
   finishedAt: string | null; errorMessage: string | null; evaluationId: string | null;

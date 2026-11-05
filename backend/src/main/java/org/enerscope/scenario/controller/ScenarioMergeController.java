@@ -15,6 +15,9 @@ public class ScenarioMergeController {
  @GetMapping public ResponseEntity<ApiResponse<ScenarioMergeService.View>> get(@PathVariable UUID projectId,@PathVariable UUID scenarioId) {
   return Responses.ok("Prepared operational merge",service.get(projectId,scenarioId));
  }
+ @GetMapping("/history") public ResponseEntity<ApiResponse<List<ScenarioMergeService.View>>> history(@PathVariable UUID projectId,@PathVariable UUID scenarioId) {
+  return Responses.ok("Operational merge history",service.history(projectId,scenarioId));
+ }
  @PutMapping public ResponseEntity<ApiResponse<ScenarioMergeService.View>> resolve(@PathVariable UUID projectId,@PathVariable UUID scenarioId,
    @RequestHeader("If-Match") String token,@RequestBody Map<String,OperationalThreeWayMerge.Choice> choices) {
   return Responses.ok("Operational merge resolutions saved",service.resolve(projectId,scenarioId,token,choices));

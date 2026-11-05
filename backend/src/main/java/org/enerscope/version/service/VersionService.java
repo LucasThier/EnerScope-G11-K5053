@@ -91,7 +91,17 @@ public class VersionService {
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager scenarioEntityManager;
     @org.springframework.beans.factory.annotation.Autowired private ScenarioReferenceService scenarioReferences;
     @org.springframework.beans.factory.annotation.Autowired private org.enerscope.scenario.service.ScenarioRevisionService scenarioRevisions;
+    private BaseNode isolateSharedNode(Version version, BaseNode original) {
+        if (versionRepository.otherNodeOwners(original.getId(), version.getId()) == 0) return original;
+        BaseNode copy = nodeRepository.save(NodeCloner.cloneNode(original));
+        version.getNodeSnapshot().set(version.getNodeSnapshot().indexOf(original), copy);
+        version.getNodeChanges().add(new NodeChange(ChangeTypeEnum.EDIT, original, copy));
+        if (scenarioReferences != null) scenarioReferences.remap(version, original.getId(), copy.getId());
+        return copy;
+    }
+
     private void lockScenario(Version version) {
+        if (!version.isActive()) throw new IllegalArgumentException("Archived scenarios cannot be edited");
         if(scenarioEntityManager != null && scenarioEntityManager.getLockMode(version) != jakarta.persistence.LockModeType.PESSIMISTIC_WRITE) {
             scenarioEntityManager.flush();
             scenarioEntityManager.refresh(version, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
@@ -199,7 +209,11 @@ public class VersionService {
         accessGuard.assertCanManageVersion(id);
         Version version = versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
-        // WE DELETE ALL OF THE SUB-VERSIONS, MAYBE CHANGE LATER
+        if (scenarioRevisions != null && scenarioRevisions.isScenario(id)) {
+            scenarioRevisions.archiveTree(id);
+            return;
+        }
+        // Detached legacy versions retain their existing deletion behavior.
 
         deleteSubVersions(id);
         logger.info("Deleted version with id: {}", id);
@@ -295,6 +309,7 @@ public class VersionService {
                     "Node with id " + nodeId + " does not exist in version " + versionId);
         }
 
+        node = isolateSharedNode(version, node);
         NodeGraphData graphData = node.getGraphData();
         if (graphData == null) {
             graphData = new NodeGraphData();
@@ -338,6 +353,7 @@ public class VersionService {
                     "Node with id " + nodeId + " does not exist in version " + versionId);
         }
 
+        node = isolateSharedNode(version, node);
         if (basics.getName() != null && !basics.getName().isBlank()) {
             node.setName(basics.getName());
         }
@@ -696,7 +712,7 @@ public class VersionService {
                         || matchesIdentity(change.getResultNode(), identityId));
 
         BaseNode editedNode;
-        if (versionOwnsIdentity) {
+        if (versionOwnsIdentity && versionRepository.otherNodeOwners(currentNode.getId(), versionId) == 0) {
             // This version already owns an exclusive row for this identity (not
             // shared with its parent or any sibling) - safe to mutate in place.
             editedNode = editNodeByType(currentNode, nodeDTO);

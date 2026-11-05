@@ -212,7 +212,7 @@ public class EconomicService {
     public Version authorize(UUID projectId, UUID versionId, ProjectMemberPermission permission) {
         var project=authorizeProject(projectId,permission);
         if(scenarioRevisions!=null)scenarioRevisions.assertCanView(versionId);
-        return project.getVersions().stream().filter(v -> v.getId().equals(versionId) && v.isActive()).findFirst()
+        return project.getVersions().stream().filter(v -> v.getId().equals(versionId) && (v.isActive() || permission == ProjectMemberPermission.VIEW_PROJECT)).findFirst()
                 .orElseThrow(() -> new EntityNotFoundException("Version does not belong to project"));
     }
 

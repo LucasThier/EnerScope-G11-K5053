@@ -38,7 +38,7 @@ public class EconomicJobWorker {
 
     public void process(EconomicJobService.ClaimedJob job) {
         try {
-            var input = job.input();
+            var input = job.input() == null ? jobs.loadClaimedInput(job.id()) : job.input();
             List<EconomicRoundResult> results=new ArrayList<>();
             for(int i=0; i<input.simulation().rounds(); i++) {
                 long seed = Simulator.seedForRound(Long.parseLong(input.simulation().seed()),i);

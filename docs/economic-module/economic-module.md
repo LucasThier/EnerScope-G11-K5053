@@ -759,7 +759,7 @@ datos se hizo sobre el esquema B18/V19 validado, sin reparar historiales existen
 
 ## Configuration listing 
 
-Configuración del Escenario lists existing project versions and opens their economic/operational configuration. The listing has no creation action or form. Its search is Buscar Versión and its first column is Versión. New versions are managed in Versionado; the shared backend creation endpoint remains available for that feature. No scenario-specific backend creation endpoint exists.
+Configuración del Escenario lista escenarios existentes y abre su configuración económica y operativa. No crea ni ejecuta escenarios. Versionado conserva la creación, las ramas, las copias y la integración de operación. Los enlaces que contienen `/versions/` siguen siendo compatibles mediante la identidad compartida entre Version y Scenario.
 
 ## Evaluation navigation 
 
@@ -774,3 +774,74 @@ Rentabilidad representa P10–P90 mediante barras con P50 marcado. Recuperación
 Los valores proceden del snapshot: no se solicita ninguna nueva simulación, no se calculan indicadores sobre promedios ni se modifican contratos API. Las bandas son estadísticas marginales, no trayectorias individuales ni intervalos de confianza. Los huecos significan datos ausentes; no se reemplazan por cero. Con extremos iguales se indica Sin dispersión observada. Una base de recuperación cero muestra No disponible.
 
 Cada sección conserva las tablas completas en Ver detalle estadístico, inicialmente cerrado. Descargar resumen CSV conserva el detalle completo de todos los nodos. Los gráficos permiten consultar valores mediante foco/teclado, cursor o toque, y Escape cierra la ayuda; el diseño móvil mantiene los gráficos anchos dentro de su propio desplazamiento horizontal.
+
+
+## Escenarios y revisiones inmutables — integración v4 (2026-11-04)
+
+### Persistencia y compatibilidad
+
+```mermaid
+classDiagram
+Project "1" --> "*" Scenario
+Scenario "1" --> "*" ScenarioRevision
+Scenario "1" --> "0..1" ScenarioDraft
+ScenarioRevision "1" --> "*" Simulation
+Simulation "1" --> "*" SimulationRound
+Scenario "1" --> "*" ScenarioMerge
+ScenarioRevision --> ScenarioRevision : padre / origen / base de merge
+```
+
+`Scenario` conserva proyecto, nombre, descripción opcional, procedencia, revisión actual y generación optimista. Su UUID coincide con el de `Version`: esta última permanece como almacenamiento editable de operación y como vínculo de compatibilidad para permisos y enlaces existentes. Las revisiones publicadas no leen datos operativos mutables.
+
+`ScenarioRevision` guarda número, autor, fecha, padre, origen/base del merge, contenido JSON y hash canónico. El contenido incluye economía, nodos, distribuciones, conexiones y presentación del mapa. Las identidades lógicas permiten comparar sin confundir un cambio de UUID físico con un cambio de contenido. Los números no se reutilizan; las revisiones importadas no desplazan la revisión vigente. Guardar contenido equivalente no crea otra revisión.
+
+`ScenarioDraft` conserva formularios incompletos; el espacio de trabajo de Version y la configuración económica editable conservan los cambios válidos todavía no publicados. Ambos forman el borrador compartido. El mapa y Configuración consultan esa misma operación persistida; no existe una segunda cadena física para simular. Un editor puede guardar cambios válidos sin publicar: el mapa los verá, pero la revisión vigente permanecerá intacta. Los cambios inválidos se conservan como formulario sin aplicarse parcialmente. Solo un administrador puede publicar o descartar el conjunto.
+
+Los tokens de Configuración detectan modificaciones de origen y borradores; restauración y resolución de merges exigen `If-Match`. La publicación, restauración, aceptación de simulación y preparación de merges se coordinan mediante bloqueo de Version. Cuando una base antigua comparte una fila física entre escenarios, las ediciones de sus datos o posición la separan y remapean las referencias locales.
+
+`Simulation` y `SimulationRound` sustituyen los nombres Java EconomicJob/EconomicRound, conservando las tablas `economic_job`/`economic_round`. Las nuevas simulaciones referencian una revisión y guardan únicamente metadatos de ejecución: rondas, semilla textual y versiones de algoritmos. Los resultados nuevos usan `schemaVersion=4`: el JSON persistido no duplica la economía ni los nodos. La respuesta se enriquece desde la revisión original, sin ejecutar nuevamente el simulador ni consultar la configuración vigente. Los snapshots 1–3 permanecen intactos.
+
+### Versionado, copias y merges
+
+Versionado conserva el árbol y agrega el historial de revisiones, consulta del contenido de solo lectura y restauración confirmada en borrador. Permite crear escenarios vacíos, ramas y copias independientes. Ramas y copias parten del estado publicado, nunca del borrador; una copia conserva procedencia pero no tiene padre de merge. No copia ejecuciones ni resultados. La alternativa de copia simple exige confirmar la simplificación fiscal y se crea también desde Versionado.
+
+Los merges comparan tres revisiones congeladas por identidades lógicas. Solo integran operación. La economía del destino se conserva y sus referencias físicas se remapean; eliminar un nodo referenciado obliga a corregirla antes de publicar. Sin base histórica reconstruible, las diferencias requieren decisión explícita. Los conflictos conservan base/origen/destino y se resuelven por entidad. Mientras quedan conflictos no se publica ni se simula. El candidato completo se aplica al resolverlos; el administrador revisa y publica desde Configuración.
+
+Los merges sucesivos usan el último origen efectivamente publicado. Descartar cancela la preparación sin registrar integración. El historial conserva estados y resoluciones; las ramas hermanas no se actualizan automáticamente. Restaurar tampoco cambia la revisión publicada hasta una publicación posterior.
+
+### Contratos añadidos
+
+Todos los recursos conservan `ApiResponse`, permisos de proyecto/escenario, `GlobalExceptionHandler` y `AppLogger`. Bajo `/api/v1/projects/{projectId}/scenarios/{scenarioId}`:
+
+| Recurso | Operación |
+|---|---|
+| `GET /revisions` | Metadatos de revisiones, sin cargar sus snapshots completos |
+| `GET /revisions/status` | Revisión actual, token, pendientes y permiso para publicar |
+| `GET /revisions/{id}` | Contenido inmutable de una revisión |
+| `POST /revisions/{id}/restore` | `If-Match` y `{ "replacePending": true }`; prepara el borrador |
+| `POST /branches` / `POST /copies` | `If-Match` y `{ "name": "Nombre" }`; copia la revisión publicada |
+| `POST /merge` | Prepara integración del escenario origen hacia su padre |
+| `GET /merge` | Preparación pendiente del destino |
+| `PUT /merge` | `If-Match`; mapa `nodes:UUID` / `connections:UUID` a `SOURCE` o `TARGET` |
+| `GET /merge/history` | Merges publicados, cancelados y preparados, con resoluciones |
+| `GET/PUT /scenario-configuration` | Lectura/guardado conjunto; publicación para administradores |
+| `DELETE /scenario-configuration/draft` | Descarte administrativo con `If-Match` |
+| `/economics/*` | Alias de los endpoints económicos y de trabajos existentes |
+
+El listado y creación aceptan también `/projects/{projectId}/scenarios`; los endpoints anteriores siguen disponibles. Los permisos existentes siguen almacenados en el vínculo compatible de Version. No se ampliaron permisos de simulación por el cambio de nombres.
+
+### Ejecución, vigencia e historial
+
+Las opciones siguen siendo 10 rondas por defecto, 1–100 permitidas y semilla opcional. Cualquier cambio sin publicar, formulario pendiente o merge preparado bloquea una ejecución nueva. Publicar otra revisión no modifica los trabajos aceptados. La repetición utiliza revisión y semilla originales.
+
+El trabajador confirma el reclamo atómico antes de cargar la revisión. Un error de reconstrucción se registra como fallo del trabajo, sin dejarlo eternamente en cola ni publicar resultados parciales. La física horaria, los motores fiscales, VAN, TIR, Payback, estadísticas y CSV no cambian.
+
+El listado distingue preparación y vigencia de resultados. Historial muestra la revisión de cada trabajo/evaluación y filtra ambos bloques conjuntamente. Resultados identifica la revisión y si está desactualizada; el legado sin revisión tiene vigencia desconocida. El bloque de ejecuciones permanece exclusivamente en Historial.
+
+### Actualización de bases existentes
+
+V24 agrega escenarios, revisiones, preparaciones de merge y referencias de simulaciones. V25 refuerza que simulación/evaluación y revisión pertenezcan al mismo escenario. No se modificaron migraciones aplicadas. La ubicación adicional `classpath:db/legacy-baselines` conserva B18 para bases nuevas o instaladas con ese baseline.
+
+La importación histórica está desactivada por defecto. Tras respaldar y verificar en una copia, `--scenario.revisions.import-history=true` inicializa revisiones y vincula trabajos cuyos inputs físicos completos son reconstruibles. No reescribe JSON, no ejecuta simulaciones y es idempotente. Entradas incompletas, evaluaciones independientes sin input tipado y relaciones sin ancestro verificable permanecen como legado; no se inventan revisiones históricas.
+
+Validación de actualización: copia descartable `enerscope_economic_test_v4_upgrade_20261104`, creada desde la base restaurada de ejemplos B18/V23. Alcanzó V25, conservó 18 evaluaciones y los hashes de todos los JSON de entrada/salida; 8 trabajos se asociaron a revisiones. La base original permaneció en V23. Nunca se ejecutó Flyway repair ni se reinició una base existente.

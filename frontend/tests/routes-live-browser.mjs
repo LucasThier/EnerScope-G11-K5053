@@ -31,7 +31,7 @@ await page.goto(app+economics+'/history');
 await page.getByRole('link',{name:/← Simulación de Escenarios/}).click();
 await page.waitForURL('**/simulations');
 await page.goto(app+root+'/versions');
-await page.getByRole('button',{name:'Nueva versión',exact:true}).click();
+await page.getByRole('button',{name:'Nuevo escenario',exact:true}).click();
 await page.getByRole('dialog').waitFor();
 console.log('PASS master version creation dialog; no changes submitted');
 const guest=await browser.newContext();const guestPage=await guest.newPage();

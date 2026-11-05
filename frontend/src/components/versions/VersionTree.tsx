@@ -107,8 +107,8 @@ function VersionTreeRow({
         )}
         {canEdit && (
           <RowButton
-            label={`Eliminar versión ${node.version.name}`}
-            title="Eliminar"
+            label={`Archivar escenario ${node.version.name}`}
+            title="Archivar"
             onClick={() => onDelete(node.version, isRoot)}
           >
             <TrashIcon className="h-4 w-4" />

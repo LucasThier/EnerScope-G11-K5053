@@ -32,7 +32,7 @@ public class ScenarioMergeService {
  @PersistenceContext private EntityManager em;
  public record Conflict(String kind,UUID identity,JsonNode base,JsonNode source,JsonNode target) {}
  public record View(UUID id,UUID targetId,UUID sourceRevisionId,UUID targetRevisionId,UUID baseRevisionId,
-                    String state,String token,List<Conflict> conflicts) {}
+                    String state,String token,List<Conflict> conflicts,Map<String,OperationalThreeWayMerge.Choice> resolutions) {}
 
  public boolean supports(UUID id) {return projects.findIdByVersionId(id).isPresent();}
  public Version prepareLegacy(UUID sourceId) {
@@ -64,6 +64,10 @@ public class ScenarioMergeService {
  public View get(UUID project,UUID targetId) {
   version(project,targetId);access.assertCanViewVersion(targetId);
   return merges.findByTargetIdAndState(targetId,"PREPARED").map(this::view).orElse(null);
+ }
+ public List<View> history(UUID project,UUID targetId) {
+  version(project,targetId);access.assertCanViewVersion(targetId);
+  return merges.findByTargetIdOrderByCreatedAtDesc(targetId).stream().map(this::view).toList();
  }
  public View resolve(UUID project,UUID targetId,String token,Map<String,OperationalThreeWayMerge.Choice> choices) {
   var target=version(project,targetId);access.assertCanManageVersion(targetId);em.lock(target,LockModeType.PESSIMISTIC_WRITE);
@@ -108,7 +112,8 @@ public class ScenarioMergeService {
  private String token(ScenarioMerge merge){return merge.getId()+":"+merge.getGeneration();}
  private View view(ScenarioMerge merge) {
   try{return new View(merge.getId(),merge.getTargetId(),merge.getSourceRevisionId(),merge.getTargetRevisionId(),merge.getBaseRevisionId(),
-   merge.getState(),token(merge),mapper.readValue(merge.getConflictsJson(),new TypeReference<List<Conflict>>(){}));}
+   merge.getState(),token(merge),mapper.readValue(merge.getConflictsJson(),new TypeReference<List<Conflict>>(){}),
+   mapper.readValue(merge.getResolutionsJson(),new TypeReference<Map<String,OperationalThreeWayMerge.Choice>>(){}));}
   catch(com.fasterxml.jackson.core.JsonProcessingException error){throw new IllegalStateException("Invalid merge conflicts",error);}
  }
  private String json(Object value){try{return mapper.writeValueAsString(value);}catch(com.fasterxml.jackson.core.JsonProcessingException error){throw new IllegalStateException(error);}}

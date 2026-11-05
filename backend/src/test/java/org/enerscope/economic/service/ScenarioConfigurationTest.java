@@ -43,6 +43,8 @@ class ScenarioConfigurationTest {
  @Autowired org.enerscope.scenario.service.ScenarioRevisionService revisions;
  @Autowired org.enerscope.scenario.service.ScenarioMergeService merges;
  @Autowired org.enerscope.project.service.ProjectService projects;
+ @Autowired org.enerscope.scenario.service.ScenarioRevisionImportService importer;
+ @Autowired org.enerscope.scenario.service.ScenarioForkService forks;
  @Autowired org.enerscope.economic.repository.EconomicJobRepository jobRepository;
 
  UUID projectId,versionId;Well well;
@@ -244,9 +246,13 @@ class ScenarioConfigurationTest {
  @Test void newSimulationReferencesRevisionWithoutDuplicatingPhysicalInputs() throws Exception {
   var job=jobs.submit(projectId,versionId,new EconomicJobRequest(1,"42"));
   var persisted=jobRepository.findById(job.id()).orElseThrow();
+  assertNotNull(job.revision());assertFalse(job.revision().outdated());
   assertEquals(revisions.current(em.find(Version.class,versionId)).getId(),persisted.getScenarioRevisionId());
   var input=mapper.readTree(persisted.getInputJson());
   assertFalse(input.has("configuration"));assertFalse(input.has("nodes"));assertEquals("42",input.path("seed").asText());
+  setCapacity(versionId,270);
+  var historical=jobs.get(projectId,versionId,job.id());
+  assertTrue(historical.revision().outdated());assertEquals(job.revision().id(),historical.revision().id());
  }
  @Test void editorSavesSharedOperationDraftWithoutPublishingAndMapReadsIt() {
   var current=revisions.current(em.find(Version.class,versionId));
@@ -267,8 +273,99 @@ class ScenarioConfigurationTest {
   assertTrue(saved.revision().workspaceChanges());assertFalse(saved.revision().canPublish());
   assertEquals(current.getId(),revisions.current(em.find(Version.class,versionId)).getId());
   var node=saved.nodes().stream().filter(n->n.identity().equals(well.getIdentityId())).findFirst().orElseThrow();
-  assertEquals(234.0,versions.getNodeDetail(versionId,node.id()).typeAttributes().get("maxCollectionCapacity"));
+  assertEquals(234.0,versions.getNodeDetail(versionId,node.id()).getAttributes().get("maxCollectionCapacity"));
   assertFalse(scenarios.readiness(projectId).getFirst().ready());
   assertThrows(org.enerscope.common.ForbiddenException.class,()->scenarios.discard(projectId,versionId,saved.token()));
+ }
+ @Test void historicalImportIsIdempotentAndPreservesSnapshotAndCurrentRevision() throws Exception {
+  var version=em.find(Version.class,versionId);
+  var current=revisions.current(version);
+  var input=new EconomicInputCodec(mapper).freeze(version,economics.get(projectId,versionId),2,42);
+  String original=mapper.writeValueAsString(input);
+  var job=new org.enerscope.economic.model.Simulation(version,original,2,"42");
+  em.persist(job);em.flush();UUID jobId=job.getId();
+  int count=revisions.list(projectId,versionId).size();
+  importer.initialize();em.clear();
+  var imported=jobRepository.findById(jobId).orElseThrow();
+  assertNotNull(imported.getScenarioRevisionId());assertEquals(original,imported.getInputJson());
+  assertEquals(current.getId(),revisions.current(em.find(Version.class,versionId)).getId());
+  assertEquals(count,revisions.list(projectId,versionId).size());
+  importer.initialize();em.clear();
+  assertEquals(count,revisions.list(projectId,versionId).size());
+  assertEquals(original,jobRepository.findById(jobId).orElseThrow().getInputJson());
+ }
+ @Test void incompleteHistoricalInputRemainsLegacy() {
+  var job=new org.enerscope.economic.model.Simulation(em.find(Version.class,versionId),"{}",1,"42");
+  em.persist(job);em.flush();UUID jobId=job.getId();
+  importer.initialize();em.clear();
+  var legacy=jobRepository.findById(jobId).orElseThrow();
+  assertNull(legacy.getScenarioRevisionId());assertEquals("{}",legacy.getInputJson());
+ }
+ @Test void successiveMergesUseLastPublishedSourceAndDiscardDoesNotIntegrate() {
+  var branch=projects.saveVersion(projectId,new org.enerscope.version.dto.VersionDTO("Successive branch",versionId));
+  setCapacity(branch.getId(),250);
+  var firstSource=revisions.current(em.find(Version.class,branch.getId())).getId();
+  merges.prepare(projectId,branch.getId());
+  var state=scenarios.get(projectId,versionId);scenarios.save(projectId,versionId,request(state));
+  setCapacity(branch.getId(),260);
+  var second=merges.prepare(projectId,branch.getId());
+  assertEquals(firstSource,second.baseRevisionId());assertTrue(second.conflicts().isEmpty());
+  state=scenarios.get(projectId,versionId);scenarios.discard(projectId,versionId,state.token());
+  var repeated=merges.prepare(projectId,branch.getId());
+  assertEquals(firstSource,repeated.baseRevisionId());assertTrue(repeated.conflicts().isEmpty());
+  state=scenarios.get(projectId,versionId);scenarios.save(projectId,versionId,request(state));
+  var published=revisions.current(em.find(Version.class,versionId));
+  assertEquals(repeated.sourceRevisionId(),published.getMergeSourceRevisionId());
+  assertEquals(2,merges.history(projectId,versionId).stream().filter(m->m.state().equals("PUBLISHED")).count());
+  assertEquals(1,merges.history(projectId,versionId).stream().filter(m->m.state().equals("CANCELLED")).count());
+ }
+ private void setCapacity(UUID scenario,int capacity) {
+  var state=scenarios.get(projectId,scenario);var input=request(state);
+  var node=state.nodes().stream().filter(n->n.identity().equals(well.getIdentityId())).findFirst().orElseThrow();
+  input.operations().get(node.id()).put("maxCollectionCapacity",mapper.valueToTree(Integer.toString(capacity)));
+  assertTrue(scenarios.save(projectId,scenario,input).errors().isEmpty());
+ }
+ @Test void movingLegacySharedNodePreservesOtherScenarioAndPublishedMap() {
+  var original=em.find(Version.class,versionId);
+  var other=new Version("Legacy sibling",original,new ArrayList<>(original.getNodeSnapshot()),new ArrayList<>(),new ArrayList<>(),new ArrayList<>());
+  em.persist(other);em.find(Project.class,projectId).addVersion(other);em.flush();
+  var before=revisions.current(original).getSnapshotJson();
+  revisions.ensure(other);
+  var position=new org.enerscope.node.dto.NodeGraphDataDTO();
+  position.setGraphPosition(new org.enerscope.node.dto.GraphPositionDTO(12d,34d));
+  var moved=versions.updateNodePosition(versionId,well.getId(),position);em.flush();
+  assertNotEquals(well.getId(),moved.getId());assertEquals(well.getIdentityId(),moved.getIdentityId());
+  assertEquals(0d,well.getGraphData().getGraphPosition().getX());
+  assertTrue(other.getNodeSnapshot().contains(well));
+  assertEquals(before,revisions.current(original).getSnapshotJson());
+  assertEquals(12d,moved.getGraphData().getGraphPosition().getX());
+  assertTrue(economics.get(projectId,versionId).conversions().stream().anyMatch(c->c.nodeId().equals(moved.getId())));
+ }
+ @Test void independentCopyUsesPublishedRevisionAndRetainsOriginWithoutResults() {
+  var parent=em.find(Version.class,versionId);var published=revisions.current(parent);
+  var status=revisions.status(projectId,versionId);
+  var copy=forks.fork(projectId,versionId,"Independent copy",status.token(),true);em.flush();
+  assertNull(copy.getParentVersion());
+  var scenario=revisions.ensure(copy);
+  assertEquals(versionId,scenario.getBaseScenarioId());assertEquals(published.getId(),scenario.getBranchRevisionId());
+  assertFalse(revisions.hasPendingPublication(copy));assertTrue(jobs.list(projectId,copy.getId()).isEmpty());
+  assertTrue(copy.getFinalResults().isEmpty());assertNotNull(economics.get(projectId,copy.getId()));
+  assertEquals(published.getId(),revisions.current(parent).getId());
+ }
+ @Test void staleForkTokenRejectsCreationAfterWorkspaceChange() {
+  var status=revisions.status(projectId,versionId);
+  well.setMaxCollectionCapacity(333);em.flush();
+  assertThrows(ScenarioConflictException.class,()->forks.fork(projectId,versionId,"Stale copy",status.token(),true));
+ }
+ @Test void archivingScenarioTreePreservesRevisionsAndSimulationsButBlocksNewJobs() {
+  var parent=em.find(Version.class,versionId);var before=revisions.current(parent);
+  var branch=projects.saveVersion(projectId,new org.enerscope.version.dto.VersionDTO("Archive branch",versionId));
+  var job=jobs.submit(projectId,versionId,new EconomicJobRequest(1,"42"));
+  versions.deleteVersion(versionId);em.flush();
+  assertFalse(parent.isActive());assertFalse(branch.isActive());
+  assertNotNull(revisions.get(projectId,versionId,before.getId()).content());
+  assertEquals(before.getSnapshotJson(),revisions.current(parent).getSnapshotJson());
+  assertEquals(job.id(),jobs.get(projectId,versionId,job.id()).id());
+  assertThrows(org.enerscope.common.EntityNotFoundException.class,()->jobs.submit(projectId,versionId,new EconomicJobRequest(1,"42")));
  }
 }

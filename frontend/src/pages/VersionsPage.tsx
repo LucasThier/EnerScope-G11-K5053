@@ -94,7 +94,7 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
         {!error && canEdit && (
           <Button onClick={() => setIsModalOpen(true)}>
             <PlusIcon className="h-4 w-4" />
-            Nueva versión
+            Nuevo escenario
           </Button>
         )}
       </header>
@@ -106,11 +106,11 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
           </div>
         ) : versions.length === 0 ? (
           <div className="px-4 py-8 text-center">
-            <p className="text-sm text-ink-500">Este proyecto todavía no tiene versiones.</p>
+            <p className="text-sm text-ink-500">Este proyecto todavía no tiene escenarios.</p>
             {canEdit && (
               <Button className="mt-4" onClick={() => setIsModalOpen(true)}>
                 <PlusIcon className="h-4 w-4" />
-                Nueva versión
+                Nuevo escenario
               </Button>
             )}
           </div>

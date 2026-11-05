@@ -68,13 +68,16 @@ class EconomicJobServiceTest {
     }
 
     @Test
-    void successfulAtomicClaimReturnsOnlyFrozenInput() throws Exception {
+    void successfulAtomicClaimDefersInputLoadingUntilAfterClaim() throws Exception {
         var job=job();
         when(jobs.findFirstByStatusOrderByCreatedAtAsc(QUEUED)).thenReturn(Optional.of(job));
         when(jobs.claim(eq(id),eq(QUEUED),eq(RUNNING),any())).thenReturn(1);
         when(jobs.findById(id)).thenReturn(Optional.of(job));
         var claim=service.claimNext();
-        assertEquals(id,claim.id());assertEquals("42",claim.input().simulation().seed());
+        assertEquals(id,claim.id());assertNull(claim.input());
+        verify(jobs,never()).findById(any());
+        ReflectionTestUtils.setField(job,"status",RUNNING);
+        assertEquals("42",service.loadClaimedInput(id).simulation().seed());
         verifyNoInteractions(economics);
     }
 

@@ -84,6 +84,22 @@ public class ScenarioRevisionService {
         append(scenario,version,org.enerscope.util.AuthUtil.requireSession().getUser().getId(),null,null);
     }
 
+    public boolean isScenario(UUID id) { return projects.findIdByVersionId(id).isPresent(); }
+
+    public void archiveTree(UUID id) {
+        UUID project=projects.findIdByVersionId(id).orElseThrow();
+        var pending=new ArrayDeque<UUID>();var visited=new HashSet<UUID>();pending.add(id);
+        while(!pending.isEmpty()) {
+            UUID next=pending.remove();if(!visited.add(next))continue;
+            if(!projects.findIdByVersionId(next).filter(project::equals).isPresent())
+                throw new IllegalArgumentException("A scenario tree cannot cross projects");
+            access.assertCanManageVersion(next);
+            var version=versions.findById(next).orElseThrow();ensure(version);version.deactivate();
+            versions.findByParentVersionId(next).forEach(child->pending.add(child.getId()));
+        }
+        logger.info("Archived {} scenarios under {} while preserving revisions and simulations",visited.size(),id);
+    }
+
     public void beforeWorkspaceEdit(Version version) {
         if (projects.findIdByVersionId(version.getId()).isPresent()) ensure(version);
     }

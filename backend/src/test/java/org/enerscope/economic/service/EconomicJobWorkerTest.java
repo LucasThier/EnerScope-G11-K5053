@@ -71,4 +71,13 @@ class EconomicJobWorkerTest {
         verify(jobs).complete(eq(id),argThat(s->s.irr().count()==0));
         verify(jobs,never()).fail(any(),any(),anyBoolean());
     }
+    @Test void revisionLoadingFailureMarksClaimedJobFailedWithoutSimulation() {
+        UUID id=UUID.randomUUID();
+        when(jobs.loadClaimedInput(id)).thenThrow(new IllegalArgumentException("Unsupported simulation version"));
+        worker.process(new EconomicJobService.ClaimedJob(id,null));
+        verify(jobs).fail(id,"Unsupported simulation version",false);
+        verify(jobs,never()).complete(any(),any());
+        verify(jobs,never()).saveRound(any(),any());
+        verifyNoInteractions(simulator);
+    }
 }
