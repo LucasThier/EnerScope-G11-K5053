@@ -757,3 +757,26 @@ copia simple independiente. La instancia local utiliza esa base restaurada; las
 bases originales y sus historiales Flyway permanecen intactos. La restauración de
 datos se hizo sobre el esquema B18/V19 validado, sin reparar historiales existentes.
 
+
+
+## Resumen visual de rondas (2026-11-05)
+
+La vista de resumen probabilístico utiliza exclusivamente `snapshot.summary`, la configuración y los nombres de nodos guardados. No ejecuta simulaciones ni recalcula VAN, TIR, impuestos o percentiles. El selector de ronda y el CSV completo se conservan. Las evaluaciones individuales históricas siguen usando su vista anterior.
+
+- El encabezado muestra cantidad de rondas, moneda y WACC. Semilla, algoritmo y versión quedan dentro de «Datos de la ejecución», cerrado inicialmente.
+- Cuatro tarjetas muestran VAN medio, frecuencia de VAN positivo sobre todas las rondas, TIR mediana sobre tasas calculables y recuperación descontada sobre rondas aplicables con resultado determinado. Cada tarjeta indica su muestra.
+- Los rangos independientes de VAN y TIR muestran P10/P90 y un rombo P50; se marca cero si pertenece al intervalo. Los estados de TIR permanecen visibles.
+- Las barras de Payback simple y descontado usan la misma escala 0–100%. La mediana del período y su año se informa solo entre recuperaciones observadas. No aplicables, indeterminadas y recuperaciones que vuelven a saldo negativo se distinguen explícitamente.
+- Los gráficos anuales muestran línea y puntos P50, banda P10–P90 y referencia cero. El flujo incluye el período inicial. La operación permite seleccionar nodo y métrica, inicialmente «Producción / salida» del primer nodo disponible; utiliza las mismas conversiones del snapshot que las tablas y el CSV, sin sumar nodos.
+- Los detalles estadísticos completos están bajo desplegables cerrados inicialmente. P10 es bajo, P50 es mediana y P90 es alto; las bandas son estadísticas marginales por año, no una trayectoria individual ni intervalos de confianza.
+
+`SummaryVisuals.tsx` ofrece tarjetas, rangos, desplegables y gráficos SVG reutilizables; `summaryVisuals.ts` contiene las escalas normalizadas, segmentación de series y presentación de recuperación. Los valores ausentes no se convierten en cero: una serie se interrumpe ante períodos o percentiles faltantes; una muestra vacía muestra ausencia de datos. Los percentiles coincidentes muestran «Sin dispersión observada». La probabilidad de recuperación es «No disponible» si el denominador es cero. No se inventan histogramas ni distribuciones de recuperaciones.
+
+Los gráficos ajustan su ancho con `ResizeObserver`, reducen etiquetas en móvil y no animan los datos. Los puntos se consultan con foco, puntero o toque; Enter/Espacio abre el detalle y Escape lo cierra. Etiquetas y formas acompañan el color. «Ejecuciones de simulación» se presenta exclusivamente en Historial; la navegación marca visualmente la pestaña activa.
+
+
+### Ajustes de presentación — 2026-11-05
+
+Configuración del Escenario lista únicamente versiones existentes del proyecto: se retiraron el botón, formulario y manejador de creación de esta pantalla. La creación general de versiones permanece disponible en su módulo. El listado usa «Versiones Disponibles», «Buscar Versión», «Configurar Escenario» y la descripción solicitada. Economía y Operación destacan su selección mediante el botón primario, borde y `aria-pressed`.
+
+Los gráficos del resumen utilizan el verde semántico `brand-800` para líneas y marcadores, con banda translúcida y controles `SelectField` compartidos. Conservan escalas, percentiles, datos y acceso por teclado. Los detalles de ejecución muestran semilla y versión; el algoritmo deja de mostrarse. Los estados de TIR permanecen en el detalle desplegable, mientras la tarjeta conserva la cantidad de rondas calculables.

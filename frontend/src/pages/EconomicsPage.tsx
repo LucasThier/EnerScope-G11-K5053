@@ -36,8 +36,8 @@ function Results({projectId,versionId,tab,evaluationId}:{projectId:string;versio
  const selected=detail ?? (!evaluationId?evaluations[0]:null);
  return <div className="space-y-5"><Link className="text-brand-800 underline" to={'/projects/'+projectId+'/simulations'}>← Simulación de Escenarios / {name}</Link>
  <h1 className="text-2xl font-semibold">Evaluación del escenario</h1>
- <nav className="flex gap-5 border-b border-ink-200 pb-3" aria-label="Evaluaciones"><Link to={base+'/history'} aria-current={tab==='history'?'page':undefined}>Historial</Link><Link to={base+'/results'} aria-current={tab==='results'?'page':undefined}>Resultados</Link></nav>
- <EconomicJobs projectId={projectId} versionId={versionId} canEdit={canEdit} refreshToken={refresh}/>
+ <nav className="flex gap-5 border-b border-ink-200 pb-3" aria-label="Evaluaciones"><Link className={tab==='history'?'border-b-2 border-brand-800 font-semibold text-brand-800':'text-ink-600'} to={base+'/history'} aria-current={tab==='history'?'page':undefined}>Historial</Link><Link className={tab==='results'?'border-b-2 border-brand-800 font-semibold text-brand-800':'text-ink-600'} to={base+'/results'} aria-current={tab==='results'?'page':undefined}>Resultados</Link></nav>
+ {tab==='history' && <EconomicJobs projectId={projectId} versionId={versionId} canEdit={canEdit} refreshToken={refresh}/>}
  {error&&<Alert tone="error">{error}</Alert>}
  {loading?<p role="status">Cargando evaluaciones…</p>:tab==='history'?<Card>
  <div className="mb-4 flex justify-between gap-3"><h2 className="text-lg font-semibold">Evaluaciones guardadas</h2><Button variant="ghost" onClick={()=>setRefresh(n=>n+1)}>Actualizar</Button></div>

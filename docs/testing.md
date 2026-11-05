@@ -1925,3 +1925,34 @@ Validation: **740 backend tests**, **51 frontend tests**, no failures or skipped
 - Economic routes keep their module titles and project breadcrumbs, without activating Version management.
 
 Validation: 64 frontend cases passed, zero failures or skips; production build and lint passed. The existing node editor cases also cover the shared decline selector fix.
+
+
+## Visual round summary — 2026-11-05
+
+`frontend/tests/summaryVisuals.test.mjs` — unit, **9 cases**:
+
+- `scale includes negative positive and zero values without clipping`: mixed financial values and zero remain ordered and inside chart boundaries.
+- `scale stays finite for constant zero negative and extreme finite values`: coincident and large finite values produce stable positions.
+- `absent or nonfinite values never become a zero-valued chart`: empty data produces no scale/series while actual zero remains available.
+- `annual lines and bands split at missing values and omitted periods`: missing medians and missing interval bounds independently interrupt their series.
+- `series sorting preserves the saved input and the investment period`: chronological drawing retains t=0 without mutating the snapshot.
+- `dispersion distinguishes coincident percentiles one round and incomplete data`: coincident percentiles can identify no observed dispersion; empty data cannot.
+- `payback uses determined applicable denominator and separate status counts`: conditional frequency, median year and status categories are retained.
+- `no recovered rounds and no applicable rounds remain distinct from zero`: zero recovery is a valid value; zero denominator and absent median are unavailable.
+- `missing investment year never invents a recovery calendar year`: a period without its saved investment year does not fabricate a date.
+
+`frontend/tests/summaryVisuals-browser.mjs` — browser acceptance, **1 end-to-end flow**: verifies four cards, negative/zero values, partially calculable TIR, empty denominators, one round, coincident percentiles, collapsed detail, investment t=0, missing-year gaps, focus/Enter/Escape, saved node names, output/hour metric switching, no-data metric, snapshot conversion equivalence with CSV, desktop/mobile layout and no execution panel in Results. Screenshots are generated under `frontend/node_modules/.cache/probabilistic-ui/`.
+
+`frontend/tests/probabilistic-browser.mjs` — existing browser acceptance, **1 end-to-end flow**, updated: waits for completed work in History before opening Results; verifies the active Results tab and absence of executions there; retains polling, round switching, financial/operational tabs, failed round loading, retries and mobile checks. Navigation fixtures now include organization listing used by the current shell.
+
+Validation: **73 frontend unit/component cases**, **843 Maven tests**, zero failures/errors/skips. Backend output is isolated in `backend/target/summary-visual-validation`; no backend source changes. Both browser flows pass; frontend production build and lint pass. The existing bundle-size warning remains. These totals supersede earlier dated counts without removing their historical catalog.
+
+
+### Scenario presentation refinements — 2026-11-05
+
+- `scenarioPresentation-browser.mjs` (browser, 1 flow): existing-version list without creation, exact requested header/subtext/action, version filtering, configuration navigation, visible and accessible active Economy/Operation state, keyboard switching, mobile layout and no save/simulation requests.
+- `summaryVisuals-browser.mjs` (browser, 1 flow, extended): execution details show version without algorithm name, redundant IRR paragraph is absent, brand classes style lines/markers, and all prior numeric/CSV/keyboard/mobile assertions remain.
+- `probabilistic-browser.mjs` (browser, 1 flow, updated): checks the calculable-round denominator on its card after removing the redundant paragraph; round selection and execution history remain covered.
+- `projectScoping-browser.mjs` (existing browser flow, expectation updated): an empty configuration listing offers no creation action and sends no creation request; replaces the former create-and-configure expectation.
+
+Validation for the presentation changes: 73 frontend unit/component tests pass; build and lint pass. The first three browser flows above pass, including desktop/mobile screenshots. Maven remains unchanged from the preceding 843-test successful run; no backend source or database changes in this adjustment.

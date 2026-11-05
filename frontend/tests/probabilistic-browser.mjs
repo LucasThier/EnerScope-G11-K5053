@@ -23,7 +23,7 @@ page.on('pageerror',e=>errors.push(e.message));
 await page.route('**/api/v1/**',async route=>{
  const path=new URL(route.request().url()).pathname;
  const ok=data=>route.fulfill({json:{success:true,data,message:'OK'}});
- if(path.endsWith('/organizations/owned'))return ok([]);
+ if(path.endsWith('/organizations/owned') || path.endsWith('/organizations'))return ok([]);
  if(path.endsWith('/projects'))return ok([{id:'p1',name:'Proyecto',organizationId:'o1',memberCount:1}]);
  if(path.endsWith('/versions'))return ok([{id:'v1',name:'Probabilístico',nodes:[{id:n1,name:'Pozo actual',type:'WELL'}]}]);
  if(path.endsWith('/members'))return ok([]);
@@ -51,12 +51,14 @@ try {
  job={...job,completedRounds:1};
  await page.evaluate(()=>{Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'});document.dispatchEvent(new Event('visibilitychange'));});
  await page.getByText('1 de 2 rondas',{exact:false}).waitFor();
- await page.getByRole('link',{name:'Resultados',exact:true}).click();
  job={...job,status:'COMPLETED',completedRounds:2,evaluationId:'e1'};
+ await page.getByRole('button',{name:'Actualizar avance'}).click();
  await page.getByRole('link',{name:'Ver resultados →'}).click();
  await page.getByLabel('Vista de resultados').waitFor();
+ assert.equal(await page.getByRole('heading',{name:'Ejecuciones de simulación'}).count(),0);
+ assert.equal(await page.getByRole('link',{name:'Resultados',exact:true}).getAttribute('aria-current'),'page');
  assert.equal(await page.getByLabel('Vista de resultados').inputValue(),'summary');
- await page.getByText('TIR calculable: 2 de 2 rondas.',{exact:false}).waitFor();
+ await page.getByText('2 de 2 rondas calculables',{exact:false}).waitFor();
  const stopped=polls;await page.waitForTimeout(2400);assert.equal(polls,stopped,'Polling stops after completion');
  await page.screenshot({path:fileURLToPath(new URL('summary-desktop.png',output)),fullPage:true});
  await page.getByLabel('Vista de resultados').selectOption('2');
@@ -77,6 +79,7 @@ try {
  await page.screenshot({path:fileURLToPath(new URL('summary-mobile.png',output)),fullPage:true});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  assert.equal(await page.evaluate(()=>{const m=document.querySelector('main');return m.scrollWidth>m.clientWidth;}),false);
+ await page.getByRole('link',{name:'Historial',exact:true}).click();
  job={...job,status:'INTERRUPTED',evaluationId:null,errorMessage:'Servidor reiniciado'};
  await page.getByRole('button',{name:'Actualizar avance'}).click();
  await page.getByRole('button',{name:'Repetir desde el inicio'}).click();

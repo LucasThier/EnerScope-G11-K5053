@@ -2665,3 +2665,10 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - 2026-11-04 - Keep economic configuration and simulation links in the Analysis navigation group. Resolve destinations from the active project (fall back to Projects), and reuse workspaceRoutes patterns so economic pages never activate Version management. Preserve the grouped sidebar layout.
 
 - 2026-11-04 - The well decline selector uses the shared SelectField; the merged selectClass reference was undefined and prevented frontend compilation.
+
+
+- 2026-11-05 — Applied the visual round-summary plan directly on `modulo-resultados-v3`, without merging or importing v4. The mistakenly supplied Scenario/Revision/Simulation plan was not implemented.
+- 2026-11-05 — Probabilistic summary charts read saved statistics only. Keep conditional IRR/payback denominators explicit; never replace absent statistics with zero or connect annual series across missing periods. Operational charts and CSV use the immutable snapshot conversions. Browser acceptance uses intercepted fixtures and never writes live project data.
+- 2026-11-05 — Frontend validation currently includes the existing Node test runner (`npm test`), in addition to build and lint; the older note stating that no frontend runner exists is superseded by the current package scripts.
+
+- 2026-11-05 — Scenario configuration is an existing-version list only; remove its creation state, form and submit handler, while preserving the shared createVersion API used by Version management. Summary charts use brand tokens and shared SelectField controls, without altering statistics. Algorithm names are omitted from presentation and IRR status counts remain in expandable detail.

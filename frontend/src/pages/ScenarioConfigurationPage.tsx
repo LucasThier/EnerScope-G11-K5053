@@ -79,7 +79,7 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
   let copyId:string|undefined;
   try {
    const created=await projectsApi.createVersion(projectId,{name:(scenario.name+' · copia simple').slice(0,120),parentVersion:versionId});
-   copyId=created.data.data?.id;if(!copyId)throw new Error('No se recibió la copia del escenario.');
+   copyId=created.data.data?.id;if(!copyId) throw new Error('No se recibió la copia del escenario.');
    const current=await api.get(projectId,copyId);
    const nodeIds=Object.fromEntries(snapshot.nodes.map(n=>[n.id,current.nodes.find(other=>other.identity===n.identity)?.id ?? n.id]));
    const copy=initialScenario(current);copy.editor={mode:'simple',value:createSimpleCopyDraft(snapshot.configuration,nodeIds)};
@@ -107,8 +107,8 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
  {conflict&&<Alert tone="error">El escenario cambió desde otra pantalla. Tus cambios se conservan; para evitar sobrescribir datos, recargá descartando los cambios afectados.<Button variant="ghost" disabled={busy} onClick={()=>void discard()}>Descartar y recargar</Button></Alert>}
  {blocker.state==='blocked'&&<Alert>Hay cambios sin guardar.<Button variant="ghost" onClick={()=>blocker.reset()}>Seguir editando</Button><Button variant="ghost" disabled={busy} onClick={()=>blocker.proceed()}>Salir sin guardar</Button></Alert>}
  <nav aria-label="Configuración económica y operativa" className="flex gap-3 border-b border-ink-200">
- <Button variant="ghost" aria-pressed={!operationTab} onClick={()=>setOperationTab(false)}>Economía</Button>
- <Button variant="ghost" aria-pressed={operationTab} onClick={()=>setOperationTab(true)}>Operación</Button></nav>
+ <Button variant={!operationTab ? "primary" : "ghost"} className={!operationTab ? "border-b-2 border-brand-900" : "border-b-2 border-transparent"} aria-pressed={!operationTab} onClick={()=>setOperationTab(false)}>Economía</Button>
+ <Button variant={operationTab ? "primary" : "ghost"} className={operationTab ? "border-b-2 border-brand-900" : "border-b-2 border-transparent"} aria-pressed={operationTab} onClick={()=>setOperationTab(true)}>Operación</Button></nav>
  {operationTab ? <>
  <div className="flex justify-between gap-3"><Button variant="ghost" disabled={!canEdit||busy} onClick={()=>void discard()}>Descartar cambios</Button><Button disabled={disabled} loading={busy} onClick={()=>void save()}>Guardar</Button></div>
  <ScenarioOperationsEditor nodes={snapshot.nodes} values={form.operations} disabled={disabled||busy} onChange={operations=>setForm({...form,operations})}/>
