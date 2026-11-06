@@ -147,7 +147,7 @@ browser ──► Cloudflare Pages ──► static SPA (frontend/dist)
    | Production branch | `master` |
    | Root directory | `frontend` |
    | Build command | `npm run build` |
-   | Build output directory | `dist` |
+   | Build output directory | `dist` — relative to the root directory, so **not** `frontend/dist` (Pages would look for `frontend/frontend/dist` and fail with "build output directory not found") |
    | Environment variable `BACKEND_URL` | The container service URL, e.g. `https://<service>.<id>.<region>.cs.amazonlightsail.com` (Production and Preview) |
    | Environment variable `NODE_VERSION` | `22` |
 
