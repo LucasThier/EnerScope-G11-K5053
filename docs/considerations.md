@@ -2672,3 +2672,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
 - 2026-11-05 — Frontend validation currently includes the existing Node test runner (`npm test`), in addition to build and lint; the older note stating that no frontend runner exists is superseded by the current package scripts.
 
 - 2026-11-05 — Scenario configuration is an existing-version list only; remove its creation state, form and submit handler, while preserving the shared createVersion API used by Version management. Summary charts use brand tokens and shared SelectField controls, without altering statistics. Algorithm names are omitted from presentation and IRR status counts remain in expandable detail.
+
+- 2026-11-05 — Production deploy (see [`deploy.md`](deploy.md)): pushes to `master` that touch `backend/**` deploy the backend to the AWS Lightsail container service via `.github/workflows/deploy-backend.yml`; Cloudflare Pages builds `frontend/` through its own Git integration.
+  - **`BACKEND_ENV` is the single source of the backend's production config.** Each deployment replaces the container's whole environment with it, so never edit env vars in the Lightsail console — they vanish on the next deploy. Add a new required variable to `REQUIRED_KEYS` in `.github/scripts/lightsail-deployment.mjs` so a deploy without it fails early.
+  - **The frontend reaches the API through a Pages Function** (`frontend/functions/api/[[path]].js`), not a build-time URL. Keep `src/api/client.ts` on the relative `/api/v1` base; the function strips `Origin`, so CORS never applies to the SPA's own calls. Preview deployments work for the same reason.
+  - **Keep the health check public.** Lightsail rolls out only when `GET /api/v1/health` answers 2xx; if that endpoint ever requires auth or moves, update `HEALTH_CHECK_PATH` in the deployment script, or every deploy will fail.
+  - **No persistent disk on Lightsail containers**: PostgreSQL must stay outside the container service.

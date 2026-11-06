@@ -1,0 +1,209 @@
+name: Deploy backend
+
+# On every push to master that touches the backend: run the tests, build the
+# Docker image, push it to the AWS Lightsail container service and roll out a
+# new deployment. Lightsail only moves traffic once the new container passes
+# its health check, so a broken build leaves the previous version serving.
+#
+# One-time setup (IAM user, repository secrets and variables): docs/deploy.md.
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+      - '.github/scripts/lightsail-deployment*.mjs'
+  workflow_dispatch:
+
+# One rollout at a time; a newer push waits instead of cutting a deploy short.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  SERVICE_NAME: ${{ vars.LIGHTSAIL_SERVICE_NAME }}
+  CONTAINER_NAME: ${{ vars.LIGHTSAIL_CONTAINER_NAME || 'api' }}
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Backend tests
+        working-directory: backend
+        run: mvn --batch-mode test
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Deployment script tests
+        run: node --test .github/scripts/*.test.mjs
+
+  deploy:
+    name: Deploy to Lightsail
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: ${{ steps.rollout.outputs.url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check configuration
+        env:
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+          HAS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+          HAS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' }}
+        run: |
+          missing=()
+          [ -n "$AWS_REGION" ] || missing+=("variable AWS_REGION")
+          [ -n "$SERVICE_NAME" ] || missing+=("variable LIGHTSAIL_SERVICE_NAME")
+          [ "$HAS_ACCESS_KEY_ID" = "true" ] || missing+=("secret AWS_ACCESS_KEY_ID")
+          [ "$HAS_SECRET_ACCESS_KEY" = "true" ] || missing+=("secret AWS_SECRET_ACCESS_KEY")
+          [ -n "$BACKEND_ENV" ] || missing+=("secret BACKEND_ENV")
+          if [ ${#missing[@]} -gt 0 ]; then
+            for item in "${missing[@]}"; do
+              echo "::error::Missing repository $item (see docs/deploy.md)"
+            done
+            exit 1
+          fi
+          node .github/scripts/lightsail-deployment.mjs validate
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Check the container service
+        run: |
+          state=$(aws lightsail get-container-services \
+            --service-name "$SERVICE_NAME" \
+            --query 'containerServices[0].state' --output text)
+          echo "Container service $SERVICE_NAME ($AWS_REGION) is $state"
+
+      # The AWS CLI needs this plugin for `aws lightsail push-container-image`.
+      - name: Install the Lightsail CLI plugin
+        run: |
+          sudo curl -fsSL "https://s3.us-west-2.amazonaws.com/lightsailctl/latest/linux-amd64/lightsailctl" \
+            -o /usr/local/bin/lightsailctl
+          sudo chmod +x /usr/local/bin/lightsailctl
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          load: true
+          push: false
+          tags: enerscope-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Push image to Lightsail
+        id: push
+        run: |
+          out=$(aws lightsail push-container-image \
+            --service-name "$SERVICE_NAME" \
+            --label "$CONTAINER_NAME" \
+            --image "enerscope-backend:${GITHUB_SHA}" 2>&1) || { echo "$out"; exit 1; }
+          echo "$out"
+          # The CLI answers: Refer to this image as ":<service>.<label>.<n>" in deployments.
+          image=$(printf '%s\n' "$out" | sed -n 's/.*Refer to this image as "\([^"]*\)".*/\1/p' | tail -n 1)
+          if [ -z "$image" ]; then
+            image=$(aws lightsail get-container-images \
+              --service-name "$SERVICE_NAME" \
+              --query 'containerImages[0].image' --output text)
+          fi
+          echo "Registered image: $image"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Create deployment
+        id: deployment
+        env:
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+          IMAGE: ${{ steps.push.outputs.image }}
+        run: |
+          node .github/scripts/lightsail-deployment.mjs write "$RUNNER_TEMP/lightsail"
+          version=$(aws lightsail create-container-service-deployment \
+            --service-name "$SERVICE_NAME" \
+            --containers "file://$RUNNER_TEMP/lightsail/containers.json" \
+            --public-endpoint "file://$RUNNER_TEMP/lightsail/public-endpoint.json" \
+            --query 'containerService.nextDeployment.version' --output text)
+          rm -rf "$RUNNER_TEMP/lightsail"
+          echo "Created deployment version $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the deployment to become active
+        id: rollout
+        env:
+          VERSION: ${{ steps.deployment.outputs.version }}
+          IMAGE: ${{ steps.push.outputs.image }}
+        run: |
+          deadline=$((SECONDS + 30 * 60))
+          while true; do
+            # The full response carries the environment (secrets): only print the state.
+            state=$(aws lightsail get-container-service-deployments \
+              --service-name "$SERVICE_NAME" --output json \
+              | jq -r --argjson v "$VERSION" '.deployments[] | select(.version == $v) | .state')
+            echo "$(date -u +%H:%M:%S) deployment $VERSION: ${state:-unknown}"
+            case "$state" in
+              ACTIVE) break ;;
+              FAILED|INACTIVE)
+                echo "::error::Deployment $VERSION ended as $state; the previous deployment keeps serving traffic."
+                exit 1 ;;
+            esac
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::Deployment $VERSION was not active after 30 minutes."
+              exit 1
+            fi
+            sleep 20
+          done
+          url=$(aws lightsail get-container-services \
+            --service-name "$SERVICE_NAME" \
+            --query 'containerServices[0].url' --output text)
+          url="${url%/}"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Backend deployed"
+            echo ""
+            echo "- Lightsail deployment: **$VERSION** (image \`$IMAGE\`)"
+            echo "- Health: $url/api/v1/health"
+            echo "- Swagger: $url/api/v1/swagger-ui.html"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Show container logs
+        if: failure() && steps.deployment.outputs.version != ''
+        run: |
+          aws lightsail get-container-log \
+            --service-name "$SERVICE_NAME" \
+            --container-name "$CONTAINER_NAME" \
+            --start-time "$(date -u -d '-45 minutes' +%Y-%m-%dT%H:%M:%SZ)" --output json \
+            | jq -r '.logEvents[] | "\(.createdAt) \(.message)"' | tail -n 200 || true
