@@ -48,12 +48,26 @@ the backend alongside it (see [backend/README.md](../backend/README.md)).
 None are required for local development — the Vite proxy handles API routing.
 See `.env.example`. Vite only exposes variables prefixed with `VITE_`.
 
+## Production (Cloudflare Pages)
+
+The app is hosted on Cloudflare Pages, connected to the GitHub repository, so
+every push to `master` publishes a new build (and every other branch gets a
+preview URL). In production, `functions/api/[[path]].js` — a Pages Function —
+plays the role of the Vite dev proxy: it forwards every `/api/*` request to the
+backend on AWS Lightsail. The client keeps calling relative `/api/v1/...` URLs,
+so there is no API URL in the build and no CORS between browser and API.
+
+The Pages project needs a single environment variable, `BACKEND_URL` — the
+Lightsail container service's public URL (origin only). Project settings and
+the backend side are in [docs/deploy.md](../docs/deploy.md).
+
 ## Folder structure
 
 ```
 frontend/
 ├─ index.html
 ├─ vite.config.ts          Vite + React + Tailwind, /api dev proxy
+├─ functions/api/[[path]].js  Cloudflare Pages Function: /api/* → backend (production proxy)
 ├─ src/
 │  ├─ main.tsx             React entry point
 │  ├─ App.tsx              Router + route guards (AuthProvider at the root)

@@ -1956,3 +1956,32 @@ Validation: **73 frontend unit/component cases**, **843 Maven tests**, zero fail
 - `projectScoping-browser.mjs` (existing browser flow, expectation updated): an empty configuration listing offers no creation action and sends no creation request; replaces the former create-and-configure expectation.
 
 Validation for the presentation changes: 73 frontend unit/component tests pass; build and lint pass. The first three browser flows above pass, including desktop/mobile screenshots. Maven remains unchanged from the preceding 843-test successful run; no backend source or database changes in this adjustment.
+
+### Production deployment (Lightsail + Cloudflare Pages) — 2026-11-05
+
+`frontend/tests/pagesApiProxy.test.mjs` — unit, **6 cases**, for the Cloudflare Pages Function `frontend/functions/api/[[path]].js` (`fetch` stubbed, no network):
+
+| Case | Verifies |
+| --- | --- |
+| `forwards path and query string to the BACKEND_URL origin` | `/api/v1/...?query` goes to the backend origin unchanged; any path on `BACKEND_URL` is ignored; redirects are not followed. |
+| `forwards method, body and Authorization, and drops Host and Origin` | A POST keeps its method, body, `Authorization` and `Content-Type`; `Host` and `Origin` are removed so Spring does not apply CORS to the proxied call. |
+| `sends no body for GET requests` | GET requests are forwarded without a body. |
+| `passes the backend response through untouched, including a 401` | Status, headers and body come back as the backend sent them, so the client's refresh-on-401 keeps working. |
+| `answers 500 with an ApiResponse envelope when BACKEND_URL is missing or invalid` | A misconfigured Pages project answers a clear `ApiResponse` error and never calls `fetch`. |
+| `answers 502 with an ApiResponse envelope when the backend is unreachable` | A network failure towards Lightsail becomes a `502` `ApiResponse` instead of an unhandled exception. |
+
+`.github/scripts/lightsail-deployment.test.mjs` — unit, **9 cases**, for the script that turns the `BACKEND_ENV` secret into the Lightsail deployment. Run with `node --test .github/scripts/*.test.mjs`; the deploy workflow runs it before deploying.
+
+| Case | Verifies |
+| --- | --- |
+| `parseDotenv reads KEY=VALUE lines and skips comments and blank lines` | Comments, blank lines, CRLF endings, surrounding spaces and an `export ` prefix are handled. |
+| `parseDotenv keeps "=" inside values and strips one pair of matching quotes` | JDBC URLs with query strings survive; matching quotes are removed, mismatched ones kept. |
+| `parseDotenv rejects a malformed line without echoing its content` | The error names the line number but never prints the line (it may hold a secret). |
+| `validateEnv accepts a complete production env` | A complete env yields no problems. |
+| `validateEnv reports every missing required key` | Each missing required variable is reported. |
+| `validateEnv rejects development defaults, a short JWT secret and a non-JDBC URL` | The dev `JWT_SECRET`/`ADMIN_PASSWORD`, a secret under 32 characters and a `postgres://` URL are all refused. |
+| `buildDeployment wires image, env, port and health check to the named container` | Container image, environment, port `8080/HTTP` and the `/api/v1/health` health check are set. |
+| `CLI write produces the two deployment files from BACKEND_ENV` | `write <dir>` creates `containers.json` and `public-endpoint.json` from the environment. |
+| `CLI validate fails without printing secret values` | An invalid env exits `1` with the problem listed and no secret values in the output. |
+
+Validation: **79 frontend unit/component cases** (73 + 6) and the 9 deployment-script cases pass; frontend build and lint pass. No backend source changes; the deploy workflow itself can only be exercised on GitHub.
