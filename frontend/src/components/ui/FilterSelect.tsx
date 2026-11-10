@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { controlClasses } from './controlClasses';
+import { controlCompact } from './controlClasses';
 
 interface FilterSelectOption {
   value: string;
@@ -24,7 +24,7 @@ export function FilterSelect({ label, value, options, onChange }: FilterSelectPr
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={controlClasses}
+        className={controlCompact}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>

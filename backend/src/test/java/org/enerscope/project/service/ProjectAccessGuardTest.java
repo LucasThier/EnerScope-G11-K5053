@@ -10,7 +10,6 @@ import org.enerscope.project.model.ProjectMemberRole;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.project.repository.ProjectMemberRepository;
-import org.enerscope.project.repository.ProjectRepository;
 import org.enerscope.session.model.Session;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
@@ -32,22 +31,20 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for {@link ProjectAccessGuard}, the single home of the project and
- * version authorization rules. Every check is exercised in its three states:
- * authorized, authenticated but not allowed (403), and no session at all (401).
+ * Unit tests for {@link ProjectAccessGuard}, the home of the project
+ * authorization rules. Every check is exercised in its three states:
+ * authorized, authenticated but not allowed (403), and no session at all
+ * (401). The version-scoped equivalents live on
+ * {@code version.service.VersionAccessGuard} and are covered by
+ * {@code VersionAccessGuardTest}.
  */
 @ExtendWith(MockitoExtension.class)
 class ProjectAccessGuardTest {
 
-    @Mock
-    private ProjectRepository projectRepository;
     @Mock
     private ProjectMemberRepository projectMemberRepository;
     @Mock
@@ -57,7 +54,7 @@ class ProjectAccessGuardTest {
 
     @BeforeEach
     void setUp() {
-        guard = new ProjectAccessGuard(projectRepository, projectMemberRepository, logger);
+        guard = new ProjectAccessGuard(projectMemberRepository, logger);
     }
 
     @AfterEach
@@ -184,102 +181,6 @@ class ProjectAccessGuardTest {
         assertThrows(UnauthorizedException.class, () -> guard.assertCanManageProject(UUID.randomUUID()));
 
         verifyNoInteractions(projectMemberRepository);
-    }
-
-    // ---- assertCanEditVersion / assertCanViewVersion -------------------------
-
-    @Test
-    void assertCanEditVersionResolvesOwningProjectAndAllowsEditor() {
-        UUID versionId = UUID.randomUUID();
-        UUID projectId = UUID.randomUUID();
-        User caller = regularUser("editor@enerscope.org");
-        authenticateAs(caller);
-        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
-        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
-                .thenReturn(Optional.of(memberWith(ProjectMemberType.EDITOR)));
-
-        assertDoesNotThrow(() -> guard.assertCanEditVersion(versionId));
-    }
-
-    @Test
-    void assertCanEditVersionRejectsCallerOutsideOwningProjectWith403() {
-        UUID versionId = UUID.randomUUID();
-        UUID projectId = UUID.randomUUID();
-        User caller = regularUser("outsider@enerscope.org");
-        authenticateAs(caller);
-        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
-        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
-                .thenReturn(Optional.empty());
-
-        assertThrows(ForbiddenException.class, () -> guard.assertCanEditVersion(versionId));
-    }
-
-    @Test
-    void assertCanEditVersionRejectsVersionWithoutOwningProjectWith403() {
-        UUID versionId = UUID.randomUUID();
-        authenticateAs(regularUser("member@enerscope.org"));
-        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.empty());
-
-        assertThrows(ForbiddenException.class, () -> guard.assertCanEditVersion(versionId));
-
-        verify(projectMemberRepository, never()).findByProjectIdAndUserId(any(), any());
-    }
-
-    @Test
-    void assertCanEditVersionAllowsPlatformAdminOnOrphanVersion() {
-        authenticateAs(platformAdmin());
-
-        assertDoesNotThrow(() -> guard.assertCanEditVersion(UUID.randomUUID()));
-
-        verifyNoInteractions(projectRepository);
-        verifyNoInteractions(projectMemberRepository);
-    }
-
-    @Test
-    void assertCanEditVersionRejectsUnauthenticated() {
-        assertThrows(UnauthorizedException.class, () -> guard.assertCanEditVersion(UUID.randomUUID()));
-
-        verifyNoInteractions(projectRepository);
-    }
-
-    @Test
-    void assertCanViewVersionAllowsAnyMemberOfOwningProject() {
-        UUID versionId = UUID.randomUUID();
-        UUID projectId = UUID.randomUUID();
-        User caller = regularUser("member@enerscope.org");
-        authenticateAs(caller);
-        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
-        when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(true);
-
-        assertDoesNotThrow(() -> guard.assertCanViewVersion(versionId));
-    }
-
-    @Test
-    void assertCanViewVersionRejectsUnauthenticated() {
-        assertThrows(UnauthorizedException.class, () -> guard.assertCanViewVersion(UUID.randomUUID()));
-
-        verifyNoInteractions(projectRepository);
-    }
-
-    // ---- assertIsPlatformAdmin -----------------------------------------------
-
-    @Test
-    void assertIsPlatformAdminAllowsPlatformAdmin() {
-        authenticateAs(platformAdmin());
-
-        assertDoesNotThrow(() -> guard.assertIsPlatformAdmin("create detached versions"));
-    }
-
-    @Test
-    void assertIsPlatformAdminRejectsRegularUserWith403() {
-        authenticateAs(regularUser("member@enerscope.org"));
-
-        assertThrows(ForbiddenException.class, () -> guard.assertIsPlatformAdmin("create detached versions"));
-    }
-
-    @Test
-    void assertIsPlatformAdminRejectsUnauthenticated() {
-        assertThrows(UnauthorizedException.class, () -> guard.assertIsPlatformAdmin("create detached versions"));
     }
 
     @Test

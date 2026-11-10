@@ -40,6 +40,7 @@ public class VersionConflictService {
     private final BaseNodeRepository nodeRepository;
     private final NodeConnectionRepository connectionRepository;
     private final AppLogger logger;
+    private final VersionAccessGuard accessGuard;
 
     /**
      * Called right after {@code sourceVersion} was merged into
@@ -76,8 +77,8 @@ public class VersionConflictService {
                 BaseNode mergedNode = findNodeByIdentity(mergedVersion.getNodeSnapshot(), identityId);
                 BaseNode siblingNode = findNodeByIdentity(sibling.getNodeSnapshot(), identityId);
                 if (rowDiffers(mergedNode, siblingNode)) {
-                    created.add(conflictRepository.save(new VersionConflict(mergedVersion, sourceVersion, sibling,
-                            ConflictEntityType.NODE, identityId)));
+                    created.add(saveOrTouchPendingConflict(mergedVersion, sourceVersion, sibling,
+                            ConflictEntityType.NODE, identityId));
                 }
             }
 
@@ -87,8 +88,8 @@ public class VersionConflictService {
                 NodeConnection siblingConnection = findConnectionByIdentity(sibling.getConnectionSnapshot(),
                         identityId);
                 if (rowDiffers(mergedConnection, siblingConnection)) {
-                    created.add(conflictRepository.save(new VersionConflict(mergedVersion, sourceVersion, sibling,
-                            ConflictEntityType.CONNECTION, identityId)));
+                    created.add(saveOrTouchPendingConflict(mergedVersion, sourceVersion, sibling,
+                            ConflictEntityType.CONNECTION, identityId));
                 }
             }
         }
@@ -98,6 +99,15 @@ public class VersionConflictService {
                     sourceVersion.getName(), mergedVersion.getName(), created.size());
         }
         return created;
+    }
+
+    private VersionConflict saveOrTouchPendingConflict(Version mergedVersion, Version sourceVersion, Version sibling,
+            ConflictEntityType entityType, UUID identityId) {
+        return conflictRepository.findPendingDuplicate(mergedVersion.getId(), sourceVersion.getId(), sibling.getId(),
+                entityType, identityId)
+                .map(conflictRepository::save)
+                .orElseGet(() -> conflictRepository
+                        .save(new VersionConflict(mergedVersion, sourceVersion, sibling, entityType, identityId)));
     }
 
     /** True when the two sides disagree on this identity: one is missing it, or they hold different rows. */
@@ -117,6 +127,7 @@ public class VersionConflictService {
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
+        accessGuard.assertCanViewVersion(versionId);
         return conflictRepository.findByConflictingVersionId(versionId).stream()
                 .map(VersionConflictDTO::from)
                 .toList();
@@ -141,6 +152,7 @@ public class VersionConflictService {
         Objects.requireNonNull(decision, "Resolution decision cannot be null");
         VersionConflict conflict = conflictRepository.findById(conflictId)
                 .orElseThrow(() -> new EntityNotFoundException("Version conflict not found with id: " + conflictId));
+        accessGuard.assertCanManageVersion(conflict.getConflictingVersion().getId());
 
         if (conflict.getEntityType() == ConflictEntityType.NODE) {
             resolveNodeConflict(conflict, decision);

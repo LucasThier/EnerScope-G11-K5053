@@ -61,21 +61,21 @@ public class VersionConflictDTO {
         if (conflict.getEntityType() == ConflictEntityType.NODE) {
             mergedDescription = describeNode(findNodeByIdentity(merged.getNodeSnapshot(), identityId));
             conflictingDescription = describeNode(findNodeByIdentity(conflicting.getNodeSnapshot(), identityId));
-            sourceChangeType = findNodeChangeType(source.getNodeChanges(), identityId);
+            sourceChangeType = source == null ? null : findNodeChangeType(source.getNodeChanges(), identityId);
             conflictingChangeType = findNodeChangeType(conflicting.getNodeChanges(), identityId);
         } else {
             mergedDescription = describeConnection(
                     findConnectionByIdentity(merged.getConnectionSnapshot(), identityId), merged);
             conflictingDescription = describeConnection(
                     findConnectionByIdentity(conflicting.getConnectionSnapshot(), identityId), conflicting);
-            sourceChangeType = findConnectionChangeType(source.getConnectionChanges(), identityId);
+            sourceChangeType = source == null ? null : findConnectionChangeType(source.getConnectionChanges(), identityId);
             conflictingChangeType = findConnectionChangeType(conflicting.getConnectionChanges(), identityId);
         }
 
         return new VersionConflictDTO(
                 conflict.getId(),
                 merged.getId(),
-                source.getId(),
+                source == null ? null : source.getId(),
                 conflicting.getId(),
                 conflicting.getName(),
                 conflict.getEntityType(),

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { Modal, ModalFooter } from '../ui/Modal';
 import { TextField } from '../ui/TextField';
 import { getErrorMessage } from '../../api/errors';
 
@@ -58,14 +58,14 @@ export function NewOrganizationModal({ open, onClose, onCreate }: NewOrganizatio
           maxLength={NAME_MAX}
         />
 
-        <div className="mt-2 flex justify-end gap-2">
+        <ModalFooter>
           <Button type="button" variant="ghost" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
           <Button type="submit" loading={submitting}>
             Crear organización
           </Button>
-        </div>
+        </ModalFooter>
       </form>
     </Modal>
   );

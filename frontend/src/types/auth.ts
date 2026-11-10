@@ -79,6 +79,7 @@ export interface OrganizationSummary {
   createdAt: string;
   active: boolean;
   memberCount: number;
+  memberType?: OrganizationMemberType | null;
 }
 
 export interface UpdateOrganizationRequest {
@@ -115,6 +116,20 @@ export interface OrganizationMemberSummary {
   active: boolean;
   memberType: OrganizationMemberType;
   permissions: OrganizationMemberPermission[];
+}
+
+export interface FailedRegistration {
+  line: number;
+  mail: string;
+  reason: string;
+}
+
+export interface BulkRegistrationResult {
+  total: number;
+  created: number;
+  failed: number;
+  credentialsCsv: string;
+  failures: FailedRegistration[];
 }
 
 export interface ApiResponse<T> {

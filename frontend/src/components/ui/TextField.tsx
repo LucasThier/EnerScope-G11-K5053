@@ -1,30 +1,35 @@
-import { useId, type InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, ReactNode } from 'react';
+import { Field } from './Field';
+import { useField, type FieldMessages } from './useField';
+import { controlField } from './controlClasses';
 
-interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
+interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement>, FieldMessages {
   label: string;
-  error?: string;
+  endAdornment?: ReactNode;
 }
 
-export function TextField({ label, error, id, className = '', ...rest }: TextFieldProps) {
-  const generatedId = useId();
-  const inputId = id ?? generatedId;
+export function TextField({
+  label,
+  hint,
+  error,
+  id,
+  className = '',
+  endAdornment,
+  ...rest
+}: TextFieldProps) {
+  const { fieldId, hintId, errorId, controlProps } = useField(id, { hint, error });
   return (
-    <div className="flex flex-col gap-2">
-      <label htmlFor={inputId} className="text-sm font-medium text-ink-600">
-        {label}
-      </label>
-      <input
-        id={inputId}
-        className={
-          'rounded-lg border bg-white px-3 py-2 text-sm text-ink-800 placeholder:text-ink-400 ' +
-          'focus:outline-none focus:ring-2 focus:ring-brand-400/40 ' +
-          (error ? 'border-danger-400 focus:border-danger-400 ' : 'border-ink-200 focus:border-brand-500 ') +
-          className
-        }
-        aria-invalid={error ? true : undefined}
-        {...rest}
-      />
-      {error && <span className="text-xs text-danger-600">{error}</span>}
-    </div>
+    <Field label={label} hint={hint} error={error} fieldId={fieldId} hintId={hintId} errorId={errorId}>
+      <div className="relative">
+        <input
+          {...controlProps}
+          className={`${controlField} w-full ${endAdornment ? 'pr-12' : ''} ${className}`}
+          {...rest}
+        />
+        {endAdornment && (
+          <span className="absolute inset-y-0 right-2 flex items-center">{endAdornment}</span>
+        )}
+      </div>
+    </Field>
   );
 }

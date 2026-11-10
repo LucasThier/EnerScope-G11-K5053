@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="EnerScope">
+  <style>
+    .tile { fill: #2e7d32; }
+    .letter { fill: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      .tile { fill: #a5e8ad; }
+      .letter { fill: #111820; }
+    }
+  </style>
+  <rect class="tile" x="0" y="0" width="64" height="64" rx="14" />
+  <g class="letter">
+    <rect x="15" y="12" width="9" height="40" />
+    <rect x="15" y="12" width="34" height="9" />
+    <rect x="15" y="27.5" width="28" height="9" />
+    <rect x="15" y="43" width="34" height="9" />
+  </g>
+</svg>

@@ -45,6 +45,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -280,6 +281,90 @@ class OrganizationServiceTest {
     @Test
     void listForCurrentUserRejectsUnauthenticated() {
         assertThrows(UnauthorizedException.class, () -> organizationService.listForCurrentUser());
+    }
+
+    @Test
+    void listForCurrentUserFillsMemberTypeForRegularUser() {
+        User user = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+        authenticateAs(user);
+        OrganizationDTO mine = summary("Mine", 1L);
+        when(organizationRepository.findSummariesForMember(user.getId())).thenReturn(List.of(mine));
+        when(organizationRepository.findSummariesForMemberWithRole(user.getId()))
+                .thenReturn(List.of(mine.withMemberType(OrganizationMemberType.OWNER)));
+
+        List<OrganizationDTO> result = organizationService.listForCurrentUser();
+
+        assertEquals(OrganizationMemberType.OWNER, result.get(0).memberType());
+    }
+
+    @Test
+    void listForCurrentUserLeavesMemberTypeNullForAdminOutsideTheOrganization() {
+        User admin = admin();
+        authenticateAs(admin);
+        OrganizationDTO belongs = summary("Belongs", 2L);
+        OrganizationDTO other = summary("Other", 5L);
+        when(organizationRepository.findSummaries()).thenReturn(List.of(belongs, other));
+        when(organizationRepository.findSummariesForMemberWithRole(admin.getId()))
+                .thenReturn(List.of(belongs.withMemberType(OrganizationMemberType.MEMBER)));
+
+        List<OrganizationDTO> result = organizationService.listForCurrentUser();
+
+        assertEquals(2, result.size());
+        assertEquals(OrganizationMemberType.MEMBER, result.get(0).memberType());
+        assertNull(result.get(1).memberType());
+    }
+
+    @Test
+    void listForCurrentUserLeavesMemberTypeNullForAdminWithNoMembership() {
+        User admin = admin();
+        authenticateAs(admin);
+        when(organizationRepository.findSummaries()).thenReturn(List.of(summary("Acme", 3L)));
+        when(organizationRepository.findSummariesForMemberWithRole(admin.getId())).thenReturn(List.of());
+
+        List<OrganizationDTO> result = organizationService.listForCurrentUser();
+
+        assertEquals(1, result.size());
+        assertNull(result.get(0).memberType());
+    }
+
+    @Test
+    void listMineForCurrentUserReturnsTheCallersMembershipsForAdmin() {
+        User admin = admin();
+        authenticateAs(admin);
+        OrganizationDTO owned = summary("Owned", 1L).withMemberType(OrganizationMemberType.OWNER);
+        OrganizationDTO joined = summary("Joined", 4L).withMemberType(OrganizationMemberType.MEMBER);
+        when(organizationRepository.findSummariesForMemberWithRole(admin.getId()))
+                .thenReturn(List.of(owned, joined));
+
+        List<OrganizationDTO> result = organizationService.listMineForCurrentUser();
+
+        assertEquals(List.of(owned, joined), result);
+        verify(organizationRepository, never()).findSummaries();
+    }
+
+    @Test
+    void listMineForCurrentUserIsEmptyForAdminWithNoMembership() {
+        User admin = admin();
+        authenticateAs(admin);
+        when(organizationRepository.findSummariesForMemberWithRole(admin.getId())).thenReturn(List.of());
+
+        assertTrue(organizationService.listMineForCurrentUser().isEmpty());
+        verify(organizationRepository, never()).findSummaries();
+    }
+
+    @Test
+    void listMineForCurrentUserReturnsTheCallersMembershipsForRegularUser() {
+        User user = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+        authenticateAs(user);
+        OrganizationDTO joined = summary("Joined", 4L).withMemberType(OrganizationMemberType.MEMBER);
+        when(organizationRepository.findSummariesForMemberWithRole(user.getId())).thenReturn(List.of(joined));
+
+        assertEquals(List.of(joined), organizationService.listMineForCurrentUser());
+    }
+
+    @Test
+    void listMineForCurrentUserRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class, () -> organizationService.listMineForCurrentUser());
     }
 
     @Test
@@ -752,6 +837,7 @@ class OrganizationServiceTest {
         when(organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, caller.getId()))
                 .thenReturn(Optional.of(own));
         when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId)).thenReturn(Optional.of(own));
+        when(organizationMemberRepository.countOwnersByOrganization(organizationId)).thenReturn(2L);
         when(projectMemberRepository.findByUserInOrganization(caller.getId(), organizationId))
                 .thenReturn(List.of());
 
@@ -903,6 +989,7 @@ class OrganizationServiceTest {
         OrganizationMember member = stubMembership(organizationId, memberId,
                 memberOf(organization, OrganizationMemberType.OWNER));
         authenticateAs(admin());
+        when(organizationMemberRepository.countOwnersByOrganization(organizationId)).thenReturn(2L);
         assertEquals(OrganizationMemberType.OWNER, member.getRoles().iterator().next().getMemberType());
         assertTrue(member.getRoles().iterator().next().getPermissions()
                 .contains(OrganizationMemberPermission.MANAGE_ORGANIZATION));
@@ -951,6 +1038,7 @@ class OrganizationServiceTest {
                 EnumSet.of(OrganizationMemberPermission.VIEW_ORGANIZATION)));
         stubMembership(organizationId, memberId, member);
         authenticateAs(admin());
+        when(organizationMemberRepository.countOwnersByOrganization(organizationId)).thenReturn(2L);
         assertEquals(2, member.getRoles().size());
 
         organizationService.changeMemberRole(organizationId, memberId,
@@ -1078,6 +1166,7 @@ class OrganizationServiceTest {
         Organization organization = stubActiveOrganization(organizationId);
         stubMembership(organizationId, memberId, memberOf(organization, OrganizationMemberType.OWNER));
         authenticateAs(admin());
+        when(organizationMemberRepository.countOwnersByOrganization(organizationId)).thenReturn(2L);
 
         organizationService.changeMemberRole(organizationId, memberId,
                 new UpdateOrganizationMemberRoleRequestDTO(OrganizationMemberType.MEMBER));
@@ -1105,6 +1194,7 @@ class OrganizationServiceTest {
                 .thenReturn(Optional.of(ownerMembership));
         when(organizationMemberRepository.findByIdAndOrganizationId(plainMemberId, organizationId))
                 .thenReturn(Optional.of(plainMembership));
+        when(organizationMemberRepository.countOwnersByOrganization(organizationId)).thenReturn(2L);
         when(organizationMemberRepository.save(any(OrganizationMember.class))).thenAnswer(inv -> inv.getArgument(0));
 
         authenticateAs(ownerUser);
@@ -1124,5 +1214,194 @@ class OrganizationServiceTest {
         assertThrows(ForbiddenException.class, () -> organizationService.assertCanManageUsers(organizationId));
         authenticateAs(plainUser);
         organizationService.assertCanManageUsers(organizationId);
+    }
+
+    @Test
+    void removeMemberRefusesToRemoveTheLastActiveOwner() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        User caller = new User("owner@enerscope.org", "Owner", "User", "hashed", PlatformRole.USER);
+        authenticateAs(caller);
+        Organization organization = new Organization("Acme");
+        OrganizationMember own = ownerMembership(caller, organization);
+        organization.addMember(own);
+        when(organizationRepository.findByIdAndActiveTrue(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, caller.getId()))
+                .thenReturn(Optional.of(own));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId))
+                .thenReturn(Optional.of(own));
+        when(organizationMemberRepository.countOwnersByOrganization(organizationId)).thenReturn(1L);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> organizationService.removeMember(organizationId, memberId));
+
+        assertEquals("The organization would be left without an owner", ex.getMessage());
+        assertTrue(organization.getMembers().contains(own));
+        verify(organizationMemberRepository, never()).delete(any());
+        verifyNoInteractions(projectMemberRepository);
+    }
+
+    @Test
+    void removeMemberAllowsRemovingAnOwnerWhenAnotherOneRemains() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember owner = memberOf(organization, OrganizationMemberType.OWNER);
+        organization.addMember(owner);
+        authenticateAs(admin());
+        when(organizationRepository.findByIdAndActiveTrue(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId))
+                .thenReturn(Optional.of(owner));
+        when(organizationMemberRepository.countOwnersByOrganization(organizationId)).thenReturn(2L);
+        when(projectMemberRepository.findByUserInOrganization(owner.getUser().getId(), organizationId))
+                .thenReturn(List.of());
+
+        organizationService.removeMember(organizationId, memberId);
+
+        verify(organizationMemberRepository).delete(owner);
+        assertFalse(organization.getMembers().contains(owner));
+    }
+
+    @Test
+    void removeMemberRefusesTheLastActiveOwnerEvenForAPlatformAdmin() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember owner = memberOf(organization, OrganizationMemberType.OWNER);
+        organization.addMember(owner);
+        authenticateAs(admin());
+        when(organizationRepository.findByIdAndActiveTrue(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId))
+                .thenReturn(Optional.of(owner));
+        when(organizationMemberRepository.countOwnersByOrganization(organizationId)).thenReturn(1L);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> organizationService.removeMember(organizationId, memberId));
+
+        assertEquals("The organization would be left without an owner", ex.getMessage());
+        verify(organizationMemberRepository, never()).findByOrganizationIdAndUserId(any(), any());
+        verify(organizationMemberRepository, never()).delete(any());
+    }
+
+    @Test
+    void removeMemberDoesNotApplyTheOwnerGuardToAnOwnerWhoseUserIsInactive() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember owner = memberOf(organization, OrganizationMemberType.OWNER);
+        owner.getUser().deactivate();
+        organization.addMember(owner);
+        authenticateAs(admin());
+        when(organizationRepository.findByIdAndActiveTrue(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId))
+                .thenReturn(Optional.of(owner));
+        when(projectMemberRepository.findByUserInOrganization(owner.getUser().getId(), organizationId))
+                .thenReturn(List.of());
+
+        organizationService.removeMember(organizationId, memberId);
+
+        verify(organizationMemberRepository, never()).countOwnersByOrganization(any());
+        verify(organizationMemberRepository).delete(owner);
+    }
+
+    @Test
+    void removeMemberRefusesWhenAProjectWouldBeLeftWithoutAnAdministrator() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember member = memberOf(organization, OrganizationMemberType.MEMBER);
+        organization.addMember(member);
+        authenticateAs(admin());
+        when(organizationRepository.findByIdAndActiveTrue(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId))
+                .thenReturn(Optional.of(member));
+        when(projectMemberRepository.countProjectsLeftWithoutAdmin(member.getUser().getId(), organizationId))
+                .thenReturn(1L);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> organizationService.removeMember(organizationId, memberId));
+
+        assertEquals("A project in this organization would be left without an administrator", ex.getMessage());
+        assertTrue(organization.getMembers().contains(member));
+        verify(projectMemberRepository, never()).findByUserInOrganization(any(), any());
+        verify(projectMemberRepository, never()).deleteAll(any());
+        verify(organizationMemberRepository, never()).delete(any());
+    }
+
+    @Test
+    void removeMemberRemovesTheMembershipWhenEveryProjectKeepsAnAdministrator() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember member = memberOf(organization, OrganizationMemberType.MEMBER);
+        organization.addMember(member);
+        Project project = new Project("Grid Expansion", "Expands the grid", organization);
+        ProjectMember projectMembership = new ProjectMember(member.getUser(), project);
+        authenticateAs(admin());
+        when(organizationRepository.findByIdAndActiveTrue(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId))
+                .thenReturn(Optional.of(member));
+        when(projectMemberRepository.countProjectsLeftWithoutAdmin(member.getUser().getId(), organizationId))
+                .thenReturn(0L);
+        when(projectMemberRepository.findByUserInOrganization(member.getUser().getId(), organizationId))
+                .thenReturn(List.of(projectMembership));
+
+        organizationService.removeMember(organizationId, memberId);
+
+        verify(projectMemberRepository).deleteAll(List.of(projectMembership));
+        verify(organizationMemberRepository).delete(member);
+    }
+
+    @Test
+    void changeMemberRoleRefusesToDemoteTheLastActiveOwner() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = stubActiveOrganization(organizationId);
+        OrganizationMember member = memberOf(organization, OrganizationMemberType.OWNER);
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId))
+                .thenReturn(Optional.of(member));
+        when(organizationMemberRepository.countOwnersByOrganization(organizationId)).thenReturn(1L);
+        authenticateAs(admin());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> organizationService.changeMemberRole(organizationId, memberId,
+                        new UpdateOrganizationMemberRoleRequestDTO(OrganizationMemberType.MEMBER)));
+
+        assertEquals("The organization would be left without an owner", ex.getMessage());
+        assertEquals(OrganizationMemberType.OWNER, member.getRoles().iterator().next().getMemberType());
+        verify(organizationMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void changeMemberRoleAllowsDemotingAnOwnerWhenAnotherOneRemains() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = stubActiveOrganization(organizationId);
+        OrganizationMember member = stubMembership(organizationId, memberId,
+                memberOf(organization, OrganizationMemberType.OWNER));
+        when(organizationMemberRepository.countOwnersByOrganization(organizationId)).thenReturn(2L);
+        authenticateAs(admin());
+
+        organizationService.changeMemberRole(organizationId, memberId,
+                new UpdateOrganizationMemberRoleRequestDTO(OrganizationMemberType.MEMBER));
+
+        assertEquals(OrganizationMemberType.MEMBER, member.getRoles().iterator().next().getMemberType());
+        verify(organizationMemberRepository).save(member);
+    }
+
+    @Test
+    void changeMemberRolePromotesAMemberWithoutConsultingTheOwnerCount() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = stubActiveOrganization(organizationId);
+        OrganizationMember member = stubMembership(organizationId, memberId,
+                memberOf(organization, OrganizationMemberType.MEMBER));
+        authenticateAs(admin());
+
+        organizationService.changeMemberRole(organizationId, memberId,
+                new UpdateOrganizationMemberRoleRequestDTO(OrganizationMemberType.OWNER));
+
+        assertEquals(OrganizationMemberType.OWNER, member.getRoles().iterator().next().getMemberType());
+        verify(organizationMemberRepository, never()).countOwnersByOrganization(any());
     }
 }

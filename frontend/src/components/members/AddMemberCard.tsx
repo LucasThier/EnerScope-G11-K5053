@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { controlClasses } from '../ui/controlClasses';
+import { SelectField } from '../ui/SelectField';
 import { getErrorMessage } from '../../api/errors';
 
 export interface SelectedUser {
@@ -14,6 +14,7 @@ export interface SelectedUser {
 
 interface AddMemberCardProps<T extends string> {
   description: string;
+  variant?: 'card' | 'plain';
   source: ReactNode;
   selected: SelectedUser | null;
   roleLabel: string;
@@ -26,6 +27,7 @@ interface AddMemberCardProps<T extends string> {
 
 export function AddMemberCard<T extends string>({
   description,
+  variant = 'card',
   source,
   selected,
   roleLabel,
@@ -64,10 +66,12 @@ export function AddMemberCard<T extends string>({
 
   const hint = roleHint?.(memberType) ?? null;
 
-  return (
-    <Card className="mt-6 max-w-xl">
-      <h2 className="text-lg font-semibold text-ink-800">Agregar integrante</h2>
-      <p className="mt-1 text-sm text-ink-500">{description}</p>
+  const body = (
+    <>
+      {variant === 'card' && (
+        <h2 className="text-lg font-semibold text-ink-800">Agregar integrante</h2>
+      )}
+      <p className={`text-sm text-ink-500 ${variant === 'card' ? 'mt-1' : ''}`}>{description}</p>
 
       <div className="mt-4 flex flex-col gap-4">
         {added && !selected && <Alert tone="success">{added}</Alert>}
@@ -85,24 +89,19 @@ export function AddMemberCard<T extends string>({
             <span className="text-ink-500">({selected.mail})</span>
           </p>
 
-          <div className="flex flex-col gap-2">
-            <label htmlFor={roleId} className="text-sm font-medium text-ink-600">
-              {roleLabel}
-            </label>
-            <select
-              id={roleId}
-              value={memberType}
-              onChange={(e) => setMemberType(e.target.value as T)}
-              className={controlClasses}
-            >
-              {(Object.keys(roleLabels) as T[]).map((type) => (
-                <option key={type} value={type}>
-                  {roleLabels[type]}
-                </option>
-              ))}
-            </select>
-            {hint && <p className="text-xs text-ink-500">{hint}</p>}
-          </div>
+          <SelectField
+            id={roleId}
+            label={roleLabel}
+            hint={hint ?? undefined}
+            value={memberType}
+            onChange={(e) => setMemberType(e.target.value as T)}
+          >
+            {(Object.keys(roleLabels) as T[]).map((type) => (
+              <option key={type} value={type}>
+                {roleLabels[type]}
+              </option>
+            ))}
+          </SelectField>
 
           <div className="flex justify-end">
             <Button type="button" onClick={handleAdd} loading={adding}>
@@ -111,6 +110,11 @@ export function AddMemberCard<T extends string>({
           </div>
         </div>
       )}
-    </Card>
+    </>
   );
+
+  if (variant === 'plain') {
+    return <div>{body}</div>;
+  }
+  return <Card className="mt-6 max-w-xl">{body}</Card>;
 }

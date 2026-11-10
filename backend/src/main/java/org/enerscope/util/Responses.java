@@ -14,6 +14,10 @@ public final class Responses {
         return ResponseEntity.ok(ApiResponse.ok(msg));
     }
 
+    public static <T> ResponseEntity<ApiResponse<T>> accepted(String msg, T data) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.ok(msg, data));
+    }
+
     public static <T> ResponseEntity<ApiResponse<T>> created(String msg, T data) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(msg, data));
     }

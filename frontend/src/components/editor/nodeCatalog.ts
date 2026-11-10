@@ -1,3 +1,4 @@
+import type { ResolvedTheme } from '../../hooks/useTheme';
 import type { NodeState, NodeType, StructuralRole, Vertical } from '../../types/diagram';
 
 /** A numeric, type-specific field of a node subtype. */
@@ -6,6 +7,8 @@ export interface NodeFieldSpec {
   label: string;
   /** Sent as an integer (backend `int`) rather than a float. */
   integer?: boolean;
+  /** Legacy API field, retained in payloads but excluded from operational panels. */
+  economic?: boolean;
 }
 
 export interface NodeTypeSpec {
@@ -14,10 +17,8 @@ export interface NodeTypeSpec {
   vertical: Vertical;
   role: StructuralRole;
   /**
-   * The complete set of the subtype's own fields. Sending exactly this set (plus
-   * the common base fields) lets the backend's Jackson `DEDUCTION` uniquely
-   * resolve the node subtype — every set below contains a field, or a
-   * combination, that no other subtype knows.
+   * The complete set of the subtype's own fields. The backend chooses the DTO
+   * using the explicit type.nodeType discriminator sent in the payload.
    */
   fields: NodeFieldSpec[];
 }
@@ -33,7 +34,7 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
       { key: 'declineCurve', label: 'Decline curve' },
       { key: 'gasRichness', label: 'Gas richness (0-1)' },
       { key: 'dtmTime', label: 'DTM time', integer: true },
-      { key: 'dtmCost', label: 'DTM cost' },
+      { key: 'dtmCost', label: 'DTM cost', economic: true },
       { key: 'surface', label: 'Surface' },
     ],
   },
@@ -58,7 +59,7 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
       { key: 'maxTreatmentCapacity', label: 'Max treatment capacity' },
       { key: 'contaminantWaste', label: 'Contaminant waste' },
       { key: 'intermediateStorage', label: 'Intermediate storage' },
-      { key: 'treatmentCost', label: 'Treatment cost' },
+      { key: 'treatmentCost', label: 'Treatment cost', economic: true },
     ],
   },
   {
@@ -105,7 +106,7 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
       { key: 'mtpaRatio', label: 'MTPA ratio' },
       { key: 'intermediateStorage', label: 'Intermediate storage' },
       { key: 'vesselDepth', label: 'Vessel depth' },
-      { key: 'hiringCost', label: 'Hiring cost' },
+      { key: 'hiringCost', label: 'Hiring cost', economic: true },
     ],
   },
   {
@@ -128,23 +129,64 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
       { key: 'exportFrequency', label: 'Export frequency', integer: true },
       { key: 'shipCapacity', label: 'Ship capacity' },
       { key: 'fullLoadTime', label: 'Full load time' },
-      { key: 'hiringCost', label: 'Hiring cost' },
+      { key: 'hiringCost', label: 'Hiring cost', economic: true },
       { key: 'timeToDestination', label: 'Time to destination', integer: true },
     ],
   },
+  { type: 'INTERNAL_CONSUMPTION', label: 'Internal Consumption', vertical: 'INTERNAL_CONSUMPTION', role: 'SINK',
+    fields: [
+      { key: 'consumptionSummer', label: 'Summer consumption' },
+      { key: 'consumptionAutumn', label: 'Autumn consumption' },
+      { key: 'consumptionWinter', label: 'Winter consumption' },
+      { key: 'consumptionSpring', label: 'Spring consumption' },
+    ],
+  },
+  { type: 'INDUSTRIAL_CONSUMPTION', label: 'Industrial Consumption', vertical: 'INTERNAL_CONSUMPTION', role: 'SINK',
+    fields: [{ key: 'consumption', label: 'Constant consumption' }],
+  },
 ];
+
+/** Fields editable in the physical diagram and map. */
+export function operationalFields(spec: NodeTypeSpec): NodeFieldSpec[] {
+  return spec.fields.filter(field => !field.economic);
+}
 
 export function specForType(type: NodeType): NodeTypeSpec | undefined {
   return NODE_TYPE_SPECS.find((s) => s.type === type);
 }
 
 /** Palette colour per vertical (from the brand tokens). */
-export const VERTICAL_COLORS: Record<Vertical, string> = {
-  EXTRACTION: '#6dbe45',
-  TRANSPORTATION: '#3f8130',
-  LIQUEFACTION: '#55a238',
-  EXPORT: '#326626',
-  INTERNAL_CONSUMPTION: '#6f767f',
+export const VERTICAL_COLORS: Record<ResolvedTheme, Record<Vertical, string>> = {
+  light: {
+    EXTRACTION: '#6dbe45',
+    TRANSPORTATION: '#3f8130',
+    LIQUEFACTION: '#55a238',
+    EXPORT: '#326626',
+    INTERNAL_CONSUMPTION: '#6f767f',
+  },
+  dark: {
+    EXTRACTION: '#8fd86b',
+    TRANSPORTATION: '#71bd5e',
+    LIQUEFACTION: '#80c968',
+    EXPORT: '#63b05a',
+    INTERNAL_CONSUMPTION: '#9aa5b0',
+  },
+};
+
+export const FALLBACK_VERTICAL_COLOR: Record<ResolvedTheme, string> = {
+  light: '#6f767f',
+  dark: '#9aa5b0',
+};
+
+export function verticalColor(theme: ResolvedTheme, vertical: Vertical | undefined): string {
+  return (
+    (vertical ? VERTICAL_COLORS[theme][vertical] : undefined) ?? FALLBACK_VERTICAL_COLOR[theme]
+  );
+}
+
+export const CONNECTION_COLORS: Record<ResolvedTheme, string> = {
+  light: '#4b515a',
+  dark: '#93a1b0',
 };
 
 /**
@@ -163,13 +205,15 @@ export const NODE_STATES: NodeState[] = ['PROPOSED', 'PENDING', 'RUNNING'];
 export const ALLOWED_CONNECTIONS: Partial<Record<NodeType, NodeType[]>> = {
   WELL: ['GATHERING_NETWORK'],
   GATHERING_NETWORK: ['TREATMENT_PLANT'],
-  TREATMENT_PLANT: ['PIPELINE', 'COMPRESSING_PLANT'],
-  PIPELINE: ['PIPELINE', 'COMPRESSING_PLANT', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT'],
-  COMPRESSING_PLANT: ['PIPELINE', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT'],
+  TREATMENT_PLANT: ['PIPELINE', 'COMPRESSING_PLANT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
+  PIPELINE: ['PIPELINE', 'COMPRESSING_PLANT', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
+  COMPRESSING_PLANT: ['PIPELINE', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
   GROUND_LIQUEFACTION_PLANT: ['SEAPORT_TERMINAL'],
   FLNG_UNIT: ['LNG_CAMER'],
   SEAPORT_TERMINAL: ['LNG_CAMER'],
   LNG_CAMER: [],
+  INTERNAL_CONSUMPTION: [],
+  INDUSTRIAL_CONSUMPTION: [],
 };
 
 /** The node types a node of `from` type may connect to. */
@@ -185,6 +229,7 @@ export function canConnect(from: NodeType, to: NodeType): boolean {
 /** Base fields every node create/edit payload carries. */
 export interface NodeBaseValues {
   name: string;
+  declineCurve?: import("../../types/diagram").DeclineDistribution;
   state: NodeState;
   upkeepCosts: number;
   operatingCosts: number;
@@ -212,7 +257,7 @@ export interface GraphDataInput {
 
 /**
  * Builds a node payload (create or edit) from the common base fields, the full
- * set of type-specific fields (which drives the backend's type deduction), the
+ * set of type-specific fields, the explicit node type, the
  * graph data and, on edit, the node's existing identity.
  */
 export function buildNodePayload(
@@ -238,6 +283,7 @@ export function buildNodePayload(
       acc[f.key] = typeFields[f.key] ?? 0;
       return acc;
     }, {}),
+    ...(spec.type === 'WELL' ? { declineCurve: base.declineCurve ?? { type: 'CONSTANT', val_a: typeFields.declineCurve ?? 0, val_b: null } } : {}),
   };
 }
 

@@ -102,7 +102,7 @@ public class ProjectService {
                                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
                 organizationService.assertIsMemberOf(data.organizationId(), "create projects in");
 
-                Project project = new Project(data.name(), data.description(), organization);
+                Project project = new Project(data.name(), data.description() == null ? "" : data.description().trim(), organization);
                 organization.addProject(project);
 
                 Project saved = projectRepository.save(project);
@@ -124,15 +124,12 @@ public class ProjectService {
                 if (data.name() != null && data.name().isBlank()) {
                         throw new IllegalArgumentException("Project name cannot be blank");
                 }
-                if (data.description() != null && data.description().isBlank()) {
-                        throw new IllegalArgumentException("Project description cannot be blank");
-                }
 
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
                 accessGuard.assertCanManageProject(projectId);
 
-                project.updateDetails(data.name(), data.description());
+                project.updateDetails(data.name(), data.description() == null ? null : data.description().trim());
                 Project saved = projectRepository.save(project);
                 logger.info("Updated project {}", saved.getName());
                 return saved;
@@ -322,6 +319,10 @@ public class ProjectService {
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
                 accessGuard.assertCanEditProject(projectId);
 
+                if (versionDTO.getParentVersion() != null && project.getVersions().stream()
+                                .noneMatch(v -> v.isActive() && versionDTO.getParentVersion().equals(v.getId()))) {
+                        throw new IllegalArgumentException("Parent version must belong to the selected project");
+                }
                 Version version = versionService.saveVersion(versionDTO);
 
                 project.addVersion(version);
@@ -331,22 +332,4 @@ public class ProjectService {
                 return version;
         }
 
-        /**
-         * Lists the versions of a project as lightweight summaries. Runs in a
-         * read-only transaction so the lazy {@code versions} association is
-         * initialised before it is mapped.
-         */
-        @Transactional(readOnly = true)
-        public List<VersionSummaryDTO> listVersions(UUID projectId) {
-                Project project = projectRepository.findById(projectId)
-                                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-
-                return project.getVersions().stream()
-                                .map(v -> new VersionSummaryDTO(
-                                                v.getId(),
-                                                v.getName(),
-                                                v.getParentVersion() == null ? null : v.getParentVersion().getId(),
-                                                v.getCreatedAt()))
-                                .toList();
-        }
 }

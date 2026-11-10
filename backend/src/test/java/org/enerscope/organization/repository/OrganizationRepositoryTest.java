@@ -257,4 +257,99 @@ class OrganizationRepositoryTest {
         assertFalse(organizationRepository.ownsAnyActiveOrganization(joe.getId(), MANAGE));
     }
 
+    private OrganizationMember joinedMember(User user, Organization organization, OrganizationMemberType type) {
+        OrganizationMember member = new OrganizationMember(user, organization);
+        member.addRole(new OrganizationMemberRole(type.name(), type, EnumSet.of(
+                OrganizationMemberPermission.VIEW_ORGANIZATION)));
+        organization.addMember(member);
+        return entityManager.persist(member);
+    }
+
+    @Test
+    void mineSummariesCarryTheOwnerRole() {
+        joinAs(jane, organization("Acme"), OrganizationMemberType.OWNER);
+        sync();
+
+        List<OrganizationDTO> rows = organizationRepository.findSummariesForMemberWithRole(jane.getId());
+
+        assertEquals(1, rows.size());
+        assertEquals(OrganizationMemberType.OWNER, rows.get(0).memberType());
+    }
+
+    @Test
+    void mineSummariesCarryTheMemberRole() {
+        joinAs(jane, organization("Acme"), OrganizationMemberType.MEMBER);
+        sync();
+
+        List<OrganizationDTO> rows = organizationRepository.findSummariesForMemberWithRole(jane.getId());
+
+        assertEquals(1, rows.size());
+        assertEquals(OrganizationMemberType.MEMBER, rows.get(0).memberType());
+    }
+
+    @Test
+    void mineSummariesReturnOnlyTheCallersOrganizationsWithTheFullMemberCount() {
+        Organization acme = organization("Acme");
+        Organization globex = organization("Globex");
+        joinAs(jane, acme, OrganizationMemberType.OWNER);
+        joinAs(joe, acme, OrganizationMemberType.MEMBER);
+        joinAs(joe, globex, OrganizationMemberType.OWNER);
+        sync();
+
+        List<OrganizationDTO> rows = organizationRepository.findSummariesForMemberWithRole(jane.getId());
+
+        assertEquals(1, rows.size());
+        assertEquals("Acme", rows.get(0).name());
+        assertEquals(2L, rows.get(0).memberCount());
+    }
+
+    @Test
+    void mineSummariesComeBackOrderedByName() {
+        joinAs(jane, organization("Zenith"), OrganizationMemberType.MEMBER);
+        joinAs(jane, organization("Acme"), OrganizationMemberType.OWNER);
+        sync();
+
+        List<OrganizationDTO> rows = organizationRepository.findSummariesForMemberWithRole(jane.getId());
+
+        assertEquals("Acme", rows.get(0).name());
+        assertEquals("Zenith", rows.get(1).name());
+    }
+
+    @Test
+    void mineSummariesExcludeDeactivatedOrganizations() {
+        Organization acme = organization("Acme");
+        joinAs(jane, acme, OrganizationMemberType.OWNER);
+        acme.deactivate();
+        sync();
+
+        assertTrue(organizationRepository.findSummariesForMemberWithRole(jane.getId()).isEmpty());
+    }
+
+    @Test
+    void mineSummariesExcludeDeactivatedMemberships() {
+        OrganizationMember membership =
+                joinedMember(jane, organization("Acme"), OrganizationMemberType.MEMBER);
+        membership.deactivate();
+        sync();
+
+        assertTrue(organizationRepository.findSummariesForMemberWithRole(jane.getId()).isEmpty());
+    }
+
+    @Test
+    void mineSummariesExcludeDeactivatedUsers() {
+        joinAs(jane, organization("Acme"), OrganizationMemberType.MEMBER);
+        jane.deactivate();
+        sync();
+
+        assertTrue(organizationRepository.findSummariesForMemberWithRole(jane.getId()).isEmpty());
+    }
+
+    @Test
+    void mineSummariesAreEmptyForAUserInNoOrganization() {
+        joinAs(joe, organization("Globex"), OrganizationMemberType.OWNER);
+        sync();
+
+        assertTrue(organizationRepository.findSummariesForMemberWithRole(jane.getId()).isEmpty());
+    }
+
 }

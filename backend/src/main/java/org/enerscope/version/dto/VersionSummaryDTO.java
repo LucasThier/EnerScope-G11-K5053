@@ -1,25 +1,14 @@
 package org.enerscope.version.dto;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-
-/**
- * Lightweight view of a version for listing the versions of a project. Does
- * not carry the node/connection snapshot — use the diagram endpoint for that.
- */
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-public class VersionSummaryDTO {
-
-    private UUID id;
-    private String name;
-    private UUID parentVersionId;
-    private Instant createdAt;
+/** Shared lightweight summary for the diagram and economic scenario selectors. */
+public record VersionSummaryDTO(UUID id, String name, Instant lastModified, List<NodeSummary> nodes,
+                                UUID parentVersionId, Instant createdAt) {
+    public VersionSummaryDTO(UUID id, String name, Instant lastModified, List<NodeSummary> nodes) {
+        this(id, name, lastModified, nodes, null, null);
+    }
+    public record NodeSummary(UUID id, String name, String type) {}
 }

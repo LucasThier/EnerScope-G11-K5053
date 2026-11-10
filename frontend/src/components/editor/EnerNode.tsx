@@ -1,6 +1,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { useTheme, type ResolvedTheme } from '../../hooks/useTheme';
 import type { NodeState, NodeType, Vertical } from '../../types/diagram';
-import { VERTICAL_COLORS } from './nodeCatalog';
+import { verticalColor } from './nodeCatalog';
 import { NodeIcon } from './nodeIcons';
 
 export interface EnerNodeData {
@@ -18,21 +19,30 @@ interface StateStyle {
   border: 'solid' | 'dashed';
 }
 
-const STATE_STYLES: Record<NodeState, StateStyle> = {
-  RUNNING: { label: 'Running', bg: '#d6efc6', text: '#326626', border: 'solid' },
-  PROPOSED: { label: 'Proposed', bg: '#eaf6de', text: '#55a238', border: 'dashed' },
-  PENDING: { label: 'Pending', bg: '#fbf0d6', text: '#9a6f1c', border: 'dashed' },
-  REMOVED: { label: 'Removed', bg: '#f3dede', text: '#b04b4b', border: 'solid' },
+const STATE_STYLES: Record<ResolvedTheme, Record<NodeState, StateStyle>> = {
+  light: {
+    RUNNING: { label: 'Running', bg: '#d6efc6', text: '#326626', border: 'solid' },
+    PROPOSED: { label: 'Proposed', bg: '#eaf6de', text: '#3a752a', border: 'dashed' },
+    PENDING: { label: 'Pending', bg: '#fbf0d6', text: '#805812', border: 'dashed' },
+    REMOVED: { label: 'Removed', bg: '#f3dede', text: '#993939', border: 'solid' },
+  },
+  dark: {
+    RUNNING: { label: 'Running', bg: '#23401c', text: '#a8dd8e', border: 'solid' },
+    PROPOSED: { label: 'Proposed', bg: '#1e3a2a', text: '#9ad4a6', border: 'dashed' },
+    PENDING: { label: 'Pending', bg: '#3d2f10', text: '#e8c781', border: 'dashed' },
+    REMOVED: { label: 'Removed', bg: '#3f2022', text: '#e59a9a', border: 'solid' },
+  },
 };
 
 /** Custom diagram node: type icon, name, and a state dot, accented by vertical. */
 export function EnerNode({ data, selected }: NodeProps) {
   const d = data as EnerNodeData;
-  const color = VERTICAL_COLORS[d.vertical] ?? '#6f767f';
-  const st = STATE_STYLES[d.state];
+  const { resolved } = useTheme();
+  const color = verticalColor(resolved, d.vertical);
+  const st = STATE_STYLES[resolved][d.state];
   return (
     <div
-      className="flex w-[172px] items-center gap-2 rounded-xl border-2 bg-white px-3 py-2 shadow-sm"
+      className="flex w-[172px] items-center gap-2 rounded-xl border-2 bg-surface px-3 py-2 shadow-sm"
       style={{
         borderColor: color,
         borderStyle: st.border,
@@ -71,7 +81,7 @@ export function EnerNode({ data, selected }: NodeProps) {
         />
       )}
       <span
-        className="pointer-events-none z-[2] flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white"
+        className="pointer-events-none z-[2] flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-on-accent"
         style={{ background: color }}
       >
         <NodeIcon type={d.nodeType} className="h-5 w-5" />
@@ -87,7 +97,7 @@ export function EnerNode({ data, selected }: NodeProps) {
           >
             {st.label}
           </span>
-          <span className="truncate text-ink-400">{d.nodeType.replace(/_/g, ' ').toLowerCase()}</span>
+          <span className="truncate text-ink-500">{d.nodeType.replace(/_/g, ' ').toLowerCase()}</span>
         </div>
       </div>
       <Handle

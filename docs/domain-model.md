@@ -1,8 +1,8 @@
 # Domain model
 
-The initial domain covers **users** and their **authentication**, plus
-**organizations** (SCRUM-35), **projects** with their own membership, and a
-minimal **project version** record.
+The domain covers **users** and their **authentication**, **organizations**,
+**projects** with scoped membership, **physical versions**, **simulation** and
+**economic evaluations**.
 
 ## User
 
@@ -144,6 +144,64 @@ owns its own role instance(s).
 permissions, `EDITOR` gets `EDIT_PROJECT` + `VIEW_PROJECT`). There is no API
 yet to define custom roles or permission sets.
 
+## Membership rules (platform, organization, project)
+
+Three role scopes exist and they are independent of each other:
+
+| Scope | Where it lives | Values | What it governs |
+| --- | --- | --- | --- |
+| Platform | `User.platformRole` | `ADMIN` \| `USER` | App-wide administration (user ABM, organization ABM, detached versions). |
+| Organization | `OrganizationMemberRole.memberType` | `OWNER` \| `MEMBER` | Who may manage an organization's people (`MANAGE_ORGANIZATION`). |
+| Project | `ProjectMemberRole.memberType` | `ADMIN` \| `EDITOR` | Who may manage a project and who may only edit its content. |
+
+- **A project member must belong to the project's organization.** `ProjectService.addMember`
+  looks the candidate up in `organization_member` first and rejects the request
+  with `User is not a member of the project's organization` otherwise — *also*
+  for a platform `ADMIN`, who gets no exemption here. An inactive organization
+  membership counts as not belonging.
+- **Removing someone from an organization removes them from its projects.**
+  `OrganizationService.removeMember` deletes every `ProjectMember` row of that
+  user inside the organization (`findByUserInOrganization`) before deleting the
+  organization membership, in one transaction.
+- **The reverse does not hold:** removing someone from a project leaves their
+  organization membership untouched.
+
+### The last owner and the last administrator are protected
+
+Both guards count only memberships that are **active and belong to an active
+user**; a membership or account that is already deactivated does not keep a
+seat warm, and a guard that does not apply is not even queried.
+
+| Rule | Where | Message (HTTP `400`) |
+| --- | --- | --- |
+| An organization must keep one owner | `OrganizationService.assertNotLastOwner`, via `OrganizationMemberRepository.countOwnersByOrganization` | `The organization would be left without an owner` |
+| A project must keep one administrator | `ProjectService.assertNotLastAdmin`, via `ProjectMemberRepository.countAdminsByProject` | `The project would be left without an administrator` |
+| Leaving an organization must not orphan a project | `OrganizationService.assertNoProjectLeftWithoutAdmin`, via `ProjectMemberRepository.countProjectsLeftWithoutAdmin` | `A project in this organization would be left without an administrator` |
+
+- The first two guards fire on **both** paths that could empty the role:
+  removing the member and demoting them. A *promotion* never consults the count,
+  and asking for the role the member already has is a no-op that never reaches
+  the guard. The third guard runs on the organization **removal** only —
+  changing an organization role cannot touch a project role, so there is nothing
+  for it to orphan.
+- **A platform `ADMIN` does not skip them.** The checks run after
+  `assertCanManageUsers` / `assertCanManageProject`, so being a platform admin
+  decides only *whether the caller may act*, never *whether the organization or
+  project may be left headless*. The way out of a one-owner organization is to
+  promote somebody else first.
+- **The third rule rejects the cascade rather than trimming it.** When the
+  person being removed from the organization is the only administrator of one of
+  its active projects, the whole removal is refused — nothing is deleted, not
+  the organization membership and not the project memberships — instead of
+  removing them from the organization and quietly leaving that project without
+  an administrator. The frontend surfaces it as "algún proyecto de la
+  organización quedaría sin administrador".
+
+`frontend/src/utils/membershipGuards.ts` mirrors the first two rules in the UI
+(the action is disabled with a reason before it is attempted), and
+`src/api/errors.ts` translates all three backend messages. The backend remains
+the authority: the UI mirror only sees the members of the screen it is on.
+
 ## Version
 
 Persistent entity mapped to the `version` table. **Minimal slice** — only
@@ -215,6 +273,39 @@ geographical one, and vice versa.
 
 Edge between two nodes (`node_connection` table): `identityId`, `fromNodeId`,
 `toNodeId` (both referencing endpoint node `id`s within the version).
+
+## Economic And Configuration
+
+Persistent entity mapped to the `version` table. **Minimal slice** — only
+`name`, the owning `project` and an optional `parentVersion` self-reference.
+No creation timestamp field of its own; it reuses `createdAt` from
+`BaseEntity` instead of duplicating it.
+
+`EconomicConfigurationEntity` has a unique, required Version reference, a typed
+configuration serialized as JSON text and an optimistic-lock revision.
+`EconomicEvaluation` has a required Version reference and immutable input/output
+snapshot JSON. Both inherit `BaseEntity`. The configuration records below are
+owned values, not separate shared JPA entities:
+
+- `EconomicConfiguration`: investment year, operating horizon, currency, WACC,
+  selected boundary and all rule collections.
+- `TaxEntity`: hypothetical jurisdiction label, rate, loss carry-forward policy,
+  opening losses, expiry, compensation limit and payment lag.
+- `NodeEconomicProfile` / `Ownership`: version-specific node rules and shares.
+- `EconomicRule` / `Occurrence`: concept, income/expense direction, cash/non-cash,
+  driver, tariff, units, dates and optional internal counterparty.
+- `CommercialContract`: delivery node and revenue rule, separate from physical assets.
+- `CapitalAsset`: purchase/payment, cost, residual, service month and useful life;
+  generates capitalizable cash outflow and monthly depreciation/amortization.
+- `TaxTreatment`: classification/deductible fraction for concept, taxpayer and validity.
+- `MetricConversion`: explicit simulator-unit conversion or static driver quantity.
+
+`AnnualNodeMetrics` records raw annual operational counters. `OperationalMetric`
+contains the converted node/year/driver quantity consumed by `EconomicEngine`.
+`EconomicEntry` preserves originating rule, node, contract, entity, counterparty,
+classification, dates and allocated amount. `EconomicResult` contains entries,
+metrics, `PeriodEconomicResult`, `EntityTaxResult`, `PendingBalance` and NPV.
+`EvaluationDTO.Snapshot` also stores physical inputs and a snapshot schema version.
 
 ## Node/connection identity and clone-on-write
 
@@ -392,3 +483,25 @@ Access tokens carry `sub` (user id), `mail`, `firstName` and `lastName`.
 On startup `AdminSeeder` ensures a default administrator exists
 (`admin@enerscope.org` by default). It is idempotent: it only creates the user
 if the email is not already present.
+
+## EconomicDraftEntity
+
+Version-owned editor draft, unique version_id, schema-versioned draft_json text 
+and optimistic-lock revision. Raw strings preserve partial amounts and dates. 
+V13 adds the table independently of economic_configuration and economic_evaluation.
+
+## Probabilistic economic jobs and rounds
+
+A Version has many EconomicJob records. Each holds immutable inputJson, rounds, seed, state, 
+completedRounds, lifecycle timestamps/error and an optional unique evaluationId. Each job owns
+up to rounds EconomicRound records, unique by (job, round number), with full snapshotJson and 
+small summaryJson. A completed job links one EconomicEvaluation; failed/interrupted jobs publish 
+none. FrozenEconomicInput and ProbabilisticSummary are value records, not shared physical JPA state.
+
+## Consumer nodes in the editor
+
+Internal Consumption has four physical demand fields: consumptionSummer, consumptionAutumn, 
+consumptionWinter and consumptionSpring. Industrial Consumption uses consumption. Both are sinks in 
+the INTERNAL_CONSUMPTION vertical, fed from treatment plants, pipelines or compressors. They use the 
+existing consumer entity tables and simulator behavior; demand is measured in simulator units per 
+hourly step. They remain eligible for non-export economic drivers and do not become LNG export nodes.

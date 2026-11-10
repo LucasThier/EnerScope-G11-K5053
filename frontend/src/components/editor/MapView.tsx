@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import * as maplibregl from 'maplibre-gl';
+import { useTheme, type ResolvedTheme } from '../../hooks/useTheme';
 import type { Diagram } from '../../types/diagram';
-import { VERTICAL_COLORS } from './nodeCatalog';
+import { verticalColor } from './nodeCatalog';
 
 interface MapViewProps {
   diagram: Diagram;
@@ -37,7 +38,15 @@ const MAP_STYLE: maplibregl.StyleSpecification = {
 };
 
 /** Muted, simplified look for the raster basemap (does not touch the markers). */
-const CANVAS_FILTER = 'grayscale(1) brightness(1.07) contrast(0.92)';
+const CANVAS_FILTER: Record<ResolvedTheme, string> = {
+  light: 'grayscale(1) brightness(1.07) contrast(0.92)',
+  dark: 'grayscale(1) invert(0.9) brightness(0.82) contrast(0.95)',
+};
+
+const MARKER_OUTLINE: Record<ResolvedTheme, string> = {
+  light: '#23262b',
+  dark: '#eef2f6',
+};
 
 /** Initial view: centred on Argentina. */
 const INITIAL_CENTER: [number, number] = [-64, -38];
@@ -50,6 +59,7 @@ const INITIAL_ZOOM = 4;
  * has no position yet; connections are drawn as lines between placed endpoints.
  */
 export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onMoveGeo }: MapViewProps) {
+  const { resolved } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
@@ -57,10 +67,12 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
 
   // Keep the latest callbacks/state in refs so the map's own listeners (bound
   // once) always see current values without re-initialising the map.
+  const themeRef = useRef(resolved);
   const selectedRef = useRef(selectedNodeId);
   const onMoveGeoRef = useRef(onMoveGeo);
   const onSelectRef = useRef(onSelectNode);
   const diagramRef = useRef(diagram);
+  themeRef.current = resolved;
   selectedRef.current = selectedNodeId;
   onMoveGeoRef.current = onMoveGeo;
   onSelectRef.current = onSelectNode;
@@ -82,7 +94,7 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
     map.on('load', () => {
       loadedRef.current = true;
       // Simplify the basemap visually without swapping to a key-gated provider.
-      map.getCanvas().style.filter = CANVAS_FILTER;
+      map.getCanvas().style.filter = CANVAS_FILTER[themeRef.current];
       map.addSource(CONNECTIONS_SOURCE, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -136,6 +148,17 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
     syncConnections();
   }, [diagram, selectedNodeId]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loadedRef.current) return;
+    map.getCanvas().style.filter = CANVAS_FILTER[resolved];
+    for (const [id, marker] of markersRef.current) {
+      marker.remove();
+      markersRef.current.delete(id);
+    }
+    syncMarkers();
+  }, [resolved]);
+
   function syncMarkers() {
     const map = mapRef.current;
     if (!map) return;
@@ -147,7 +170,7 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
       if (!geo || geo.longitude == null || geo.latitude == null) continue;
       seen.add(node.id);
       let marker = markers.get(node.id);
-      const color = VERTICAL_COLORS[node.type.vertical];
+      const color = verticalColor(themeRef.current, node.type.vertical);
       if (!marker) {
         marker = new maplibregl.Marker({ draggable: true, color });
         marker.setLngLat([geo.longitude, geo.latitude]).addTo(map);
@@ -166,7 +189,10 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
         marker.getElement().style.color = color;
       }
       const el = marker.getElement();
-      el.style.outline = node.id === selectedRef.current ? '3px solid #23262b' : 'none';
+      el.style.outline =
+        node.id === selectedRef.current
+          ? `3px solid ${MARKER_OUTLINE[themeRef.current]}`
+          : 'none';
     }
 
     // Remove markers for nodes that no longer have a position / were deleted.

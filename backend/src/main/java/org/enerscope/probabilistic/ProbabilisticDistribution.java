@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.util.UUID;
+import java.util.function.DoubleSupplier;
 
 @Entity
 @Table(name = "probabilistic_distribution")
@@ -18,4 +19,7 @@ public abstract class ProbabilisticDistribution {
     private UUID id;
 
     public abstract float generateValue();
+
+    /** Creates independent round-local state; never shares an entity's sampler. */
+    public abstract DoubleSupplier sampler(long seed);
 }

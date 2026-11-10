@@ -6,7 +6,7 @@ interface RoleBadgeProps {
 }
 
 const styles: Record<PlatformRole, string> = {
-  ADMIN: 'bg-brand-100 text-brand-800',
+  ADMIN: 'bg-brand-100 text-brand-900',
   USER: 'bg-ink-100 text-ink-600',
 };
 

@@ -1,0 +1,1 @@
+ALTER TABLE flng_unit ADD COLUMN ship_capacity INTEGER NOT NULL DEFAULT 0;

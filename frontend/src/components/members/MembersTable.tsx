@@ -1,5 +1,5 @@
 import { Alert } from '../ui/Alert';
-import { controlClasses } from '../ui/controlClasses';
+import { controlCompact } from '../ui/controlClasses';
 import { TrashIcon } from '../ui/icons';
 import { RowButton } from '../ui/RowButton';
 import type { RoleChangeError } from '../../hooks/useMemberRoleChange';
@@ -24,6 +24,7 @@ interface MembersTableProps<M extends MemberRow> {
   changeRoleLabel?: (fullName: string) => string;
   onRemove?: (member: M) => void;
   onChangeRole?: (member: M, memberType: M['memberType']) => void;
+  disabledReason?: (member: M) => string | null;
   busyMemberId?: string | null;
   roleError?: RoleChangeError | null;
 }
@@ -40,6 +41,7 @@ export function MembersTable<M extends MemberRow>({
   changeRoleLabel = (fullName) => `Cambiar el rol de ${fullName}`,
   onRemove,
   onChangeRole,
+  disabledReason,
   busyMemberId = null,
   roleError = null,
 }: MembersTableProps<M>) {
@@ -73,6 +75,8 @@ export function MembersTable<M extends MemberRow>({
         <tbody className="divide-y divide-ink-100">
           {members.map((member) => {
             const fullName = `${member.firstName} ${member.lastName}`;
+            const reason = disabledReason?.(member) ?? null;
+            const reasonId = `motivo-${member.id}`;
             return [
               <tr key={member.id}>
                 <td className={`${bodyCell} font-semibold text-ink-800`}>
@@ -93,10 +97,11 @@ export function MembersTable<M extends MemberRow>({
                     <select
                       value={member.memberType}
                       onChange={(e) => onChangeRole(member, e.target.value as M['memberType'])}
-                      disabled={busyMemberId === member.id}
+                      disabled={busyMemberId === member.id || reason !== null}
                       aria-label={changeRoleLabel(fullName)}
-                      title={changeRoleLabel(fullName)}
-                      className={controlClasses}
+                      aria-describedby={reason ? reasonId : undefined}
+                      title={reason ?? changeRoleLabel(fullName)}
+                      className={controlCompact}
                     >
                       {roles.map((type) => (
                         <option key={type} value={type}>
@@ -107,10 +112,20 @@ export function MembersTable<M extends MemberRow>({
                   ) : (
                     roleLabels[member.memberType as M['memberType']]
                   )}
+                  {reason && (
+                    <p id={reasonId} className="mt-1 max-w-56 whitespace-normal text-xs text-ink-500">
+                      {reason}
+                    </p>
+                  )}
                 </td>
                 {onRemove && (
                   <td className={`${bodyCell} text-right`}>
-                    <RowButton label={removeLabel(fullName)} onClick={() => onRemove(member)}>
+                    <RowButton
+                      label={reason ? `${removeLabel(fullName)} — ${reason}` : removeLabel(fullName)}
+                      title={reason ?? removeLabel(fullName)}
+                      disabled={reason !== null}
+                      onClick={() => onRemove(member)}
+                    >
                       <TrashIcon className="h-4 w-4" />
                     </RowButton>
                   </td>

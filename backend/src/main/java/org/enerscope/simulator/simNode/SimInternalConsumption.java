@@ -54,7 +54,7 @@ import java.util.List;
             calculateAndTakeAll(simBaseNodes);
         }
 
-        totalProduced += Math.min(toGather,currentConsumption);
+        stepOutput = Math.min(toGather,currentConsumption);
     }
 
     @Override

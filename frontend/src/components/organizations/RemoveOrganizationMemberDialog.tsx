@@ -46,8 +46,9 @@ export function RemoveOrganizationMemberDialog({
             de <span className="font-semibold text-ink-800">{organizationName}</span>.
           </p>
           <p className="text-sm text-ink-700">
-            También se le quitan sus membresías en los proyectos de esta organización. Si era
-            el único administrador de alguno de ellos, ese proyecto queda sin administrador.
+            También se le quitan sus membresías en los proyectos de esta organización. Si es la
+            única persona con rol Administrador en alguno de ellos, la operación se rechaza y te
+            lo avisamos.
           </p>
           <p className="text-sm text-ink-500">
             La cuenta de plataforma no se toca: sigue pudiendo iniciar sesión y conserva sus

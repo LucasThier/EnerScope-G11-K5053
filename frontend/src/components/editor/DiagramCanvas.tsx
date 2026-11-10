@@ -14,8 +14,9 @@ import {
   type EdgeMouseHandler,
   type ReactFlowInstance,
 } from '@xyflow/react';
+import { useTheme } from '../../hooks/useTheme';
 import type { Diagram, DiagramNode, NodeType } from '../../types/diagram';
-import { VERTICAL_COLORS } from './nodeCatalog';
+import { CONNECTION_COLORS, verticalColor } from './nodeCatalog';
 import { NODE_DRAG_TYPE } from './NodePalette';
 import { EnerNode, type EnerNodeData } from './EnerNode';
 
@@ -75,15 +76,15 @@ function toRfNode(node: DiagramNode, index: number, selected: boolean): Node {
   };
 }
 
-function toRfEdge(fromNodeId: string, toNodeId: string, id: string): Edge {
+function toRfEdge(fromNodeId: string, toNodeId: string, id: string, stroke: string): Edge {
   return {
     id,
     source: fromNodeId,
     target: toNodeId,
     type: 'smoothstep',
-    markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20, color: '#4b515a' },
+    markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20, color: stroke },
     // `cursor: pointer` signals the edge is clickable (double-click removes it).
-    style: { stroke: '#4b515a', strokeWidth: 1.75, cursor: 'pointer' },
+    style: { stroke, strokeWidth: 1.75, cursor: 'pointer' },
   };
 }
 
@@ -106,6 +107,7 @@ export function DiagramCanvas({
   onEditNode,
   connecting = false,
 }: DiagramCanvasProps) {
+  const { resolved } = useTheme();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const instanceRef = useRef<ReactFlowInstance<Node, Edge> | null>(null);
@@ -119,8 +121,12 @@ export function DiagramCanvas({
   }, [diagram.nodes, selectedNodeId, setNodes]);
 
   useEffect(() => {
-    setEdges(diagram.connections.map((c) => toRfEdge(c.fromNodeId, c.toNodeId, c.id)));
-  }, [diagram.connections, setEdges]);
+    setEdges(
+      diagram.connections.map((c) =>
+        toRfEdge(c.fromNodeId, c.toNodeId, c.id, CONNECTION_COLORS[resolved]),
+      ),
+    );
+  }, [diagram.connections, resolved, setEdges]);
 
   const handleConnect = useCallback(
     (connection: Connection) => {
@@ -220,6 +226,7 @@ export function DiagramCanvas({
         onEdgesDelete={(deleted) => deleted.forEach((e) => onDeleteConnection(e.id))}
         onPaneClick={() => onSelectNode(null)}
         zoomOnDoubleClick={false}
+        colorMode={resolved}
         fitView
         proOptions={{ hideAttribution: true }}
       >
@@ -228,7 +235,7 @@ export function DiagramCanvas({
         <MiniMap
           pannable
           zoomable
-          nodeColor={(n) => VERTICAL_COLORS[(n.data as EnerNodeData).vertical] ?? '#6f767f'}
+          nodeColor={(n) => verticalColor(resolved, (n.data as EnerNodeData).vertical)}
         />
       </ReactFlow>
     </div>

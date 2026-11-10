@@ -2,12 +2,14 @@ package org.enerscope.version.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.persistence.EntityManager;
 import org.enerscope.node.dto.*;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.NodeConnection;
@@ -15,11 +17,11 @@ import org.enerscope.node.model.enums.NodeStateEnum;
 import org.enerscope.node.model.enums.NodeTypeEnum;
 import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
+import org.enerscope.version.dto.ConflictResolutionType;
 import org.enerscope.version.dto.VersionConflictDTO;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
-import org.enerscope.project.service.ProjectAccessGuard;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -38,9 +40,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class VersionConflictIntegrationTest {
 
-    // Permissions are covered by ProjectAccessGuardTest; here the callers have no session.
+    // Permissions are covered by VersionAccessGuardTest; here the callers have no session.
     @MockitoBean
-    private ProjectAccessGuard accessGuard;
+    private VersionAccessGuard accessGuard;
 
     @Autowired
     private VersionService versionService;
@@ -50,6 +52,14 @@ class VersionConflictIntegrationTest {
 
     @Autowired
     private VersionRepository versionRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    private void sync() {
+        entityManager.flush();
+        entityManager.clear();
+    }
 
     private WellDTO wellDTO(String name, UUID identity) {
         WellDTO dto = new WellDTO();
@@ -254,6 +264,102 @@ class VersionConflictIntegrationTest {
                 .findFirst()
                 .orElseThrow()
                 .getName();
+    }
+
+    @Test
+    void deletingTheSourceVersionKeepsTheConflictWithNullSourceAndStillAcceptable() {
+        Version parent = versionService.saveVersion(new VersionDTO("Parent8", null));
+        Version source = versionService.saveVersion(new VersionDTO("Source8", parent.getId()));
+        Version sibling = versionService.saveVersion(new VersionDTO("Sibling8", parent.getId()));
+
+        UUID sharedIdentity = UUID.randomUUID();
+        versionService.addNodeToVersion(source.getId(), wellDTO("Source Well", sharedIdentity));
+        versionService.addNodeToVersion(sibling.getId(), wellDTO("Sibling Well", sharedIdentity));
+        versionService.mergeSubVersionIntoParent(source.getId());
+        sync();
+
+        versionService.deleteVersion(source.getId());
+        sync();
+
+        List<VersionConflictDTO> conflicts = versionConflictService.getConflictsForVersion(sibling.getId());
+        assertEquals(1, conflicts.size(), "the sibling's conflict must survive the source version's deletion");
+        assertNull(conflicts.get(0).getSourceVersionId());
+
+        VersionConflictDTO resolved = versionConflictService.resolveConflict(conflicts.get(0).getId(),
+                ConflictResolutionType.ACCEPT);
+        assertTrue(resolved.isResolved());
+    }
+
+    @Test
+    void deletingTheSourceVersionKeepsTheConflictWithNullSourceAndStillRejectable() {
+        Version parent = versionService.saveVersion(new VersionDTO("Parent9", null));
+        Version source = versionService.saveVersion(new VersionDTO("Source9", parent.getId()));
+        Version sibling = versionService.saveVersion(new VersionDTO("Sibling9", parent.getId()));
+
+        UUID sharedIdentity = UUID.randomUUID();
+        versionService.addNodeToVersion(source.getId(), wellDTO("Source Well", sharedIdentity));
+        versionService.addNodeToVersion(sibling.getId(), wellDTO("Sibling Well", sharedIdentity));
+        versionService.mergeSubVersionIntoParent(source.getId());
+        sync();
+
+        versionService.deleteVersion(source.getId());
+        sync();
+
+        List<VersionConflictDTO> conflicts = versionConflictService.getConflictsForVersion(sibling.getId());
+        assertEquals(1, conflicts.size(), "the sibling's conflict must survive the source version's deletion");
+        assertNull(conflicts.get(0).getSourceVersionId());
+
+        VersionConflictDTO resolved = versionConflictService.resolveConflict(conflicts.get(0).getId(),
+                ConflictResolutionType.REJECT);
+        assertTrue(resolved.isResolved());
+    }
+
+    @Test
+    void deletingTheConflictingSiblingVersionDeletesItsConflicts() {
+        Version parent = versionService.saveVersion(new VersionDTO("Parent10", null));
+        Version source = versionService.saveVersion(new VersionDTO("Source10", parent.getId()));
+        Version sibling = versionService.saveVersion(new VersionDTO("Sibling10", parent.getId()));
+
+        UUID sharedIdentity = UUID.randomUUID();
+        versionService.addNodeToVersion(source.getId(), wellDTO("Source Well", sharedIdentity));
+        versionService.addNodeToVersion(sibling.getId(), wellDTO("Sibling Well", sharedIdentity));
+        versionService.mergeSubVersionIntoParent(source.getId());
+        sync();
+
+        assertTrue(versionConflictService.getAllConflicts().stream()
+                .anyMatch(c -> sibling.getId().equals(c.getConflictingVersionId())));
+        sync();
+
+        versionService.deleteVersion(sibling.getId());
+        sync();
+
+        assertTrue(versionConflictService.getAllConflicts().stream()
+                .noneMatch(c -> sibling.getId().equals(c.getConflictingVersionId())),
+                "deleting the conflicting sibling must cascade-delete its conflicts");
+    }
+
+    @Test
+    void deletingTheMergedParentVersionDeletesItsConflicts() {
+        Version parent = versionService.saveVersion(new VersionDTO("Parent11", null));
+        Version source = versionService.saveVersion(new VersionDTO("Source11", parent.getId()));
+        Version sibling = versionService.saveVersion(new VersionDTO("Sibling11", parent.getId()));
+
+        UUID sharedIdentity = UUID.randomUUID();
+        versionService.addNodeToVersion(source.getId(), wellDTO("Source Well", sharedIdentity));
+        versionService.addNodeToVersion(sibling.getId(), wellDTO("Sibling Well", sharedIdentity));
+        versionService.mergeSubVersionIntoParent(source.getId());
+        sync();
+
+        assertTrue(versionConflictService.getAllConflicts().stream()
+                .anyMatch(c -> parent.getId().equals(c.getMergedVersionId())));
+        sync();
+
+        versionService.deleteVersion(parent.getId());
+        sync();
+
+        assertTrue(versionConflictService.getAllConflicts().stream()
+                .noneMatch(c -> parent.getId().equals(c.getMergedVersionId())),
+                "deleting the merged parent must cascade-delete its conflicts");
     }
 
     private UUID toNodeOfIdentity(Version version, UUID identity) {

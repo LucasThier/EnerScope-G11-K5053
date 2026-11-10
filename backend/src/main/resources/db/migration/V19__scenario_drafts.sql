@@ -1,0 +1,6 @@
+CREATE TABLE scenario_draft (
+ id UUID PRIMARY KEY, active BOOLEAN NOT NULL DEFAULT TRUE,
+ created_at TIMESTAMPTZ NOT NULL, last_modified TIMESTAMPTZ NOT NULL,
+ version_id UUID NOT NULL UNIQUE REFERENCES version(id),
+ draft_json TEXT NOT NULL, revision BIGINT NOT NULL DEFAULT 0
+);

@@ -3,13 +3,13 @@ package org.enerscope.version.service;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.node.repository.BaseNodeRepository;
 import org.enerscope.node.repository.NodeConnectionRepository;
+import org.enerscope.scenario.service.ScenarioReferenceService;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
 import org.springframework.stereotype.Service;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.VersionNotFoundException;
@@ -17,12 +17,10 @@ import org.enerscope.node.service.NodeCloner;
 import org.enerscope.node.service.NodeService;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -53,11 +51,8 @@ import org.enerscope.money.MoneyAmount;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.Map;
-import org.enerscope.node.model.GeographicalPosition;
-import org.enerscope.node.model.GraphPosition;
+
 import org.enerscope.node.model.NodeGraphData;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.dto.WellDTO;
@@ -68,6 +63,10 @@ import org.enerscope.node.dto.CompressingPlantDTO;
 import org.enerscope.node.dto.GroundBasedLiquefactionPlantDTO;
 import org.enerscope.node.dto.FLNGUnitDTO;
 import org.enerscope.node.dto.LNGCarrierDTO;
+import org.enerscope.node.dto.InternalConsumptionDTO;
+import org.enerscope.node.dto.IndustrialConsumptionDTO;
+import org.enerscope.node.model.export.InternalConsumption;
+import org.enerscope.node.model.export.IndustrialConsumption;
 import org.enerscope.node.dto.SeaportTerminalDTO;
 import org.enerscope.node.dto.PipelineConnectionDTO;
 import org.enerscope.node.dto.InternalConsumptionDTO;
@@ -87,13 +86,22 @@ import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.ConnectionChange;
 import org.enerscope.node.model.NodeChange;
 import org.enerscope.node.model.NodeConnection;
-import org.enerscope.node.model.enums.ChangeTypeEnum;
 import org.enerscope.project.service.ProjectAccessGuard;
+import org.enerscope.node.model.enums.ChangeTypeEnum;
 
 @Service
-@AllArgsConstructor
+@lombok.RequiredArgsConstructor
 @Getter
 public class VersionService {
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager scenarioEntityManager;
+    @org.springframework.beans.factory.annotation.Autowired private ScenarioReferenceService scenarioReferences;
+    private void lockScenario(Version version) {
+        if(scenarioEntityManager != null && scenarioEntityManager.getLockMode(version) != jakarta.persistence.LockModeType.PESSIMISTIC_WRITE) {
+            scenarioEntityManager.flush();
+            scenarioEntityManager.refresh(version, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        }
+    }
+
 
     private final VersionRepository versionRepository;
     private final NodeConnectionRepository connectionRepository;
@@ -101,7 +109,7 @@ public class VersionService {
     private final AppLogger logger;
     private final NodeService nodeService;
     private final VersionConflictService versionConflictService;
-    private final ProjectAccessGuard accessGuard;
+    private final VersionAccessGuard accessGuard;
 
     /**
      * Creates a version detached from every project, for
@@ -189,7 +197,7 @@ public class VersionService {
 
     public void deleteVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
-        accessGuard.assertCanEditVersion(id);
+        accessGuard.assertCanManageVersion(id);
         Version version = versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
         // WE DELETE ALL OF THE SUB-VERSIONS, MAYBE CHANGE LATER
@@ -277,9 +285,11 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+        assertCanEditNode(versionId, node);
 
         if (!version.getNodeSnapshot().contains(node)) {
             throw new IllegalArgumentException(
@@ -318,9 +328,11 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+        assertCanEditNode(versionId, node);
 
         if (!version.getNodeSnapshot().contains(node)) {
             throw new IllegalArgumentException(
@@ -369,14 +381,14 @@ public class VersionService {
                 money(node.getUpkeepCosts()), money(node.getOperatingCosts()),
                 node.getLifespanInMonths(), node.getMaintenanceIntervalInDays(),
                 (double) node.getWastePercentage(),
-                typeAttributes(node));
+                typeAttributes(node), node instanceof Well w
+                    ? org.enerscope.node.dto.ProbabilisticDistributionDTO.from(w.getDeclineCurve()) : null);
     }
 
     private Map<String, Double> typeAttributes(BaseNode node) {
         Map<String, Double> a = new LinkedHashMap<>();
         if (node instanceof Well w) {
             a.put("maxCollectionCapacity", (double) w.getMaxCollectionCapacity());
-            a.put("declineCurve", (double) w.getDeclineCurve().generateValue());
             a.put("gasRichness", (double) w.getGasRichness());
             a.put("dtmTime", (double) w.getDTMTime());
             a.put("dtmCost", money(w.getDTMCost()));
@@ -423,6 +435,14 @@ public class VersionService {
             a.put("fullLoadTime", (double) l.getFullLoadTime());
             a.put("hiringCost", money(l.getHiringCost()));
             a.put("timeToDestination", (double) l.getTimeToDestination());
+        }
+        if (node instanceof InternalConsumption c) {
+            a.put("consumptionSummer", (double) c.getConsumptionSummer());
+            a.put("consumptionAutumn", (double) c.getConsumptionAutumn());
+            a.put("consumptionWinter", (double) c.getConsumptionWinter());
+            a.put("consumptionSpring", (double) c.getConsumptionSpring());
+        } else if (node instanceof IndustrialConsumption c) {
+            a.put("consumption", (double) c.getConsumption());
         }
         return a;
     }
@@ -547,10 +567,15 @@ public class VersionService {
     public BaseNode addNodeToVersion(UUID versionId, BaseNodeDTO nodeDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
-        accessGuard.assertCanEditVersion(versionId);
+        if (nodeDTO.getType() != null) {
+            accessGuard.assertCanEditNodeVertical(versionId, nodeDTO.getType().getVertical());
+        } else {
+            accessGuard.assertCanEditVersion(versionId);
+        }
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         // A brand-new node gets a fresh cross-version identity. Only saveWell
         // defaulted this; centralise it here so every node type is covered and
@@ -568,6 +593,8 @@ public class VersionService {
             case CompressingPlantDTO dto -> nodeService.saveCompressingPlant(dto);
             case GroundBasedLiquefactionPlantDTO dto -> nodeService.saveGroundBasedLiquefactionPlant(dto);
             case FLNGUnitDTO dto -> nodeService.saveFLNGUnit(dto);
+            case InternalConsumptionDTO dto -> nodeService.saveInternalConsumption(dto);
+            case IndustrialConsumptionDTO dto -> nodeService.saveIndustrialConsumption(dto);
             case LNGCarrierDTO dto -> nodeService.saveLNGCarrier(dto);
             case SeaportTerminalDTO dto -> nodeService.saveSeaportTerminal(dto);
             case InternalConsumptionDTO dto -> nodeService.saveInternalConsumption(dto);
@@ -601,10 +628,11 @@ public class VersionService {
     public NodeConnection addConnectionToVersion(UUID versionId, ConnectionDTO connectionDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionDTO, "Connection DTO cannot be null");
-        accessGuard.assertCanEditVersion(versionId);
+        accessGuard.assertCanEditConnection(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         nodeRepository.findById(connectionDTO.getFromNodeId())
                 .orElseThrow(
@@ -642,13 +670,14 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
-        accessGuard.assertCanEditVersion(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         BaseNode requestedNode = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+        assertCanEditNode(versionId, requestedNode);
         UUID identityId = requestedNode.getIdentityId();
 
         // Resolve the node to actually mutate from this version's OWN current
@@ -694,9 +723,24 @@ public class VersionService {
         }
 
         versionRepository.save(version);
+        if (scenarioReferences != null) scenarioReferences.remap(version, currentNode.getId(), editedNode.getId());
         logger.info("Edited node {} in version {}", nodeId, version.getName());
 
         return editedNode;
+    }
+
+    /**
+     * Routes a node edit through the vertical-aware check when the node's
+     * type is known, falling back to the generic version-edit check when it
+     * is not (a node should always have a type once created, but nothing
+     * here assumes it defensively).
+     */
+    private void assertCanEditNode(UUID versionId, BaseNode node) {
+        if (node.getType() != null) {
+            accessGuard.assertCanEditNodeVertical(versionId, node.getType().getVertical());
+        } else {
+            accessGuard.assertCanEditVersion(versionId);
+        }
     }
 
     private boolean matchesIdentity(BaseNode node, UUID identityId) {
@@ -756,6 +800,14 @@ public class VersionService {
                 throw new IllegalArgumentException("Node type mismatch: expected LNGCarrier");
             }
             return nodeService.editLNGCarrier((LNGCarrier) originalNode, dto);
+        } else if (nodeDTO instanceof InternalConsumptionDTO dto) {
+            if (!(originalNode instanceof InternalConsumption consumption))
+                throw new IllegalArgumentException("Node type mismatch: expected InternalConsumption");
+            return nodeService.editInternalConsumption(consumption, dto);
+        } else if (nodeDTO instanceof IndustrialConsumptionDTO dto) {
+            if (!(originalNode instanceof IndustrialConsumption consumption))
+                throw new IllegalArgumentException("Node type mismatch: expected IndustrialConsumption");
+            return nodeService.editIndustrialConsumption(consumption, dto);
         } else if (nodeDTO instanceof SeaportTerminalDTO dto) {
             if (!(originalNode instanceof SeaportTerminal)) {
                 throw new IllegalArgumentException("Node type mismatch: expected SeaportTerminal");
@@ -781,10 +833,11 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionId, "Connection ID cannot be null");
         Objects.requireNonNull(connectionDTO, "Connection DTO cannot be null");
-        accessGuard.assertCanEditVersion(versionId);
+        accessGuard.assertCanEditConnection(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         NodeConnection requestedConnection = connectionRepository.findById(connectionId)
                 .orElseThrow(() -> new EntityNotFoundException("Connection not found with id: " + connectionId));
@@ -844,14 +897,14 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
 
-        accessGuard.assertCanEditVersion(versionId);
-
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         // Handle regular node deletion
         BaseNode nodeToDelete = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
+        assertCanEditNode(versionId, nodeToDelete);
 
         // Check if node exists in version's node snapshot
         boolean existsInNodeSnapshot = version.getNodeSnapshot().contains(nodeToDelete);
@@ -906,10 +959,11 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(connectionId, "Connection ID cannot be null");
 
-        accessGuard.assertCanEditVersion(versionId);
+        accessGuard.assertCanEditConnection(versionId);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        lockScenario(version);
 
         // Handle connection deletion
         NodeConnection connectionToDelete = connectionRepository.findById(connectionId)
@@ -966,9 +1020,13 @@ public class VersionService {
     @Transactional
     public Version mergeSubVersionIntoParent(UUID subVersionId) {
         Objects.requireNonNull(subVersionId, "Subversion ID cannot be null");
+        accessGuard.assertCanManageVersion(subVersionId);
 
         Version subVersion = versionRepository.findById(subVersionId)
                 .orElseThrow(() -> new VersionNotFoundException(subVersionId));
+        if (subVersion.getParentVersion() == null) {
+            throw new IllegalArgumentException("Version has no parent version to merge into");
+        }
         Version parentVersion = versionRepository.findById(subVersion.getParentVersion().getId())
                 .orElseThrow(() -> new VersionNotFoundException(subVersion.getParentVersion().getId()));
 
