@@ -216,3 +216,7 @@ Project selection is shared with the global header.
 ### Scenario configuration and simulation
 
 Configuration is at `/projects/:projectId/scenario-configurations`; scenario forms retain `/projects/:projectId/versions/:versionId/economics/configuration`. Simulation remains `/projects/:projectId/versions`, with a rounds/seed dialog. The map is unchanged. Browser acceptance: economic-browser.mjs, projectScoping-browser.mjs, results-browser.mjs and probabilistic-browser.mjs under tests; set APP_URL and PLAYWRIGHT_MODULE for a local Vite server and Playwright installation.
+
+### Scenario workflow
+
+Versionado owns scenario creation, branches, independent/simple copies, revision inspection, restore and operational merges. Configuration edits existing scenarios; editors save drafts and administrators publish. Simulation accepts only published inputs. History identifies and filters jobs/results by revision; archived scenarios retain historical data. Existing version-based URLs remain compatible.

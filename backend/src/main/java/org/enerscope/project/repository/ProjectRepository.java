@@ -91,6 +91,10 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
             """)
     Optional<UUID> findIdByVersionId(@Param("versionId") UUID versionId);
 
+    /** Historical reads retain ownership after a version is archived. */
+    @Query("SELECT p.id FROM Project p JOIN p.versions v WHERE v.id = :versionId AND p.active = true")
+    Optional<UUID> findIdByVersionIdIncludingArchived(@Param("versionId") UUID versionId);
+
     boolean existsByIdAndActiveTrue(UUID id);
 
     Optional<Project> findByIdAndActiveTrue(UUID id);

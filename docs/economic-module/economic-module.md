@@ -845,3 +845,7 @@ V24 agrega escenarios, revisiones, preparaciones de merge y referencias de simul
 La importación histórica está desactivada por defecto. Tras respaldar y verificar en una copia, `--scenario.revisions.import-history=true` inicializa revisiones y vincula trabajos cuyos inputs físicos completos son reconstruibles. No reescribe JSON, no ejecuta simulaciones y es idempotente. Entradas incompletas, evaluaciones independientes sin input tipado y relaciones sin ancestro verificable permanecen como legado; no se inventan revisiones históricas.
 
 Validación de actualización: copia descartable `enerscope_economic_test_v4_upgrade_20261104`, creada desde la base restaurada de ejemplos B18/V23. Alcanzó V25, conservó 18 evaluaciones y los hashes de todos los JSON de entrada/salida; 8 trabajos se asociaron a revisiones. La base original permaneció en V23. Nunca se ejecutó Flyway repair ni se reinició una base existente.
+
+### Archivado y consulta histórica
+
+Versionado archiva escenarios y sus ramas derivadas, en lugar de borrar filas referenciadas por revisiones. Los retira de los listados activos y bloquea nuevas ediciones y ejecuciones. Los enlaces históricos continúan sujetos a los mismos permisos de lectura; el acceso a una revisión archivada no concede permiso para modificarla. Los resultados, entradas y revisiones no se eliminan.

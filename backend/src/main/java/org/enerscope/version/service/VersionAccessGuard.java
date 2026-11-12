@@ -76,7 +76,10 @@ public class VersionAccessGuard {
         if (findVersionMember(versionId, caller.getId()).isPresent()) {
             return;
         }
-        projectAccessGuard.assertCanViewProject(owningProjectId(versionId));
+        UUID projectId = projectRepository.findIdByVersionId(versionId)
+                .or(() -> projectRepository.findIdByVersionIdIncludingArchived(versionId))
+                .orElseThrow(() -> new ForbiddenException("You are not allowed to access this version"));
+        projectAccessGuard.assertCanViewProject(projectId);
     }
 
     /**

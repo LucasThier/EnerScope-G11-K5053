@@ -45,7 +45,7 @@ public class ScenarioRevisionService {
     /** Capture the original state before the first workspace mutation, including incomplete configurations. */
     public Scenario ensure(Version version) {
         em.lock(version, LockModeType.PESSIMISTIC_WRITE);
-        UUID projectId = projects.findIdByVersionId(version.getId())
+        UUID projectId = owningProject(version.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Scenario project not found"));
         var scenario = scenarios.findById(version.getId()).orElseGet(() -> scenarios.saveAndFlush(
                 new Scenario(version.getId(), projectId, version.getName(), null, null)));
@@ -63,7 +63,7 @@ public class ScenarioRevisionService {
 
     public void registerNew(Version version) {
         em.flush();
-        UUID project = projects.findIdByVersionId(version.getId()).orElseThrow();
+        UUID project = owningProject(version.getId()).orElseThrow();
         if(scenarios.existsById(version.getId())) return;
         var parent = version.getParentVersion();
         var origin = parent == null ? null : current(parent);
@@ -84,14 +84,18 @@ public class ScenarioRevisionService {
         append(scenario,version,org.enerscope.util.AuthUtil.requireSession().getUser().getId(),null,null);
     }
 
-    public boolean isScenario(UUID id) { return projects.findIdByVersionId(id).isPresent(); }
+    private Optional<UUID> owningProject(UUID id) {
+        return projects.findIdByVersionId(id).or(() -> projects.findIdByVersionIdIncludingArchived(id));
+    }
+
+    public boolean isScenario(UUID id) { return owningProject(id).isPresent(); }
 
     public void archiveTree(UUID id) {
-        UUID project=projects.findIdByVersionId(id).orElseThrow();
+        UUID project=owningProject(id).orElseThrow();
         var pending=new ArrayDeque<UUID>();var visited=new HashSet<UUID>();pending.add(id);
         while(!pending.isEmpty()) {
             UUID next=pending.remove();if(!visited.add(next))continue;
-            if(!projects.findIdByVersionId(next).filter(project::equals).isPresent())
+            if(!owningProject(next).filter(project::equals).isPresent())
                 throw new IllegalArgumentException("A scenario tree cannot cross projects");
             access.assertCanManageVersion(next);
             var version=versions.findById(next).orElseThrow();ensure(version);version.deactivate();
@@ -101,10 +105,11 @@ public class ScenarioRevisionService {
     }
 
     public void beforeWorkspaceEdit(Version version) {
-        if (projects.findIdByVersionId(version.getId()).isPresent()) ensure(version);
+        if (owningProject(version.getId()).isPresent()) ensure(version);
     }
 
     public boolean canPublish(UUID id) {
+        if (versions.findById(id).filter(version -> !version.isActive()).isPresent()) return false;
         try { access.assertCanManageVersion(id); return true; }
         catch (org.enerscope.common.ForbiddenException denied) { return false; }
     }
@@ -168,6 +173,7 @@ public class ScenarioRevisionService {
 
     public RevisionStatus restore(UUID project,UUID scenarioId,UUID revisionId,String token,boolean replacePending) {
         var workspace=authorized(project,scenarioId);access.assertCanManageVersion(scenarioId);
+        if (!workspace.isActive()) throw new IllegalArgumentException("Archived scenarios cannot be restored into a draft");
         em.lock(workspace,LockModeType.PESSIMISTIC_WRITE);
         if(!workspaceToken(workspace).equals(token))throw new ScenarioConflictException();
         boolean pending=hasWorkspaceChanges(workspace) || drafts.existsByVersionId(scenarioId)
@@ -282,7 +288,7 @@ public class ScenarioRevisionService {
     }
 
     private Version authorized(UUID projectId, UUID id) {
-        if (!projects.findIdByVersionId(id).filter(projectId::equals).isPresent())
+        if (!owningProject(id).filter(projectId::equals).isPresent())
             throw new EntityNotFoundException("Scenario not found in project");
         access.assertCanViewVersion(id);
         return versions.findById(id).orElseThrow(() -> new EntityNotFoundException("Scenario not found"));

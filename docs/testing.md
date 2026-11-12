@@ -1724,3 +1724,18 @@ Browser acceptance additions:
 - `projectScoping-browser.mjs`: existing-scenario configuration listing, search and absence of creation requests.
 
 Upgrade acceptance: the disposable clone of B18/V23 reached V25 with unchanged evaluation count (18), exact input/output JSON hashes and 8 linked historical jobs. Original database remained V23. No repairs or resets.
+
+
+## 2026-11-12 — Archived scenario regression coverage
+
+- `ScenarioConfigurationTest.archivingScenarioTreePreservesRevisionsAndSimulationsButBlocksNewJobs` (H2 integration; repeated by PostgreSQL): archives parent and branch, preserves revision content and simulation lookup, and rejects a new job. ScenarioConfigurationTest now has **23 cases**; ScenarioConfigurationPostgreSqlIT has **24**, including its upgrade test.
+- `VersionAccessGuardTest.archivedVersionHistoryUsesProjectViewPermissionWithoutGrantingEdit` (unit): an authorized project reader can read archived history; the historical lookup does not authorize edits. VersionAccessGuardTest now has **28 cases**.
+- `revisions-browser.mjs`: also covers one request per empty scenario/branch/independent copy, explicit simple-copy confirmation, and archive confirmation preserving history.
+
+
+### Validación v4 del 2026-11-12
+
+- Maven, con `pom-v4-validation.xml` y salida aislada: **872 pruebas, 0 fallos, 0 errores, 0 omitidas**. Incluye **844 pruebas de la suite habitual y 28 de integración PostgreSQL** (24 ScenarioConfigurationPostgreSqlIT + 4 PostgreSqlEconomicIT), ejecutadas sobre `enerscope_economic_test_v4_20261104`.
+- Frontend: **69 pruebas aprobadas**, sin omisiones; `npm run build` y `npm run lint` aprobados.
+- Aceptación con fixtures aislados: revisions-browser, startup-browser, projectScoping-browser y probabilistic-browser aprobados. Incluye creación, ramas/copias, restore, resolución de merge, archivo, filtros por revisión, progreso, teclado y móvil. Capturas de Versionado e integración revisadas visualmente.
+- No se modificó la base original de ejemplos ni se aplicó ninguna migración nueva en esta reanudación.

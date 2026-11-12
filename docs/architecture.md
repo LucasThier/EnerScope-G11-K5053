@@ -68,3 +68,12 @@ See `AGENTS.md` for the full convention.
 | DTO | `<feature>/dto` | Request/response records for that feature |
 | Filter | `<feature>/filter` | Servlet filters (e.g. `auth/filter/AuthFilter`) |
 | Config | `config` | Security, CORS, crypto, OpenAPI, JPA (flat, cross-cutting) |
+
+## Logs
+
+### Scenario revisions integration - 2026-11-12
+ScenarioRevisionService owns immutable economic/physical snapshots and publication. 
+ScenarioMergeService performs operational three-way merges; ScenarioForkService copies 
+published inputs only. Simulation keeps execution metadata and a revision reference; 
+the worker loads input after its atomic claim, outside the claim transaction. Schema-4 evaluation 
+responses resolve physical/economic input from the original revision in memory. Legacy Version remains the editable workspace and permission/URL bridge. See the economic module for the transitional draft storage and full contracts.

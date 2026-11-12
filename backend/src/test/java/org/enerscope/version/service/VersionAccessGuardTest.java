@@ -446,4 +446,13 @@ class VersionAccessGuardTest {
         auth.setDetails(session);
         SecurityContextHolder.getContext().setAuthentication(auth);
     }
+    @Test void archivedVersionHistoryUsesProjectViewPermissionWithoutGrantingEdit() {
+        UUID versionId=UUID.randomUUID(),projectId=UUID.randomUUID();
+        User caller=regularUser("archive-reader@enerscope.org");authenticateAs(caller);
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.empty());
+        when(projectRepository.findIdByVersionIdIncludingArchived(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.existsByProjectIdAndUserId(projectId,caller.getId())).thenReturn(true);
+        assertDoesNotThrow(()->guard.assertCanViewVersion(versionId));
+        assertThrows(ForbiddenException.class,()->guard.assertCanEditVersion(versionId));
+    }
 }

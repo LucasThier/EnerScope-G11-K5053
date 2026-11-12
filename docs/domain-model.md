@@ -446,3 +446,8 @@ consumptionWinter and consumptionSpring. Industrial Consumption uses consumption
 the INTERNAL_CONSUMPTION vertical, fed from treatment plants, pipelines or compressors. They use the 
 existing consumer entity tables and simulator behavior; demand is measured in simulator units per 
 hourly step. They remain eligible for non-export economic drivers and do not become LNG export nodes.
+
+
+## Scenario revision model
+
+Scenario uses the same UUID as its compatible Version workspace and owns a current ScenarioRevision pointer. ScenarioRevision stores immutable configuration, physical nodes/connections/distributions, map presentation, content hash and publication/merge ancestry. ScenarioMerge retains frozen source/target/base revisions and explicit resolutions. Simulation and SimulationRound use the existing economic_job/economic_round tables, with new simulations bound to a revision. Archived workspaces retain these associations and their historical view permissions.

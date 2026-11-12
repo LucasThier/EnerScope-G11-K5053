@@ -443,3 +443,9 @@ POST `/version/{versionId}/node` and PATCH `/version/{versionId}/node/{nodeId}` 
 ### Migration reconciliation 
 
 Use docker compose up -d --build api to compile current sources and wait for the database health check. Pending migrations now continue through V23. Previously published V2/V8.5/V9 retain their historical contents; incoming alternatives are preserved in docs/migration-reconciliation-20261025 outside Flyway discovery. Do not repair checksums or reset existing databases to resolve a conflicting migration number.
+
+### Scenario revisions
+
+V24/V25 add immutable revisions and simulation ownership without rewriting historical JSON. Existing Version IDs remain compatible scenario IDs. Published inputs are read from revisions; new result documents use schema version 4.
+
+Historical association import is opt-in: `--scenario.revisions.import-history=true`. First validate against a disposable copy and retain a backup; ordinary startup does not enable it. Incomplete inputs remain legacy. Never run Flyway repair or reset an existing database to adopt this change. The economic module document describes the contracts and migration validation.
