@@ -67,6 +67,7 @@ the one that creates the first users (see [backend/README.md](backend/README.md)
 - [docs/domain-model.md](docs/domain-model.md) — domain model
 - [docs/technical-decisions.md](docs/technical-decisions.md) — technical decisions
 - [docs/considerations.md](docs/considerations.md) — running notes & expectations for future work
+- [docs/scenario-comparison.md](docs/scenario-comparison.md) — comparing the results of a project's scenarios
 - [docs/deploy.md](docs/deploy.md) — deployment: pushes to `master` deploy the backend to AWS Lightsail and the frontend to Cloudflare Pages
 - [AGENTS.md](AGENTS.md) — guide for AI coding agents (and contributors)
 

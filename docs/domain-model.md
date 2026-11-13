@@ -497,6 +497,18 @@ up to rounds EconomicRound records, unique by (job, round number), with full sna
 small summaryJson. A completed job links one EconomicEvaluation; failed/interrupted jobs publish 
 none. FrozenEconomicInput and ProbabilisticSummary are value records, not shared physical JPA state.
 
+## ScenarioComparison
+
+A saved comparison of the results of two or more scenarios of one Project
+(`scenario_comparison`, V24). It holds a `name`, an optional `description` and
+two relevance thresholds (`relevanceThreshold`, relative; `rateThreshold`,
+absolute in fraction points). It owns 2–10 ordered `ScenarioComparisonItem`s
+(`scenario_comparison_item`), each pointing at a `Version` and one of its
+`EconomicEvaluation`s, unique by (comparison, position) and (comparison,
+evaluation). Position 0 is the baseline. Only the definition is stored: the
+result is recalculated from the immutable evaluations on every read. Deleting is
+a soft delete. See [`scenario-comparison.md`](scenario-comparison.md).
+
 ## Consumer nodes in the editor
 
 Internal Consumption has four physical demand fields: consumptionSummer, consumptionAutumn, 

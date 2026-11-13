@@ -315,6 +315,18 @@ database (optionally `ECONOMIC_TEST_DATABASE_USER` and `ECONOMIC_TEST_DATABASE_P
 then run `mvn -Dtest=PostgreSqlEconomicIT test`. The integration suite runs Flyway
 and Hibernate validation and rolls back its example records.
 
+## Scenario comparison API
+
+Compares the saved economic evaluations (results) of two or more scenarios of a
+project: financial indicators (NPV, IRR, ROI, ROE, paybacks), costs (CAPEX/OPEX),
+cash totals and physical flows, with deltas against the first (baseline) scenario
+and the relevant differences flagged. See [scenario comparison](../docs/scenario-comparison.md).
+
+Routes use `/api/v1/projects/{projectId}/comparisons`: `POST /preview` (compare
+without saving, `VIEW_PROJECT`), `POST /` (save, `EDIT_PROJECT`), `GET /` and
+`GET /{comparisonId}` (`VIEW_PROJECT`), `DELETE /{comparisonId}` (soft delete,
+`EDIT_PROJECT`). V24 adds the `scenario_comparison` and `scenario_comparison_item` tables.
+
 ## Backend structure
 
 ```

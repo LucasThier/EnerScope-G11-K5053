@@ -38,13 +38,15 @@ test('economic links follow the active project and preserve navigation groups', 
     const items = groups.find(g => g.title === 'Análisis').items;
     assert.equal(items.find(i => i.requires === 'scenarioConfiguration').to, '/projects/' + id + '/scenario-configurations');
     assert.equal(items.find(i => i.requires === 'scenarioSimulation').to, '/projects/' + id + '/simulations');
-    assert.equal(items.find(i => i.label === 'Comparaciones').availability, 'soon');
+    const comparisons = items.find(i => i.label === 'Comparaciones');
+    assert.equal(comparisons.availability, undefined);
+    assert.equal(comparisons.to, '/projects/' + id + '/comparisons');
   }
 });
 test('economic links lead to project selection without an active project', () => {
   activeProject = null;
   const items = useNavigationTree().find(g => g.title === 'Análisis').items;
-  for (const requirement of ['scenarioConfiguration', 'scenarioSimulation']) {
+  for (const requirement of ['scenarioConfiguration', 'scenarioSimulation', 'scenarioComparison']) {
     const item = items.find(i => i.requires === requirement);
     assert.equal(item.to, '/projects'); assert.equal(item.availability, undefined);
   }
@@ -56,6 +58,8 @@ test('economic routes keep their module titles and project breadcrumbs', () => {
     ['simulations', 'Simulación de Escenarios'],
     ['versions/v/economics/history', 'Simulación de Escenarios'],
     ['versions/v/economics/results/e', 'Simulación de Escenarios'],
+    ['comparisons', 'Comparación de Escenarios'],
+    ['comparisons/c1', 'Comparación de Escenarios'],
   ]) {
     const path = '/projects/p/' + suffix;
     assert.equal(nav.moduleTitleFor(path), title);

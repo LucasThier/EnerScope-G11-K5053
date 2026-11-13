@@ -230,3 +230,27 @@ Project selection is shared with the global header.
 ### Scenario configuration and simulation
 
 Configuration is at `/projects/:projectId/scenario-configurations`; scenario forms retain `/projects/:projectId/versions/:versionId/economics/configuration`. Simulation remains `/projects/:projectId/versions`, with a rounds/seed dialog. The map is unchanged. Browser acceptance: economic-browser.mjs, projectScoping-browser.mjs, results-browser.mjs and probabilistic-browser.mjs under tests; set APP_URL and PLAYWRIGHT_MODULE for a local Vite server and Playwright installation.
+
+## Scenario comparison
+
+**Análisis → Comparaciones** opens `/projects/:projectId/comparisons` (a saved one at
+`/projects/:projectId/comparisons/:comparisonId`). Pick 2–10 results — a scenario
+(version) and one of its saved evaluations, or its latest; the first row is the
+baseline — and the relevance thresholds (% for amounts/volumes, percentage points
+for rates), then **Comparar**. The result shows:
+
+- the compared scenarios and how many indicators each one leads;
+- comparability warnings (currency, horizon, WACC, deterministic vs probabilistic…);
+- the relevant differences against the baseline, most important first;
+- an indicator table (financial, CAPEX/OPEX, cash flow, physical) with the delta
+  of each scenario, the best value marked with ★ and a "only relevant" filter;
+- an annual chart (cumulative/annual cash flow, produced/exported volume) with
+  the exact values in a table;
+- per-node flows matched across scenarios.
+
+Users who can edit the project can save a comparison (name + description) and
+delete saved ones. Code: `src/pages/ComparisonsPage.tsx`,
+`src/components/comparison/*`, `src/api/comparisons.ts`, `src/types/comparison.ts`
+(keep in sync with the backend DTOs) and the pure helpers in
+`src/utils/comparison.ts` (covered by `tests/comparison.test.mjs`). Backend and
+definitions: [scenario comparison](../docs/scenario-comparison.md).

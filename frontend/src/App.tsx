@@ -14,6 +14,7 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { ScenarioConfigurationPage } from './pages/ScenarioConfigurationPage';
 import { ScenariosPage } from './pages/ScenariosPage';
 import { EconomicsPage } from './pages/EconomicsPage';
+import { ComparisonsPage } from './pages/ComparisonsPage';
 import { EditorPage } from './pages/EditorPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { OrganizationTeamPage } from './pages/OrganizationTeamPage';
@@ -39,6 +40,7 @@ const router = createBrowserRouter(createRoutesFromElements(<>
                   <Route path="/projects/:projectId/scenario-configurations" element={<ScenariosPage configuration />} />
                   <Route path="/projects/:projectId/simulations" element={<ScenariosPage />} />
                   <Route path="/projects/:projectId/versions" element={<VersionsPage />} />
+                  <Route path="/projects/:projectId/comparisons/:comparisonId?" element={<ComparisonsPage />} />
                   <Route path="/projects/:projectId/versions/:versionId/economics" element={<ScenarioConfigurationPage />} />
                   <Route path="/projects/:projectId/versions/:versionId/economics/configuration" element={<ScenarioConfigurationPage />} />
                   <Route path="/projects/:projectId/versions/:versionId/economics/:tab/:evaluationId?" element={<EconomicsPage />} />

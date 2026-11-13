@@ -103,6 +103,11 @@ source on this branch. No class uses `@ParameterizedTest`, `@RepeatedTest` or
 | `version.service.VersionConflictServiceTest` | Unit | 17 | 
 | `version.service.VersionQueryServiceTest` | Unit | 10 |
 | `version.service.VersionServiceTest` | Unit | 15 |
+| `comparison.controller.ScenarioComparisonControllerTest` | Web | 4 |
+| `comparison.repository.ScenarioComparisonMigrationTest` | Data (JDBC/H2) | 3 |
+| `comparison.service.ScenarioComparisonCalculatorTest` | Unit | 14 |
+| `comparison.service.ScenarioComparisonServiceTest` | Unit | 10 |
+| `comparison.service.ScenarioMetricsExtractorTest` | Unit | 6 |
 | **Total** | | **-** |
 
 > **Reconciled on 2026-10-18, by reading the sources rather than by running the
@@ -1275,7 +1280,7 @@ do not infer a pass from the fact that the feature was built.
 | M20 | Below `64rem` it is a drawer | Narrow the window; it must overlay under a scrim, trap `Tab`, close on a row click and on `Escape`, and closing the breakpoint gap must not leave it open | None | Pendiente de verificación |
 | M21 | Sections the caller cannot reach are hidden, not disabled | Compare the sidebar as a platform admin, an organization owner and a plain member: *Usuarios* and *Todas las organizaciones* only for the admin, *Mi organización* only for an owner, *Equipo del proyecto* only where the caller administers the active project | Real backend, three accounts | Pendiente de verificación |
 | M22 | A module left with one child collapses into a plain row | As a plain member with one project, *Proyectos* must be a single row and not a disclosure | Real backend | Pendiente de verificación |
-| M23 | Locked sections are legible | Check *Simulaciones*, *Comparaciones* and *Reportes*: padlock or "próximamente", full-contrast label, not dimmed | None | Pendiente de verificación |
+| M23 | Locked sections are legible | Check *Reportes* (*Comparaciones* is no longer locked since 2026-11-12): padlock or "próximamente", full-contrast label, not dimmed | None | Pendiente de verificación |
 | M24 | The tab title follows the route | Walk `/app`, `/projects`, a project's team, a project's versions, `/editor`, `/admin/users`, an organization, and the sign-in page; each must read `<section> · EnerScope`, with the project or organization name inserted where the route is scoped to one | Real backend | Pendiente de verificación |
 | M25 | The favicon renders at small sizes in both OS themes | Check the tab in a light and a dark OS appearance — **and note that it follows the OS, not the in-app theme toggle** (known debt). It is also PROVISIONAL artwork | None | Pendiente de verificación |
 | M26 | The two themes hold | Switch Configuración between Claro, Oscuro and Sistema and walk the screens above: no hard-coded white or black surface, every control's border visible, focus rings visible on every interactive element | None | Pendiente de verificación |
@@ -1283,6 +1288,7 @@ do not infer a pass from the fact that the feature was built.
 | M28 | Field errors are announced | Submit an invalid form and check with a screen reader that the error is tied to its input (`aria-describedby`) and the input is marked `aria-invalid` | None | Pendiente de verificación |
 | M29 | The sign-in hero's subtitle contrast | Measure it in the **light** theme at 1440px and wider; it currently reads 4.21:1 against a 4.5:1 bar (known debt) | None | Pendiente de verificación |
 | M30 | A dropped connection mid-import is survivable | Start an import, kill the backend halfway, and check the warning about partially created accounts appears and the member list reflects whatever was created | Real backend | Pendiente de verificación |
+| M31 | Scenario comparison against real evaluations | Simulate two scenarios of a project (one deterministic, one probabilistic), open *Comparaciones*, compare them, save, reopen by URL and delete; the values must match each scenario's results screen and nothing may show `0` where the results screen says unavailable | Real backend (PostgreSQL, V24 applied) | Pendiente de verificación — 2026-11-12 checked only against a mock API serving a real calculator result |
 
 ## `economic.controller.EconomicControllerTest` — Web
 
@@ -1985,3 +1991,91 @@ Validation for the presentation changes: 73 frontend unit/component tests pass; 
 | `CLI validate fails without printing secret values` | An invalid env exits `1` with the problem listed and no secret values in the output. |
 
 Validation: **79 frontend unit/component cases** (73 + 6) and the 9 deployment-script cases pass; frontend build and lint pass. No backend source changes; the deploy workflow itself can only be exercised on GitHub.
+
+## Scenario comparison — 2026-11-12
+
+Module documented in [`scenario-comparison.md`](scenario-comparison.md). 37 new backend cases; `node.migration.MigrationCatalogTest.executableCatalogUsesOnlyVersionedMigrations` now expects **24** migrations (V24 added). Validation: `mvn clean test` — **880 tests**, zero failures/errors/skips. Run from `clean`: stale migrations from other branches left in `target/classes` make `MigrationCatalogTest` fail.
+
+### `comparison.service.ScenarioMetricsExtractorTest` — Unit (6)
+
+| Case | Verifies |
+| --- | --- |
+| `deterministicEvaluationMeasuresFinancialIndicatorsCostsAndCashTotals` | NPV, IRR, paybacks, CAPEX, OPEX, revenue, taxes, net cash flow, ROI and ROE come out of a saved snapshot; depreciation, entities outside the boundary, internal transfers and entries after the horizon are not counted. |
+| `physicalFlowsCountProductionAtSourceNodesOnlyAndMatchNodesByIdentity` | Produced volume counts only source nodes (no double count along a chain); exported, losses, hours and events add up; nodes are keyed by `identityId` with name/type; the annual series has cash, cumulative cash and volumes. |
+| `ratiosWithoutInvestmentAreUnavailableInsteadOfDividingByZero` | CAPEX 0 makes ROI/ROE unavailable with status `NO_INVESTMENT`. |
+| `missingSavedDataStaysUnavailableAndIsNeverReplacedByZero` | A snapshot without result or flows gives `NOT_AVAILABLE` values (never zero), marks the scenario incomplete and leaves the series empty. |
+| `probabilisticEvaluationUsesMeansOverRoundsAndKeepsConditionalDenominators` | Probabilistic evaluations use the mean over rounds with a distribution; IRR defined in 1 of 2 rounds reports `availableRounds` 1 of `totalRounds` 2. |
+| `probabilisticEvaluationWithoutRoundsIsReportedAsIncomplete` | A probabilistic evaluation with no saved rounds is reported as incomplete instead of failing. |
+
+### `comparison.service.ScenarioComparisonCalculatorTest` — Unit (14)
+
+| Case | Verifies |
+| --- | --- |
+| `comparesEveryIndicatorAgainstTheBaselineWithDeltasAndBestScenario` | Every indicator gets absolute/relative deltas against the baseline, a BETTER/WORSE assessment by preference, the best scenario per row and `bestIn` per scenario. |
+| `signalsRelevantImprovementsAndDeteriorationsAsFindings` | Changes over the threshold become `SIGNIFICANT_IMPROVEMENT` / `SIGNIFICANT_DETERIORATION` findings with a Spanish message. |
+| `differencesBelowTheRelevanceThresholdAreNotFlagged` | A 4 % change is not relevant with the default 5 % threshold, and is with a custom 3 % one. |
+| `ratesUsePercentagePointsAndPaybacksWholeYears` | IRR/ROI relevance uses percentage points; a payback one year shorter is better and relevant. |
+| `npvSignChangeIsTheMostRelevantFinding` | NPV going from positive to negative is a `NPV_SIGN_CHANGE` listed first. |
+| `paybackNeverRecoveredIsWorseAndReportedAsAvailabilityChange` | A payback never recovered against a recovered baseline is WORSE, relevant and an `AVAILABILITY_CHANGE`. |
+| `missingDataIsNotComparableAndNeverAFinding` | Missing saved data is `NOT_COMPARABLE`, not a finding, and raises `INCOMPLETE_RESULTS`. |
+| `amountsInAnotherCurrencyAreNotComparedButRatesStillAre` | Amounts in another currency are `NOT_COMPARABLE` with a `DIFFERENT_CURRENCY` warning; rates are still compared. |
+| `neutralIndicatorsChangeWithoutWinner` | Neutral indicators (taxes) are `CHANGED` with no best scenario. |
+| `equalValuesHaveNoWinnerAndNoFinding` | Identical scenarios produce no winner, finding or warning. |
+| `comparesThreeScenariosEachAgainstTheBaseline` | With three scenarios each is compared with the baseline and findings are ordered by size. |
+| `nodesAreMatchedByIdentityAndAddedRemovedOrChangedNodesAreSignalled` | Nodes are matched by identity; added, removed and changed-output nodes are findings. |
+| `differentHorizonsAndModesProduceComparabilityWarnings` | Different horizons and deterministic vs probabilistic raise warnings. |
+| `fewerThanTwoScenariosAreRejected` | Fewer than two scenarios throw `IllegalArgumentException`. |
+
+### `comparison.service.ScenarioComparisonServiceTest` — Unit (10)
+
+| Case | Verifies |
+| --- | --- |
+| `previewChecksViewPermissionAndUsesTheLatestEvaluationWhenNoneIsGiven` | Preview needs `VIEW_PROJECT`, resolves the latest evaluation when none is given and saves nothing. |
+| `versionOfAnotherProjectIsRejectedBeforeReadingAnyEvaluation` | A version outside the project is a 404 before any evaluation is read. |
+| `evaluationOfAnotherVersionIsRejected` | An evaluation that does not belong to its version is a 404. |
+| `versionWithoutEvaluationsCannotBeCompared` | A version with no evaluation answers a clear 400. |
+| `fewerThanTwoItemsDuplicatesAndInvalidThresholdsAreRejected` | One item, no body, the same evaluation twice, a zero threshold, an item without version and more than 10 items are rejected. |
+| `saveNeedsEditPermissionAndANameAndStoresResolvedEvaluationsInOrder` | Saving needs a name and `EDIT_PROJECT`, trims the name, applies default thresholds and stores the resolved evaluations in order. |
+| `userWithoutEditPermissionCannotSave` | A 403 from the permission check stores nothing. |
+| `probabilisticEvaluationsAreComparedFromTheirSavedRounds` | Probabilistic evaluations are read from their completed job's saved rounds and compared by their mean. |
+| `savedComparisonIsRecalculatedOnReadAndUnknownIdsAreNotFound` | Reading a saved comparison recalculates it; listing counts its scenarios; unknown ids are 404. |
+| `deleteIsASoftDeleteThatNeedsEditPermission` | Delete needs `EDIT_PROJECT` and deactivates instead of deleting the row. |
+
+### `comparison.controller.ScenarioComparisonControllerTest` — Web (4)
+
+| Case | Verifies |
+| --- | --- |
+| `previewBindsTheRequestAndAnswersInTheEnvelope` | `POST /projects/{id}/comparisons/preview` binds the request (items, optional evaluation, thresholds) and answers `200` in the envelope. |
+| `saveAnswers201AndReadRoutesKeepTheScopedIdentifiers` | Save answers `201`; list, get and delete pass the project and comparison ids through. |
+| `anonymousRequestsCannotCompareReadOrDelete` | Every route answers `401` without a token and never reaches the service. |
+| `serviceErrorsMapToTheGlobalStatusCodes` | Validation, permission and not-found errors become `400`, `403` and `404`. |
+
+### `comparison.repository.ScenarioComparisonMigrationTest` — Data (JDBC/H2) (3)
+
+| Case | Verifies |
+| --- | --- |
+| `storesAComparisonWithOrderedItemsAndDefaultsActiveAndIds` | V24 creates both tables; ids and `active` get their defaults. |
+| `rejectsRepeatedPositionsAndRepeatedEvaluationsInOneComparison` | Repeated position, repeated evaluation and negative position are rejected. |
+| `rejectsUnknownReferencesAndNonPositiveThresholds` | Unknown evaluation/project references and a zero threshold are rejected. |
+
+### Scenario comparison frontend — 2026-11-12
+
+`frontend/tests/comparison.test.mjs` — unit, **11 cases**, for `src/utils/comparison.ts`:
+
+| Case | Verifies |
+| --- | --- |
+| `values are formatted by unit and missing values are never shown as zero` | Currency, %, years, hours and simulator units are formatted in es-AR; `null`/`NaN` and unavailable statuses become text, never `0`. |
+| `probabilistic means say how many rounds they cover` | "Media de N rondas" / "Media de N de M rondas" only for probabilistic values. |
+| `deltas use percentage points for rates, years for paybacks and percent otherwise` | Delta chips use p.p., years, %, "desde 0" and "Sin cambios"; none for the baseline or non-comparable cells. |
+| `assessments and findings map to tones` | Better/worse/changed/not comparable and finding types map to good/bad/neutral/muted. |
+| `indicators are grouped in a fixed category order and can be limited to relevant ones` | Financial → costs → cash flow → physical; the relevant-only filter drops empty groups. |
+| `two evaluations of the same version get distinguishable names` | Repeated version names get `#position`. |
+| `chart lines break at missing years instead of drawing zero` | Missing or skipped years split the line. |
+| `chart scale includes zero and every series, and is null without data` | The axis covers all series and zero; flat data still has a range; no data → no chart. |
+| `the draft needs two to ten distinct results and positive thresholds` | Too few/many rows, empty rows, repeated results and non-positive thresholds are reported. |
+| `the request converts % and p.p. to fractions and blank to the server default` | `7,5` % → `0.075`, blank → `null`, latest → `evaluationId: null`, trimmed name; saved thresholds go back to form values. |
+| `node types are shown in Spanish and unknown ones as they come` | Backend node types get Spanish labels. |
+
+Also updated: `economicNavigation.test.mjs` (Comparaciones links to `/projects/{id}/comparisons`, falls back to `/projects` without a project, and has its title/breadcrumbs) and `workspaceRoutes.test.mjs` (+1 case: comparison routes match only their module and switching projects drops the comparison id).
+
+Validation: **91 frontend cases** (`npm test`), `npm run build` and `npm run lint` pass. Manual check in the built-in browser against a throwaway mock API serving a comparison result produced by the real backend calculator: compare 2–3 scenarios (deterministic + probabilistic), empty-scenario message, findings, indicator table, chart, node flows, save → reopen by URL (stored evaluations resolved, no stale warning) → delete, sidebar link, and 375 px width (tables scroll inside their cards).

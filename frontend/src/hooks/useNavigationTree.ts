@@ -102,11 +102,12 @@ function resolveLeaf(item: NavItem, context: NavContext): NavItem | null {
           };
     case 'scenarioConfiguration':
     case 'scenarioSimulation':
+    case 'scenarioComparison':
       return {
         ...item,
         to: context.versionsProjectId === null
           ? '/projects'
-          : `/projects/${context.versionsProjectId}/${item.requires === 'scenarioConfiguration' ? 'scenario-configurations' : 'simulations'}`,
+          : `/projects/${context.versionsProjectId}/${PROJECT_MODULE_PATHS[item.requires]}`,
       };
     case 'activeProject':
       return context.versionsProjectId === null
@@ -120,6 +121,12 @@ function resolveLeaf(item: NavItem, context: NavContext): NavItem | null {
       return item;
   }
 }
+
+const PROJECT_MODULE_PATHS = {
+  scenarioConfiguration: 'scenario-configurations',
+  scenarioSimulation: 'simulations',
+  scenarioComparison: 'comparisons',
+} as const;
 
 function withProjectName(label: string, projectName: string | null): string | undefined {
   return projectName === null ? undefined : `${label}: ${projectName}`;

@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- Navigation data contains icon elements; this module exports no components. */
-import { CONFIGURATION_PATTERN, SIMULATION_PATTERN, VERSION_MANAGEMENT_PATTERN } from '../../utils/workspaceRoutes';
+import { COMPARISON_PATTERN, CONFIGURATION_PATTERN, SIMULATION_PATTERN, VERSION_MANAGEMENT_PATTERN } from '../../utils/workspaceRoutes';
 import type { ReactNode } from 'react';
 import {
   BranchIcon,
@@ -32,7 +32,8 @@ export type NavRequirement =
   | 'manageableProject'
   | 'activeProject'
   | 'scenarioConfiguration'
-  | 'scenarioSimulation';
+  | 'scenarioSimulation'
+  | 'scenarioComparison';
 
 export interface NavItem {
   label: string;
@@ -121,7 +122,13 @@ export const NAV_GROUPS: NavGroup[] = [
         matchPattern: SIMULATION_PATTERN,
         requires: 'scenarioSimulation',
       },
-      { label: 'Comparaciones', icon: <CompareIcon />, availability: 'soon' },
+      {
+        label: 'Comparaciones',
+        fullLabel: 'Comparación de Escenarios',
+        icon: <CompareIcon />,
+        matchPattern: COMPARISON_PATTERN,
+        requires: 'scenarioComparison',
+      },
       { label: 'Reportes', icon: <ReportIcon />, availability: 'soon' },
     ],
   },
@@ -164,6 +171,7 @@ const MODULE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/app\/?$/, title: 'Inicio' },
   { pattern: CONFIGURATION_PATTERN, title: 'Configuración del Escenario' },
   { pattern: SIMULATION_PATTERN, title: 'Simulación de Escenarios' },
+  { pattern: COMPARISON_PATTERN, title: 'Comparación de Escenarios' },
   { pattern: VERSIONS_PATH_PATTERN, title: 'Versionado' },
   { pattern: /^\/projects\/[^/]+\/team(\/|$)/, title: 'Equipo del proyecto' },
   { pattern: /^\/projects\/?$/, title: 'Proyectos' },
@@ -185,7 +193,7 @@ export interface Crumb {
   to?: string;
 }
 
-const PROJECT_SCOPED = /^\/projects\/[^/]+\/(team|versions|scenario-configurations|simulations)(\/|$)/;
+const PROJECT_SCOPED = /^\/projects\/[^/]+\/(team|versions|scenario-configurations|simulations|comparisons)(\/|$)/;
 
 export function breadcrumbsFor(pathname: string, projectName: string | null): Crumb[] {
   const title = moduleTitleFor(pathname);
