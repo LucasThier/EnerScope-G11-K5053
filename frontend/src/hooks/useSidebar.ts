@@ -7,10 +7,14 @@ export interface SidebarContextValue {
   isVisible: boolean;
   pushes: boolean;
   isDrawer: boolean;
+  isPinned: boolean;
+  isFixed: boolean;
+  canPin: boolean;
   menuId: string;
   menuButtonRef: RefObject<HTMLButtonElement | null>;
   panelRef: RefObject<HTMLElement | null>;
   toggleFromButton: (viaKeyboard: boolean) => void;
+  togglePin: (viaKeyboard: boolean) => void;
   close: () => void;
   keepOpen: () => void;
 }

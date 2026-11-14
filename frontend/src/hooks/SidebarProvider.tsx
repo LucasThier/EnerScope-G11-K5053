@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useLocalPreference } from './useLocalPreference';
 import { SidebarContext, type SidebarContextValue, type SidebarOrigin } from './useSidebar';
 
+const PINNED_KEY = 'sidebarPinned';
 const DESKTOP_QUERY = '(min-width: 64rem)';
+const PIN_QUERY = '(min-width: 80rem)';
 const HOME_PATH = '/app';
 const ENTRY_PATH = '/';
 const EDGE_TRIGGER_PX = 4;
@@ -10,12 +13,20 @@ const TOP_BAR_PX = 64;
 const HOVER_INTENT_MS = 150;
 const HOVER_LEAVE_MS = 300;
 
-function readDesktop(): boolean {
+function readQuery(query: string): boolean {
   try {
-    return window.matchMedia(DESKTOP_QUERY).matches;
+    return window.matchMedia(query).matches;
   } catch {
     return true;
   }
+}
+
+function readDesktop(): boolean {
+  return readQuery(DESKTOP_QUERY);
+}
+
+function readWide(): boolean {
+  return readQuery(PIN_QUERY);
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -36,19 +47,23 @@ function hasOpenMenu(): boolean {
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
+  const [pinnedPreference, setPinned] = useLocalPreference<boolean>(PINNED_KEY, true);
+  const isPinned = pinnedPreference !== false;
   const [origin, setOrigin] = useState<SidebarOrigin | null>(() =>
-    pathname === HOME_PATH && readDesktop() ? 'route' : null,
+    !(isPinned && readWide()) && pathname === HOME_PATH && readDesktop() ? 'route' : null,
   );
   const [isDesktop, setIsDesktop] = useState(readDesktop);
+  const [isWide, setIsWide] = useState(readWide);
 
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const leaveTimer = useRef<number | null>(null);
   const menuId = useId();
 
-  const isVisible = origin !== null;
-  const pushes = isDesktop && origin === 'route';
   const isDrawer = !isDesktop;
+  const isFixed = isDesktop && isWide && isPinned;
+  const isVisible = isFixed || origin !== null;
+  const pushes = isFixed || (isDesktop && origin === 'route');
 
   const clearLeaveTimer = useCallback(() => {
     if (leaveTimer.current !== null) {
@@ -73,13 +88,39 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   const toggleFromButton = useCallback(
     (viaKeyboard: boolean) => {
       clearLeaveTimer();
+      if (isFixed) {
+        setPinned(false);
+        setOrigin(null);
+        return;
+      }
       if (isVisible) {
         setOrigin(null);
         return;
       }
       setOrigin(viaKeyboard ? 'keyboard' : 'pointer');
     },
-    [isVisible, clearLeaveTimer],
+    [isFixed, isVisible, setPinned, clearLeaveTimer],
+  );
+
+  const togglePin = useCallback(
+    (viaKeyboard: boolean) => {
+      clearLeaveTimer();
+      if (isPinned) {
+        setPinned(false);
+        if (viaKeyboard) {
+          setOrigin('keyboard');
+          return;
+        }
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+        setOrigin('pointer');
+        return;
+      }
+      setPinned(true);
+      setOrigin(null);
+    },
+    [isPinned, setPinned, clearLeaveTimer],
   );
 
   const keepOpen = useCallback(() => {
@@ -104,16 +145,34 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let query: MediaQueryList;
+    let pinQuery: MediaQueryList;
     try {
       query = window.matchMedia(DESKTOP_QUERY);
+      pinQuery = window.matchMedia(PIN_QUERY);
     } catch {
       return;
     }
-    const onChange = () => setIsDesktop(query.matches);
+    const onChange = () => {
+      setIsDesktop(query.matches);
+      setIsWide(pinQuery.matches);
+    };
     onChange();
     query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
+    pinQuery.addEventListener('change', onChange);
+    return () => {
+      query.removeEventListener('change', onChange);
+      pinQuery.removeEventListener('change', onChange);
+    };
   }, []);
+
+  const wasWide = useRef(isWide);
+  useEffect(() => {
+    if (wasWide.current === isWide) {
+      return;
+    }
+    wasWide.current = isWide;
+    close();
+  }, [isWide, close]);
 
   const wasDesktop = useRef(isDesktop);
   useEffect(() => {
@@ -133,13 +192,13 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     previousPath.current = pathname;
     if (!hasEntered.current) {
       hasEntered.current = true;
-      if (isDesktop && pathname === HOME_PATH) {
+      if (isDesktop && !isFixed && pathname === HOME_PATH) {
         setOrigin('route');
         return;
       }
     }
     close();
-  }, [pathname, close, isDesktop]);
+  }, [pathname, close, isDesktop, isFixed]);
 
   useEffect(() => {
     if (!isDesktop || isVisible) {
@@ -220,7 +279,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   }, [isVisible, pushes, close]);
 
   useEffect(() => {
-    if (!isVisible) {
+    if (!isVisible || isFixed) {
       return;
     }
     function onKeyDown(event: KeyboardEvent) {
@@ -232,7 +291,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     }
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isVisible, close]);
+  }, [isVisible, isFixed, close]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -258,14 +317,31 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
       isVisible,
       pushes,
       isDrawer,
+      isPinned,
+      isFixed,
+      canPin: isWide,
       menuId,
       menuButtonRef,
       panelRef,
       toggleFromButton,
+      togglePin,
       close,
       keepOpen,
     }),
-    [origin, isVisible, pushes, isDrawer, menuId, toggleFromButton, close, keepOpen],
+    [
+      origin,
+      isVisible,
+      pushes,
+      isDrawer,
+      isPinned,
+      isFixed,
+      isWide,
+      menuId,
+      toggleFromButton,
+      togglePin,
+      close,
+      keepOpen,
+    ],
   );
 
   return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;

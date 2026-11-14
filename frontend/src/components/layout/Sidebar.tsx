@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useNavigationTree } from '../../hooks/useNavigationTree';
 import { useSidebar } from '../../hooks/useSidebar';
 import { type NavGroup, type NavItem } from './navItems';
-import { ChevronDownIcon, LockIcon } from '../ui/icons';
+import { ChevronDownIcon, LockIcon, PinIcon } from '../ui/icons';
 
 const FOCUSABLE = 'a[href], button:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
@@ -13,8 +13,20 @@ const itemBase =
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus';
 
 export function Sidebar() {
-  const { origin, isVisible, pushes, isDrawer, menuId, panelRef, menuButtonRef, close, keepOpen } =
-    useSidebar();
+  const {
+    origin,
+    isVisible,
+    pushes,
+    isDrawer,
+    isPinned,
+    canPin,
+    menuId,
+    panelRef,
+    menuButtonRef,
+    close,
+    keepOpen,
+    togglePin,
+  } = useSidebar();
   const { pathname } = useLocation();
   const groups = useNavigationTree();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -110,6 +122,24 @@ export function Sidebar() {
           />
         ))}
       </nav>
+      {canPin && (
+        <div className="flex shrink-0 justify-end border-t border-ink-100 px-3 py-2">
+          <button
+            type="button"
+            onClick={(event) => togglePin(event.detail === 0)}
+            aria-pressed={isPinned}
+            aria-label="Fijar menú"
+            title={isPinned ? 'Desfijar menú' : 'Fijar menú'}
+            className={
+              'flex h-11 w-11 items-center justify-center rounded-xl transition-colors ' +
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
+              (isPinned ? activeTone : restingTone)
+            }
+          >
+            <PinIcon />
+          </button>
+        </div>
+      )}
     </aside>
   );
 }
