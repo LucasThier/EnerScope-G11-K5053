@@ -31,96 +31,106 @@ sync too when a screen changes.
 
 ## Summary
 
-Counts below are the number of `@Test` methods in each class, taken from the
-source on this branch. No class uses `@ParameterizedTest`, `@RepeatedTest` or
-`@Disabled` any more, so **cases and executions are the same number**.
+Counts come from two sources on this branch: **cases** are the `@Test` and
+`@ParameterizedTest` methods in each class, read from the source; **executions**
+are the `tests` attribute of its Surefire report from the latest `mvn test`
+(`backend/target/surefire-reports`), which expands each parameterized method
+into one execution per argument.
 
-| Test class | Type | Cases |
-| --- | --- | --- |
-| `ApplicationContextTest` | Integration | 1 |
-| `node.migration.ExportVerticalMigrationTest` | Data (JDBC/H2) | 2 |
-| `auth.controller.AuthControllerTest` | Web | 16 |
-| `common.CsvUtilTest` | Unit | 5 |
-| `economic.controller.EconomicControllerTest` | Web | 12 |
-| `economic.service.EconomicEngineTest` | Unit | 21 |
-| `economic.service.EconomicIndicatorsCalculatorTest` | Unit | 17 |
-| `economic.service.EconomicServiceTest` | Unit | 22 |
-| `economic.service.EconomicSimulationAdapterTest` | Unit | 2 |
-| `jwt.JwtServiceTest` | Unit | 5 |
-| `logging.ConsoleAppLoggerTest` | Unit | 1 |
-| `money.MoneyAmountTest` | Unit | 7 |
-| `node.controller.NodeControllerTest` | Unit | 1 |
-| `node.service.NodeServiceTest` | Unit | 2 |
-| `organization.controller.OrganizationControllerTest` | Web | 39 |
-| `organization.repository.OrganizationMemberRepositoryTest` | Data | 11 |
-| `organization.repository.OrganizationRepositoryTest` | Data | 16 |
-| `user.service.UserServiceTest` | Unit | 58 |
-| `user.service.PasswordGeneratorTest` | Unit | 4 |
-| `user.controller.UserControllerTest` | Web | 30 |
-| `user.repository.UserRepositoryTest` | Data | 22 |
-| `organization.service.OrganizationServiceTest` | Unit | 77 |
-| `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 13 |
-| `organization.controller.OrganizationControllerTest` | Web | 41 |
-| `organization.repository.OrganizationRepositoryTest` | Data | 16 |
-| `organization.repository.OrganizationMemberRepositoryTest` | Data | 17 |
-| `project.service.ProjectAccessGuardTest` | Unit | 26 |
-| `project.service.ProjectServiceTest` | Unit | 80 |
-| `project.controller.ProjectControllerTest` | Web | 43 |
-| `project.repository.ProjectRepositoryTest` | Data | 17 |
-| `project.repository.ProjectMemberRepositoryTest` | Data | 21 |
-| `version.service.VersionServiceTest` | Unit | 15 |
-| `version.service.VersionConflictServiceTest` | Unit | 20 |
-| `version.service.VersionConflictIntegrationTest` | Integration | 11 |
-| `version.repository.VersionConflictRepositoryTest` | Data | 6 |
-| `version.dto.VersionConflictDTOTest` | Unit | 1 |
-| `version.controller.VersionControllerTest` | Web | 11 |
-| `node.service.NodeServiceTest` | Unit | 2 |
-| `node.controller.NodeControllerTest` | Unit | 1 |
-| `simulator.ResultPerRoundTest` | Unit | 12 |
-| `simulator.SimulatorTest` | Unit | 15 |
-| `organization.service.OrganizationServiceTest` | Unit | 68 |
-| `project.controller.ProjectControllerTest` | Web | 43 |
-| `project.repository.ProjectMemberRepositoryTest` | Data | 16 |
-| `project.repository.ProjectRepositoryTest` | Data | 17 |
-| `project.service.ProjectAccessGuardTest` | Unit | 26 |
-| `project.service.ProjectServiceTest` | Unit | 83 |
-| `simulator.EconomicMetricsTest` | Unit | 7 |
-| `simulator.ResultMappingTest` | Data | 7 |
-| `simulator.ResultTest` | Unit | 10 |
-| `simulator.SimulatorTest` | Unit | 12 |
-| `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| `strategyCost.CostTest` | Unit | 8 |
-| `strategyCost.InvestmentCostTest` | Unit | 2 |
-| `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| `user.controller.UserControllerTest` | Web | 30 |
-| `user.repository.UserRepositoryTest` | Data | 22 |
-| `user.service.PasswordGeneratorTest` | Unit | 4 |
-| `user.service.userServiceTest` | Unit | 58 |
-| `util.AuthUtilTest` | Unit | 7 |
-| `version.controller.VersionCOntrollerTest` | Web | 10 |
-| `version.controller.VersionQueryControllerTest` | Web | 4 |
-| `version.service.VersionConflictIntegrationTest` | Integration  | 7 |
-| `version.service.VersionConflictServiceTest` | Unit | 17 | 
-| `version.service.VersionQueryServiceTest` | Unit | 10 |
-| `version.service.VersionServiceTest` | Unit | 15 |
-| **Total** | | **-** |
+Six classes use `@ParameterizedTest` — `economic.controller.ScenarioVerticalAccessHttpTest`,
+`node.controller.NodeCreateAccessHttpTest`, `node.model.enums.NodeTypeEnumTest`,
+`version.controller.VersionBranchAccessHttpTest`,
+`version.controller.VersionMergeAccessHttpTest` and
+`version.controller.VersionNodeVerticalAccessHttpTest` — so for them cases and
+executions differ; for every other class they are the same number. No class uses
+`@RepeatedTest` or `@Disabled`.
 
-> **Reconciled on 2026-10-18, by reading the sources rather than by running the
-> suite.** The catalog had drifted badly after several merges: seven classes had
-> no entry at all (`organization.repository.OrganizationMemberRepositoryTest`,
-> `simulator.ResultPerRoundTest`, `simulator.SimulatorTest`,
-> `version.dto.VersionConflictDTOTest`,
-> `version.repository.VersionConflictRepositoryTest`,
-> `version.service.VersionConflictIntegrationTest` and
-> `version.service.VersionConflictServiceTest`), thirteen had grown or shrunk
-> past their recorded count, and one (`simulator.ResultMappingTest`) was
-> catalogued but is **not present on this branch** — see the note where its
-> section used to be. Every row and every case below now matches a method that
-> exists in `backend/src/test/java`.
->
-> **Not verified:** `mvn test` was not run as part of this pass, so the 621
-> above is a static count of `@Test` methods, not an observed execution count.
-> If a run reports a different number, trust the run and reconcile again.
+| Test class | Type | Cases | Executions |
+| --- | --- | --- | --- |
+| `ApplicationContextTest` | Integration | 1 | 1 |
+| `auth.controller.AuthControllerTest` | Web | 16 | 16 |
+| `auth.filter.SessionRevocationHttpTest` | Integration | 9 | 9 |
+| `common.CsvUtilTest` | Unit | 5 | 5 |
+| `economic.controller.EconomicControllerTest` | Web | 12 | 12 |
+| `economic.controller.EconomicJobControllerTest` | Web | 4 | 4 |
+| `economic.controller.EconomicWriteAccessHttpTest` | Integration | 9 | 9 |
+| `economic.controller.ScenarioConfigurationControllerTest` | Web | 4 | 4 |
+| `economic.controller.ScenarioVerticalAccessHttpTest` | Integration | 19 | 25 |
+| `economic.service.EconomicEngineTest` | Unit | 21 | 21 |
+| `economic.service.EconomicIndicatorsCalculatorTest` | Unit | 17 | 17 |
+| `economic.service.EconomicJobServiceTest` | Unit | 10 | 10 |
+| `economic.service.EconomicJobWorkerTest` | Unit | 4 | 4 |
+| `economic.service.EconomicServiceTest` | Unit | 27 | 27 |
+| `economic.service.EconomicSimulationAdapterTest` | Unit | 2 | 2 |
+| `economic.service.EconomicStatisticsCalculatorTest` | Unit | 5 | 5 |
+| `economic.service.ProbabilisticSimulationTest` | Unit | 8 | 8 |
+| `economic.service.ScenarioConfigurationTest` | Integration | 13 | 13 |
+| `economic.service.ScenarioOperationsTest` | Unit | 6 | 6 |
+| `jwt.JwtServiceTest` | Unit | 5 | 5 |
+| `logging.ConsoleAppLoggerTest` | Unit | 1 | 1 |
+| `money.MoneyAmountTest` | Unit | 7 | 7 |
+| `node.controller.NodeControllerTest` | Unit | 1 | 1 |
+| `node.controller.NodeCreateAccessHttpTest` | Integration | 8 | 43 |
+| `node.dto.NodeRequestDeserializerTest` | Unit | 3 | 3 |
+| `node.migration.ExportVerticalMigrationTest` | Data (JDBC/H2) | 2 | 2 |
+| `node.migration.MigrationCatalogTest` | Unit | 3 | 3 |
+| `node.model.enums.NodeTypeEnumTest` | Unit | 4 | 26 |
+| `node.repository.ConsumptionPersistenceTest` | Data | 1 | 1 |
+| `node.service.NodeServiceTest` | Unit | 5 | 5 |
+| `organization.controller.OrganizationControllerTest` | Web | 46 | 46 |
+| `organization.repository.OrganizationMemberRepositoryTest` | Data | 17 | 17 |
+| `organization.repository.OrganizationRepositoryTest` | Data | 24 | 24 |
+| `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 13 | 13 |
+| `organization.service.OrganizationServiceTest` | Unit | 87 | 87 |
+| `project.controller.ProjectControllerTest` | Web | 45 | 45 |
+| `project.repository.ProjectMemberRepositoryTest` | Data | 21 | 21 |
+| `project.repository.ProjectRepositoryTest` | Data | 17 | 17 |
+| `project.service.ProjectAccessGuardTest` | Unit | 16 | 16 |
+| `project.service.ProjectServiceTest` | Unit | 95 | 95 |
+| `scenario.service.ScenarioChangeScopeTest` | Unit | 16 | 16 |
+| `session.service.SessionServiceTest` | Unit | 9 | 9 |
+| `simulator.EconomicMetricsTest` | Unit | 7 | 7 |
+| `simulator.ResultPerRoundTest` | Unit | 12 | 12 |
+| `simulator.SimulatorTest` | Unit | 15 | 15 |
+| `strategyCost.CostBasisCalculatorsTest` | Unit | 10 | 10 |
+| `strategyCost.CostTest` | Unit | 8 | 8 |
+| `strategyCost.InvestmentCostTest` | Unit | 2 | 2 |
+| `user.controller.UserControllerTest` | Web | 30 | 30 |
+| `user.repository.UserRepositoryTest` | Data | 22 | 22 |
+| `user.service.PasswordGeneratorTest` | Unit | 4 | 4 |
+| `user.service.UserServiceTest` | Unit | 58 | 58 |
+| `util.AuthUtilTest` | Unit | 7 | 7 |
+| `version.controller.VersionAccessControllerTest` | Web | 3 | 3 |
+| `version.controller.VersionBranchAccessHttpTest` | Integration | 17 | 21 |
+| `version.controller.VersionConflictsListAccessHttpTest` | Integration | 8 | 8 |
+| `version.controller.VersionControllerTest` | Web | 20 | 20 |
+| `version.controller.VersionMergeAccessHttpTest` | Integration | 15 | 27 |
+| `version.controller.VersionNodeVerticalAccessHttpTest` | Integration | 18 | 58 |
+| `version.controller.VersionQueryControllerTest` | Web | 4 | 4 |
+| `version.controller.VersionReadAccessHttpTest` | Integration | 10 | 10 |
+| `version.controller.VersionRoleAfterProjectRemovalHttpTest` | Integration | 7 | 7 |
+| `version.dto.VersionConflictDTOTest` | Unit | 1 | 1 |
+| `version.repository.VersionConflictRepositoryTest` | Data | 6 | 6 |
+| `version.service.VersionAccessGuardTest` | Unit | 39 | 39 |
+| `version.service.VersionAccessServiceTest` | Unit | 9 | 9 |
+| `version.service.VersionAccessTest` | Unit | 10 | 10 |
+| `version.service.VersionConflictIntegrationTest` | Integration | 11 | 11 |
+| `version.service.VersionConflictServiceTest` | Unit | 30 | 30 |
+| `version.service.VersionLineageTest` | Unit | 10 | 10 |
+| `version.service.VersionMemberServiceTest` | Unit | 13 | 13 |
+| `version.service.VersionQueryServiceTest` | Unit | 10 | 10 |
+| `version.service.VersionServiceTest` | Unit | 38 | 38 |
+| **Total (73 classes)** | | **1092** | **1211** |
+
+> **Last `mvn test`: 1211 executions, 0 failures, 0 errors, 0 skipped**, in
+> 73 classes (`1092` methods). The three PostgreSQL classes run by hand —
+> `economic.service.PostgreSqlEconomicIT`,
+> `economic.service.ScenarioConfigurationPostgreSqlIT` and
+> `version.repository.VersionMemberRepositoryPostgreSqlIT` — are not part of
+> that run and not in the table. `simulator.ResultTest` and
+> `simulator.ResultMappingTest` no longer exist on this branch. The per-class
+> sections below keep their historical case catalogs; where one disagrees with
+> this table, this table wins.
 
 ## `ApplicationContextTest` — Integration
 
@@ -2301,3 +2311,166 @@ on `update-frontend` at `4f3739b`. By hand against a disposable PostgreSQL 16:
 `PostgreSqlEconomicIT` 4, `ScenarioConfigurationPostgreSqlIT` 14,
 `VersionMemberRepositoryPostgreSqlIT` 7, all passing. These totals supersede
 earlier dated counts without removing their historical catalog.
+
+## Branches, merge and conflicts across projects — 2026-11-14
+
+One backend change on `update-frontend` (commit `5d5ccc3`): creating a child
+version, merging, resolving conflicts and re-parenting now authorize the
+caller first and only then check that both versions belong to the same
+project. Conflicts recorded against another project are skipped when merging
+and hidden when listing.
+
+**Cases are methods; executions are what Maven runs.** The classes below use
+`@ParameterizedTest` with `@EnumSource(VerticalEnum.class)` (5 verticals), so
+for them the two numbers differ. The "no class uses `@ParameterizedTest`"
+remark in *Summary* does not hold for them.
+
+| Test class | Type | Cases | Executions | Status |
+| --- | --- | --- | --- | --- |
+| `version.controller.VersionBranchAccessHttpTest` | Integration | 17 | 21 | new |
+| `version.controller.VersionMergeAccessHttpTest` | Integration | 15 | 27 | new |
+| `version.service.VersionLineageTest` | Unit | 10 | 10 | new |
+| `project.service.ProjectServiceTest` | Unit | 95 | 95 | +6 |
+| `version.service.VersionAccessGuardTest` | Unit | 39 | 39 | +4 |
+| `version.service.VersionConflictServiceTest` | Unit | 30 | 30 | +8 |
+| `version.service.VersionServiceTest` | Unit | 38 | 38 | +8 |
+| `economic.controller.ScenarioVerticalAccessHttpTest` | Integration | — | — | 1 renamed, +1 |
+
+The two `*HttpTest` classes are `@SpringBootTest` + MockMvc on the H2 `test`
+profile with real JWTs, built on `version.controller.AccessHttpFixture`, which
+gained `newNode`, `foreignProject`, `joinProject` and `grantVersionRole`.
+
+### 1. Creating a child version
+
+`version.controller.VersionBranchAccessHttpTest` — Integration, 17 cases
+(21 executions):
+
+| Case | Verifies |
+| --- | --- |
+| `editorOfAVerticalCreatesAChildAndCanOnlyEditThatVerticalInIt` (×5) | A version `EDITOR` of one vertical creates a child and, in it, edits only that vertical; another vertical → `403`. |
+| `simulatorOfTheParentCannotCreateAChild` | A `SIMULATOR` of the parent → `403`; no version is created. |
+| `versionAdminCreatesAChildAndEditsEveryVerticalInIt` | A version `ADMIN` creates a child and edits every vertical in it. |
+| `projectAdminCreatesAChildAndEditsEveryVerticalInIt` | Same for a project `ADMIN`. |
+| `platformAdminCreatesAChildAndEditsEveryVerticalInIt` | Same for a platform admin. |
+| `projectEditorWithoutVersionRoleKeepsTheProjectPermissionInTheChild` | A project `EDITOR` with no version role edits every vertical in the child and gets no version role of its own. |
+| `everyRoleOfTheParentIsCopiedWithItsVerticalAndPermissions` | The child holds a copy of each parent role (vertical and permissions included) for the four members. |
+| `aVersionRoleOfSomeoneOutsideTheProjectIsNotCopied` | A version role of a non-member of the project is not copied. |
+| `aVersionRoleOfSomeoneRemovedFromTheProjectIsNotCopied` | After `DELETE /projects/{id}/members/{memberId}`, that person's role is not copied. |
+| `aVersionRoleOfADeactivatedProjectMemberIsCopiedSoItStaysNarrow` | A deactivated project member's role is copied, so it keeps its narrow scope. |
+| `aParentFromAnotherProjectAnswers403ToSomeoneWithoutAccessToIt` | A parent of another project, caller cannot edit it → `403`, nothing created. |
+| `aParentFromAnotherProjectAnswers400ToSomeoneWhoCanEditIt` | Same parent, caller can edit it → `400 Parent version must belong to the selected project`, nothing created. |
+| `anUnknownParentAnswers403ToAProjectEditor` | A parent that does not exist → `403`, not `404`. |
+
+Authorization runs first (`403`) and the project check second (`400`): the two
+cases above pin that order, so a caller without access cannot learn that a
+version exists in another project.
+
+### 2. Re-parenting
+
+Also in `VersionBranchAccessHttpTest`:
+
+| Case | Verifies |
+| --- | --- |
+| `reparentingUnderAVersionOfAnotherProjectIsRejectedAndTheParentStays` | A platform admin gets `400 Parent version must belong to the same project`, a project admin without access to it `403`; the parent does not change. |
+| `reparentingAVersionUnderItsOwnDescendantIsRejected` | `400 A version cannot be its own ancestor`; the parent stays unset. |
+| `anEditorOfTheVersionCannotReparentIt` | A version `EDITOR` and a project `EDITOR` → `403`; the parent stays. |
+| `aProjectAdminReparentsWithinTheProject` | A project `ADMIN` moves a version under a sibling in the same project → `200`. |
+
+`version.service.VersionLineageTest` — Unit, 10 cases:
+
+| Case | Verifies |
+| --- | --- |
+| `versionsOfTheSameProjectPass` | Two versions of one project: no error. |
+| `versionsOfDifferentProjectsAreRejectedWith400` | Different projects → `IllegalArgumentException` `The versions belong to different projects`. |
+| `twoVersionsDetachedFromEveryProjectPass` | Two versions that belong to no project count as together. |
+| `aProjectVersionAndADetachedOneAreRejected` | A project version and a detached one are rejected. |
+| `aParentInAnotherProjectIsRejectedWithTheParentMessage` | The parent check uses `Parent version must belong to the same project`. |
+| `aVersionCannotBecomeItsOwnParent` | A version as its own parent is rejected. |
+| `aVersionCannotHangFromOneOfItsDescendants` | A descendant as the new parent is rejected. |
+| `anUnrelatedChainPassesEvenIfItAlreadyLoops` | A candidate chain that loops but does not contain the version passes, and the walk terminates. |
+| `isSameProjectTellsVersionsOfTheSameAndOfDifferentProjectsApart` | `isSameProject` is true for one project, false for two. |
+| `isSameProjectTreatsTwoDetachedVersionsAsTogetherButNotADetachedOneWithAProjectOne` | Two detached versions are together; a detached and an attached one are not. |
+
+### 3. Merge and conflict resolution
+
+`version.controller.VersionMergeAccessHttpTest` — Integration, 15 cases
+(27 executions):
+
+| Case | Verifies |
+| --- | --- |
+| `adminOfTheDestinationMergesAChangeOfAnyVertical` (×5) | An `ADMIN` of the destination merges a change of any vertical. |
+| `editorOfTheChangedVerticalCannotMergeAndNothingIsMerged` (×5) | An `EDITOR` of the changed vertical → `403`; the parent keeps its node. |
+| `adminOnlyOfTheChildCannotMergeIntoAParentItDoesNotAdminister` | Administering only the child → `403`; nothing merged. |
+| `projectAdminWithoutVersionRoleMerges` | A project `ADMIN` with no version role merges. |
+| `platformAdminMerges` | A platform admin merges. |
+| `adminOfTheDestinationWithoutEditPermissionCannotMergeANodeChangeAndNothingIsMerged` | `MANAGE_VERSION` without edit permission → `403` for a node change; nothing merged. |
+| `adminOfTheDestinationWithoutEditPermissionCannotMergeAConnectionChange` | The same for a connection change; the parent's connections are unchanged. |
+| `aChildHangingFromAVersionOfAnotherProjectCannotBeMergedIntoItAndNothingIsCopied` | A child whose parent is in another project: `403` without access; `400 The versions belong to different projects` for an admin of both and for a platform admin; no node copied, no conflict recorded. |
+| `adminOfTheSiblingAcceptsTheParentDataOfAnyVertical` (×5) | An `ADMIN` of the sibling accepts the parent's data for a node of any vertical; the conflict is resolved. |
+| `editorOfTheNodeVerticalCannotResolveAndNothingIsCopied` | An `EDITOR` of the node's vertical → `403`; sibling and conflict untouched. |
+| `adminOfTheSiblingWithoutEditPermissionCannotResolveANodeConflict` | `MANAGE_VERSION` without edit permission → `403`; sibling and conflict untouched. |
+| `aChildHangingFromAVersionOfAnotherProjectCannotAcceptItsDataAndNothingIsCopied` | Same order as merge (`403`, then `400`); the child keeps its own node and the conflict stays unresolved. |
+| `mergingIntoAParentRecordsNoConflictForAChildOfAnotherProject` | A merge records a conflict for the sibling of its own project and none for the one of another project. |
+| `listingAChildHidesConflictsRecordedAgainstAnotherProject` | `GET /version/{id}/conflicts` returns only the same-project conflict; the other project's name and id are not in the body. |
+| `listingAChildStillShowsConflictsOfItsOwnProject` | A conflict of its own project is still listed, with its description. |
+
+### 4. Cases added to existing classes
+
+`project.service.ProjectServiceTest` — Unit, 6 new cases:
+
+| Case | Verifies |
+| --- | --- |
+| `saveVersionCopiesEveryRoleOfTheParentWithItsVerticalAndPermissions` | Every parent role is copied to the child with vertical and permissions. |
+| `saveVersionWithoutParentCopiesNoRoles` | No parent → no roles copied. |
+| `saveVersionWithParentOfNoOneElseCopiesNothing` | A parent with no members → nothing saved. |
+| `saveVersionRefusesASimulatorOfTheParentWith403AndCreatesNothing` | A `SIMULATOR` of the parent → `403`; no version created. |
+| `saveVersionLetsAnEditorOfOneVerticalOfTheParentCreateAChild` | An `EDITOR` of one vertical may create the child. |
+| `saveVersionAuthorizesAForeignParentBeforeSayingItBelongsToAnotherProject` | The parent is authorized before the same-project check. |
+
+`version.service.VersionAccessGuardTest` — Unit, 4 new cases:
+
+| Case | Verifies |
+| --- | --- |
+| `assertCanEditNodesJudgesEachNodeByTheVerticalOfItsTypeNotTheStoredOne` | Each node is judged by the vertical of its type. |
+| `assertCanEditNodesRejectsWhenOneOfTheVerticalsIsOutsideTheRole` | One vertical outside the role rejects the whole set. |
+| `assertCanEditNodesWithAnUntypedNodeRequiresEditingTheVersion` | An untyped node requires edit permission on the version. |
+| `assertCanEditNodesWithNoNodesChecksNothing` | An empty set checks nothing. |
+
+`version.service.VersionServiceTest` — Unit, 8 new cases:
+
+| Case | Verifies |
+| --- | --- |
+| `mergeAuthorizesTheDestinationAndEveryTouchedNodeInsteadOfTheSubversion` | The merge authorizes the destination and every touched node, not the subversion. |
+| `mergeRefusedForOneVerticalLeavesTheParentUntouched` | One refused vertical leaves the parent untouched. |
+| `mergeOfAConnectionChangeRequiresEditingConnectionsOnTheDestination` | A connection change requires editing connections on the destination. |
+| `mergeBetweenProjectsIsRejectedAfterAuthorizingAndChangesNothing` | Merge across projects: authorize, then reject; no change. |
+| `reparentingRequiresManagingTheVersionAndEditingTheNewParentThenChecksTheLineage` | Re-parenting requires managing the version and editing the new parent, then checks project and ancestry. |
+| `reparentingRejectedByTheLineageKeepsTheOldParent` | A lineage rejection keeps the old parent. |
+| `renamingDoesNotRequireManagingTheVersion` | A rename (no parent in the body) requires only editing the version. |
+| `branchingStoresTheVerticalDerivedFromTheTypeNotTheStoredOne` | A cloned node stores the vertical derived from its type. |
+
+`version.service.VersionConflictServiceTest` — Unit, 8 new cases:
+
+| Case | Verifies |
+| --- | --- |
+| `resolveConflict_AuthorizesTheSiblingTheParentAndTheNodeVerticalBeforeTheProjectCheck` | Order: manage the sibling, view the parent, edit the node's vertical, then same project. |
+| `resolveConflict_RefusedForTheNodeVertical_LeavesTheSiblingAndTheConflictUntouched` | A refused vertical changes nothing. |
+| `resolveConflict_ParentNotViewable_CopiesNothing` | A parent the caller cannot view → nothing copied. |
+| `resolveConflict_Connection_RequiresEditingConnectionsOnTheSibling` | A connection conflict requires editing connections on the sibling. |
+| `resolveConflict_BetweenProjects_IsRejectedAfterAuthorizingAndCopiesNothing` | Across projects: authorize, then reject; nothing copied. |
+| `recordMergeConflicts_SiblingOfAnotherProject_GetsNoConflictWhileTheLocalOneDoes` | A sibling of another project gets no conflict; the local one does. |
+| `recordMergeConflicts_OnlySiblingIsOfAnotherProject_SavesNothing` | If the only sibling is of another project, nothing is saved. |
+| `getConflictsForVersion_OmitsRowsRecordedAgainstAnotherProject_CheckingEachMergedVersionOnce` | Foreign rows are omitted and each merged version is checked once. |
+
+`economic.controller.ScenarioVerticalAccessHttpTest`: the case
+`editorCopyingTheScenarioIntoAChildVersionCanSaveEveryVerticalThere` became
+`editorCopyingTheScenarioIntoAChildVersionKeepsOnlyItsVerticalThere` (now
+expects `403` and nothing stored, because the child copies the parent roles),
+and `projectEditorWithoutVersionRoleCopiesTheScenarioIntoAChildAndSavesEveryVerticalThere`
+is new.
+
+Validation: **1211 Maven executions**, zero failures, from the latest
+`mvn test` reported by the author. It was not re-run for this catalog, and
+the per-class figures above come from reading the sources (methods and
+`@EnumSource` expansion), so if a run reports a different number, trust the
+run and reconcile again.

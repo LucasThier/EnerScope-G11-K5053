@@ -2758,3 +2758,44 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     covers it, so it is only known to carry the platform-admin check in
     `NodeController` — and whether existing databases hold node rows whose
     stored vertical does not match their type.
+
+- 2026-11-14 — Branches, merge and conflicts no longer cross projects
+  (`update-frontend`, commit `5d5ccc3`). Tests in [`testing.md`](testing.md) →
+  *Branches, merge and conflicts across projects*. Throughout, **authorization
+  runs first and the same-project validation second**: a caller without access
+  gets `403`, and only a caller who is allowed gets the `400`.
+  - **Creating a child version** (`POST /projects/{id}/version` with a parent)
+    needs permission to edit the parent. The child gets a **snapshot copy of
+    the parent's version roles**, vertical and permissions included; later
+    changes to either side's roles do not propagate. Roles of people outside
+    the project or removed from it are not copied; those of deactivated
+    members are, so they stay narrow. A parent from another project answers
+    `403` to someone who cannot edit it and then `400 Parent version must
+    belong to the selected project` to someone who can; an unknown parent
+    answers `403`, never `404`.
+  - **Merge** needs administering the **destination** (the parent) and editing
+    the vertical of every node the child touched; a connection change needs
+    editing connections. Administering only the child is not enough. The child
+    and the destination must belong to the same project (`400 The versions
+    belong to different projects`), checked after authorization; a refused
+    merge changes nothing.
+  - **Resolving a conflict** needs administering the sibling, viewing the
+    merged parent and editing the node's vertical (or connections) on the
+    sibling, then the same-project check. A refusal copies nothing and leaves
+    the conflict unresolved.
+  - **Re-parenting** (`PATCH /version/{id}` with `parentVersion`) needs
+    managing the version and editing the new parent, and the new parent must
+    be in the same project (`400 Parent version must belong to the same
+    project`) and not a descendant of the version (`400 A version cannot be
+    its own ancestor`). Verified in `VersionService.modifyVersion`: without
+    `parentVersion` in the body only editing the version is required, so a
+    rename does not need administering it.
+  - **Conflicts between projects** are skipped when a merge records them and
+    omitted from `GET /version/{id}/conflicts`, so a child hung from another
+    project's version neither receives nor reveals that project's data;
+    conflicts of its own project stay listed.
+  - **Nodes cloned into a child** store the vertical derived from their type,
+    not the stored value.
+  - **Not verified:** whether existing databases already hold a child whose
+    parent is in another project — the new checks block creating one, they do
+    not clean it up.
