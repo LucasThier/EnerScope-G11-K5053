@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 const require = createRequire(import.meta.url);
 let activeProject = null;
+let projectList = [];
+let projectsLoading = false;
 const cache = new Map();
 function load(path) {
   if (cache.has(path)) return cache.get(path).exports;
@@ -16,7 +18,7 @@ function load(path) {
   }}).outputText;
   const localRequire = name => {
     if (name === 'react') return { useMemo: fn => fn() };
-    if (name === './useActiveProject') return { useActiveProject: () => ({ activeProject, isLoading: false }) };
+    if (name === './useActiveProject') return { useActiveProject: () => ({ activeProject, projects: projectList, error: null, isLoading: projectsLoading }) };
     if (name === './useAuth') return { useAuth: () => ({ user: { platformRole: 'USER' } }) };
     if (name === './useMyOrganizations') return { useMyOrganizations: () => ({ belongsToOrganization: false, loading: false }) };
     if (!name.startsWith('.')) return require(name);
@@ -41,12 +43,13 @@ test('economic links follow the active project and preserve navigation groups', 
     assert.equal(items.find(i => i.label === 'Comparaciones').availability, 'soon');
   }
 });
-test('economic links lead to project selection without an active project', () => {
+test('economic links are disabled with a reason and no destination without an active project', () => {
   activeProject = null;
   const items = useNavigationTree().find(g => g.title === 'Análisis').items;
   for (const requirement of ['scenarioConfiguration', 'scenarioSimulation']) {
     const item = items.find(i => i.requires === requirement);
-    assert.equal(item.to, '/projects'); assert.equal(item.availability, undefined);
+    assert.equal(item.to, undefined); assert.equal(item.availability, 'unavailable');
+    assert.equal(item.reason, 'Sin proyectos');
   }
 });
 test('economic routes keep their module titles and project breadcrumbs', () => {

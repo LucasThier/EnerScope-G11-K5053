@@ -11,13 +11,14 @@ interface NavContext {
   teamProjectId: string | null;
   versionsProjectId: string | null;
   projectName: string | null;
+  noProjectReason: string | null;
   pending: boolean;
 }
 
 export function useNavigationTree(): NavGroup[] {
   const { user } = useAuth();
   const { belongsToOrganization: isMember, loading: loadingOwned } = useMyOrganizations();
-  const { activeProject, isLoading: loadingProjects } = useActiveProject();
+  const { activeProject, projects, error, isLoading: loadingProjects } = useActiveProject();
 
   const isPlatformAdmin = user?.platformRole === 'ADMIN';
   const project = loadingProjects ? null : activeProject;
@@ -27,6 +28,12 @@ export function useNavigationTree(): NavGroup[] {
     project !== null && canManageProject(project.myRole, isPlatformAdmin) ? project.id : null;
   const versionsProjectId = project?.id ?? null;
   const projectName = project?.name ?? null;
+  const noProjectReason =
+    loadingProjects || error !== null || project !== null
+      ? null
+      : projects.length === 0
+        ? 'Sin proyectos'
+        : 'Elegí un proyecto';
   const pending = loadingOwned || loadingProjects;
 
   return useMemo(
@@ -37,6 +44,7 @@ export function useNavigationTree(): NavGroup[] {
         teamProjectId,
         versionsProjectId,
         projectName,
+        noProjectReason,
         pending,
       }),
     [
@@ -45,6 +53,7 @@ export function useNavigationTree(): NavGroup[] {
       teamProjectId,
       versionsProjectId,
       projectName,
+      noProjectReason,
       pending,
     ],
   );
@@ -102,12 +111,18 @@ function resolveLeaf(item: NavItem, context: NavContext): NavItem | null {
           };
     case 'scenarioConfiguration':
     case 'scenarioSimulation':
-      return {
-        ...item,
-        to: context.versionsProjectId === null
-          ? '/projects'
-          : `/projects/${context.versionsProjectId}/${item.requires === 'scenarioConfiguration' ? 'scenario-configurations' : 'simulations'}`,
-      };
+      return context.versionsProjectId === null
+        ? {
+            ...item,
+            to: undefined,
+            matchPattern: undefined,
+            availability: 'unavailable',
+            reason: context.noProjectReason ?? undefined,
+          }
+        : {
+            ...item,
+            to: `/projects/${context.versionsProjectId}/${item.requires === 'scenarioConfiguration' ? 'scenario-configurations' : 'simulations'}`,
+          };
     case 'activeProject':
       return context.versionsProjectId === null
         ? null

@@ -9,6 +9,7 @@ import {
   FolderIcon,
   HomeIcon,
   ReportIcon,
+  SettingsIcon,
   UsersIcon,
   ValueChainIcon,
 } from '../ui/icons';
@@ -42,7 +43,8 @@ export interface NavItem {
   to?: string;
   matchPattern?: RegExp;
   fullLabel?: string;
-  availability?: 'soon';
+  availability?: 'soon' | 'unavailable';
+  reason?: string;
   requires?: NavRequirement;
   keepsOwnName?: boolean;
   children?: NavItem[];
@@ -109,8 +111,9 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Análisis',
     items: [
       {
-        label: 'Configuración del Escenario',
-        icon: <FolderIcon />,
+        label: 'Configuración',
+        fullLabel: 'Configuración del Escenario',
+        icon: <SettingsIcon />,
         matchPattern: CONFIGURATION_PATTERN,
         requires: 'scenarioConfiguration',
       },
@@ -159,6 +162,33 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+function leavesOf(groups: NavGroup[]): NavItem[] {
+  return groups.flatMap((group) => group.items.flatMap((item) => item.children ?? [item]));
+}
+
+function matchScore(item: NavItem, pathname: string): number {
+  if (item.to === undefined) {
+    return -1;
+  }
+  if (item.matchPattern) {
+    return item.matchPattern.test(pathname) ? pathname.length : -1;
+  }
+  return pathname === item.to || pathname.startsWith(`${item.to}/`) ? item.to.length : -1;
+}
+
+export function activeLeaf(groups: NavGroup[], pathname: string): NavItem | null {
+  let best: NavItem | null = null;
+  let bestScore = -1;
+  for (const leaf of leavesOf(groups)) {
+    const score = matchScore(leaf, pathname);
+    if (score > bestScore) {
+      best = leaf;
+      bestScore = score;
+    }
+  }
+  return best;
+}
 
 const MODULE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/app\/?$/, title: 'Inicio' },
