@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -19,6 +20,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.enerscope.common.EntityNotFoundException;
+import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.money.MoneyAmount;
@@ -573,6 +575,31 @@ class VersionConflictServiceTest {
         when(versionRepository.existsById(id)).thenReturn(false);
 
         assertThrows(VersionNotFoundException.class, () -> service.getConflictsForVersion(id));
+    }
+
+    @Test
+    void getAllConflicts_PlatformAdmin_ReturnsEveryConflict() {
+        VersionConflict first = conflictFixture(version("parent"), version("sibling"), ConflictEntityType.NODE,
+                UUID.randomUUID());
+        VersionConflict second = conflictFixture(version("other parent"), version("other sibling"),
+                ConflictEntityType.NODE, UUID.randomUUID());
+        when(conflictRepository.findAll()).thenReturn(List.of(first, second));
+
+        List<VersionConflictDTO> result = service.getAllConflicts();
+
+        verify(accessGuard).assertIsPlatformAdmin("list every conflict");
+        assertEquals(List.of(first.getId(), second.getId()), result.stream().map(VersionConflictDTO::getId).toList());
+    }
+
+    @Test
+    void getAllConflicts_NotPlatformAdmin_ThrowsWithoutReadingConflicts() {
+        doThrow(new ForbiddenException("Only platform admins can list every conflict"))
+                .when(accessGuard).assertIsPlatformAdmin("list every conflict");
+
+        ForbiddenException error = assertThrows(ForbiddenException.class, () -> service.getAllConflicts());
+
+        assertEquals("Only platform admins can list every conflict", error.getMessage());
+        verify(conflictRepository, never()).findAll();
     }
 
     @Test

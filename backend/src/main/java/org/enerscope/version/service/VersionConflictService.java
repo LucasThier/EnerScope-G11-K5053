@@ -135,6 +135,7 @@ public class VersionConflictService {
 
     /** Every recorded conflict, regardless of version — for testing/debugging. */
     public List<VersionConflictDTO> getAllConflicts() {
+        accessGuard.assertIsPlatformAdmin("list every conflict");
         return conflictRepository.findAll().stream()
                 .map(VersionConflictDTO::from)
                 .toList();

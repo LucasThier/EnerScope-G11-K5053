@@ -84,7 +84,7 @@ public class VersionController {
     }
 
     @GetMapping(value = "/conflicts", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(summary = "List every conflict", description = "All recorded conflicts across every version, regardless of who they affect. For testing/debugging.")
+    @Operation(summary = "List every conflict", description = "All recorded conflicts across every version, regardless of who they affect. For testing/debugging. Platform admins only.")
     public ResponseEntity<ApiResponse<List<VersionConflictDTO>>> getAllConflicts() {
         return Responses.ok("Conflicts retrieved successfully", versionConflictService.getAllConflicts());
     }
