@@ -181,7 +181,7 @@ class VersionAccessGuardTest {
         UUID projectId = UUID.randomUUID();
         User caller = regularUser("admin@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
         when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
                 .thenReturn(Optional.of(memberWith(ProjectMemberType.ADMIN)));
@@ -194,7 +194,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("versionadmin@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.ADMIN, null)));
 
         assertDoesNotThrow(() -> guard.assertCanManageVersion(versionId));
@@ -211,13 +211,30 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("versioneditor@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION)));
 
         assertThrows(ForbiddenException.class, () -> guard.assertCanManageVersion(versionId));
 
         verifyNoInteractions(projectRepository);
         verifyNoInteractions(projectMemberRepository);
+    }
+
+    @Test
+    void assertCanManageVersionIgnoresARoleRowOfSomeoneNoLongerInTheProjectAndRejectsWith403() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("removed@enerscope.org");
+        authenticateAs(caller);
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
+                .thenReturn(Optional.empty());
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.empty());
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanManageVersion(versionId));
+
+        verify(versionMemberRepository, never()).findByVersionIdAndUserId(any(), any());
     }
 
     @Test
@@ -232,7 +249,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("versioneditor@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION)));
 
         assertDoesNotThrow(() -> guard.assertCanEditVersion(versionId));
@@ -247,7 +264,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("simulator@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.SIMULATOR, null)));
 
         assertDoesNotThrow(() -> guard.assertCanViewVersion(versionId));
@@ -262,7 +279,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("editor@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION)));
 
         assertDoesNotThrow(() -> guard.assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION));
@@ -273,7 +290,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("editor@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION)));
 
         assertThrows(ForbiddenException.class,
@@ -288,7 +305,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("editor@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION)));
 
         assertDoesNotThrow(() -> guard.assertCanEditNodeVertical(versionId, VerticalEnum.INTERNAL_CONSUMPTION));
@@ -299,7 +316,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("admin@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.ADMIN, null)));
 
         assertDoesNotThrow(() -> guard.assertCanEditNodeVertical(versionId, VerticalEnum.LIQUEFACTION));
@@ -311,7 +328,7 @@ class VersionAccessGuardTest {
         UUID projectId = UUID.randomUUID();
         User caller = regularUser("projecteditor@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
         when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
                 .thenReturn(Optional.of(memberWith(ProjectMemberType.EDITOR)));
@@ -324,7 +341,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("simulator@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.SIMULATOR, null)));
 
         assertThrows(ForbiddenException.class,
@@ -341,7 +358,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("editor@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.LIQUEFACTION)));
 
         assertDoesNotThrow(() -> guard.assertCanEditConnection(versionId));
@@ -352,7 +369,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("simulator@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.SIMULATOR, null)));
 
         assertThrows(ForbiddenException.class, () -> guard.assertCanEditConnection(versionId));
@@ -368,7 +385,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("simulator@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.SIMULATOR, null)));
 
         assertDoesNotThrow(() -> guard.assertCanSimulateVersion(versionId));
@@ -379,7 +396,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("editor@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION)));
 
         assertDoesNotThrow(() -> guard.assertCanSimulateVersion(versionId));
@@ -398,7 +415,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("simulator@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.SIMULATOR, null)));
 
         assertThrows(ForbiddenException.class, () -> guard.assertCanEditVersion(versionId));
@@ -413,7 +430,7 @@ class VersionAccessGuardTest {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("versionadmin@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.ADMIN, null)));
 
         assertDoesNotThrow(() -> guard.assertCanSimulateVersion(versionId));
@@ -425,7 +442,7 @@ class VersionAccessGuardTest {
         UUID projectId = UUID.randomUUID();
         User caller = regularUser("projecteditor@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
         when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
                 .thenReturn(Optional.of(memberWith(ProjectMemberType.EDITOR)));
@@ -439,7 +456,7 @@ class VersionAccessGuardTest {
         UUID projectId = UUID.randomUUID();
         User caller = regularUser("outsider@enerscope.org");
         authenticateAs(caller);
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
         when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.empty());
 
@@ -454,7 +471,7 @@ class VersionAccessGuardTest {
         authenticateAs(caller);
         VersionMember member = new VersionMember(new User("jane@enerscope.org", "Jane", "Doe", "hashed"),
                 new Version("v1", null, null, null, null, null));
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.of(member));
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.of(member));
 
         ForbiddenException error = assertThrows(ForbiddenException.class, () -> guard.assertCanSimulateVersion(versionId));
         assertEquals("You are not allowed to simulate this version", error.getMessage());
@@ -469,7 +486,7 @@ class VersionAccessGuardTest {
         VersionMember member = versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION);
         member.addRole(new VersionMemberRole("SIMULATOR", VersionMemberType.SIMULATOR,
                 VersionMember.defaultPermissionsFor(VersionMemberType.SIMULATOR), null));
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.of(member));
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.of(member));
 
         assertThrows(ForbiddenException.class, () -> guard.assertCanManageVersion(versionId));
         verifyNoInteractions(projectRepository);
@@ -488,7 +505,7 @@ class VersionAccessGuardTest {
         }
         for (VersionMember member : members) {
             UUID versionId = UUID.randomUUID();
-            when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.of(member));
+            when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.of(member));
             VersionAccess access = VersionAccess.fromVersionRoles(member.getRoles());
 
             assertEquals(access.can(VersionCapability.VIEW), passes(() -> guard.assertCanViewVersion(versionId)));
@@ -512,7 +529,7 @@ class VersionAccessGuardTest {
             UUID versionId = UUID.randomUUID();
             UUID projectId = UUID.randomUUID();
             ProjectMember member = memberWith(type);
-            when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
+            when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
             when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
             when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.of(member));
             when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(true);

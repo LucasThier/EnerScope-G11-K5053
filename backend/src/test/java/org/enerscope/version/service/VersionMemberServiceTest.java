@@ -204,7 +204,7 @@ class VersionMemberServiceTest {
         User caller = regularUser("editor@enerscope.org");
         authenticateAs(caller);
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
-        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
         when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
                 .thenReturn(Optional.of(projectMemberWithEditPermission()));

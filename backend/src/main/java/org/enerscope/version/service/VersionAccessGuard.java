@@ -222,7 +222,7 @@ public class VersionAccessGuard {
     }
 
     private Optional<VersionMember> findVersionMember(UUID versionId, UUID userId) {
-        return versionMemberRepository.findByVersionIdAndUserId(versionId, userId);
+        return versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, userId);
     }
 
     private void fallBackToProject(VersionCapability capability, UUID versionId) {

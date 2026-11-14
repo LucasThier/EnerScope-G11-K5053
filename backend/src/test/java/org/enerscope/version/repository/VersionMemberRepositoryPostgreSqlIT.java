@@ -122,6 +122,46 @@ class VersionMemberRepositoryPostgreSqlIT {
     }
 
     @Test
+    void effectiveLookupReturnsTheRowOfACurrentProjectMember() {
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(first.getId(), caller.getId()).isPresent());
+    }
+
+    @Test
+    void effectiveLookupIgnoresTheRowOfSomeoneOutsideTheProject() {
+        User orphan = user();
+        grant(orphan, first, role(VersionMemberType.ADMIN, null));
+        em.flush();
+        em.clear();
+
+        assertTrue(repository.findByVersionIdAndUserId(first.getId(), orphan.getId()).isPresent());
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(first.getId(), orphan.getId()).isEmpty());
+    }
+
+    @Test
+    void memberListingLeavesOutRowsOfPeopleOutsideTheProject() {
+        User orphan = user();
+        grant(orphan, first, role(VersionMemberType.ADMIN, null));
+        em.flush();
+        em.clear();
+
+        Set<UUID> listed = repository.findByVersionIdWithUser(first.getId()).stream()
+                .map(member -> member.getUser().getId())
+                .collect(Collectors.toSet());
+
+        assertEquals(Set.of(caller.getId(), colleague.getId()), listed);
+    }
+
+    @Test
+    void findsEveryRowOfTheUserInTheGivenProjectsAndNoOtherUsersRows() {
+        List<VersionMember> members = repository.findByUserIdAndProjectIdIn(caller.getId(), List.of(project.getId()));
+
+        assertEquals(Set.of(first.getId(), second.getId(), third.getId()),
+                members.stream().map(member -> member.getVersion().getId()).collect(Collectors.toSet()));
+        assertTrue(members.stream().allMatch(member -> member.getUser().getId().equals(caller.getId())));
+        assertTrue(repository.findByUserIdAndProjectIdIn(caller.getId(), List.of(UUID.randomUUID())).isEmpty());
+    }
+
+    @Test
     void accessResolutionReadsVersionRolesFromMigratedSchema() {
         authenticate(caller);
 

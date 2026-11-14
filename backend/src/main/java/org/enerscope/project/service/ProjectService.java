@@ -26,6 +26,8 @@ import org.enerscope.util.AuthUtil;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.dto.VersionSummaryDTO;
 import org.enerscope.version.model.Version;
+import org.enerscope.version.model.VersionMember;
+import org.enerscope.version.repository.VersionMemberRepository;
 import org.enerscope.version.service.VersionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +47,7 @@ public class ProjectService {
         private final VersionService versionService;
         private final ProjectAccessGuard accessGuard;
         private final OrganizationService organizationService;
+        private final VersionMemberRepository versionMemberRepository;
 
         public ProjectService(ProjectRepository projectRepository,
                         ProjectMemberRepository projectMemberRepository,
@@ -53,7 +56,8 @@ public class ProjectService {
                         UserRepository userRepository,
                         AppLogger logger, VersionService versionService,
                         ProjectAccessGuard accessGuard,
-                        OrganizationService organizationService) {
+                        OrganizationService organizationService,
+                        VersionMemberRepository versionMemberRepository) {
                 this.projectRepository = projectRepository;
                 this.projectMemberRepository = projectMemberRepository;
                 this.organizationRepository = organizationRepository;
@@ -63,6 +67,7 @@ public class ProjectService {
                 this.versionService = versionService;
                 this.accessGuard = accessGuard;
                 this.organizationService = organizationService;
+                this.versionMemberRepository = versionMemberRepository;
         }
 
         /**
@@ -213,6 +218,11 @@ public class ProjectService {
                 if (projectMemberRepository.existsByProjectIdAndUserId(projectId, data.userId())) {
                         throw new IllegalArgumentException("User is already a member of this project");
                 }
+                List<VersionMember> staleVersionMemberships = versionMemberRepository
+                                .findByUserIdAndProjectIdIn(data.userId(), List.of(projectId));
+                if (!staleVersionMemberships.isEmpty()) {
+                        versionMemberRepository.deleteAll(staleVersionMemberships);
+                }
 
                 ProjectMember saved = attachMember(project, user, data.memberType());
                 logger.info("Added user {} to project {} as {}", user.getMail(), project.getName(), data.memberType());
@@ -260,9 +270,15 @@ public class ProjectService {
                                 .orElseThrow(() -> new EntityNotFoundException("Member not found"));
 
                 assertNotLastAdmin(projectId, member);
+                List<VersionMember> versionMemberships = versionMemberRepository
+                                .findByUserIdAndProjectIdIn(member.getUser().getId(), List.of(projectId));
+                if (!versionMemberships.isEmpty()) {
+                        versionMemberRepository.deleteAll(versionMemberships);
+                }
                 project.removeMember(member);
                 projectMemberRepository.delete(member);
-                logger.info("Removed user {} from project {}", member.getUser().getMail(), project.getName());
+                logger.info("Removed user {} from project {} along with {} version memberships",
+                                member.getUser().getMail(), project.getName(), versionMemberships.size());
         }
 
         @Transactional(readOnly = true)

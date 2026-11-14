@@ -28,6 +28,8 @@ import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
+import org.enerscope.version.model.VersionMember;
+import org.enerscope.version.repository.VersionMemberRepository;
 import org.enerscope.version.service.VersionService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +58,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -81,6 +84,8 @@ class ProjectServiceTest {
         private OrganizationService organizationService;
         @Mock
         private AppLogger logger;
+        @Mock
+        private VersionMemberRepository versionMemberRepository;
 
         private static final java.util.Map<ProjectMemberType, Set<ProjectMemberPermission>>
                         DEFAULT_PERMISSIONS_FOR_TEST = java.util.Map.of(
@@ -103,7 +108,7 @@ class ProjectServiceTest {
                                 organizationMemberRepository, userRepository,
                                 logger, versionService,
                                 new ProjectAccessGuard(projectMemberRepository, logger),
-                                organizationService);
+                                organizationService, versionMemberRepository);
         }
 
         @AfterEach
@@ -1127,6 +1132,98 @@ class ProjectServiceTest {
 
                 assertFalse(project.getMembers().contains(member));
                 verify(projectMemberRepository).delete(member);
+        }
+
+        @Test
+        void removeMemberAlsoDeletesTheirVersionMembershipsInThatProject() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                User john = userNamed("john@enerscope.org");
+                ProjectMember member = memberOf(john, project, ProjectMemberType.EDITOR);
+                project.addMember(member);
+                VersionMember versionMembership = new VersionMember(john, null);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+                when(versionMemberRepository.findByUserIdAndProjectIdIn(john.getId(), List.of(projectId)))
+                                .thenReturn(List.of(versionMembership));
+
+                projectService.removeMember(projectId, memberId);
+
+                verify(versionMemberRepository).deleteAll(List.of(versionMembership));
+                verify(projectMemberRepository).delete(member);
+        }
+
+        @Test
+        void removeMemberTouchesNoVersionMembershipWhenTheUserHasNone() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                ProjectMember member = memberOf(userNamed("john@enerscope.org"), project, ProjectMemberType.EDITOR);
+                project.addMember(member);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+
+                projectService.removeMember(projectId, memberId);
+
+                verify(versionMemberRepository, never()).deleteAll(any());
+                verify(projectMemberRepository).delete(member);
+        }
+
+        @Test
+        void removeMemberKeepsVersionMembershipsWhenTheLastAdminGuardRefuses() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                ProjectMember member = memberOf(userNamed("jane@enerscope.org"), project, ProjectMemberType.ADMIN);
+                project.addMember(member);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+                when(projectMemberRepository.countAdminsByProject(projectId)).thenReturn(1L);
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.removeMember(projectId, memberId));
+
+                verifyNoInteractions(versionMemberRepository);
+        }
+
+        @Test
+        void addMemberPurgesLeftoverVersionMembershipsOfTheUserInThatProject() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User jane = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+                VersionMember leftover = new VersionMember(jane, null);
+                authenticateAs(admin());
+                when(projectRepository.findByIdAndActiveTrue(projectId)).thenReturn(Optional.of(project));
+                when(userRepository.findById(userId)).thenReturn(Optional.of(jane));
+                stubUserInOrganization(jane);
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(false);
+                when(versionMemberRepository.findByUserIdAndProjectIdIn(userId, List.of(projectId)))
+                                .thenReturn(List.of(leftover));
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                projectService.addMember(projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR));
+
+                verify(versionMemberRepository).deleteAll(List.of(leftover));
+                verify(projectMemberRepository).save(any(ProjectMember.class));
+        }
+
+        @Test
+        void addMemberLeavesVersionMembershipsAloneWhenItRejectsADuplicate() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User jane = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+                authenticateAs(admin());
+                when(projectRepository.findByIdAndActiveTrue(projectId)).thenReturn(Optional.of(project));
+                when(userRepository.findById(userId)).thenReturn(Optional.of(jane));
+                stubUserInOrganization(jane);
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(true);
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.addMember(
+                                projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR)));
+
+                verifyNoInteractions(versionMemberRepository);
         }
 
         @Test

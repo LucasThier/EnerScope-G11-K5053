@@ -308,7 +308,7 @@ class EconomicServiceTest {
         var member=new org.enerscope.version.model.VersionMember(user,holder.version);
         member.addRole(new org.enerscope.version.model.VersionMemberRole(type.name(),type,
                 EnumSet.copyOf(org.enerscope.version.model.VersionMember.defaultPermissionsFor(type)),vertical));
-        when(versionMembers.findByVersionIdAndUserId(holder.version.getId(),user.getId())).thenReturn(Optional.of(member));
+        when(versionMembers.findEffectiveByVersionIdAndUserId(holder.version.getId(),user.getId())).thenReturn(Optional.of(member));
     }
 
     @Test void projectEditorWithVersionSimulatorRoleCanEvaluateButCannotSaveConfigurationOrDraft() throws Exception {
@@ -351,7 +351,7 @@ class EconomicServiceTest {
     @Test void simulationRefusedByVersionGuardHappensBeforeTouchingDrafts() {
         grant(ProjectMemberPermission.EDIT_PROJECT,ProjectMemberPermission.VIEW_PROJECT);
         var member=new org.enerscope.version.model.VersionMember(user,holder.version);
-        when(versionMembers.findByVersionIdAndUserId(holder.version.getId(),user.getId())).thenReturn(Optional.of(member));
+        when(versionMembers.findEffectiveByVersionIdAndUserId(holder.version.getId(),user.getId())).thenReturn(Optional.of(member));
 
         var error=assertThrows(ForbiddenException.class,()->service.evaluate(projectId,holder.version.getId()));
         assertEquals("You are not allowed to simulate this version",error.getMessage());

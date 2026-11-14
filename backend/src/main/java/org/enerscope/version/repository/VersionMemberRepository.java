@@ -18,6 +18,27 @@ public interface VersionMemberRepository extends JpaRepository<VersionMember, UU
      */
     Optional<VersionMember> findByVersionIdAndUserId(UUID versionId, UUID userId);
 
+    @Query("""
+            SELECT m FROM VersionMember m
+            WHERE m.version.id = :versionId
+              AND m.user.id = :userId
+              AND EXISTS (
+                  SELECT 1 FROM Project p JOIN p.versions v JOIN p.members pm
+                  WHERE v.id = :versionId AND pm.user.id = :userId)
+            """)
+    Optional<VersionMember> findEffectiveByVersionIdAndUserId(@Param("versionId") UUID versionId,
+                                                              @Param("userId") UUID userId);
+
+    @Query("""
+            SELECT m FROM VersionMember m
+            WHERE m.user.id = :userId
+              AND m.version.id IN (
+                  SELECT v.id FROM Project p JOIN p.versions v
+                  WHERE p.id IN :projectIds)
+            """)
+    List<VersionMember> findByUserIdAndProjectIdIn(@Param("userId") UUID userId,
+                                                   @Param("projectIds") Collection<UUID> projectIds);
+
     Optional<VersionMember> findByIdAndVersionId(UUID id, UUID versionId);
 
     /**
@@ -29,6 +50,9 @@ public interface VersionMemberRepository extends JpaRepository<VersionMember, UU
             JOIN FETCH m.user
             LEFT JOIN FETCH m.roles
             WHERE m.version.id = :versionId
+              AND EXISTS (
+                  SELECT 1 FROM Project p JOIN p.versions v JOIN p.members pm
+                  WHERE v = m.version AND pm.user = m.user)
             ORDER BY m.createdAt
             """)
     List<VersionMember> findByVersionIdWithUser(@Param("versionId") UUID versionId);
