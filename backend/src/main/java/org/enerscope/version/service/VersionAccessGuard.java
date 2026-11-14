@@ -178,9 +178,9 @@ public class VersionAccessGuard {
     /**
      * Ensures the caller may run the simulation for this version. A caller
      * holding a version role needs {@code SIMULATE_VERSION} from it
-     * ({@code ADMIN} or {@code SIMULATOR}); only a caller with no version
-     * role falls back to {@code assertCanEditProject} on the owning
-     * project.
+     * ({@code ADMIN} or {@code SIMULATOR}) or the {@code EDITOR} role; only
+     * a caller with no version role falls back to
+     * {@code assertCanEditProject} on the owning project.
      */
     public void assertCanSimulateVersion(UUID versionId) {
         User caller = AuthUtil.requireSession().getUser();
