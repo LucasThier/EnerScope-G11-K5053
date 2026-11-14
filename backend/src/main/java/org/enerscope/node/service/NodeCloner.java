@@ -91,7 +91,11 @@ public final class NodeCloner {
     }
 
     private static NodeTypeData cloneTypeData(NodeTypeData source) {
-        return source == null ? null : new NodeTypeData(source.getVertical(), source.getRole(), source.getNodeType());
+        if (source == null) {
+            return null;
+        }
+        return new NodeTypeData(source.getNodeType() == null ? source.getVertical() : source.getNodeType().vertical(),
+                source.getRole(), source.getNodeType());
     }
 
     private static NodeGraphData cloneGraphData(NodeGraphData source) {

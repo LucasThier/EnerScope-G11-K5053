@@ -91,6 +91,12 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
             """)
     Optional<UUID> findIdByVersionId(@Param("versionId") UUID versionId);
 
+    @Query("""
+            SELECT p.id FROM Project p JOIN p.versions v
+            WHERE v.id = :versionId
+            """)
+    Optional<UUID> findOwnerIdByVersionId(@Param("versionId") UUID versionId);
+
     boolean existsByIdAndActiveTrue(UUID id);
 
     Optional<Project> findByIdAndActiveTrue(UUID id);

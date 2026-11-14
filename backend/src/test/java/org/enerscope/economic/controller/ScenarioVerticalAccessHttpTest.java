@@ -275,8 +275,31 @@ class ScenarioVerticalAccessHttpTest {
     }
 
     @Test
-    void editorCopyingTheScenarioIntoAChildVersionCanSaveEveryVerticalThere() throws Exception {
+    void editorCopyingTheScenarioIntoAChildVersionKeepsOnlyItsVerticalThere() throws Exception {
         User editor = fixture.versionEditorOf(VerticalEnum.EXTRACTION);
+        ChildCopy copy = copyScenarioIntoAChild(editor);
+
+        expectDenied(copy.save(), VERTICAL_DENIED);
+
+        assertFalse(configurations.findByVersionId(copy.child()).isPresent());
+        assertEquals(configurationJson, storedConfiguration());
+    }
+
+    @Test
+    void projectEditorWithoutVersionRoleCopiesTheScenarioIntoAChildAndSavesEveryVerticalThere() throws Exception {
+        User editor = fixture.projectMember(ProjectMemberType.EDITOR);
+        ChildCopy copy = copyScenarioIntoAChild(editor);
+
+        copy.save().andExpect(status().isOk()).andExpect(jsonPath("$.data.errors").isEmpty());
+
+        assertTrue(configurations.findByVersionId(copy.child()).isPresent());
+        assertEquals(configurationJson, storedConfiguration());
+    }
+
+    private record ChildCopy(UUID child, ResultActions save) {
+    }
+
+    private ChildCopy copyScenarioIntoAChild(User editor) throws Exception {
         JsonNode parent = readScenario(editor);
         String created = mvc.perform(post("/projects/" + fixture.project().getId() + "/version")
                         .header("Authorization", fixture.bearer(editor)).contentType("application/json")
@@ -298,10 +321,7 @@ class ScenarioVerticalAccessHttpTest {
         String exportCopy = copyNodeId(copy, parent, nodeOf.get(VerticalEnum.EXPORT));
         ((ObjectNode) request.path("operations").path(exportCopy)).put("name", "Renamed in copy");
 
-        saveScenario(editor, request, child).andExpect(status().isOk()).andExpect(jsonPath("$.data.errors").isEmpty());
-
-        assertTrue(configurations.findByVersionId(child).isPresent());
-        assertEquals(configurationJson, storedConfiguration());
+        return new ChildCopy(child, saveScenario(editor, request, child));
     }
 
     private void assertChangesEveryVertical(User user) throws Exception {

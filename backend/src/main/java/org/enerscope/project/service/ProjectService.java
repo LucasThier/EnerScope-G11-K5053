@@ -27,11 +27,15 @@ import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.dto.VersionSummaryDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.model.VersionMember;
+import org.enerscope.version.model.VersionMemberRole;
 import org.enerscope.version.repository.VersionMemberRepository;
+import org.enerscope.version.service.VersionAccessGuard;
 import org.enerscope.version.service.VersionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 
@@ -48,6 +52,7 @@ public class ProjectService {
         private final ProjectAccessGuard accessGuard;
         private final OrganizationService organizationService;
         private final VersionMemberRepository versionMemberRepository;
+        private final VersionAccessGuard versionAccessGuard;
 
         public ProjectService(ProjectRepository projectRepository,
                         ProjectMemberRepository projectMemberRepository,
@@ -57,7 +62,8 @@ public class ProjectService {
                         AppLogger logger, VersionService versionService,
                         ProjectAccessGuard accessGuard,
                         OrganizationService organizationService,
-                        VersionMemberRepository versionMemberRepository) {
+                        VersionMemberRepository versionMemberRepository,
+                        VersionAccessGuard versionAccessGuard) {
                 this.projectRepository = projectRepository;
                 this.projectMemberRepository = projectMemberRepository;
                 this.organizationRepository = organizationRepository;
@@ -68,6 +74,7 @@ public class ProjectService {
                 this.accessGuard = accessGuard;
                 this.organizationService = organizationService;
                 this.versionMemberRepository = versionMemberRepository;
+                this.versionAccessGuard = versionAccessGuard;
         }
 
         /**
@@ -335,17 +342,40 @@ public class ProjectService {
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
                 accessGuard.assertCanEditProject(projectId);
 
-                if (versionDTO.getParentVersion() != null && project.getVersions().stream()
-                                .noneMatch(v -> v.isActive() && versionDTO.getParentVersion().equals(v.getId()))) {
-                        throw new IllegalArgumentException("Parent version must belong to the selected project");
+                UUID parentId = versionDTO.getParentVersion();
+                if (parentId != null) {
+                        versionAccessGuard.assertCanEditVersion(parentId);
+                        if (project.getVersions().stream().noneMatch(v -> v.isActive() && parentId.equals(v.getId()))) {
+                                throw new IllegalArgumentException("Parent version must belong to the selected project");
+                        }
                 }
                 Version version = versionService.saveVersion(versionDTO);
 
                 project.addVersion(version);
                 projectRepository.save(project);
+                if (parentId != null) {
+                        copyVersionRoles(parentId, version);
+                }
 
                 logger.info("Created version {} in project {}", version.getName(), project.getName());
                 return version;
+        }
+
+        private void copyVersionRoles(UUID parentId, Version child) {
+                List<VersionMember> copies = new ArrayList<>();
+                for (VersionMember member : versionMemberRepository.findByVersionIdWithUser(parentId)) {
+                        VersionMember copy = new VersionMember(member.getUser(), child);
+                        for (VersionMemberRole role : member.getRoles()) {
+                                copy.addRole(new VersionMemberRole(role.getName(), role.getMemberType(),
+                                                new HashSet<>(role.getPermissions()), role.getVertical()));
+                        }
+                        copies.add(copy);
+                }
+                if (!copies.isEmpty()) {
+                        versionMemberRepository.saveAll(copies);
+                }
+                logger.info("Copied {} version member(s) from version {} to version {}",
+                                copies.size(), parentId, child.getName());
         }
 
 }

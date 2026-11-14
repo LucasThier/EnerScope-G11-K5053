@@ -78,12 +78,16 @@ class VersionConflictServiceTest {
     @Mock
     private VersionAccessGuard accessGuard;
 
+    @Mock
+    private VersionLineage lineage;
+
     private VersionConflictService service;
 
     @BeforeEach
     void setUp() {
         service = new VersionConflictService(versionRepository, conflictRepository, nodeRepository,
-                connectionRepository, logger, accessGuard);
+                connectionRepository, logger, accessGuard, lineage);
+        lenient().when(lineage.isSameProject(any(), any())).thenReturn(true);
     }
 
     private Version version(String name) {
@@ -609,6 +613,175 @@ class VersionConflictServiceTest {
 
         assertThrows(EntityNotFoundException.class,
                 () -> service.resolveConflict(id, ConflictResolutionType.ACCEPT));
+    }
+
+    @Test
+    void resolveConflict_AuthorizesTheSiblingTheParentAndTheNodeVerticalBeforeTheProjectCheck() {
+        UUID identityId = UUID.randomUUID();
+        Well parentWell = well("Parent Well", identityId);
+        Well siblingWell = well("Sibling Well", identityId);
+        Version parent = version("parent");
+        parent.getNodeSnapshot().add(parentWell);
+        Version sibling = version("sibling");
+        sibling.getNodeSnapshot().add(siblingWell);
+        VersionConflict conflict = conflictFixture(parent, sibling, ConflictEntityType.NODE, identityId);
+        when(conflictRepository.findById(conflict.getId())).thenReturn(Optional.of(conflict));
+        when(conflictRepository.save(conflict)).thenReturn(conflict);
+        lenient().when(nodeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        service.resolveConflict(conflict.getId(), ConflictResolutionType.ACCEPT);
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(accessGuard, lineage);
+        order.verify(accessGuard).assertCanManageVersion(sibling.getId());
+        order.verify(accessGuard).assertCanViewVersion(parent.getId());
+        order.verify(accessGuard).assertCanEditNodes(sibling.getId(), List.of(parentWell, siblingWell));
+        order.verify(lineage).assertSameProject(sibling.getId(), parent.getId());
+        verify(accessGuard, never()).assertCanEditConnection(any());
+    }
+
+    @Test
+    void resolveConflict_RefusedForTheNodeVertical_LeavesTheSiblingAndTheConflictUntouched() {
+        UUID identityId = UUID.randomUUID();
+        Well parentWell = well("Parent Well", identityId);
+        Well siblingWell = well("Sibling Well", identityId);
+        Version parent = version("parent");
+        parent.getNodeSnapshot().add(parentWell);
+        Version sibling = version("sibling");
+        sibling.getNodeSnapshot().add(siblingWell);
+        editNode(sibling, siblingWell);
+        VersionConflict conflict = conflictFixture(parent, sibling, ConflictEntityType.NODE, identityId);
+        when(conflictRepository.findById(conflict.getId())).thenReturn(Optional.of(conflict));
+        doThrow(new ForbiddenException("denied")).when(accessGuard).assertCanEditNodes(any(), any());
+
+        assertThrows(ForbiddenException.class,
+                () -> service.resolveConflict(conflict.getId(), ConflictResolutionType.ACCEPT));
+
+        assertEquals("Sibling Well", siblingWell.getName());
+        assertEquals(1, sibling.getNodeChanges().size());
+        assertFalse(conflict.isResolved());
+        verify(conflictRepository, never()).save(any());
+        verify(versionRepository, never()).save(any());
+    }
+
+    @Test
+    void resolveConflict_ParentNotViewable_CopiesNothing() {
+        UUID identityId = UUID.randomUUID();
+        Version parent = version("parent");
+        parent.getNodeSnapshot().add(well("Parent Well", identityId));
+        Version sibling = version("sibling");
+        VersionConflict conflict = conflictFixture(parent, sibling, ConflictEntityType.NODE, identityId);
+        when(conflictRepository.findById(conflict.getId())).thenReturn(Optional.of(conflict));
+        doThrow(new ForbiddenException("denied")).when(accessGuard).assertCanViewVersion(parent.getId());
+
+        assertThrows(ForbiddenException.class,
+                () -> service.resolveConflict(conflict.getId(), ConflictResolutionType.ACCEPT));
+
+        assertTrue(sibling.getNodeSnapshot().isEmpty());
+        assertFalse(conflict.isResolved());
+        verify(nodeRepository, never()).save(any());
+    }
+
+    @Test
+    void resolveConflict_Connection_RequiresEditingConnectionsOnTheSibling() {
+        UUID identityId = UUID.randomUUID();
+        Version parent = version("parent");
+        parent.getConnectionSnapshot().add(connection(identityId, UUID.randomUUID(), UUID.randomUUID()));
+        Version sibling = version("sibling");
+        VersionConflict conflict = conflictFixture(parent, sibling, ConflictEntityType.CONNECTION, identityId);
+        when(conflictRepository.findById(conflict.getId())).thenReturn(Optional.of(conflict));
+        doThrow(new ForbiddenException("denied")).when(accessGuard).assertCanEditConnection(sibling.getId());
+
+        assertThrows(ForbiddenException.class,
+                () -> service.resolveConflict(conflict.getId(), ConflictResolutionType.ACCEPT));
+
+        assertTrue(sibling.getConnectionSnapshot().isEmpty());
+        verify(accessGuard, never()).assertCanEditNodes(any(), any());
+        verify(connectionRepository, never()).save(any());
+    }
+
+    @Test
+    void resolveConflict_BetweenProjects_IsRejectedAfterAuthorizingAndCopiesNothing() {
+        UUID identityId = UUID.randomUUID();
+        Well parentWell = well("Parent Well", identityId);
+        Well siblingWell = well("Sibling Well", identityId);
+        Version parent = version("parent");
+        parent.getNodeSnapshot().add(parentWell);
+        Version sibling = version("sibling");
+        sibling.getNodeSnapshot().add(siblingWell);
+        VersionConflict conflict = conflictFixture(parent, sibling, ConflictEntityType.NODE, identityId);
+        when(conflictRepository.findById(conflict.getId())).thenReturn(Optional.of(conflict));
+        doThrow(new IllegalArgumentException("The versions belong to different projects"))
+                .when(lineage).assertSameProject(sibling.getId(), parent.getId());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.resolveConflict(conflict.getId(), ConflictResolutionType.ACCEPT));
+
+        verify(accessGuard).assertCanManageVersion(sibling.getId());
+        assertEquals("Sibling Well", siblingWell.getName());
+        assertFalse(conflict.isResolved());
+        verify(nodeRepository, never()).save(any());
+        verify(conflictRepository, never()).save(any());
+    }
+
+    @Test
+    void recordMergeConflicts_SiblingOfAnotherProject_GetsNoConflictWhileTheLocalOneDoes() {
+        Version parent = version("parent");
+        Version source = version("source");
+        Version local = version("local sibling");
+        Version foreign = version("foreign sibling");
+        UUID sharedIdentity = UUID.randomUUID();
+        Well mergedWell = well("Source Well", sharedIdentity);
+        editNode(source, mergedWell);
+        parent.getNodeSnapshot().add(mergedWell);
+        local.getNodeSnapshot().add(well("Local Well", sharedIdentity));
+        foreign.getNodeSnapshot().add(well("Foreign Well", sharedIdentity));
+        when(versionRepository.findByParentVersionId(parent.getId())).thenReturn(List.of(source, local, foreign));
+        when(lineage.isSameProject(parent.getId(), foreign.getId())).thenReturn(false);
+        when(conflictRepository.save(any(VersionConflict.class))).thenAnswer(i -> i.getArgument(0));
+
+        List<VersionConflict> result = service.recordMergeConflicts(parent, source);
+
+        assertEquals(1, result.size());
+        assertEquals(local, result.get(0).getConflictingVersion());
+        verify(conflictRepository, never()).save(argThat(conflict -> conflict.getConflictingVersion() == foreign));
+    }
+
+    @Test
+    void recordMergeConflicts_OnlySiblingIsOfAnotherProject_SavesNothing() {
+        Version parent = version("parent");
+        Version source = version("source");
+        Version foreign = version("foreign sibling");
+        UUID sharedIdentity = UUID.randomUUID();
+        Well mergedWell = well("Source Well", sharedIdentity);
+        editNode(source, mergedWell);
+        parent.getNodeSnapshot().add(mergedWell);
+        foreign.getNodeSnapshot().add(well("Foreign Well", sharedIdentity));
+        when(versionRepository.findByParentVersionId(parent.getId())).thenReturn(List.of(source, foreign));
+        when(lineage.isSameProject(parent.getId(), foreign.getId())).thenReturn(false);
+
+        assertTrue(service.recordMergeConflicts(parent, source).isEmpty());
+
+        verify(conflictRepository, never()).save(any());
+    }
+
+    @Test
+    void getConflictsForVersion_OmitsRowsRecordedAgainstAnotherProject_CheckingEachMergedVersionOnce() {
+        Version local = version("local parent");
+        Version foreign = version("foreign parent");
+        Version sibling = version("sibling");
+        VersionConflict kept = conflictFixture(local, sibling, ConflictEntityType.NODE, UUID.randomUUID());
+        VersionConflict hidden = conflictFixture(foreign, sibling, ConflictEntityType.NODE, UUID.randomUUID());
+        VersionConflict alsoHidden = conflictFixture(foreign, sibling, ConflictEntityType.CONNECTION, UUID.randomUUID());
+        when(versionRepository.existsById(sibling.getId())).thenReturn(true);
+        when(conflictRepository.findByConflictingVersionId(sibling.getId()))
+                .thenReturn(List.of(hidden, kept, alsoHidden));
+        when(lineage.isSameProject(sibling.getId(), foreign.getId())).thenReturn(false);
+
+        List<VersionConflictDTO> result = service.getConflictsForVersion(sibling.getId());
+
+        assertEquals(List.of(kept.getId()), result.stream().map(VersionConflictDTO::getId).toList());
+        verify(lineage, org.mockito.Mockito.times(1)).isSameProject(sibling.getId(), foreign.getId());
+        verify(lineage, org.mockito.Mockito.times(1)).isSameProject(sibling.getId(), local.getId());
     }
 
     private VersionConflict conflictFixture(Version parent, Version sibling, ConflictEntityType type, UUID identityId) {

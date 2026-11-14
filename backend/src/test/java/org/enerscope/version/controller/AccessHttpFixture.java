@@ -29,6 +29,7 @@ import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.model.VersionMember;
 import org.enerscope.version.model.VersionMemberRole;
+import org.enerscope.version.model.enums.VersionMemberPermission;
 import org.enerscope.version.model.enums.VersionMemberType;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -36,8 +37,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public final class AccessHttpFixture {
@@ -152,6 +155,14 @@ public final class AccessHttpFixture {
     }
 
     public UUID addNode(NodeTypeEnum type) {
+        Well well = newNode(type);
+        nodes.add(well);
+        version.getNodeSnapshot().add(well);
+        em.flush();
+        return well.getId();
+    }
+
+    public Well newNode(NodeTypeEnum type) {
         Well well = new Well();
         well.setName("Access " + type.name());
         well.setMaxCollectionCapacity(100);
@@ -167,10 +178,36 @@ public final class AccessHttpFixture {
         well.setDTMCost(MoneyAmount.of(4));
         well.setDeclineCurve(new ConstantValue(0));
         em.persist(well);
-        nodes.add(well);
-        version.getNodeSnapshot().add(well);
+        return well;
+    }
+
+    public Project foreignProject() {
+        Organization foreignOrganization = new Organization("Foreign fixture " + UUID.randomUUID());
+        em.persist(foreignOrganization);
+        Version foreignVersion = new Version("Foreign version", null, new ArrayList<>(List.of(newNode(NodeTypeEnum.WELL))),
+                new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        em.persist(foreignVersion);
+        Project foreign = new Project("Foreign fixture", "Foreign fixture", foreignOrganization);
+        foreign.addVersion(foreignVersion);
+        em.persist(foreign);
         em.flush();
-        return well.getId();
+        return foreign;
+    }
+
+    public void joinProject(User user, Project target, ProjectMemberType type) {
+        ProjectMember member = new ProjectMember(user, target);
+        member.addRole(new ProjectMemberRole(type.name(), type, EnumSet.copyOf(ProjectMember.defaultPermissionsFor(type))));
+        target.addMember(member);
+        em.persist(member);
+        em.flush();
+    }
+
+    public void grantVersionRole(User user, Version target, VersionMemberType type, VerticalEnum vertical,
+                                 Set<VersionMemberPermission> permissions) {
+        VersionMember member = new VersionMember(user, target);
+        member.addRole(new VersionMemberRole(type.name(), type, new HashSet<>(permissions), vertical));
+        em.persist(member);
+        em.flush();
     }
 
     public Version detachedVersion() {

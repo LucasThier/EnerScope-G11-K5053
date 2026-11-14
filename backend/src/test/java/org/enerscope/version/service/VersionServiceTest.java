@@ -68,6 +68,9 @@ class VersionServiceTest {
         @Mock
         private VersionAccessGuard accessGuard;
 
+        @Mock
+        private VersionLineage lineage;
+
         @InjectMocks
         private VersionService versionService;
 
@@ -121,7 +124,8 @@ class VersionServiceTest {
                                 logger,
                                 nodeService,
                                 versionConflictService,
-                                accessGuard);
+                                accessGuard,
+                                lineage);
         }
 
         @Test
@@ -1082,5 +1086,185 @@ class VersionServiceTest {
                 versionService.getDiagram(versionId).getNodes().get(0).getType().getVertical());
         assertEquals(VerticalEnum.EXTRACTION,
                 versionService.getNodeDetail(versionId, nodeId).getType().getVertical());
+    }
+
+    @Test
+    void mergeAuthorizesTheDestinationAndEveryTouchedNodeInsteadOfTheSubversion() {
+        Version parent = versionWithId("Parent", null);
+        Well original = typedWell(NodeTypeEnum.WELL, VerticalEnum.EXTRACTION);
+        parent.getNodeSnapshot().add(original);
+        Version sub = versionWithId("Sub", parent);
+        Well edited = typedWell(NodeTypeEnum.WELL, VerticalEnum.EXTRACTION);
+        edited.setIdentityId(original.getIdentityId());
+        Well added = typedWell(NodeTypeEnum.LNG_CAMER, VerticalEnum.EXTRACTION);
+        sub.getNodeChanges().add(nodeChange(ChangeTypeEnum.EDIT, original, edited));
+        sub.getNodeChanges().add(nodeChange(ChangeTypeEnum.ADD, null, added));
+        stubMerge(parent, sub);
+
+        versionService.mergeSubVersionIntoParent(sub.getId());
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(accessGuard, lineage);
+        order.verify(accessGuard).assertCanViewVersion(sub.getId());
+        order.verify(accessGuard).assertCanManageVersion(parent.getId());
+        order.verify(accessGuard).assertCanEditNodes(parent.getId(), List.of(original, edited, added));
+        order.verify(lineage).assertSameProject(sub.getId(), parent.getId());
+        verify(accessGuard, org.mockito.Mockito.never()).assertCanManageVersion(sub.getId());
+        verify(accessGuard, org.mockito.Mockito.never()).assertCanEditConnection(any());
+    }
+
+    @Test
+    void mergeRefusedForOneVerticalLeavesTheParentUntouched() {
+        Version parent = versionWithId("Parent", null);
+        Well original = typedWell(NodeTypeEnum.WELL, VerticalEnum.EXTRACTION);
+        parent.getNodeSnapshot().add(original);
+        Version sub = versionWithId("Sub", parent);
+        sub.getNodeChanges().add(nodeChange(ChangeTypeEnum.DELETE, original, null));
+        stubMerge(parent, sub);
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("denied"))
+                .when(accessGuard).assertCanEditNodes(org.mockito.ArgumentMatchers.eq(parent.getId()), any());
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.mergeSubVersionIntoParent(sub.getId()));
+
+        assertEquals(List.of(original), parent.getNodeSnapshot());
+        assertTrue(parent.getNodeChanges().isEmpty());
+        verify(versionRepository, org.mockito.Mockito.never()).save(any());
+        verifyNoInteractions(versionConflictService, lineage);
+    }
+
+    @Test
+    void mergeOfAConnectionChangeRequiresEditingConnectionsOnTheDestination() {
+        Version parent = versionWithId("Parent", null);
+        org.enerscope.node.model.NodeConnection connection = new org.enerscope.node.model.NodeConnection(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        parent.getConnectionSnapshot().add(connection);
+        Version sub = versionWithId("Sub", parent);
+        org.enerscope.node.model.ConnectionChange change = new org.enerscope.node.model.ConnectionChange();
+        change.setChangeType(ChangeTypeEnum.DELETE);
+        change.setChangedConnection(connection);
+        sub.getConnectionChanges().add(change);
+        stubMerge(parent, sub);
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("denied"))
+                .when(accessGuard).assertCanEditConnection(parent.getId());
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.mergeSubVersionIntoParent(sub.getId()));
+
+        assertEquals(List.of(connection), parent.getConnectionSnapshot());
+        verify(versionRepository, org.mockito.Mockito.never()).save(any());
+        verifyNoInteractions(versionConflictService);
+    }
+
+    @Test
+    void mergeBetweenProjectsIsRejectedAfterAuthorizingAndChangesNothing() {
+        Version parent = versionWithId("Parent", null);
+        Well original = typedWell(NodeTypeEnum.WELL, VerticalEnum.EXTRACTION);
+        parent.getNodeSnapshot().add(original);
+        Version sub = versionWithId("Sub", parent);
+        sub.getNodeChanges().add(nodeChange(ChangeTypeEnum.DELETE, original, null));
+        stubMerge(parent, sub);
+        org.mockito.Mockito.doThrow(new IllegalArgumentException("The versions belong to different projects"))
+                .when(lineage).assertSameProject(sub.getId(), parent.getId());
+
+        assertThrows(IllegalArgumentException.class, () -> versionService.mergeSubVersionIntoParent(sub.getId()));
+
+        verify(accessGuard).assertCanManageVersion(parent.getId());
+        assertEquals(List.of(original), parent.getNodeSnapshot());
+        verify(versionRepository, org.mockito.Mockito.never()).save(any());
+        verifyNoInteractions(versionConflictService);
+    }
+
+    @Test
+    void reparentingRequiresManagingTheVersionAndEditingTheNewParentThenChecksTheLineage() {
+        Version version = versionWithId("Moved", null);
+        Version newParent = versionWithId("New parent", null);
+        when(versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        when(versionRepository.findById(newParent.getId())).thenReturn(Optional.of(newParent));
+        when(versionRepository.save(version)).thenReturn(version);
+
+        versionService.modifyVersion(version.getId(), new org.enerscope.version.dto.VersionDTO(null, newParent.getId()));
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(accessGuard, lineage);
+        order.verify(accessGuard).assertCanEditVersion(version.getId());
+        order.verify(accessGuard).assertCanManageVersion(version.getId());
+        order.verify(accessGuard).assertCanEditVersion(newParent.getId());
+        order.verify(lineage).assertParentInSameProject(version.getId(), newParent.getId());
+        order.verify(lineage).assertNotAncestor(version.getId(), newParent);
+        assertSame(newParent, version.getParentVersion());
+    }
+
+    @Test
+    void reparentingRejectedByTheLineageKeepsTheOldParent() {
+        Version oldParent = versionWithId("Old parent", null);
+        Version version = versionWithId("Moved", oldParent);
+        Version foreign = versionWithId("Foreign", null);
+        when(versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        when(versionRepository.findById(foreign.getId())).thenReturn(Optional.of(foreign));
+        org.mockito.Mockito.doThrow(new IllegalArgumentException("Parent version must belong to the same project"))
+                .when(lineage).assertParentInSameProject(version.getId(), foreign.getId());
+
+        assertThrows(IllegalArgumentException.class, () -> versionService.modifyVersion(version.getId(),
+                new org.enerscope.version.dto.VersionDTO(null, foreign.getId())));
+
+        assertSame(oldParent, version.getParentVersion());
+        verify(versionRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void renamingDoesNotRequireManagingTheVersion() {
+        Version version = versionWithId("Old", null);
+        when(versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        when(versionRepository.save(version)).thenReturn(version);
+
+        versionService.modifyVersion(version.getId(), new org.enerscope.version.dto.VersionDTO("New", null));
+
+        verify(accessGuard).assertCanEditVersion(version.getId());
+        verify(accessGuard, org.mockito.Mockito.never()).assertCanManageVersion(any());
+        verifyNoInteractions(lineage);
+    }
+
+    @Test
+    void branchingStoresTheVerticalDerivedFromTheTypeNotTheStoredOne() {
+        Version parent = versionWithId("Parent", null);
+        parent.getNodeSnapshot().add(typedWell(NodeTypeEnum.WELL, VerticalEnum.EXPORT));
+        when(versionRepository.findById(parent.getId())).thenReturn(Optional.of(parent));
+        when(nodeRepository.save(any(BaseNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(versionRepository.save(any(Version.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Version child = versionService.saveVersion(new org.enerscope.version.dto.VersionDTO("Child", parent.getId()));
+
+        assertEquals(VerticalEnum.EXTRACTION, child.getNodeSnapshot().get(0).getType().getVertical());
+        assertEquals(NodeTypeEnum.WELL, child.getNodeSnapshot().get(0).getType().getNodeType());
+    }
+
+    private void stubMerge(Version parent, Version sub) {
+        when(versionRepository.findById(sub.getId())).thenReturn(Optional.of(sub));
+        when(versionRepository.findById(parent.getId())).thenReturn(Optional.of(parent));
+        org.mockito.Mockito.lenient().when(versionRepository.save(any(Version.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private static Version versionWithId(String name, Version parent) {
+        Version version = new Version(name, parent, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>());
+        org.springframework.test.util.ReflectionTestUtils.setField(version, "id", UUID.randomUUID());
+        return version;
+    }
+
+    private static Well typedWell(NodeTypeEnum type, VerticalEnum storedVertical) {
+        Well well = new Well();
+        well.setName("Well " + type);
+        well.setIdentityId(UUID.randomUUID());
+        well.setType(new NodeTypeData(storedVertical, StructuralRoleEnum.GENERATOR, type));
+        org.springframework.test.util.ReflectionTestUtils.setField(well, "id", UUID.randomUUID());
+        return well;
+    }
+
+    private static NodeChange nodeChange(ChangeTypeEnum type, BaseNode changed, BaseNode result) {
+        NodeChange change = new NodeChange();
+        change.setChangeType(type);
+        change.setChangedNode(changed);
+        change.setResultNode(result);
+        return change;
     }
 }

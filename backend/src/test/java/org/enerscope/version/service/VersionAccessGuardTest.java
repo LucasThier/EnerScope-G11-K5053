@@ -3,7 +3,11 @@ package org.enerscope.version.service;
 import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.node.model.NodeTypeData;
+import org.enerscope.node.model.enums.NodeTypeEnum;
+import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
+import org.enerscope.node.model.extraction.Well;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
@@ -543,6 +547,59 @@ class VersionAccessGuardTest {
             assertEquals(access.canEditVertical(VerticalEnum.EXPORT),
                     passes(() -> guard.assertCanEditNodeVertical(versionId, VerticalEnum.EXPORT)));
         }
+    }
+
+    @Test
+    void assertCanEditNodesJudgesEachNodeByTheVerticalOfItsTypeNotTheStoredOne() {
+        UUID versionId = UUID.randomUUID();
+        User caller = regularUser("extraction@enerscope.org");
+        authenticateAs(caller);
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
+                .thenReturn(Optional.of(versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION)));
+
+        assertDoesNotThrow(() -> guard.assertCanEditNodes(versionId,
+                List.of(node(NodeTypeEnum.WELL, VerticalEnum.EXPORT))));
+        assertThrows(ForbiddenException.class, () -> guard.assertCanEditNodes(versionId,
+                List.of(node(NodeTypeEnum.LNG_CAMER, VerticalEnum.EXTRACTION))));
+    }
+
+    @Test
+    void assertCanEditNodesRejectsWhenOneOfTheVerticalsIsOutsideTheRole() {
+        UUID versionId = UUID.randomUUID();
+        User caller = regularUser("extraction@enerscope.org");
+        authenticateAs(caller);
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
+                .thenReturn(Optional.of(versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION)));
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanEditNodes(versionId,
+                List.of(node(NodeTypeEnum.WELL, VerticalEnum.EXTRACTION),
+                        node(NodeTypeEnum.PIPELINE, VerticalEnum.TRANSPORTATION))));
+    }
+
+    @Test
+    void assertCanEditNodesWithAnUntypedNodeRequiresEditingTheVersion() {
+        UUID versionId = UUID.randomUUID();
+        User caller = regularUser("simulator@enerscope.org");
+        authenticateAs(caller);
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
+                .thenReturn(Optional.of(versionMemberWith(VersionMemberType.SIMULATOR, null)));
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanEditNodes(versionId, List.of(new Well())));
+    }
+
+    @Test
+    void assertCanEditNodesWithNoNodesChecksNothing() {
+        authenticateAs(regularUser("anyone@enerscope.org"));
+
+        assertDoesNotThrow(() -> guard.assertCanEditNodes(UUID.randomUUID(), List.of()));
+
+        verifyNoInteractions(versionMemberRepository, projectRepository, projectMemberRepository);
+    }
+
+    private static Well node(NodeTypeEnum type, VerticalEnum storedVertical) {
+        Well well = new Well();
+        well.setType(new NodeTypeData(storedVertical, StructuralRoleEnum.GENERATOR, type));
+        return well;
     }
 
     private boolean passes(Runnable check) {

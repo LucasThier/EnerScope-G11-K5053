@@ -107,6 +107,7 @@ public class VersionService {
     private final NodeService nodeService;
     private final VersionConflictService versionConflictService;
     private final VersionAccessGuard accessGuard;
+    private final VersionLineage lineage;
 
     /**
      * Creates a version detached from every project, for
@@ -473,7 +474,8 @@ public class VersionService {
                     if (value instanceof NodeGraphData g) {
                         value = cloneGraphData(g);
                     } else if (value instanceof NodeTypeData t) {
-                        value = new NodeTypeData(t.getVertical(), t.getRole(), t.getNodeType());
+                        value = new NodeTypeData(t.getNodeType() == null ? t.getVertical() : t.getNodeType().vertical(),
+                                t.getRole(), t.getNodeType());
                     } else if (value instanceof InvestmentCost ic) {
                         value = cloneInvestmentCost(ic);
                     }
@@ -541,6 +543,10 @@ public class VersionService {
         Objects.requireNonNull(id, "Version ID cannot be null");
         Objects.requireNonNull(data, "VersionDTO cannot be null");
         accessGuard.assertCanEditVersion(id);
+        if (data.getParentVersion() != null) {
+            accessGuard.assertCanManageVersion(id);
+            accessGuard.assertCanEditVersion(data.getParentVersion());
+        }
 
         Version existingVersion = versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
@@ -548,6 +554,8 @@ public class VersionService {
         if (data.getParentVersion() != null) {
             Version parentVerison = versionRepository.findById(data.getParentVersion())
                     .orElseThrow(() -> new VersionNotFoundException(data.getParentVersion()));
+            lineage.assertParentInSameProject(id, parentVerison.getId());
+            lineage.assertNotAncestor(id, parentVerison);
             existingVersion.setParentVersion(parentVerison);
         }
 
@@ -1029,7 +1037,7 @@ public class VersionService {
     @Transactional
     public Version mergeSubVersionIntoParent(UUID subVersionId) {
         Objects.requireNonNull(subVersionId, "Subversion ID cannot be null");
-        accessGuard.assertCanManageVersion(subVersionId);
+        accessGuard.assertCanViewVersion(subVersionId);
 
         Version subVersion = versionRepository.findById(subVersionId)
                 .orElseThrow(() -> new VersionNotFoundException(subVersionId));
@@ -1043,6 +1051,8 @@ public class VersionService {
         if (!Objects.equals(subVersion.getParentVersion(), parentVersion)) {
             throw new IllegalArgumentException("Subversion does not have the specified parent version");
         }
+        assertCanMerge(parentVersion.getId(), subVersion);
+        lineage.assertSameProject(subVersion.getId(), parentVersion.getId());
 
         // Apply the subversion's own differential changes onto the parent's
         // CURRENT snapshot, instead of wholesale-replacing it - a wholesale
@@ -1070,6 +1080,23 @@ public class VersionService {
         versionConflictService.recordMergeConflicts(saved, subVersion);
 
         return saved;
+    }
+
+    private void assertCanMerge(UUID targetVersionId, Version subVersion) {
+        accessGuard.assertCanManageVersion(targetVersionId);
+        List<BaseNode> touched = new ArrayList<>();
+        for (NodeChange change : subVersion.getNodeChanges()) {
+            if (change.getChangedNode() != null) {
+                touched.add(change.getChangedNode());
+            }
+            if (change.getResultNode() != null) {
+                touched.add(change.getResultNode());
+            }
+        }
+        accessGuard.assertCanEditNodes(targetVersionId, touched);
+        if (!subVersion.getConnectionChanges().isEmpty()) {
+            accessGuard.assertCanEditConnection(targetVersionId);
+        }
     }
 
     /**

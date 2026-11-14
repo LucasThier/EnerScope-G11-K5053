@@ -3,6 +3,8 @@ package org.enerscope.version.service;
 import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.node.model.BaseNode;
+import org.enerscope.node.model.enums.NodeTypeEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.repository.ProjectRepository;
@@ -16,6 +18,7 @@ import org.enerscope.version.repository.VersionMemberRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -151,6 +154,26 @@ public class VersionAccessGuard {
             return;
         }
         fallBackToProject(VersionCapability.EDIT, versionId);
+    }
+
+    public void assertCanEditNodes(UUID versionId, Collection<BaseNode> nodes) {
+        EnumSet<VerticalEnum> verticals = EnumSet.noneOf(VerticalEnum.class);
+        boolean untyped = false;
+        for (BaseNode node : nodes) {
+            NodeTypeEnum type = node.getType() == null ? null : node.getType().getNodeType();
+            if (type == null) {
+                untyped = true;
+            } else {
+                verticals.add(type.vertical());
+            }
+        }
+        logger.debug("Authorizing {} node(s) across verticals {} in version {}", nodes.size(), verticals, versionId);
+        if (untyped) {
+            assertCanEditVersion(versionId);
+        }
+        for (VerticalEnum vertical : verticals) {
+            assertCanEditNodeVertical(versionId, vertical);
+        }
     }
 
     /**
