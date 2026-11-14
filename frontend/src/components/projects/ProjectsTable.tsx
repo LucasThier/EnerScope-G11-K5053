@@ -6,6 +6,7 @@ import { canManageProject } from '../../utils/projectPermissions';
 
 interface ProjectsTableProps {
   projects: ProjectSummary[];
+  activeProjectId: string | null;
   isPlatformAdmin: boolean;
   onView: (project: ProjectSummary) => void;
   onEdit: (project: ProjectSummary) => void;
@@ -19,6 +20,7 @@ const bodyCell = 'px-4 py-3 h-14 align-middle text-sm text-ink-700';
 
 export function ProjectsTable({
   projects,
+  activeProjectId,
   isPlatformAdmin,
   onView,
   onEdit,
@@ -58,7 +60,14 @@ export function ProjectsTable({
                 className={`${bodyCell} max-w-[14rem] truncate font-semibold text-ink-800`}
                 title={project.name}
               >
-                {project.name}
+                <span className="flex items-center gap-2">
+                  <span className="truncate">{project.name}</span>
+                  {project.id === activeProjectId && (
+                    <span className="shrink-0 rounded-full border border-ink-200 px-2 py-0.5 text-[11px] font-medium text-ink-500">
+                      Activo
+                    </span>
+                  )}
+                </span>
               </td>
               <td className={`${bodyCell} max-w-[12rem] truncate`} title={project.organizationName}>
                 {project.organizationName}

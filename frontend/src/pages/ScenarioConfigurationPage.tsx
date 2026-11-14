@@ -5,7 +5,9 @@ import { canEditProjectByPermissions, isPlatformAdmin } from '../permissions/acc
 import { economicsApi } from '../api/economics';
 import { projectsApi } from '../api/projects';
 import { scenarioConfigurationApi as api } from '../api/scenarioConfiguration';
-import { getErrorMessage } from '../api/errors';
+import { getErrorMessage, getErrorStatus } from '../api/errors';
+import { useActiveProject } from '../hooks/useActiveProject';
+import { isProjectAccessLoss } from '../utils/activeProject';
 import { initialScenario, prepareScenario, scenarioConflict } from '../utils/scenarioConfiguration';
 import type { ScenarioConfiguration, ScenarioSave } from '../types/scenarioConfiguration';
 import type { Scenario } from '../types/economics';
@@ -20,6 +22,7 @@ export function ScenarioConfigurationPage() {
 }
 function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
  const {user}=useAuth();
+ const {reload:reloadProjects}=useActiveProject();
  const navigate=useNavigate();
  const [snapshot,setSnapshot]=useState<ScenarioConfiguration|null>(null),[form,setForm]=useState<ScenarioSave|null>(null);
  const [baseline,setBaseline]=useState(''),[scenario,setScenario]=useState<Scenario|null>(null),[canEdit,setCanEdit]=useState(false);
@@ -42,9 +45,9 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
    .then(([state,scenarios,members])=>{
     if(cancelled)return;const selected=scenarios.find(s=>s.id===versionId);if(!selected)throw new Error('Escenario no disponible.');
     setScenario(selected);setCanEdit(canEditProjectByPermissions(caller,members?.data.data));hydrate(state);
-   }).catch(e=>{if(!cancelled)setError(getErrorMessage(e,'No se pudo cargar la configuración.'));});
+   }).catch(e=>{if(cancelled)return;if(isProjectAccessLoss(getErrorStatus(e)))void reloadProjects();setError(getErrorMessage(e,'No se pudo cargar la configuración.'));});
   return ()=>{cancelled=true;};
- },[projectId,versionId,user?.id,user?.platformRole,hydrate]);
+ },[projectId,versionId,user?.id,user?.platformRole,hydrate,reloadProjects]);
  useEffect(()=>{
   let cancelled=false,checking=false;
   async function refresh() {

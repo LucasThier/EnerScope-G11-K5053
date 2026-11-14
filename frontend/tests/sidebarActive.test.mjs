@@ -62,7 +62,7 @@ test('route to current item matrix with a manageable project', () => {
   Object.assign(state, { project, projects: [project], loading: false, role: 'ADMIN', member: true });
   const expected = {
     '/app': 'Inicio', '/projects': 'Todos los proyectos', '/projects/p/team': 'Equipo del proyecto: P',
-    '/projects/p/versions': 'Versiones del proyecto: P', '/versions': 'Todas las versiones', '/editor': 'Mapa de la Cadena de Valor',
+    '/projects/p/versions': 'Versionado: P', '/versions': 'Versionado: P', '/editor': 'Mapa de la Cadena de Valor',
     '/projects/p/scenario-configurations': 'Configuración del Escenario',
     '/projects/p/versions/v/economics': 'Configuración del Escenario',
     '/projects/p/versions/v/economics/configuration': 'Configuración del Escenario',
@@ -73,6 +73,17 @@ test('route to current item matrix with a manageable project', () => {
     '/admin/organizations': 'Todas las organizaciones', '/admin/users': 'Gestión de usuarios', '/profile': null,
   };
   for (const [route, label] of Object.entries(expected)) assert.equal(labelsAt(route), label, route);
+});
+test('versioning is a single entry that opens the active project or falls back to the index', () => {
+  const versioning = () => useNavigationTree()[0].items.find(i => i.label === 'Versionado');
+  Object.assign(state, { project, projects: [project], loading: false, role: 'USER', member: false });
+  assert.equal(versioning().children, undefined);
+  assert.equal(versioning().to, '/projects/p/versions');
+  for (const loading of [false, true]) {
+    Object.assign(state, { project: null, projects: [], loading });
+    assert.equal(versioning().to, '/versions');
+    assert.equal(labelsAt('/versions'), 'Versionado');
+  }
 });
 test('analysis items without a project have no destination and are never current', () => {
   for (const [projects, loading, reason] of [[[], false, 'Sin proyectos'], [[project], false, 'Elegí un proyecto'], [[], true, undefined]]) {

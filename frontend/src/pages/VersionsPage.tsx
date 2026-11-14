@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import { isProjectAccessLoss } from '../utils/activeProject';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -30,7 +31,7 @@ export function VersionsPage() {
 
 function VersionsWorkspace({ projectId }: { projectId?: string }) {
   const { user } = useAuth();
-  const { projects, isLoading: projectsLoading } = useActiveProject();
+  const { projects, reload: reloadProjects } = useActiveProject();
   const { versions, loading, error, errorStatus, reload, deleteVersion, mergeVersion } = useVersions(
     projectId ?? null,
   );
@@ -96,14 +97,14 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
     setResolving(null);
   }, [projectId]);
 
+  useEffect(() => {
+    if (isProjectAccessLoss(errorStatus)) {
+      void reloadProjects();
+    }
+  }, [errorStatus, reloadProjects]);
+
   if (!projectId) {
     return null;
-  }
-  if (errorStatus === 403) {
-    return <Navigate to="/versions" replace />;
-  }
-  if (!projectsLoading && !projects.some((candidate) => candidate.id === projectId)) {
-    return <Navigate to="/versions" replace />;
   }
   if (loading) {
     return <PageLoader />;
@@ -113,8 +114,8 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
     <div>
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link to="/versions" className="text-sm font-semibold text-brand-800 hover:underline">
-            ← Versionado
+          <Link to="/projects" className="text-sm font-semibold text-brand-800 hover:underline">
+            ← Proyectos
           </Link>
           <h1 className="mt-2 text-2xl font-semibold text-ink-800">Versionado</h1>
           <p className="mt-1 text-sm text-ink-500">{project?.name ?? 'el proyecto'}</p>

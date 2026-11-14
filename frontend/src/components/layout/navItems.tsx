@@ -17,7 +17,7 @@ import {
 export const VERSIONS_PATH_PATTERN = VERSION_MANAGEMENT_PATTERN;
 export const PROJECTS_PATH_PATTERN = /^\/projects\/?$/;
 export const PROJECT_TEAM_PATH_PATTERN = /^\/projects\/[^/]+\/team(\/|$)/;
-export const VERSIONS_INDEX_PATH_PATTERN = /^\/versions\/?$/;
+export const VERSIONING_PATH_PATTERN = /^\/(?:versions|projects\/[^/]+\/versions)\/?$/;
 export const ORGANIZATION_PATH_PATTERN = /^\/organizations\/[^/]+/;
 export const MY_ORGANIZATIONS_PATH_PATTERN = /^\/organizations(\/|$)/;
 
@@ -92,18 +92,9 @@ export const NAV_GROUPS: NavGroup[] = [
         id: 'versions',
         label: 'Versionado',
         icon: <BranchIcon />,
-        children: [
-          {
-            label: 'Todas las versiones',
-            to: '/versions',
-            matchPattern: VERSIONS_INDEX_PATH_PATTERN,
-          },
-          {
-            label: 'Versiones del proyecto',
-            matchPattern: VERSIONS_PATH_PATTERN,
-            requires: 'activeProject',
-          },
-        ],
+        to: '/versions',
+        matchPattern: VERSIONING_PATH_PATTERN,
+        requires: 'activeProject',
       },
     ],
   },

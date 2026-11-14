@@ -7,7 +7,9 @@ import { canEditProjectByPermissions, isPlatformAdmin } from '../permissions/acc
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { economicsApi } from '../api/economics';
-import { getErrorMessage } from '../api/errors';
+import { getErrorMessage, getErrorStatus } from '../api/errors';
+import { useActiveProject } from '../hooks/useActiveProject';
+import { isProjectAccessLoss } from '../utils/activeProject';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -23,6 +25,7 @@ function ScenariosWorkspace({ projectId, configuration }: { projectId: string; c
   const [readiness,setReadiness]=useState<ScenarioReadiness[]>([]);
   const [simulating,setSimulating]=useState<Scenario|null>(null);
   const { user } = useAuth();
+  const { reload: reloadProjects } = useActiveProject();
   const [canEdit, setCanEdit] = useState(false);
   const [state, setState] = useState<{ project: string; scenarios: Scenario[]; error: string; loading: boolean }>({ project: '', scenarios: [], error: '', loading: true });
   const [search, setSearch] = useState('');
@@ -34,9 +37,9 @@ function ScenariosWorkspace({ projectId, configuration }: { projectId: string; c
       if (!cancelled) setReadiness(ready);
       if (!cancelled) setCanEdit(canEditProjectByPermissions(caller, members?.data.data));
       if (!cancelled) setState({ project: projectId, scenarios, error: '', loading: false });
-    }).catch(error => { if (!cancelled) setState({ project: projectId, scenarios: [], error: getErrorMessage(error, 'No se pudieron cargar los escenarios.'), loading: false }); });
+    }).catch(error => { if (!cancelled && isProjectAccessLoss(getErrorStatus(error))) void reloadProjects(); if (!cancelled) setState({ project: projectId, scenarios: [], error: getErrorMessage(error, 'No se pudieron cargar los escenarios.'), loading: false }); });
     return () => { cancelled = true; };
-  }, [projectId, retry, user?.id, user?.platformRole, configuration]);
+  }, [projectId, retry, user?.id, user?.platformRole, configuration, reloadProjects]);
   const loading = state.loading || state.project !== projectId;
   const filtered = state.scenarios.filter(s => s.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
   return <div className="space-y-6">

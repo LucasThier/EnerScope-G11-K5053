@@ -1,4 +1,5 @@
 import { projectDestination } from '../utils/workspaceRoutes';
+import { resolveActiveProject } from '../utils/activeProject';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
 import { projectsApi } from '../api/projects';
@@ -52,13 +53,10 @@ export function ActiveProjectProvider({ children }: { children: ReactNode }) {
     void reload();
   }, [reload]);
 
-  const activeProject = useMemo(() => {
-    if (projects.length === 0) {
-      return null;
-    }
-    const byId = (id: string | null) => projects.find((project) => project.id === id) ?? null;
-    return routeProjectId ? byId(routeProjectId) : byId(lastProjectId) ?? projects[0];
-  }, [projects, routeProjectId, lastProjectId]);
+  const activeProject = useMemo(
+    () => resolveActiveProject(projects, routeProjectId, lastProjectId),
+    [projects, routeProjectId, lastProjectId],
+  );
 
   useEffect(() => {
     if (activeProject && activeProject.id !== lastProjectId) {
@@ -80,6 +78,7 @@ export function ActiveProjectProvider({ children }: { children: ReactNode }) {
   const value: ActiveProjectContextValue = {
     projects,
     activeProject,
+    storedProjectId: lastProjectId,
     isLoading,
     error,
     selectProject,

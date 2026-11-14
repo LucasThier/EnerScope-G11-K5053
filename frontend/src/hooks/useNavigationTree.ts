@@ -126,7 +126,7 @@ function resolveLeaf(item: NavItem, context: NavContext): NavItem | null {
           };
     case 'activeProject':
       return context.versionsProjectId === null
-        ? null
+        ? item
         : {
             ...item,
             to: `/projects/${context.versionsProjectId}/versions`,

@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { economicsApi } from '../api/economics';
 import { projectsApi } from '../api/projects';
-import { getErrorMessage } from '../api/errors';
+import { getErrorMessage, getErrorStatus } from '../api/errors';
+import { useActiveProject } from '../hooks/useActiveProject';
+import { isProjectAccessLoss } from '../utils/activeProject';
 import { useAuth } from '../hooks/useAuth';
 import { canEditProjectByPermissions, isPlatformAdmin } from '../permissions/access';
 import { dateTime, irrText, money, percent } from '../utils/economicFormat';
@@ -20,6 +22,7 @@ export function EconomicsPage() {
 }
 function Results({projectId,versionId,tab,evaluationId}:{projectId:string;versionId:string;tab:string;evaluationId?:string}) {
  const {user}=useAuth();
+ const {reload:reloadProjects}=useActiveProject();
  const [evaluations,setEvaluations]=useState<Evaluation[]>([]),[detail,setDetail]=useState<Evaluation|null>(null);
  const [name,setName]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(true),[refresh,setRefresh]=useState(0),[canEdit,setCanEdit]=useState(false);
  const base='/projects/'+projectId+'/versions/'+versionId+'/economics';
@@ -31,10 +34,10 @@ function Results({projectId,versionId,tab,evaluationId}:{projectId:string;versio
    .then(([scenarios,history,selected,members])=>{if(cancelled)return;
     setName(scenarios.find(s=>s.id===versionId)?.name ?? 'Escenario');setEvaluations(history);setDetail(selected);setError('');
     setCanEdit(canEditProjectByPermissions(caller,members?.data.data));
-   }).catch(e=>{if(!cancelled)setError(getErrorMessage(e,'No se pudieron cargar las evaluaciones.'));})
+   }).catch(e=>{if(cancelled)return;if(isProjectAccessLoss(getErrorStatus(e)))void reloadProjects();setError(getErrorMessage(e,'No se pudieron cargar las evaluaciones.'));})
    .finally(()=>{if(!cancelled)setLoading(false);});
   return ()=>{cancelled=true;};
- },[projectId,versionId,evaluationId,refresh,user?.id,user?.platformRole]);
+ },[projectId,versionId,evaluationId,refresh,user?.id,user?.platformRole,reloadProjects]);
  const selected=detail ?? (!evaluationId?evaluations[0]:null);
  return <div className="space-y-5"><Link className="text-brand-800 underline" to={'/projects/'+projectId+'/simulations'}>← Simulación de Escenarios / {name}</Link>
  <h1 className="text-2xl font-semibold">Evaluación del escenario</h1>

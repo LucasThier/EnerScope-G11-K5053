@@ -20,7 +20,7 @@ const ALL_ORGANIZATIONS = 'all';
 
 export function ProjectsPage() {
   const searchId = useId();
-  const { projects, isLoading, error, reload, selectProject } = useActiveProject();
+  const { projects, activeProject, isLoading, error, reload, selectProject } = useActiveProject();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -119,6 +119,7 @@ export function ProjectsPage() {
         ) : (
           <ProjectsTable
             projects={visibleProjects}
+            activeProjectId={activeProject?.id ?? null}
             isPlatformAdmin={isPlatformAdmin(user)}
             onView={setViewing}
             onEdit={setEditing}

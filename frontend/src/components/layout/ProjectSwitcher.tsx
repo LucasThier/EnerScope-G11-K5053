@@ -35,7 +35,11 @@ export function ProjectSwitcher() {
     return <span className="text-sm text-ink-500">Proyectos no disponibles</span>;
   }
   if (!activeProject) {
-    return <span className="text-sm text-ink-500">Sin proyectos</span>;
+    return (
+      <span className="text-sm text-ink-500">
+        {projects.length > 0 ? 'Elegí un proyecto' : 'Sin proyectos'}
+      </span>
+    );
   }
   if (projects.length === 1) {
     return (
