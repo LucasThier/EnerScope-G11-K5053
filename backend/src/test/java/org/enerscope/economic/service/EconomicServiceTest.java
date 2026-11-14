@@ -39,7 +39,9 @@ class EconomicServiceTest {
     final VersionAccessGuard versionAccessGuard=new VersionAccessGuard(projects,versionMembers,
             new ProjectAccessGuard(projectMembers,mock(AppLogger.class)),mock(AppLogger.class));
     final EconomicService service=new EconomicService(projects,configs,evaluations,drafts,new EconomicValidator(),new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator()),
-            new EconomicIndicatorsCalculator(), simulator,MAPPER,mock(AppLogger.class),versionAccessGuard);
+            new EconomicIndicatorsCalculator(), simulator,MAPPER,mock(AppLogger.class),versionAccessGuard,
+            new org.enerscope.scenario.service.ScenarioChangeScope(new org.enerscope.scenario.service.ScenarioOperations(MAPPER),
+                    versionAccessGuard,MAPPER,mock(AppLogger.class)));
     final UUID projectId=UUID.randomUUID(); final varHolder holder=new varHolder();
     static class varHolder { final org.enerscope.version.model.Version version=version(); }
     Project project; User user;

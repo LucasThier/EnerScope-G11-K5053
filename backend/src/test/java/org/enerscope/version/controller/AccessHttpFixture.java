@@ -9,6 +9,7 @@ import org.enerscope.node.model.GraphPosition;
 import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.NodeGraphData;
 import org.enerscope.node.model.NodeTypeData;
+import org.enerscope.node.model.enums.NodeStateEnum;
 import org.enerscope.node.model.enums.NodeTypeEnum;
 import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
@@ -31,6 +32,7 @@ import org.enerscope.version.model.VersionMemberRole;
 import org.enerscope.version.model.enums.VersionMemberType;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -140,6 +142,35 @@ public final class AccessHttpFixture {
         em.persist(member);
         em.flush();
         return user;
+    }
+
+    public UUID retypeNode(int index, NodeTypeEnum type) {
+        BaseNode node = nodes.get(index);
+        node.setType(new NodeTypeData(type.vertical(), StructuralRoleEnum.GENERATOR, type));
+        em.flush();
+        return node.getId();
+    }
+
+    public UUID addNode(NodeTypeEnum type) {
+        Well well = new Well();
+        well.setName("Access " + type.name());
+        well.setMaxCollectionCapacity(100);
+        well.setLifespanInMonths(120);
+        well.setState(NodeStateEnum.RUNNING);
+        well.setStartupDate(Instant.parse("2031-01-01T00:00:00Z"));
+        well.setType(new NodeTypeData(type.vertical(), StructuralRoleEnum.GENERATOR, type));
+        well.setIdentityId(UUID.randomUUID());
+        well.setGraphData(new NodeGraphData(new GraphPosition(0d, 0d), null));
+        well.setInvestmentCost(new InvestmentCost(new ArrayList<>()));
+        well.setUpkeepCosts(MoneyAmount.of(2));
+        well.setOperatingCosts(MoneyAmount.of(3));
+        well.setDTMCost(MoneyAmount.of(4));
+        well.setDeclineCurve(new ConstantValue(0));
+        em.persist(well);
+        nodes.add(well);
+        version.getNodeSnapshot().add(well);
+        em.flush();
+        return well.getId();
     }
 
     public Version detachedVersion() {

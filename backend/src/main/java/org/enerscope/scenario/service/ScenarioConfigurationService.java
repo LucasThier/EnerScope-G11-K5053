@@ -35,6 +35,7 @@ public class ScenarioConfigurationService {
  private final EconomicDraftRepository legacyDrafts;
  private final ScenarioDraftRepository drafts;
  private final ScenarioOperations operations;
+ private final ScenarioChangeScope changeScope;
  private final EconomicInputCodec codec;
  private final ObjectMapper mapper;
  private final ProjectRepository projects;
@@ -72,6 +73,7 @@ public class ScenarioConfigurationService {
    new EconomicDraftDTO(1,request.editor().path("value")).validateStructure();
   else for(String field:List.of("taxEntities","boundary","nodeProfiles","adjustments","contracts","assets","taxTreatments","conversions"))
    if(!request.editor().path("value").path(field).isArray()) throw new IllegalArgumentException("Invalid advanced editor collection: "+field);
+  changeScope.assertCanSave(version,request.operations(),before.configuration(),parsed(request.configuration()));
   var errors=new ArrayList<String>();
   var prepared=new LinkedHashMap<UUID,BaseNode>();
   var supplied=request.operations();
@@ -166,9 +168,9 @@ public class ScenarioConfigurationService {
   return hash(canonical(root).toString());
  }
 
- private JsonNode canonical(JsonNode node) {
+ static JsonNode canonical(JsonNode node) {
   if(node.isObject()) {
-   ObjectNode result=mapper.createObjectNode();var keys=new TreeSet<String>();node.fieldNames().forEachRemaining(keys::add);
+   ObjectNode result=JsonNodeFactory.instance.objectNode();var keys=new TreeSet<String>();node.fieldNames().forEachRemaining(keys::add);
    for(String key:keys) {
     // Presentation and persistence timestamps do not affect scenario configuration.
     if(!Set.of("graphData","createdAt","lastModified").contains(key)) result.set(key,canonical(node.get(key)));
@@ -176,12 +178,17 @@ public class ScenarioConfigurationService {
    return result;
   }
   if(node.isArray()) { var values=new ArrayList<JsonNode>();node.forEach(n->values.add(canonical(n)));
-   values.sort(Comparator.comparing(JsonNode::toString));var array=mapper.createArrayNode();values.forEach(array::add);return array; }
+   values.sort(Comparator.comparing(JsonNode::toString));var array=JsonNodeFactory.instance.arrayNode();values.forEach(array::add);return array; }
   return node;
  }
  private String hash(String value) {
   try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))); }
   catch(java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+ }
+ private EconomicConfiguration parsed(JsonNode value) {
+  if(value==null || value.isNull()) return null;
+  try { return mapper.treeToValue(value,EconomicConfiguration.class); }
+  catch(com.fasterxml.jackson.core.JsonProcessingException | IllegalArgumentException e) { return null; }
  }
  private String json(Object value) { try {return mapper.writeValueAsString(value);}catch(Exception e){throw new IllegalStateException(e);} }
  private <T>T read(String value,Class<T> type){try{return mapper.readValue(value,type);}catch(Exception e){throw new IllegalStateException(e);}}

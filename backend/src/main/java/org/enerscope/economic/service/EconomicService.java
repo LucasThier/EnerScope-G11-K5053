@@ -18,6 +18,7 @@ import org.enerscope.scenario.dto.EconomicDraftDTO;
 import org.enerscope.scenario.model.EconomicDraftEntity;
 import org.enerscope.scenario.repository.EconomicDraftRepository;
 import org.enerscope.scenario.repository.ScenarioDraftRepository;
+import org.enerscope.scenario.service.ScenarioChangeScope;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.util.AuthUtil;
 import org.enerscope.version.model.Version;
@@ -41,6 +42,7 @@ public class EconomicService {
     private final ObjectMapper mapper;
     private final AppLogger logger;
     private final VersionAccessGuard versionAccessGuard;
+    private final ScenarioChangeScope changeScope;
 
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
@@ -64,7 +66,10 @@ public class EconomicService {
         Version version = authorizeConfigurationEdit(projectId, versionId);
         lock(version);
         validateConfiguration(configuration, version);
-        var entity = configurations.findByVersionId(versionId).orElseGet(() -> new EconomicConfigurationEntity(version, ""));
+        var stored = configurations.findByVersionId(versionId);
+        changeScope.assertCanSave(version, null,
+                stored.map(e -> read(e.getConfigurationJson(), EconomicConfiguration.class)).orElse(null), configuration);
+        var entity = stored.orElseGet(() -> new EconomicConfigurationEntity(version, ""));
         entity.replace(json(configuration)); configurations.save(entity);
         drafts.deleteByVersionId(versionId);
         logger.info("Economic configuration saved for version {}", versionId);
@@ -88,6 +93,8 @@ public class EconomicService {
         lock(version);
         EconomicValidator.require(draft != null, "Draft is required");
         draft.validateStructure();
+        changeScope.assertCanSaveDraft(version, drafts.findByVersionId(versionId)
+                .map(e -> read(e.getDraftJson(), EconomicDraftDTO.class).draft()).orElse(null), draft.draft());
         var entity = drafts.findByVersionId(versionId).orElseGet(() -> new EconomicDraftEntity(version, ""));
         entity.replace(json(draft)); drafts.save(entity);
         logger.info("Economic draft saved for version {}", versionId);
