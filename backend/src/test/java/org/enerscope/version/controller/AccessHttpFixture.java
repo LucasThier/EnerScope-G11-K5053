@@ -132,6 +132,16 @@ public final class AccessHttpFixture {
         return user;
     }
 
+    public User versionEditorOf(VerticalEnum vertical) {
+        User user = projectMember(ProjectMemberType.EDITOR);
+        VersionMember member = new VersionMember(user, version);
+        member.addRole(new VersionMemberRole(VersionMemberType.EDITOR.name(), VersionMemberType.EDITOR,
+                EnumSet.copyOf(VersionMember.defaultPermissionsFor(VersionMemberType.EDITOR)), vertical));
+        em.persist(member);
+        em.flush();
+        return user;
+    }
+
     public Version detachedVersion() {
         Version detached = new Version("Detached", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         em.persist(detached);

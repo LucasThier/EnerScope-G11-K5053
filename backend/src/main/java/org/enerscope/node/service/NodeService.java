@@ -9,6 +9,7 @@ import org.enerscope.node.model.InvestmentCostComponent;
 import org.enerscope.node.model.NodeGraphData;
 import org.enerscope.node.model.NodeTypeData;
 import org.enerscope.node.model.NodeConnection;
+import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.node.model.export.IndustrialConsumption;
 import org.enerscope.node.model.export.InternalConsumption;
 import org.enerscope.node.model.transportation.PipelineConnection;
@@ -82,7 +83,10 @@ public class NodeService {
    }
 
    private NodeTypeData DTOtoEntity(NodeTypeDataDTO data) {
-      NodeTypeData typeData = new NodeTypeData(data.getVertical(), data.getRole(), data.getNodeType());
+      VerticalEnum vertical = data.getNodeType() == null
+            ? data.getVertical()
+            : data.getNodeType().checkedVertical(data.getVertical());
+      NodeTypeData typeData = new NodeTypeData(vertical, data.getRole(), data.getNodeType());
       return typeData;
    }
 

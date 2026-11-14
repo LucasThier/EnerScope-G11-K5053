@@ -8,6 +8,8 @@ import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
+import org.enerscope.node.model.enums.NodeTypeEnum;
+import org.enerscope.node.model.enums.VerticalEnum;
 import org.springframework.stereotype.Service;
 
 import lombok.Getter;
@@ -368,8 +370,7 @@ public class VersionService {
 
         NodeTypeDataDTO type = null;
         if (node.getType() != null) {
-            NodeTypeData t = node.getType();
-            type = new NodeTypeDataDTO(t.getVertical(), t.getRole(), t.getNodeType());
+            type = toTypeDataDTO(node.getType());
         }
 
         return new NodeDetailDTO(
@@ -523,8 +524,7 @@ public class VersionService {
     private DiagramNodeDTO toDiagramNode(BaseNode node) {
         NodeTypeDataDTO type = null;
         if (node.getType() != null) {
-            NodeTypeData t = node.getType();
-            type = new NodeTypeDataDTO(t.getVertical(), t.getRole(), t.getNodeType());
+            type = toTypeDataDTO(node.getType());
         }
 
         return new DiagramNodeDTO(node.getId(), node.getIdentityId(), node.getName(), node.getState(), type,
@@ -564,11 +564,12 @@ public class VersionService {
     public BaseNode addNodeToVersion(UUID versionId, BaseNodeDTO nodeDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
-        if (nodeDTO.getType() != null) {
-            accessGuard.assertCanEditNodeVertical(versionId, nodeDTO.getType().getVertical());
-        } else {
-            accessGuard.assertCanEditVersion(versionId);
+        if (nodeDTO.getType() == null || nodeDTO.getType().getNodeType() == null) {
+            throw new IllegalArgumentException("A supported type.nodeType is required");
         }
+        NodeTypeEnum nodeType = nodeDTO.getType().getNodeType();
+        accessGuard.assertCanEditNodeVertical(versionId, nodeType.vertical());
+        alignDeclaredVertical(versionId, nodeDTO.getType(), nodeType);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -672,6 +673,15 @@ public class VersionService {
         BaseNode requestedNode = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
         assertCanEditNode(versionId, requestedNode);
+        if (nodeDTO.getType() != null) {
+            NodeTypeEnum nodeType = storedNodeType(requestedNode);
+            if (nodeType == null) {
+                nodeType = nodeDTO.getType().getNodeType();
+            }
+            if (nodeType != null) {
+                alignDeclaredVertical(versionId, nodeDTO.getType(), nodeType);
+            }
+        }
         UUID identityId = requestedNode.getIdentityId();
 
         // Resolve the node to actually mutate from this version's OWN current
@@ -730,11 +740,31 @@ public class VersionService {
      * here assumes it defensively).
      */
     private void assertCanEditNode(UUID versionId, BaseNode node) {
-        if (node.getType() != null) {
-            accessGuard.assertCanEditNodeVertical(versionId, node.getType().getVertical());
+        NodeTypeEnum nodeType = storedNodeType(node);
+        if (nodeType != null) {
+            accessGuard.assertCanEditNodeVertical(versionId, nodeType.vertical());
         } else {
             accessGuard.assertCanEditVersion(versionId);
         }
+    }
+
+    private static NodeTypeEnum storedNodeType(BaseNode node) {
+        return node.getType() == null ? null : node.getType().getNodeType();
+    }
+
+    private void alignDeclaredVertical(UUID versionId, NodeTypeDataDTO declared, NodeTypeEnum nodeType) {
+        try {
+            declared.setVertical(nodeType.checkedVertical(declared.getVertical()));
+        } catch (IllegalArgumentException e) {
+            logger.warn("Rejected node of type {} declared as vertical {} in version {}",
+                    nodeType, declared.getVertical(), versionId);
+            throw e;
+        }
+    }
+
+    private static NodeTypeDataDTO toTypeDataDTO(NodeTypeData type) {
+        VerticalEnum vertical = type.getNodeType() == null ? type.getVertical() : type.getNodeType().vertical();
+        return new NodeTypeDataDTO(vertical, type.getRole(), type.getNodeType());
     }
 
     private boolean matchesIdentity(BaseNode node, UUID identityId) {

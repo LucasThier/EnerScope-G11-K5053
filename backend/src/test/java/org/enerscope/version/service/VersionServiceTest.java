@@ -3,7 +3,11 @@ package org.enerscope.version.service;
 import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.money.MoneyAmount;
+import org.enerscope.node.dto.NodeTypeDataDTO;
 import org.enerscope.node.dto.WellDTO;
+import org.enerscope.node.model.enums.NodeTypeEnum;
+import org.enerscope.node.model.enums.StructuralRoleEnum;
+import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.InvestmentCost;
@@ -540,6 +544,7 @@ class VersionServiceTest {
                 WellDTO wellDTO = new WellDTO();
                 wellDTO.setName("Test Well");
                 wellDTO.setState(NodeStateEnum.PROPOSED);
+                wellDTO.setType(new NodeTypeDataDTO(null, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
 
                 Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
                                 new ArrayList<>(),
@@ -944,5 +949,138 @@ class VersionServiceTest {
 
         assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.getNodeDetail(versionId, nodeId));
         verifyNoInteractions(nodeRepository);
+    }
+
+    private static Well wellTyped(UUID id, VerticalEnum storedVertical) {
+        Well well = new Well("Typed Well", NodeStateEnum.PROPOSED, Instant.now(), 120, MoneyAmount.of(1), 30,
+                MoneyAmount.of(1), 0.0f, new InvestmentCost(), new NodeGraphData(), UUID.randomUUID(),
+                new NodeTypeData(storedVertical, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
+                1f, new ConstantValue(0.5f), 0.5f, 1, MoneyAmount.of(1), 1f);
+        org.springframework.test.util.ReflectionTestUtils.setField(well, "id", id);
+        return well;
+    }
+
+    private static WellDTO wellDeclaredAs(VerticalEnum vertical) {
+        WellDTO dto = new WellDTO();
+        dto.setName("Declared Well");
+        dto.setType(new NodeTypeDataDTO(vertical, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
+        return dto;
+    }
+
+    @Test
+    void addNodeToVersionAuthorizesWithTheVerticalDerivedFromTheTypeBeforeCheckingTheDeclaredOne() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("denied"))
+                .when(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.addNodeToVersion(versionId, wellDeclaredAs(VerticalEnum.EXPORT)));
+        verify(accessGuard, org.mockito.Mockito.never()).assertCanEditNodeVertical(versionId, VerticalEnum.EXPORT);
+        verifyNoInteractions(nodeService, versionRepository);
+    }
+
+    @Test
+    void addNodeToVersionRejectsDeclaredVerticalThatDoesNotMatchTheType() {
+        UUID versionId = UUID.randomUUID();
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> versionService.addNodeToVersion(versionId, wellDeclaredAs(VerticalEnum.INTERNAL_CONSUMPTION)));
+
+        assertEquals("Node vertical does not match its type: WELL belongs to EXTRACTION, not INTERNAL_CONSUMPTION",
+                error.getMessage());
+        verify(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+        verifyNoInteractions(nodeService, versionRepository);
+    }
+
+    @Test
+    void addNodeToVersionFillsAMissingVerticalFromTheType() {
+        UUID versionId = UUID.randomUUID();
+        Version version = new Version("V", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeService.saveWell(any(WellDTO.class))).thenReturn(wellTyped(UUID.randomUUID(), VerticalEnum.EXTRACTION));
+        WellDTO dto = wellDeclaredAs(null);
+
+        versionService.addNodeToVersion(versionId, dto);
+
+        assertEquals(VerticalEnum.EXTRACTION, dto.getType().getVertical());
+        verify(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+    }
+
+    @Test
+    void addNodeToVersionRejectsMissingNodeType() {
+        UUID versionId = UUID.randomUUID();
+        WellDTO withoutType = new WellDTO();
+        WellDTO withoutNodeType = wellDeclaredAs(VerticalEnum.EXTRACTION);
+        withoutNodeType.getType().setNodeType(null);
+
+        assertThrows(IllegalArgumentException.class, () -> versionService.addNodeToVersion(versionId, withoutType));
+        assertThrows(IllegalArgumentException.class, () -> versionService.addNodeToVersion(versionId, withoutNodeType));
+        verifyNoInteractions(accessGuard, nodeService, versionRepository);
+    }
+
+    @Test
+    void editNodeInVersionRejectsChangingTheVerticalOfTheNode() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Well stored = wellTyped(nodeId, VerticalEnum.EXTRACTION);
+        Version version = new Version("V", null, new ArrayList<>(List.of(stored)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(stored));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> versionService.editNodeInVersion(versionId, nodeId, wellDeclaredAs(VerticalEnum.EXPORT)));
+
+        verify(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+        verifyNoInteractions(nodeService);
+        assertEquals(VerticalEnum.EXTRACTION, stored.getType().getVertical());
+        assertSame(stored, version.getNodeSnapshot().get(0));
+    }
+
+    @Test
+    void editNodeInVersionAuthorizesByTheStoredNodeTypeNotTheStoredVertical() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Well spoofed = wellTyped(nodeId, VerticalEnum.EXPORT);
+        Version version = new Version("V", null, new ArrayList<>(List.of(spoofed)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(spoofed));
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("denied"))
+                .when(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.editNodeInVersion(versionId, nodeId, wellDeclaredAs(VerticalEnum.EXTRACTION)));
+        verify(accessGuard, org.mockito.Mockito.never()).assertCanEditNodeVertical(versionId, VerticalEnum.EXPORT);
+        verifyNoInteractions(nodeService);
+    }
+
+    @Test
+    void deleteNodeFromVersionAuthorizesByTheStoredNodeType() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Well spoofed = wellTyped(nodeId, VerticalEnum.EXPORT);
+        Version version = new Version("V", null, new ArrayList<>(List.of(spoofed)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(spoofed));
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("denied"))
+                .when(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.deleteNodeFromVersion(versionId, nodeId));
+        assertTrue(version.getNodeSnapshot().contains(spoofed));
+    }
+
+    @Test
+    void diagramAndNodeDetailReportTheVerticalDerivedFromTheType() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Well spoofed = wellTyped(nodeId, VerticalEnum.EXPORT);
+        Version version = new Version("V", null, new ArrayList<>(List.of(spoofed)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(spoofed));
+
+        assertEquals(VerticalEnum.EXTRACTION,
+                versionService.getDiagram(versionId).getNodes().get(0).getType().getVertical());
+        assertEquals(VerticalEnum.EXTRACTION,
+                versionService.getNodeDetail(versionId, nodeId).getType().getVertical());
     }
 }

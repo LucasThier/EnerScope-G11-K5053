@@ -177,4 +177,46 @@ class NodeServiceTest {
             if (!type.equals("CONSTANT")) assertEquals(2.5f, actual.getVal_b());
         }
     }
+
+    private Well bareWell() {
+        return new Well("Original", NodeStateEnum.PROPOSED, Instant.now(), 120,
+                MoneyAmount.of(1000), 30, MoneyAmount.of(500),
+                0.1f, null, null, UUID.randomUUID(), null,
+                10f, new ConstantValue(0.5f), 0.5f, 5, MoneyAmount.of(50), 100f);
+    }
+
+    private WellDTO completeWellDTO() {
+        WellDTO dto = new WellDTO();
+        dto.setName("Edited");
+        dto.setState(NodeStateEnum.RUNNING);
+        dto.setLifespanInMonths(120);
+        dto.setMaintenanceIntervalInDays(30);
+        dto.setWastePercentage(0.1f);
+        dto.setMaxCollectionCapacity(10f);
+        dto.setGasRichness(0.5f);
+        dto.setDTMTime(5);
+        dto.setSurface(100f);
+        return dto;
+    }
+
+    @Test
+    void editWellStoresTheVerticalOfItsTypeWhenTheBodyOmitsIt() {
+        WellDTO dto = completeWellDTO();
+        dto.setType(new NodeTypeDataDTO(null, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
+
+        Well edited = nodeService.editWell(bareWell(), dto);
+
+        assertEquals(VerticalEnum.EXTRACTION, edited.getType().getVertical());
+    }
+
+    @Test
+    void editWellRejectsAVerticalThatDoesNotMatchItsType() {
+        WellDTO dto = completeWellDTO();
+        dto.setType(new NodeTypeDataDTO(VerticalEnum.EXPORT, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
+        Well well = bareWell();
+
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> nodeService.editWell(well, dto));
+        org.junit.jupiter.api.Assertions.assertNull(well.getType());
+    }
 }

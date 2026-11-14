@@ -2,9 +2,11 @@ package org.enerscope.session.service;
 
 import io.jsonwebtoken.Claims;
 import org.enerscope.jwt.JwtService;
+import org.enerscope.logging.AppLogger;
 import org.enerscope.session.model.Session;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
+import org.enerscope.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -15,9 +17,13 @@ import java.util.UUID;
 public class SessionService {
 
     private final JwtService jwtService;
+    private final UserRepository userRepository;
+    private final AppLogger logger;
 
-    public SessionService(JwtService jwtService) {
+    public SessionService(JwtService jwtService, UserRepository userRepository, AppLogger logger) {
         this.jwtService = jwtService;
+        this.userRepository = userRepository;
+        this.logger = logger;
     }
 
     public Session create(User user) {
@@ -28,11 +34,8 @@ public class SessionService {
 
     public Optional<Session> validate(String token) {
         return jwtService.validateAccessToken(token)
-                .map(claims -> {
-                    User user = buildUserFromClaims(claims);
-                    Instant expiresAt = jwtService.getExpiry(claims);
-                    return new Session(token, user, expiresAt);
-                });
+                .flatMap(claims -> loadCurrentUser(claims)
+                        .map(user -> new Session(token, user, jwtService.getExpiry(claims))));
     }
 
     public String generateRefreshToken(User user) {
@@ -44,13 +47,30 @@ public class SessionService {
                 .map(claims -> UUID.fromString(claims.getSubject()));
     }
 
-    private User buildUserFromClaims(Claims claims) {
-        UUID id = UUID.fromString(claims.getSubject());
-        String mail = claims.get("mail", String.class);
-        String firstName = claims.get("firstName", String.class);
-        String lastName = claims.get("lastName", String.class);
-        PlatformRole role = parseRole(claims.get("role", String.class));
-        return User.fromJwtClaims(id, mail, firstName, lastName, role);
+    private Optional<User> loadCurrentUser(Claims claims) {
+        UUID id;
+        try {
+            id = UUID.fromString(claims.getSubject());
+        } catch (IllegalArgumentException | NullPointerException ex) {
+            logger.warn("Rejected access token with a malformed subject");
+            return Optional.empty();
+        }
+        Optional<User> found = userRepository.findById(id);
+        if (found.isEmpty()) {
+            logger.warn("Rejected access token for unknown user {}", id);
+            return Optional.empty();
+        }
+        User user = found.get();
+        if (!user.isActive()) {
+            logger.warn("Rejected access token for deactivated account {}", user.getMail());
+            return Optional.empty();
+        }
+        PlatformRole tokenRole = parseRole(claims.get("role", String.class));
+        if (tokenRole != user.getPlatformRole()) {
+            logger.debug("Access token of {} carries role {} but the current role is {}",
+                    user.getMail(), tokenRole, user.getPlatformRole());
+        }
+        return Optional.of(user);
     }
 
     // Tokens issued before the role claim existed (or with an unknown value)

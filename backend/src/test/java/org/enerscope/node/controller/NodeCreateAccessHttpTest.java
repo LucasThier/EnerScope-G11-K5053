@@ -117,6 +117,22 @@ class NodeCreateAccessHttpTest {
         assertEquals(before + 1, count(endpoint));
     }
 
+    @org.junit.jupiter.api.Test
+    void platformAdminDeclaringAVerticalThatDoesNotMatchTheTypeGets400AndNothingIsCreated() throws Exception {
+        Endpoint endpoint = node("/nodes/lng-carrier", VerticalEnum.EXTRACTION, "SINK", "LNG_CAMER",
+                "\"exportFrequency\":4,\"shipCapacity\":100,\"fullLoadTime\":2,\"hiringCost\":1000,"
+                        + "\"timeToDestination\":10");
+        long before = count(endpoint);
+
+        mvc.perform(post(endpoint.path()).header("Authorization", fixture.bearer(fixture.user(PlatformRole.ADMIN)))
+                        .contentType(MediaType.APPLICATION_JSON).content(endpoint.body()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("Node vertical does not match its type: LNG_CAMER belongs to EXPORT, not EXTRACTION"));
+
+        assertEquals(before, count(endpoint));
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("everyEndpoint")
     void projectAdminGets403AndNothingIsCreated(Endpoint endpoint) throws Exception {
