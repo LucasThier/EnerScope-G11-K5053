@@ -190,7 +190,7 @@ class VersionAccessGuardTest {
     }
 
     @Test
-    void assertCanManageVersionAllowsVersionAdminWithoutProjectMembership() {
+    void assertCanManageVersionAllowsVersionAdminWithoutConsultingTheProjectRole() {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("versionadmin@enerscope.org");
         authenticateAs(caller);
@@ -245,7 +245,7 @@ class VersionAccessGuardTest {
     // ---- assertCanEditVersion with a version role -----------------------------
 
     @Test
-    void assertCanEditVersionAllowsVersionEditorWithoutProjectMembership() {
+    void assertCanEditVersionAllowsVersionEditorWithoutConsultingTheProjectRole() {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("versioneditor@enerscope.org");
         authenticateAs(caller);
@@ -260,7 +260,7 @@ class VersionAccessGuardTest {
     // ---- assertCanViewVersion with a version role -----------------------------
 
     @Test
-    void assertCanViewVersionAllowsAnyVersionRoleWithoutProjectMembership() {
+    void assertCanViewVersionAllowsAnyVersionRoleWithoutConsultingTheProjectRole() {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("simulator@enerscope.org");
         authenticateAs(caller);
