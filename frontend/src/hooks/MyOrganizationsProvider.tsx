@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { organizationsApi } from '../api/organizations';
 import { getErrorMessage } from '../api/errors';
+import { isPlatformAdmin } from '../permissions/access';
 import type { OrganizationSummary } from '../types/auth';
 import { useAuth } from './useAuth';
 import { MyOrganizationsContext, type OrganizationMembership } from './useMyOrganizations';
 
 export function MyOrganizationsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const isAdmin = user?.platformRole === 'ADMIN';
+  const isAdmin = isPlatformAdmin(user);
   const [organizations, setOrganizations] = useState<OrganizationSummary[]>([]);
   const [mine, setMine] = useState<OrganizationSummary[]>([]);
   const [owned, setOwned] = useState<OrganizationSummary[]>([]);

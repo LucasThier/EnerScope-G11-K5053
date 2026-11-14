@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { canEditProjectByPermissions, isPlatformAdmin } from '../permissions/access';
 import { economicsApi } from '../api/economics';
 import { projectsApi } from '../api/projects';
 import { scenarioConfigurationApi as api } from '../api/scenarioConfiguration';
@@ -36,10 +37,11 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
  },[]);
  useEffect(()=>{
   let cancelled=false;
-  Promise.all([api.get(projectId,versionId),economicsApi.scenarios(projectId),user?.platformRole==='ADMIN'?Promise.resolve(null):projectsApi.members(projectId)])
+  const caller={id:user?.id,platformRole:user?.platformRole};
+  Promise.all([api.get(projectId,versionId),economicsApi.scenarios(projectId),isPlatformAdmin(caller)?Promise.resolve(null):projectsApi.members(projectId)])
    .then(([state,scenarios,members])=>{
     if(cancelled)return;const selected=scenarios.find(s=>s.id===versionId);if(!selected)throw new Error('Escenario no disponible.');
-    setScenario(selected);setCanEdit(user?.platformRole==='ADMIN'||!!members?.data.data?.some(m=>m.userId===user?.id&&m.active&&m.permissions.includes('EDIT_PROJECT')));hydrate(state);
+    setScenario(selected);setCanEdit(canEditProjectByPermissions(caller,members?.data.data));hydrate(state);
    }).catch(e=>{if(!cancelled)setError(getErrorMessage(e,'No se pudo cargar la configuración.'));});
   return ()=>{cancelled=true;};
  },[projectId,versionId,user?.id,user?.platformRole,hydrate]);

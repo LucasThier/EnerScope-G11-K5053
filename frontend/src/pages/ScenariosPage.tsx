@@ -3,6 +3,7 @@ import type { ScenarioReadiness } from '../types/scenarioConfiguration';
 import { SimulationDialog } from '../components/economics/SimulationDialog';
 import { projectsApi } from '../api/projects';
 import { useAuth } from '../hooks/useAuth';
+import { canEditProjectByPermissions, isPlatformAdmin } from '../permissions/access';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { economicsApi } from '../api/economics';
@@ -28,9 +29,10 @@ function ScenariosWorkspace({ projectId, configuration }: { projectId: string; c
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let cancelled = false;
-    Promise.all([configuration ? Promise.resolve([]) : scenarioConfigurationApi.readiness(projectId), economicsApi.scenarios(projectId), user?.platformRole === 'ADMIN' ? Promise.resolve(null) : projectsApi.members(projectId)]).then(([ready, scenarios, members]) => {
+    const caller = { id: user?.id, platformRole: user?.platformRole };
+    Promise.all([configuration ? Promise.resolve([]) : scenarioConfigurationApi.readiness(projectId), economicsApi.scenarios(projectId), isPlatformAdmin(caller) ? Promise.resolve(null) : projectsApi.members(projectId)]).then(([ready, scenarios, members]) => {
       if (!cancelled) setReadiness(ready);
-      if (!cancelled) setCanEdit(user?.platformRole === 'ADMIN' || !!members?.data.data?.some(m => m.userId === user?.id && m.active && m.permissions.includes('EDIT_PROJECT')));
+      if (!cancelled) setCanEdit(canEditProjectByPermissions(caller, members?.data.data));
       if (!cancelled) setState({ project: projectId, scenarios, error: '', loading: false });
     }).catch(error => { if (!cancelled) setState({ project: projectId, scenarios: [], error: getErrorMessage(error, 'No se pudieron cargar los escenarios.'), loading: false }); });
     return () => { cancelled = true; };

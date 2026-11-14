@@ -13,6 +13,7 @@ import { ProjectMembersModal } from '../components/projects/ProjectMembersModal'
 import { ProjectsTable } from '../components/projects/ProjectsTable';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useAuth } from '../hooks/useAuth';
+import { isPlatformAdmin } from '../permissions/access';
 import type { ProjectSummary } from '../types/project';
 
 const ALL_ORGANIZATIONS = 'all';
@@ -118,7 +119,7 @@ export function ProjectsPage() {
         ) : (
           <ProjectsTable
             projects={visibleProjects}
-            isPlatformAdmin={user?.platformRole === 'ADMIN'}
+            isPlatformAdmin={isPlatformAdmin(user)}
             onView={setViewing}
             onEdit={setEditing}
             onDelete={setDeleting}

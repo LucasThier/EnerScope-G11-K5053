@@ -17,6 +17,7 @@ import { projectsApi } from '../api/projects';
 import { getErrorMessage, getErrorStatus } from '../api/errors';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useAuth } from '../hooks/useAuth';
+import { isPlatformAdmin as resolveIsPlatformAdmin } from '../permissions/access';
 import { useMemberRoleChange } from '../hooks/useMemberRoleChange';
 import { canManageProject } from '../utils/projectPermissions';
 import { lastProjectAdminReason } from '../utils/membershipGuards';
@@ -38,7 +39,7 @@ export function ProjectTeamPage() {
 
   const project = projects.find((candidate) => candidate.id === projectId);
   const projectName = project?.name ?? 'el proyecto';
-  const isPlatformAdmin = caller?.platformRole === 'ADMIN';
+  const isPlatformAdmin = resolveIsPlatformAdmin(caller);
 
   const reloadMembers = useCallback(async () => {
     if (!projectId) {

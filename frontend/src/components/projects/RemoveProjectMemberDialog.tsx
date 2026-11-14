@@ -1,6 +1,7 @@
 import { RemoveMemberDialog } from '../members/RemoveMemberDialog';
 import { projectsApi } from '../../api/projects';
 import { useAuth } from '../../hooks/useAuth';
+import { isPlatformAdmin as resolveIsPlatformAdmin } from '../../permissions/access';
 import type { ProjectMember } from '../../types/project';
 
 interface RemoveProjectMemberDialogProps {
@@ -20,7 +21,7 @@ export function RemoveProjectMemberDialog({
 }: RemoveProjectMemberDialogProps) {
   const { user: caller } = useAuth();
   const isSelf = member !== null && caller !== null && member.userId === caller.id;
-  const isPlatformAdmin = caller?.platformRole === 'ADMIN';
+  const isPlatformAdmin = resolveIsPlatformAdmin(caller);
 
   async function handleConfirm() {
     if (!member) {

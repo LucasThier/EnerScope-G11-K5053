@@ -4,6 +4,7 @@ import { economicsApi } from '../api/economics';
 import { projectsApi } from '../api/projects';
 import { getErrorMessage } from '../api/errors';
 import { useAuth } from '../hooks/useAuth';
+import { canEditProjectByPermissions, isPlatformAdmin } from '../permissions/access';
 import { dateTime, irrText, money, percent } from '../utils/economicFormat';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
@@ -24,11 +25,12 @@ function Results({projectId,versionId,tab,evaluationId}:{projectId:string;versio
  const base='/projects/'+projectId+'/versions/'+versionId+'/economics';
  useEffect(()=>{
   let cancelled=false;
+  const caller={id:user?.id,platformRole:user?.platformRole};
   Promise.all([economicsApi.scenarios(projectId),economicsApi.history(projectId,versionId),evaluationId?economicsApi.evaluation(projectId,versionId,evaluationId):Promise.resolve(null),
-    user?.platformRole==='ADMIN'?Promise.resolve(null):projectsApi.members(projectId)])
+    isPlatformAdmin(caller)?Promise.resolve(null):projectsApi.members(projectId)])
    .then(([scenarios,history,selected,members])=>{if(cancelled)return;
     setName(scenarios.find(s=>s.id===versionId)?.name ?? 'Escenario');setEvaluations(history);setDetail(selected);setError('');
-    setCanEdit(user?.platformRole==='ADMIN'||!!members?.data.data?.some(m=>m.userId===user?.id&&m.active&&m.permissions.includes('EDIT_PROJECT')));
+    setCanEdit(canEditProjectByPermissions(caller,members?.data.data));
    }).catch(e=>{if(!cancelled)setError(getErrorMessage(e,'No se pudieron cargar las evaluaciones.'));})
    .finally(()=>{if(!cancelled)setLoading(false);});
   return ()=>{cancelled=true;};

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { NAV_GROUPS, type NavGroup, type NavItem } from '../components/layout/navItems';
+import { isPlatformAdmin as resolveIsPlatformAdmin } from '../permissions/access';
 import { canManageProject } from '../utils/projectPermissions';
 import { useActiveProject } from './useActiveProject';
 import { useAuth } from './useAuth';
@@ -20,7 +21,7 @@ export function useNavigationTree(): NavGroup[] {
   const { belongsToOrganization: isMember, loading: loadingOwned } = useMyOrganizations();
   const { activeProject, projects, error, isLoading: loadingProjects } = useActiveProject();
 
-  const isPlatformAdmin = user?.platformRole === 'ADMIN';
+  const isPlatformAdmin = resolveIsPlatformAdmin(user);
   const project = loadingProjects ? null : activeProject;
 
   const belongsToOrganization = !loadingOwned && isMember;

@@ -1,0 +1,3352 @@
+{
+ "ADMIN|false|ADMIN|false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "to": "/admin/organizations"
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|false|ADMIN|false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|false|ADMIN|true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "to": "/admin/organizations"
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|false|ADMIN|true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|false|EDITOR|false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "to": "/admin/organizations"
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|false|EDITOR|false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|false|EDITOR|true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "to": "/admin/organizations"
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|false|EDITOR|true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|false||false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "to": "/admin/organizations"
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|false||false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|false||true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "to": "/admin/organizations"
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|false||true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true|ADMIN|false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true|ADMIN|false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true|ADMIN|true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true|ADMIN|true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true|EDITOR|false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true|EDITOR|false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true|EDITOR|true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true|EDITOR|true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true||false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true||false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true||true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "ADMIN|true||true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      },
+      {
+       "label": "Todas",
+       "fullLabel": "Todas las organizaciones",
+       "to": "/admin/organizations"
+      }
+     ]
+    },
+    {
+     "label": "Usuarios",
+     "fullLabel": "Gestión de usuarios",
+     "to": "/admin/users"
+    }
+   ]
+  }
+ ],
+ "USER|false|ADMIN|false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|false|ADMIN|false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|false|ADMIN|true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|false|ADMIN|true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|false|EDITOR|false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|false|EDITOR|false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|false|EDITOR|true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|false|EDITOR|true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|false||false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|false||false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|false||true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|false||true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  }
+ ],
+ "USER|true|ADMIN|false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Mis organizaciones",
+     "to": "/organizations"
+    }
+   ]
+  }
+ ],
+ "USER|true|ADMIN|false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "USER|true|ADMIN|true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Mis organizaciones",
+     "to": "/organizations"
+    }
+   ]
+  }
+ ],
+ "USER|true|ADMIN|true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "USER|true|EDITOR|false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Mis organizaciones",
+     "to": "/organizations"
+    }
+   ]
+  }
+ ],
+ "USER|true|EDITOR|false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "USER|true|EDITOR|true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Mis organizaciones",
+     "to": "/organizations"
+    }
+   ]
+  }
+ ],
+ "USER|true|EDITOR|true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "USER|true||false|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "to": "/versions"
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Mis organizaciones",
+     "to": "/organizations"
+    }
+   ]
+  }
+ ],
+ "USER|true||false|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "USER|true||true|false": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "to": "/projects"
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      },
+      {
+       "label": "Versiones del proyecto",
+       "fullLabel": "Versiones del proyecto: P",
+       "to": "/projects/p/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "to": "/projects/p/scenario-configurations"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "to": "/projects/p/simulations"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Mis organizaciones",
+     "to": "/organizations"
+    }
+   ]
+  }
+ ],
+ "USER|true||true|true": [
+  {
+   "title": "Trabajo",
+   "items": [
+    {
+     "label": "Inicio",
+     "to": "/app"
+    },
+    {
+     "label": "Proyectos",
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      }
+     ]
+    },
+    {
+     "label": "Cadena de valor",
+     "fullLabel": "Mapa de la Cadena de Valor",
+     "to": "/editor"
+    },
+    {
+     "label": "Versionado",
+     "children": [
+      {
+       "label": "Todas las versiones",
+       "to": "/versions"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Análisis",
+   "items": [
+    {
+     "label": "Configuración",
+     "fullLabel": "Configuración del Escenario",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Simulaciones",
+     "fullLabel": "Simulación de Escenarios",
+     "availability": "unavailable"
+    },
+    {
+     "label": "Comparaciones",
+     "availability": "soon"
+    },
+    {
+     "label": "Reportes",
+     "availability": "soon"
+    }
+   ]
+  },
+  {
+   "title": "Administración",
+   "items": [
+    {
+     "label": "Organizaciones",
+     "children": [
+      {
+       "label": "Mis organizaciones",
+       "to": "/organizations"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

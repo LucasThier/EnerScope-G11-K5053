@@ -1,3 +1,4 @@
+import { isPlatformAdmin } from '../permissions/access';
 import type { OrganizationMemberSummary, UserSummary } from '../types/auth';
 import type { ProjectMember } from '../types/project';
 
@@ -34,7 +35,7 @@ export function canManageOrganizationUsers(
   if (!caller) {
     return false;
   }
-  if (caller.platformRole === 'ADMIN') {
+  if (isPlatformAdmin(caller)) {
     return true;
   }
   return members.some(

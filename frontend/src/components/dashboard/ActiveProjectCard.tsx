@@ -9,6 +9,7 @@ import { projectsApi } from '../../api/projects';
 import { getErrorMessage } from '../../api/errors';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import { useAuth } from '../../hooks/useAuth';
+import { isPlatformAdmin } from '../../permissions/access';
 import { formatDate } from '../../utils/date';
 
 interface ActiveProjectCardProps {
@@ -26,7 +27,7 @@ export function ActiveProjectCard({ onNewProject }: ActiveProjectCardProps) {
   const { user } = useAuth();
   const { activeProject, isLoading, error, selectProject } = useActiveProject();
   const navigate = useNavigate();
-  const isAdmin = user?.platformRole === 'ADMIN';
+  const isAdmin = isPlatformAdmin(user);
 
   const [checkingMembership, setCheckingMembership] = useState(isAdmin);
   const [isMember, setIsMember] = useState(!isAdmin);

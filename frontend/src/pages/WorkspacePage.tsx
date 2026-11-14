@@ -6,6 +6,7 @@ import { RecentProjectsList } from '../components/dashboard/RecentProjectsList';
 import { NewProjectModal } from '../components/projects/NewProjectModal';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useAuth } from '../hooks/useAuth';
+import { isPlatformAdmin } from '../permissions/access';
 import { useMyOrganizations } from '../hooks/useMyOrganizations';
 
 /** Landing page for every signed-in user. Platform admins additionally get the
@@ -20,7 +21,7 @@ export function WorkspacePage() {
     error: organizationsError,
   } = useMyOrganizations();
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
-  const isAdmin = user?.platformRole === 'ADMIN';
+  const isAdmin = isPlatformAdmin(user);
   const canCreateProject = !organizationsLoading && organizations.length > 0;
   const openNewProject = () => setIsNewProjectOpen(true);
 

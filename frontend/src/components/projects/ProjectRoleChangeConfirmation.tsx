@@ -1,6 +1,7 @@
 import { ChangeRoleConfirmation } from '../members/ChangeRoleConfirmation';
 import { EDITOR_LIMITS, PROJECT_MEMBER_TYPE_LABELS } from './projectMemberTypeLabels';
 import { useAuth } from '../../hooks/useAuth';
+import { isPlatformAdmin } from '../../permissions/access';
 import type { PendingRoleChange, RoleChangeError } from '../../hooks/useMemberRoleChange';
 import type { ProjectMember } from '../../types/project';
 
@@ -19,7 +20,7 @@ export function ProjectRoleChangeConfirmation({
   ...rest
 }: ProjectRoleChangeConfirmationProps) {
   const { user: caller } = useAuth();
-  const losesAccess = change.isSelf && caller?.platformRole !== 'ADMIN';
+  const losesAccess = change.isSelf && !isPlatformAdmin(caller);
 
   return (
     <ChangeRoleConfirmation

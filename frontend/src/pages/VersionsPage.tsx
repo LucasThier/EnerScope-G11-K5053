@@ -12,6 +12,7 @@ import { ResolveConflictsDialog } from '../components/versions/ResolveConflictsD
 import { VersionTree } from '../components/versions/VersionTree';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useAuth } from '../hooks/useAuth';
+import { canEditProjectByRole, isPlatformAdmin as resolveIsPlatformAdmin } from '../permissions/access';
 import { useVersionConflicts } from '../hooks/useVersionConflicts';
 import { useVersions } from '../hooks/useVersions';
 import { buildVersionTree, getDescendants } from '../utils/versionTree';
@@ -41,8 +42,8 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
   const [resolving, setResolving] = useState<VersionSummary | null>(null);
 
   const project = projects.find((candidate) => candidate.id === projectId);
-  const isPlatformAdmin = user?.platformRole === 'ADMIN';
-  const canEdit = isPlatformAdmin || project?.myRole === 'ADMIN' || project?.myRole === 'EDITOR';
+  const isPlatformAdmin = resolveIsPlatformAdmin(user);
+  const canEdit = canEditProjectByRole(project?.myRole, isPlatformAdmin);
 
   const tree = useMemo(() => buildVersionTree(versions), [versions]);
   const descendants = useMemo(
