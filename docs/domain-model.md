@@ -146,13 +146,14 @@ yet to define custom roles or permission sets.
 
 ## Membership rules (platform, organization, project)
 
-Three role scopes exist and they are independent of each other:
+Four role scopes exist and they are independent of each other:
 
 | Scope | Where it lives | Values | What it governs |
 | --- | --- | --- | --- |
 | Platform | `User.platformRole` | `ADMIN` \| `USER` | App-wide administration (user ABM, organization ABM, detached versions). |
 | Organization | `OrganizationMemberRole.memberType` | `OWNER` \| `MEMBER` | Who may manage an organization's people (`MANAGE_ORGANIZATION`). |
 | Project | `ProjectMemberRole.memberType` | `ADMIN` \| `EDITOR` | Who may manage a project and who may only edit its content. |
+| Version | `VersionMemberRole.memberType` | `ADMIN` \| `EDITOR` (per vertical) \| `SIMULATOR` | What each project member may do on one version; overrides the project role there. |
 
 - **A project member must belong to the project's organization.** `ProjectService.addMember`
   looks the candidate up in `organization_member` first and rejects the request
@@ -165,6 +166,21 @@ Three role scopes exist and they are independent of each other:
   organization membership, in one transaction.
 - **The reverse does not hold:** removing someone from a project leaves their
   organization membership untouched.
+- **A version role overrides the project role, on that version only.** With a
+  version role, `VersionAccessGuard` and `VersionAccess` decide from it alone;
+  without one they fall back to the project role (`VersionCapability` names
+  the project permission each capability falls back to); a platform `ADMIN`
+  can do everything. A version `EDITOR` edits its own vertical plus
+  `INTERNAL_CONSUMPTION` and may simulate (a rule in code, not a stored
+  permission). `GET /projects/{id}/access` returns the result per version.
+- **A version role needs project membership.** Granting one requires being a
+  project member, and the guard only counts a role while a `project_member`
+  row exists (`findEffectiveByVersionIdAndUserId`).
+- **Leaving a project or an organization removes the version roles.**
+  `ProjectService.removeMember` and `OrganizationService.removeMember` delete
+  the person's `version_member` rows in the affected projects, in the same
+  transaction and only after the last-admin guards pass. `addMember` deletes
+  any leftover rows, so a re-added member starts from the project role.
 
 ### The last owner and the last administrator are protected
 
@@ -455,12 +471,20 @@ connections' for fully correct rewiring.
 
 ## Session (non-persistent)
 
-A `Session` is an in-memory object rebuilt from a JWT on every request. It is
-**not** stored in the database (authentication is stateless). It holds:
+A `Session` is an in-memory object built on every request from a valid access
+token. It is **not** stored in the database (authentication is stateless). It
+holds:
 
 - the raw access `token`,
-- the `User` (reconstructed from token claims),
+- the `User` **loaded from the database** by the token's `sub`
+  (`SessionService.validate`), so its `active` flag and `platformRole` are the
+  current ones,
 - the `expiresAt` instant.
+
+When the user no longer exists or is deactivated, no session is built and the
+request is answered `401`. A token issued before a deactivation works again if
+the account is reactivated within that token's lifetime; preventing it would
+need a per-user session version stored in `app_user`.
 
 ## Tokens
 
@@ -469,7 +493,11 @@ A `Session` is an in-memory object rebuilt from a JWT on every request. It is
 | Access | `access` | 60 minutes | Sent on every request to authenticate |
 | Refresh | `refresh` | 30 days | Exchanged for a new access token |
 
-Access tokens carry `sub` (user id), `mail`, `firstName` and `lastName`.
+Access tokens carry `sub` (user id), `mail`, `firstName`, `lastName` and
+`role` (the platform role at issue time). `role` is informational only:
+authorization uses the role stored in the database (see *Session*). Refresh
+tokens carry `sub` and a random `jti`; `POST /auth/refresh` reloads the user
+and refuses a deactivated account with `401`.
 
 ## MoneyAmount (value object)
 

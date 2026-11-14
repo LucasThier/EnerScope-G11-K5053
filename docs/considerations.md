@@ -27,9 +27,11 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   `admin@enerscope.org` is an `ADMIN`. `platformRole` is the app-wide role;
   organization/project membership roles are scoped and separate. `jobTitle` is
   descriptive only and never affects authorization.
-- Authentication is **stateless** (JWT). There is no session table; a `Session`
-  is rebuilt from the token on each request. Revocation before expiry is not
-  supported — keep access-token lifetimes short.
+- Authentication is **stateless** (JWT). There is no session table, but every
+  authenticated request loads the user by the token's `sub`: a deactivated or
+  missing account is refused (`401`) and the platform role comes from the
+  database, not from the token. There is still no per-token revocation — see
+  the 2026-11-14 log entry.
 - Flyway owns the schema; Hibernate runs in `validate`. The H2 profile used by
   tests disables Flyway and lets Hibernate build the schema — keep entities
   portable enough for both, or adjust the test profile deliberately.
@@ -2678,3 +2680,81 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   - **The frontend reaches the API through a Pages Function** (`frontend/functions/api/[[path]].js`), not a build-time URL. Keep `src/api/client.ts` on the relative `/api/v1` base; the function strips `Origin`, so CORS never applies to the SPA's own calls. Preview deployments work for the same reason.
   - **Keep the health check public.** Lightsail rolls out only when `GET /api/v1/health` answers 2xx; if that endpoint ever requires auth or moves, update `HEALTH_CHECK_PATH` in the deployment script, or every deploy will fail.
   - **No persistent disk on Lightsail containers**: PostgreSQL must stay outside the container service.
+
+- 2026-11-14 — Version access, node verticals and session validation
+  (`update-frontend`). Five changes; tests in [`testing.md`](testing.md) →
+  *Version access, node verticals and session validation*.
+  - **Effective role per version.** A version role takes precedence over the
+    project role on that version; with no version role the project role
+    applies; a platform admin can do everything. `VersionAccess` computes the
+    capabilities (`VersionCapability`: `VIEW`, `EDIT`, `EDIT_CONNECTIONS`,
+    `SIMULATE`, `MANAGE`, each with its version permission and its project
+    fallback) and `GET /projects/{id}/access` returns them per active version
+    (`source`, `effectiveRole`, `editableVerticals`, `can*` flags).
+    `VersionAccessGuard` uses the same enum and primitives; two tests check
+    guard ⇔ `VersionAccess` for every role.
+  - **Simulating** (`POST …/economics/evaluations`, `…/evaluation-jobs`,
+    `…/evaluation-jobs/{j}/retry`) requires `EDIT_PROJECT` on the project and
+    `assertCanSimulateVersion`. A version `EDITOR` may simulate **by a rule in
+    code** (`VersionAccess`), not by a stored permission: `GET
+    /version/{id}/members` shows `EDITOR` without `SIMULATE_VERSION`. Moving it
+    to data needs a migration that adds the permission to existing roles.
+  - **Saving** economic configuration, its draft, the scenario configuration
+    and discarding the scenario draft requires `EDIT_PROJECT` and
+    `assertCanEditVersion`; **reading** them stays `VIEW_PROJECT`, so a
+    `SIMULATOR` reads what it cannot change. Diagram and node detail
+    (`GET /version/{id}/diagram`, `GET /version/{id}/node/{n}`) require
+    `assertCanViewVersion`, after the `404` for a missing version.
+  - **`POST /nodes/*` (13 endpoints) and `GET /version/conflicts` are
+    platform-admin only** (`assertIsPlatformAdmin`; `403 Only platform admins
+    can create nodes outside a version` / `… list every conflict`). The check
+    is in `NodeController`, not `NodeService`, because `VersionService` reuses
+    the save methods. This closes the "still open" `POST /nodes/**` note of
+    the 2026-09-15 authorization entry. Nothing in the frontend calls either.
+  - **A version role only counts while its holder is a project member.** The
+    guard reads `VersionMemberRepository.findEffectiveByVersionIdAndUserId`
+    (the row plus an `EXISTS` on `project_member`, active or not), and the
+    version member listing applies the same filter. Removing someone from a
+    project (`ProjectService.removeMember`) or from an organization
+    (`OrganizationService.removeMember`) deletes their `version_member` rows in
+    the same transaction, after the last-admin guards; `addMember` purges
+    leftover rows so a re-added member starts from the project role. Rows are
+    loaded and `deleteAll`-ed, not bulk-deleted, because of the role and
+    permission cascades. Deactivations (user, project, organization) and role
+    changes do **not** touch version rows. There is no "last version admin"
+    guard: the project admins (by fallback) and platform admins can still
+    manage the version.
+  - **The server derives a node's vertical** from `NodeTypeEnum.vertical()`
+    (`PIPELINE_CONECTION` → `TRANSPORTATION`, both consumers →
+    `INTERNAL_CONSUMPTION`). Creation authorizes against that vertical first
+    (`403`) and then validates the declared one (`400 Node vertical does not
+    match its type: …`); a missing declaration is filled in. Edits, moves,
+    renames and deletes are authorized by the stored type, not the stored
+    vertical; an edit cannot relabel the vertical, and `NodeService` applies
+    the same check, so `POST /nodes/*` cannot store an inconsistent vertical
+    either. Reads report the derived vertical, and an edit stores it, so a row
+    saved with a wrong vertical would display correctly and be repaired on its
+    next edit (covered with a seeded row in the tests); no migration. Whether
+    any existing database actually holds such rows is **not verified**.
+    Every new node type must declare its vertical in the enum constructor.
+  - **`SessionService.validate` loads the user on every request.** A
+    deactivated or missing account gets `401` on its next request; the
+    platform role (and the `ROLE_*` authority) comes from the database, so a
+    demotion or promotion applies at once. The `role` claim is still issued but
+    no longer used to authorize. Cost: one primary-key lookup on `app_user`
+    per authenticated request, no cache. `PostgreSqlEconomicIT` now persists
+    the admin that signs its token. This closes the "platform role comes from
+    the JWT claim" note of the 2026-09-15 authorization entry.
+  - **Known gap: reactivation revives earlier tokens.** An access token issued
+    before a deactivation works again if the account is reactivated within
+    that token's 60-minute lifetime. Preventing it needs a per-user session
+    version stored in `app_user`, i.e. a migration.
+  - **Frontend, not changed:** a `401` already triggers one refresh, and the
+    refresh of a deactivated account answers `401`, so the client clears its
+    session. From reading the frontend code (not tested end to end): a
+    demoted admin keeps seeing admin navigation (the stored `UserSummary` says
+    `ADMIN`) until a reload, and those calls answer `403`.
+  - **Not verified:** how `POST /nodes/pipeline-connection` behaves — no test
+    covers it, so it is only known to carry the platform-admin check in
+    `NodeController` — and whether existing databases hold node rows whose
+    stored vertical does not match their type.

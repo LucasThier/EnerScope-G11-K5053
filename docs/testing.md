@@ -1985,3 +1985,319 @@ Validation for the presentation changes: 73 frontend unit/component tests pass; 
 | `CLI validate fails without printing secret values` | An invalid env exits `1` with the problem listed and no secret values in the output. |
 
 Validation: **79 frontend unit/component cases** (73 + 6) and the 9 deployment-script cases pass; frontend build and lint pass. No backend source changes; the deploy workflow itself can only be exercised on GitHub.
+
+## Version access, node verticals and session validation — 2026-11-14
+
+Five backend changes on `update-frontend`, catalogued together. Three classes
+now use `@ParameterizedTest`, so for them the case count (methods) and the
+execution count differ; both are given. The "no class uses
+`@ParameterizedTest`" remark in *Summary* no longer holds for these three.
+
+| Test class | Type | Cases | Executions | Status |
+| --- | --- | --- | --- | --- |
+| `version.service.VersionAccessTest` | Unit | 10 | 10 | new |
+| `version.service.VersionAccessServiceTest` | Unit | 9 | 9 | new |
+| `version.controller.VersionAccessControllerTest` | Web | 3 | 3 | new |
+| `version.service.VersionAccessGuardTest` | Unit | 35 | 35 | +8 (one renamed) |
+| `economic.service.EconomicServiceTest` | Unit | 27 | 27 | +5 |
+| `economic.service.EconomicJobServiceTest` | Unit | 10 | 10 | +2 |
+| `economic.service.ScenarioConfigurationTest` | Integration | 13 | 13 | +3 |
+| `version.service.VersionServiceTest` | Unit | 30 | 30 | +12 |
+| `version.controller.VersionReadAccessHttpTest` | Integration | 10 | 10 | new |
+| `economic.controller.EconomicWriteAccessHttpTest` | Integration | 9 | 9 | new |
+| `node.controller.NodeCreateAccessHttpTest` | Integration | 9 | 43 | new |
+| `version.controller.VersionConflictsListAccessHttpTest` | Integration | 8 | 8 | new |
+| `version.service.VersionConflictServiceTest` | Unit | 22 | 22 | +2 |
+| `project.service.ProjectServiceTest` | Unit | 89 | 89 | +5 |
+| `organization.service.OrganizationServiceTest` | Unit | 87 | 87 | +3 |
+| `version.controller.VersionRoleAfterProjectRemovalHttpTest` | Integration | 7 | 7 | new |
+| `node.model.enums.NodeTypeEnumTest` | Unit | 4 | 26 | new |
+| `node.service.NodeServiceTest` | Unit | 5 | 5 | +2 |
+| `version.controller.VersionNodeVerticalAccessHttpTest` | Integration | 18 | 58 | new |
+| `session.service.SessionServiceTest` | Unit | 9 | 9 | new |
+| `auth.filter.SessionRevocationHttpTest` | Integration | 9 | 9 | new |
+| `version.repository.VersionMemberRepositoryPostgreSqlIT` | PostgreSQL (by hand) | 7 | 7 | new |
+
+The `*HttpTest` classes are `@SpringBootTest` + MockMvc on the H2 `test`
+profile with real JWTs, sharing the `version.controller.AccessHttpFixture`
+support class (no tests of its own).
+
+### 1. Effective roles per version
+
+`version.service.VersionAccessTest` — Unit, 10 cases:
+
+| Case | Verifies |
+| --- | --- |
+| `platformAdminHoldsEveryCapabilityOnEveryVertical` | A platform admin can view, edit, edit connections, simulate and manage, on every vertical. |
+| `versionAdminHoldsEveryCapabilityOnEveryVertical` | A version `ADMIN` holds every capability on every vertical. |
+| `versionEditorEditsOnlyItsVerticalPlusInternalConsumption` | A version `EDITOR` edits its own vertical and `INTERNAL_CONSUMPTION`, nothing else. |
+| `versionEditorCanSimulateWithoutAPersistedSimulatePermission` | A version `EDITOR` can simulate even though its stored permissions lack `SIMULATE_VERSION` (rule in code). |
+| `versionSimulatorViewsAndSimulatesButCannotEditOrManage` | A `SIMULATOR` views and simulates only. |
+| `severalVersionRolesAddUpTheirCapabilities` | Several version roles add up. |
+| `projectEditorFallbackEditsEveryVerticalAndSimulatesButCannotManage` | Without a version role, a project `EDITOR` edits every vertical and simulates but cannot manage. |
+| `projectAdminFallbackCanManage` | Without a version role, a project `ADMIN` can manage. |
+| `nonMemberFallbackHoldsNoCapability` | Neither a version role nor project membership → no capability. |
+| `projectMemberWhoseRoleLacksEveryPermissionCanStillViewButNothingElse` | A project member whose role carries no permission can still view, nothing else. |
+
+`version.service.VersionAccessServiceTest` — Unit, 9 cases:
+
+| Case | Verifies |
+| --- | --- |
+| `versionRolesReplaceTheProjectRoleOnlyOnTheVersionsThatHaveThem` | A version role overrides the project role only on that version; the others keep the project fallback. |
+| `editorRolesListTheirVerticalsAndTheHighestRoleIsReported` | `editableVerticals` lists the editor verticals and `effectiveRole` is the highest role. |
+| `projectAdminWithoutVersionRolesCanManageEveryVersion` | A project `ADMIN` with no version role can manage every version. |
+| `platformAdminGetsFullAccessWithoutLookingUpVersionRoles` | A platform admin gets full access without querying version roles. |
+| `inactiveVersionsAreLeftOut` | Inactive versions are not listed. |
+| `projectWithoutVersionsSkipsTheVersionRoleLookup` | A project without versions does not query version roles. |
+| `nonMemberIsRejectedWith403` | A non-member gets `403`. |
+| `unknownProjectIsRejectedWith404` | An unknown project gets `404`. |
+| `unauthenticatedCallerIsRejectedWith401` | No session → `401`. |
+
+`version.controller.VersionAccessControllerTest` — Web, 3 cases:
+
+| Case | Verifies |
+| --- | --- |
+| `accessReturnsResolvedCapabilitiesInTheEnvelope` | `GET /projects/{id}/access` → `200` with the `ApiResponse` envelope and the resolved fields. |
+| `accessDeniedReturns403WithTheProjectMessage` | A refused caller gets `403` with the project message. |
+| `anonymousAccessReturns401` | No token → `401`. |
+
+`version.service.VersionAccessGuardTest` — Unit, new and changed cases (the
+class's earlier cases are not catalogued here yet):
+
+| Case | Verifies |
+| --- | --- |
+| `assertCanSimulateVersionAllowsVersionEditorWithoutFallingBackToTheProject` | A version `EDITOR` may simulate, decided by the version role alone. Replaces `assertCanSimulateVersionRejectsVersionEditorWith403WithoutFallingBackToTheProject`. |
+| `assertCanSimulateVersionAllowsVersionAdmin` | A version `ADMIN` may simulate. |
+| `assertCanSimulateVersionFallsBackToProjectEditPermission` | With no version role, simulation falls back to `EDIT_PROJECT`. |
+| `assertCanSimulateVersionRejectsCallerWithNeitherVersionRoleNorProjectMembership` | Neither a version role nor membership → `403` with the project message. |
+| `assertCanSimulateVersionRejectsCallerWithoutRolesUsingTheSimulateMessage` | A version row with no roles → `403 You are not allowed to simulate this version`. |
+| `assertCanManageVersionRejectsVersionEditorAndSimulatorWithoutFallingBackToTheProject` | `EDITOR` + `SIMULATOR` cannot manage, and the project role is not consulted. |
+| `guardDecisionsMatchVersionAccessForEveryVersionRole` | Guard ⇔ `VersionAccess` for every version role × capability × vertical. |
+| `guardFallbackMatchesVersionAccessForEveryProjectRole` | Guard ⇔ `VersionAccess` for every project-role fallback. |
+| `assertCanManageVersionIgnoresARoleRowOfSomeoneNoLongerInTheProjectAndRejectsWith403` | A version-role row of someone no longer in the project is ignored (effective lookup) → project fallback → `403`. |
+
+`economic.service.EconomicServiceTest` — Unit, 5 new cases:
+
+| Case | Verifies |
+| --- | --- |
+| `projectEditorWithVersionSimulatorRoleCanEvaluateButCannotSaveConfigurationOrDraft` | Project `EDITOR` + version `SIMULATOR`: evaluates, but saving configuration or draft is `403`. |
+| `projectEditorWithVersionSimulatorRoleCanReadConfigurationDraftAndHistory` | The same caller reads configuration, draft and history. |
+| `versionEditorOfOneVerticalCanSaveConfigurationAndEvaluate` | A version `EDITOR` of one vertical saves configuration and evaluates. |
+| `simulationRefusedByVersionGuardHappensBeforeTouchingDrafts` | A simulation refusal happens before any draft is touched. |
+| `versionInAnotherProjectIsStill404BeforeTheVersionGuard` | A version of another project is `404` without consulting version roles. |
+
+`economic.service.EconomicJobServiceTest` — Unit, 2 new cases:
+`submissionRefusedBySimulationPermissionQueuesNothing` and
+`retryRefusedBySimulationPermissionQueuesNothing` — a job submission or retry
+refused by the simulate check queues nothing.
+
+`economic.service.ScenarioConfigurationTest` — Integration, 3 new cases, with
+real `version_member` rows:
+
+| Case | Verifies |
+| --- | --- |
+| `versionSimulatorReadsScenarioAndEconomicsButCannotSaveOrDiscard` | A `SIMULATOR` reads scenario and economics but cannot save or discard. |
+| `versionSimulatorCanQueueAProbabilisticJob` | A `SIMULATOR` can queue a probabilistic job. |
+| `accessEndpointReadsVersionRolesStoredInTheDatabase` | `/access` resolves roles stored in the database (exercises the new JPQL). |
+
+`version.service.VersionServiceTest` — Unit, 4 new cases for reads:
+
+| Case | Verifies |
+| --- | --- |
+| `getDiagramIsRefusedWhenTheCallerCannotViewTheVersion` | Diagram → `403` without view access. |
+| `getDiagramChecksViewAccessForAnExistingVersion` | The diagram read calls `assertCanViewVersion`. |
+| `getDiagramOfAMissingVersionIsStill404WithoutCheckingAccess` | A missing version is `404` before the access check. |
+| `getNodeDetailIsRefusedBeforeLoadingTheNodeWhenTheCallerCannotViewTheVersion` | Node detail → `403` before loading the node. |
+
+`version.controller.VersionReadAccessHttpTest` — Integration, 10 cases:
+
+| Case | Verifies |
+| --- | --- |
+| `platformAdminReadsDiagramAndNodeWithoutMembership` | Platform admin → `200` on diagram and node. |
+| `projectAdminReadsDiagramAndNode` | Project `ADMIN` → `200` / `200`. |
+| `projectEditorReadsDiagramAndNode` | Project `EDITOR` → `200` / `200`. |
+| `versionSimulatorReadsDiagramAndNode` | Version `SIMULATOR` → `200` / `200`. |
+| `versionEditorOfAnotherVerticalReadsDiagramAndNode` | `EDITOR` of `EXPORT` reads an `EXTRACTION` node → `200`. |
+| `unrelatedUserGets403WithProjectMessage` | Unrelated user → `403 You are not allowed to view this project`. |
+| `organizationOwnerOutsideTheProjectGets403` | Organization `OWNER` outside the project → `403`. |
+| `versionWithoutProjectGets403WithVersionMessage` | Version without a project → `403 You are not allowed to access this version`. |
+| `missingVersionGets404BeforeTheAccessCheck` | Missing version → `404`. |
+| `anonymousCallerGets401` | No token → `401`. |
+
+`economic.controller.EconomicWriteAccessHttpTest` — Integration (own H2 with
+`NON_KEYWORDS=YEAR`), 9 cases:
+
+| Case | Verifies |
+| --- | --- |
+| `versionSimulatorCannotSaveEconomicOrScenarioConfiguration` | `SIMULATOR`: `403 You are not allowed to edit this version` on the four writes; stored data unchanged. |
+| `versionSimulatorCanEvaluateQueueAndRetry` | `SIMULATOR`: `201` evaluate, `202` queue, `202` retry. |
+| `versionSimulatorStillReadsConfigurationDraftScenarioAndHistory` | `SIMULATOR` reads configuration, draft, scenario and history (`200`). |
+| `versionEditorCanSaveAndSimulate` | Version `EDITOR` saves and simulates. |
+| `versionAdminCanSaveAndSimulate` | Version `ADMIN` saves and simulates. |
+| `projectEditorWithoutVersionRoleKeepsSavingAndSimulating` | Project `EDITOR` without a version role keeps saving and simulating. |
+| `outsiderGets403WithProjectPermissionMessage` | Outsider → `403 Project permission required: EDIT_PROJECT` on all seven endpoints. |
+| `organizationOwnerOutsideTheProjectGets403OnEconomics` | Organization `OWNER` outside the project → same `403`. |
+| `versionMemberWithoutRolesGets403WithSimulateMessage` | A version row without roles → `403 You are not allowed to simulate this version`. |
+
+### 2. `POST /nodes/*` and `GET /version/conflicts` are platform-admin only
+
+`node.controller.NodeCreateAccessHttpTest` — Integration, 9 cases / 43
+executions (12 of the 13 `POST /nodes/*` endpoints; `/nodes/pipeline-connection`
+is not covered by any test, so its behaviour is **not verified**):
+
+| Case | Verifies |
+| --- | --- |
+| `platformAdminCreatesTheNode` (×12) | Platform admin → `200` and one more row. |
+| `platformAdminDeclaringAVerticalThatDoesNotMatchTheTypeGets400AndNothingIsCreated` | An `LNG_CAMER` declared as `EXTRACTION` → `400 Node vertical does not match its type: …`, no row. |
+| `projectAdminGets403AndNothingIsCreated` (×12) | Project `ADMIN` → `403 Only platform admins can create nodes outside a version`, no row. |
+| `projectEditorGets403AndNothingIsCreated` (×3) | Same for a project `EDITOR`. |
+| `versionEditorOfAnotherVerticalGets403AndNothingIsCreated` (×3) | Same for a version `EDITOR`. |
+| `versionSimulatorGets403AndNothingIsCreated` (×3) | Same for a `SIMULATOR`. |
+| `unrelatedUserGets403AndNothingIsCreated` (×3) | Same for an unrelated user. |
+| `organizationOwnerOutsideTheProjectGets403AndNothingIsCreated` (×3) | Same for an organization `OWNER`. |
+| `anonymousCallerGets401AndNothingIsCreated` (×3) | No token → `401`, no row. |
+
+`version.controller.VersionConflictsListAccessHttpTest` — Integration, 8 cases:
+`platformAdminListsEveryConflict` (`200`, conflicts of every version, including
+one with no project); `projectAdminGets403`, `projectEditorGets403`,
+`versionEditorOfAnotherVerticalGets403`, `versionSimulatorGets403`,
+`unrelatedUserGets403`, `organizationOwnerOutsideTheProjectGets403` (`403 Only
+platform admins can list every conflict`); `anonymousCallerGets401`.
+
+`version.service.VersionConflictServiceTest` — Unit, 2 new cases:
+`getAllConflicts_PlatformAdmin_ReturnsEveryConflict` and
+`getAllConflicts_NotPlatformAdmin_ThrowsWithoutReadingConflicts`.
+
+### 3. Removing members removes their version roles
+
+`project.service.ProjectServiceTest` — Unit, 5 new cases:
+
+| Case | Verifies |
+| --- | --- |
+| `removeMemberAlsoDeletesTheirVersionMembershipsInThatProject` | Removing a project member deletes their `version_member` rows in that project. |
+| `removeMemberTouchesNoVersionMembershipWhenTheUserHasNone` | Nothing is deleted when there is nothing to delete. |
+| `removeMemberKeepsVersionMembershipsWhenTheLastAdminGuardRefuses` | When the last-admin guard refuses, version rows are kept. |
+| `addMemberPurgesLeftoverVersionMembershipsOfTheUserInThatProject` | Adding a member purges leftover version rows of that user in the project. |
+| `addMemberLeavesVersionMembershipsAloneWhenItRejectsADuplicate` | A rejected duplicate add touches no version row. |
+
+`organization.service.OrganizationServiceTest` — Unit, 3 new cases:
+
+| Case | Verifies |
+| --- | --- |
+| `removeMemberAlsoRemovesTheirVersionMembershipsInEveryProjectOfThatOrganization` | Leaving the organization deletes the version rows in all its projects. |
+| `removeMemberQueriesNoVersionMembershipWhenTheUserIsInNoProject` | No project membership → no version query. |
+| `removeMemberKeepsVersionMembershipsWhenAProjectWouldBeLeftWithoutAnAdministrator` | When a project would lose its last admin, nothing is deleted. |
+
+`version.controller.VersionRoleAfterProjectRemovalHttpTest` — Integration, 7 cases:
+
+| Case | Verifies |
+| --- | --- |
+| `removingAVersionAdminFromTheProjectDeletesTheirVersionRolesAndRevokesAccess` | `DELETE /projects/{id}/members/{m}` removes the version rows and access. |
+| `removingSomeoneFromTheOrganizationDeletesTheirVersionRolesAndRevokesAccess` | Same through `DELETE /organizations/{id}/members/{m}`. |
+| `removingOneMemberKeepsTheVersionRolesOfTheOthers` | Other members' version roles stay. |
+| `aPreexistingOrphanRoleRowGrantsNoAccessAndIsNotListed` | A leftover row of a non-member grants nothing and is not listed in `GET /version/{id}/members`. |
+| `aPlatformAdminWithAnOrphanRoleRowKeepsFullAccess` | A platform admin with such a row keeps full access. |
+| `reAddingARemovedMemberDoesNotGiveBackTheirOldVersionRoles` | Re-adding falls back to the project role. |
+| `reAddingAMemberPurgesAPreexistingOrphanRoleRow` | Re-adding purges a preexisting orphan row. |
+
+`version.repository.VersionMemberRepositoryPostgreSqlIT` — PostgreSQL/Flyway,
+**by hand only** (`ECONOMIC_TEST_DATABASE_URL` pointing at a disposable
+`enerscope_economic_test`), 7 cases: `findsOnlyTheCallersMembershipsInTheRequestedVersionsWithTheirRoles`,
+`returnsNothingForAUserWithoutVersionRoles`,
+`accessResolutionReadsVersionRolesFromMigratedSchema`,
+`effectiveLookupReturnsTheRowOfACurrentProjectMember`,
+`effectiveLookupIgnoresTheRowOfSomeoneOutsideTheProject`,
+`memberListingLeavesOutRowsOfPeopleOutsideTheProject`,
+`findsEveryRowOfTheUserInTheGivenProjectsAndNoOtherUsersRows`.
+
+### 4. The server derives a node's vertical from its type
+
+`node.model.enums.NodeTypeEnumTest` — Unit, 4 cases / 26 executions:
+
+| Case | Verifies |
+| --- | --- |
+| `everyNodeTypeBelongsToItsVertical` (×12) | Each `NodeTypeEnum` maps to its expected vertical. |
+| `theMappingCoversEveryNodeType` | There are 12 types and none lacks a vertical. |
+| `checkedVerticalAcceptsAMissingOrMatchingDeclaration` (×12) | A missing or matching declaration returns the type's vertical. |
+| `checkedVerticalRejectsADeclarationThatDoesNotMatchTheType` | A mismatch throws `Node vertical does not match its type: LNG_CAMER belongs to EXPORT, not EXTRACTION`. |
+
+`node.service.NodeServiceTest` — Unit, 2 new cases:
+`editWellStoresTheVerticalOfItsTypeWhenTheBodyOmitsIt` and
+`editWellRejectsAVerticalThatDoesNotMatchItsType`.
+
+`version.service.VersionServiceTest` — Unit, 8 new cases:
+
+| Case | Verifies |
+| --- | --- |
+| `addNodeToVersionAuthorizesWithTheVerticalDerivedFromTheTypeBeforeCheckingTheDeclaredOne` | The guard gets the derived vertical, before the declared one is validated. |
+| `addNodeToVersionRejectsDeclaredVerticalThatDoesNotMatchTheType` | A mismatched declaration → `400`, nothing saved. |
+| `addNodeToVersionFillsAMissingVerticalFromTheType` | A missing vertical is filled from the type. |
+| `addNodeToVersionRejectsMissingNodeType` | No `type.nodeType` → `400 A supported type.nodeType is required`. |
+| `editNodeInVersionRejectsChangingTheVerticalOfTheNode` | An edit cannot relabel the vertical. |
+| `editNodeInVersionAuthorizesByTheStoredNodeTypeNotTheStoredVertical` | Edits are authorized by the stored type, not the stored vertical. |
+| `deleteNodeFromVersionAuthorizesByTheStoredNodeType` | Delete is authorized by the stored type. |
+| `diagramAndNodeDetailReportTheVerticalDerivedFromTheType` | Diagram and node detail report the derived vertical. |
+
+`version.controller.VersionNodeVerticalAccessHttpTest` — Integration, 18 cases
+/ 58 executions:
+
+| Case | Verifies |
+| --- | --- |
+| `editorOfTheDerivedVerticalCreatesTheNodeAndTheServerStoresThatVertical` (per type) | The editor of the derived vertical creates the node; the stored vertical is the derived one. |
+| `editorOfTheDerivedVerticalDeclaringAnotherOneGets400AndNothingIsCreated` (per type) | Declaring another vertical → `400`, nothing created. |
+| `editorOfAnotherVerticalDeclaringTheCorrectOneIsJudgedByTheDerivedVertical` (per type) | Judged by the derived vertical: `403`, or `200` for the two `INTERNAL_CONSUMPTION` types. |
+| `editorOfAnotherVerticalDeclaringItsOwnIsRefused` (per type) | Declaring one's own vertical for another type is refused (`403` or `400`). |
+| `extractionEditorCreatesAWellDeclaredAsExtraction` | `200`, stored `EXTRACTION`. |
+| `extractionEditorCannotCreateAnLngCarrierWhateverVerticalItDeclares` | `403` whether it declares `EXTRACTION`, `INTERNAL_CONSUMPTION`, `EXPORT` or nothing. |
+| `extractionEditorDeclaringAWellAsExportGets400WithAClearMessage` | `400` with the mismatch message. |
+| `bodyWithoutVerticalGetsTheVerticalOfItsType` | A body without vertical is stored with the type's vertical. |
+| `versionAdminCreatesAnyTypeButMustDeclareItsVerticalCorrectly` | Version `ADMIN`: `200` when correct, `400` when not. |
+| `projectAdminWithoutVersionRoleCreatesAnyTypeButMustDeclareItsVerticalCorrectly` | Same for a project `ADMIN` (fallback). |
+| `platformAdminCreatesAnyTypeButMustDeclareItsVerticalCorrectly` | Same for a platform admin. |
+| `simulatorCannotCreateNodesWhateverVerticalItDeclares` | `SIMULATOR` → `403`. |
+| `extractionEditorEditsItsWellAndTheVerticalStaysExtraction` | Edit → `200`, vertical stays `EXTRACTION`. |
+| `extractionEditorCannotRelabelItsWellIntoAnotherVertical` | Relabel to `EXPORT` or `INTERNAL_CONSUMPTION` → `400`, stored vertical intact. |
+| `exportEditorCannotTouchAWell` | `EXPORT` editor → `403` on edit, position, basics and delete. |
+| `extractionEditorMovesRenamesAndDeletesAWell` | `EXTRACTION` editor → `200` on position, basics and delete. |
+| `wellStoredWithASpoofedVerticalIsJudgedByItsType` | A Well stored as `EXPORT` is still refused to the `EXPORT` editor. |
+| `wellStoredWithASpoofedVerticalIsShownAndRepairedAsExtraction` | Reads report `EXTRACTION`; an edit repairs the stored row. |
+
+### 5. Session validated against the database
+
+`session.service.SessionServiceTest` — Unit, 9 cases:
+
+| Case | Verifies |
+| --- | --- |
+| `validateReturnsSessionWithStoredUserForActiveAccount` | The session carries the stored user, not one rebuilt from claims. |
+| `validateRejectsTokenOfDeactivatedAccount` | Deactivated account → no session (and a `warn`). |
+| `validateRejectsTokenOfUnknownUser` | User missing from the database → no session. |
+| `validateUsesStoredRoleWhenAdminWasDemoted` | Token says `ADMIN`, database says `USER` → `USER`. |
+| `validateUsesStoredRoleWhenUserWasPromoted` | Token says `USER`, database says `ADMIN` → `ADMIN`. |
+| `validateAcceptsEarlierTokenAgainAfterReactivation` | An unexpired token issued before deactivation works again after reactivation. |
+| `validateRejectsInvalidTokenWithoutLookingUpUsers` | Invalid or missing token → no session, no query. |
+| `validateRejectsRefreshTokenUsedAsAccessToken` | A refresh token is not accepted as access token. |
+| `validateRejectsAccessTokenWithMalformedSubject` | A non-UUID `sub` → no session, no query. |
+
+`auth.filter.SessionRevocationHttpTest` — Integration, 9 cases:
+
+| Case | Verifies |
+| --- | --- |
+| `deactivatedUserIsRejectedImmediatelyWithTokenIssuedBefore` | After `DELETE /users/{id}`, the earlier token → `401 Authentication required`. |
+| `deactivatedAdminLosesAdminEndpointsWithTokenIssuedBefore` | A deactivated admin's earlier token → `401` on `GET /users`. |
+| `tokenOfUserMissingFromTheDatabaseIsRejected` | A token for a user not in the database → `401`. |
+| `demotedAdminLosesAdminAccessImmediatelyWithTokenIssuedBefore` | After demotion: `403` on `GET /users` and `POST /auth/register`, `200` on `GET /organizations`. |
+| `promotedUserGainsAdminAccessWithTokenIssuedBefore` | After promotion, the earlier token reaches `GET /users`. |
+| `activeUnchangedSessionsKeepWorking` | Unchanged sessions keep answering `200`. |
+| `reactivatedUserCanUseTokenIssuedBeforeDeactivationAgain` | `401` while deactivated, `200` again after reactivation. |
+| `publicAndLoginRoutesIgnoreARevokedBearer` | `/health`, `/auth/logout` and `/auth/login` answer normally with a revoked bearer. |
+| `refreshOfDeactivatedAccountStaysRejected` | `POST /auth/refresh` of a deactivated account → `401 This account has been deactivated`. |
+
+`economic.service.PostgreSqlEconomicIT` (by hand) now persists the admin that
+signs its HTTP token, since a token of a user absent from the database is
+rejected.
+
+Validation: **1086 Maven tests** (68 classes), zero failures, errors or skips,
+on `update-frontend` at `4f3739b`. By hand against a disposable PostgreSQL 16:
+`PostgreSqlEconomicIT` 4, `ScenarioConfigurationPostgreSqlIT` 14,
+`VersionMemberRepositoryPostgreSqlIT` 7, all passing. These totals supersede
+earlier dated counts without removing their historical catalog.
