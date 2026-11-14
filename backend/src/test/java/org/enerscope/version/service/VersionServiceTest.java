@@ -902,4 +902,47 @@ class VersionServiceTest {
                     verify(distributions.get(index), org.mockito.Mockito.never()).generateValue();
                 }
         }
+
+    @Test
+    void getDiagramIsRefusedWhenTheCallerCannotViewTheVersion() {
+        UUID versionId = UUID.randomUUID();
+        Version version = new Version("Private", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("You are not allowed to view this project"))
+                .when(accessGuard).assertCanViewVersion(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.getDiagram(versionId));
+    }
+
+    @Test
+    void getDiagramChecksViewAccessForAnExistingVersion() {
+        UUID versionId = UUID.randomUUID();
+        Version version = new Version("Shared", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+
+        assertEquals(versionId, versionService.getDiagram(versionId).getVersionId());
+        verify(accessGuard).assertCanViewVersion(versionId);
+    }
+
+    @Test
+    void getDiagramOfAMissingVersionIsStill404WithoutCheckingAccess() {
+        UUID versionId = UUID.randomUUID();
+        when(versionRepository.findById(versionId)).thenReturn(Optional.empty());
+
+        assertThrows(VersionNotFoundException.class, () -> versionService.getDiagram(versionId));
+        verifyNoInteractions(accessGuard);
+    }
+
+    @Test
+    void getNodeDetailIsRefusedBeforeLoadingTheNodeWhenTheCallerCannotViewTheVersion() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Version version = new Version("Private", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("You are not allowed to view this project"))
+                .when(accessGuard).assertCanViewVersion(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.getNodeDetail(versionId, nodeId));
+        verifyNoInteractions(nodeRepository);
+    }
 }

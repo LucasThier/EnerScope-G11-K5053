@@ -4,6 +4,7 @@ import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.node.model.enums.VerticalEnum;
+import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.repository.ProjectRepository;
 import org.enerscope.project.service.ProjectAccessGuard;
 import org.enerscope.user.model.User;
@@ -14,6 +15,7 @@ import org.enerscope.version.model.enums.VersionMemberPermission;
 import org.enerscope.version.repository.VersionMemberRepository;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -76,7 +78,7 @@ public class VersionAccessGuard {
         if (findVersionMember(versionId, caller.getId()).isPresent()) {
             return;
         }
-        projectAccessGuard.assertCanViewProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.VIEW, versionId);
     }
 
     /**
@@ -95,10 +97,10 @@ public class VersionAccessGuard {
         }
         Optional<VersionMember> member = findVersionMember(versionId, caller.getId());
         if (member.isPresent()) {
-            requirePermission(member.get(), VersionMemberPermission.EDIT_VERSION, caller, versionId, "edit");
+            requirePermission(member.get(), VersionCapability.EDIT.versionPermission(), caller, versionId, "edit");
             return;
         }
-        projectAccessGuard.assertCanEditProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.EDIT, versionId);
     }
 
     /**
@@ -117,10 +119,10 @@ public class VersionAccessGuard {
         }
         Optional<VersionMember> member = findVersionMember(versionId, caller.getId());
         if (member.isPresent()) {
-            requirePermission(member.get(), VersionMemberPermission.MANAGE_VERSION, caller, versionId, "manage");
+            requirePermission(member.get(), VersionCapability.MANAGE.versionPermission(), caller, versionId, "manage");
             return;
         }
-        projectAccessGuard.assertCanManageProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.MANAGE, versionId);
     }
 
     /**
@@ -148,7 +150,7 @@ public class VersionAccessGuard {
             }
             return;
         }
-        projectAccessGuard.assertCanEditProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.EDIT, versionId);
     }
 
     /**
@@ -167,10 +169,10 @@ public class VersionAccessGuard {
         }
         Optional<VersionMember> member = findVersionMember(versionId, caller.getId());
         if (member.isPresent()) {
-            requirePermission(member.get(), VersionMemberPermission.EDIT_VERSION, caller, versionId, "edit");
+            requirePermission(member.get(), VersionCapability.EDIT_CONNECTIONS.versionPermission(), caller, versionId, "edit");
             return;
         }
-        projectAccessGuard.assertCanEditProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.EDIT_CONNECTIONS, versionId);
     }
 
     /**
@@ -187,10 +189,12 @@ public class VersionAccessGuard {
         }
         Optional<VersionMember> member = findVersionMember(versionId, caller.getId());
         if (member.isPresent()) {
-            requirePermission(member.get(), VersionMemberPermission.SIMULATE_VERSION, caller, versionId, "simulate");
+            if (!VersionAccess.fromVersionRoles(member.get().getRoles()).can(VersionCapability.SIMULATE)) {
+                deny(caller, versionId, "simulate");
+            }
             return;
         }
-        projectAccessGuard.assertCanEditProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.SIMULATE, versionId);
     }
 
     /**
@@ -221,11 +225,25 @@ public class VersionAccessGuard {
         return versionMemberRepository.findByVersionIdAndUserId(versionId, userId);
     }
 
+    private void fallBackToProject(VersionCapability capability, UUID versionId) {
+        UUID projectId = owningProjectId(versionId);
+        if (capability.projectPermission() == null) {
+            projectAccessGuard.assertCanViewProject(projectId);
+        } else if (capability.projectPermission() == ProjectMemberPermission.MANAGE_PROJECT) {
+            projectAccessGuard.assertCanManageProject(projectId);
+        } else {
+            projectAccessGuard.assertCanEditProject(projectId);
+        }
+    }
+
+    static boolean carries(Collection<VersionMemberRole> roles, VersionMemberPermission permission) {
+        return roles.stream().anyMatch(role -> role.getPermissions().contains(permission));
+    }
+
     /** Throws {@link ForbiddenException} unless one of the member's roles carries {@code permission}. */
     private void requirePermission(VersionMember member, VersionMemberPermission permission, User caller,
                                     UUID versionId, String action) {
-        boolean allowed = member.getRoles().stream().anyMatch(role -> role.getPermissions().contains(permission));
-        if (!allowed) {
+        if (!carries(member.getRoles(), permission)) {
             deny(caller, versionId, action);
         }
     }
@@ -238,7 +256,7 @@ public class VersionAccessGuard {
      * {@link VerticalEnum#INTERNAL_CONSUMPTION}, which — like connections —
      * is not tied to one specialty.
      */
-    private boolean canEditVertical(VersionMemberRole role, VerticalEnum vertical) {
+    static boolean canEditVertical(VersionMemberRole role, VerticalEnum vertical) {
         if (!role.getPermissions().contains(VersionMemberPermission.EDIT_VERSION)) {
             return false;
         }

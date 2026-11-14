@@ -37,6 +37,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -374,14 +375,14 @@ class VersionAccessGuardTest {
     }
 
     @Test
-    void assertCanSimulateVersionRejectsVersionEditorWith403WithoutFallingBackToTheProject() {
+    void assertCanSimulateVersionAllowsVersionEditorWithoutFallingBackToTheProject() {
         UUID versionId = UUID.randomUUID();
         User caller = regularUser("editor@enerscope.org");
         authenticateAs(caller);
         when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
                 .thenReturn(Optional.of(versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION)));
 
-        assertThrows(ForbiddenException.class, () -> guard.assertCanSimulateVersion(versionId));
+        assertDoesNotThrow(() -> guard.assertCanSimulateVersion(versionId));
 
         verifyNoInteractions(projectRepository);
         verifyNoInteractions(projectMemberRepository);
@@ -405,6 +406,135 @@ class VersionAccessGuardTest {
 
         verifyNoInteractions(projectRepository);
         verifyNoInteractions(projectMemberRepository);
+    }
+
+    @Test
+    void assertCanSimulateVersionAllowsVersionAdmin() {
+        UUID versionId = UUID.randomUUID();
+        User caller = regularUser("versionadmin@enerscope.org");
+        authenticateAs(caller);
+        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId()))
+                .thenReturn(Optional.of(versionMemberWith(VersionMemberType.ADMIN, null)));
+
+        assertDoesNotThrow(() -> guard.assertCanSimulateVersion(versionId));
+    }
+
+    @Test
+    void assertCanSimulateVersionFallsBackToProjectEditPermission() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("projecteditor@enerscope.org");
+        authenticateAs(caller);
+        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(memberWith(ProjectMemberType.EDITOR)));
+
+        assertDoesNotThrow(() -> guard.assertCanSimulateVersion(versionId));
+    }
+
+    @Test
+    void assertCanSimulateVersionRejectsCallerWithNeitherVersionRoleNorProjectMembership() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("outsider@enerscope.org");
+        authenticateAs(caller);
+        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.empty());
+
+        ForbiddenException error = assertThrows(ForbiddenException.class, () -> guard.assertCanSimulateVersion(versionId));
+        assertEquals("You are not allowed to edit this project", error.getMessage());
+    }
+
+    @Test
+    void assertCanSimulateVersionRejectsCallerWithoutRolesUsingTheSimulateMessage() {
+        UUID versionId = UUID.randomUUID();
+        User caller = regularUser("empty@enerscope.org");
+        authenticateAs(caller);
+        VersionMember member = new VersionMember(new User("jane@enerscope.org", "Jane", "Doe", "hashed"),
+                new Version("v1", null, null, null, null, null));
+        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.of(member));
+
+        ForbiddenException error = assertThrows(ForbiddenException.class, () -> guard.assertCanSimulateVersion(versionId));
+        assertEquals("You are not allowed to simulate this version", error.getMessage());
+        verifyNoInteractions(projectRepository);
+    }
+
+    @Test
+    void assertCanManageVersionRejectsVersionEditorAndSimulatorWithoutFallingBackToTheProject() {
+        UUID versionId = UUID.randomUUID();
+        User caller = regularUser("editor@enerscope.org");
+        authenticateAs(caller);
+        VersionMember member = versionMemberWith(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION);
+        member.addRole(new VersionMemberRole("SIMULATOR", VersionMemberType.SIMULATOR,
+                VersionMember.defaultPermissionsFor(VersionMemberType.SIMULATOR), null));
+        when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.of(member));
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanManageVersion(versionId));
+        verifyNoInteractions(projectRepository);
+        verifyNoInteractions(projectMemberRepository);
+    }
+
+    @Test
+    void guardDecisionsMatchVersionAccessForEveryVersionRole() {
+        User caller = regularUser("matrix@enerscope.org");
+        authenticateAs(caller);
+        List<VersionMember> members = new java.util.ArrayList<>();
+        members.add(versionMemberWith(VersionMemberType.ADMIN, null));
+        members.add(versionMemberWith(VersionMemberType.SIMULATOR, null));
+        for (VerticalEnum vertical : VerticalEnum.values()) {
+            members.add(versionMemberWith(VersionMemberType.EDITOR, vertical));
+        }
+        for (VersionMember member : members) {
+            UUID versionId = UUID.randomUUID();
+            when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.of(member));
+            VersionAccess access = VersionAccess.fromVersionRoles(member.getRoles());
+
+            assertEquals(access.can(VersionCapability.VIEW), passes(() -> guard.assertCanViewVersion(versionId)));
+            assertEquals(access.can(VersionCapability.EDIT), passes(() -> guard.assertCanEditVersion(versionId)));
+            assertEquals(access.can(VersionCapability.EDIT_CONNECTIONS), passes(() -> guard.assertCanEditConnection(versionId)));
+            assertEquals(access.can(VersionCapability.SIMULATE), passes(() -> guard.assertCanSimulateVersion(versionId)));
+            assertEquals(access.can(VersionCapability.MANAGE), passes(() -> guard.assertCanManageVersion(versionId)));
+            for (VerticalEnum vertical : VerticalEnum.values()) {
+                assertEquals(access.canEditVertical(vertical),
+                        passes(() -> guard.assertCanEditNodeVertical(versionId, vertical)));
+            }
+        }
+        verifyNoInteractions(projectRepository);
+    }
+
+    @Test
+    void guardFallbackMatchesVersionAccessForEveryProjectRole() {
+        User caller = regularUser("fallback@enerscope.org");
+        authenticateAs(caller);
+        for (ProjectMemberType type : ProjectMemberType.values()) {
+            UUID versionId = UUID.randomUUID();
+            UUID projectId = UUID.randomUUID();
+            ProjectMember member = memberWith(type);
+            when(versionMemberRepository.findByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
+            when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+            when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.of(member));
+            when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(true);
+            VersionAccess access = VersionAccess.fromProjectMembership(Optional.of(member));
+
+            assertEquals(access.can(VersionCapability.VIEW), passes(() -> guard.assertCanViewVersion(versionId)));
+            assertEquals(access.can(VersionCapability.EDIT), passes(() -> guard.assertCanEditVersion(versionId)));
+            assertEquals(access.can(VersionCapability.EDIT_CONNECTIONS), passes(() -> guard.assertCanEditConnection(versionId)));
+            assertEquals(access.can(VersionCapability.SIMULATE), passes(() -> guard.assertCanSimulateVersion(versionId)));
+            assertEquals(access.can(VersionCapability.MANAGE), passes(() -> guard.assertCanManageVersion(versionId)));
+            assertEquals(access.canEditVertical(VerticalEnum.EXPORT),
+                    passes(() -> guard.assertCanEditNodeVertical(versionId, VerticalEnum.EXPORT)));
+        }
+    }
+
+    private boolean passes(Runnable check) {
+        try {
+            check.run();
+            return true;
+        } catch (ForbiddenException e) {
+            return false;
+        }
     }
 
     // ---- helpers -------------------------------------------------------------

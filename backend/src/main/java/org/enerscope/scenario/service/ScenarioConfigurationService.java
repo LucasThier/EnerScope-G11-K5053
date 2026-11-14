@@ -59,7 +59,7 @@ public class ScenarioConfigurationService {
  }
 
  public ScenarioConfigurationDTO save(UUID project,UUID id,SaveRequest request) {
-  var version=economics.authorize(project,id,ProjectMemberPermission.EDIT_PROJECT);
+  var version=economics.authorizeConfigurationEdit(project,id);
   economics.lock(version);
   var before=view(project,version,List.of());
   if(request==null || !Objects.equals(request.token(),before.token()) || !Objects.equals(request.sourceToken(),before.sourceToken()))
@@ -138,7 +138,7 @@ public class ScenarioConfigurationService {
  }
 
  public ScenarioConfigurationDTO discard(UUID project,UUID id,String token) {
-  var version = economics.authorize(project,id,ProjectMemberPermission.EDIT_PROJECT);economics.lock(version);
+  var version = economics.authorizeConfigurationEdit(project,id);economics.lock(version);
   if(!Objects.equals(token,view(project,version,List.of()).token())) throw new ScenarioConflictException();
   drafts.deleteByVersionId(id);legacyDrafts.deleteByVersionId(id);em.flush();
   return view(project,version,List.of());

@@ -21,6 +21,7 @@ import org.enerscope.scenario.repository.ScenarioDraftRepository;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.util.AuthUtil;
 import org.enerscope.version.model.Version;
+import org.enerscope.version.service.VersionAccessGuard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +40,7 @@ public class EconomicService {
     private final EconomicSimulationAdapter simulator;
     private final ObjectMapper mapper;
     private final AppLogger logger;
+    private final VersionAccessGuard versionAccessGuard;
 
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
@@ -59,7 +61,7 @@ public class EconomicService {
             throw new IllegalArgumentException("Hay un borrador pendiente. Completá o descartá los cambios en Configuración del Escenario.");
     }
     public EconomicConfiguration save(UUID projectId, UUID versionId, EconomicConfiguration configuration) {
-        Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        Version version = authorizeConfigurationEdit(projectId, versionId);
         lock(version);
         validateConfiguration(configuration, version);
         var entity = configurations.findByVersionId(versionId).orElseGet(() -> new EconomicConfigurationEntity(version, ""));
@@ -82,7 +84,7 @@ public class EconomicService {
 
     public EconomicDraftDTO saveDraft(UUID projectId, UUID versionId,
                                       EconomicDraftDTO draft) {
-        Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        Version version = authorizeConfigurationEdit(projectId, versionId);
         lock(version);
         EconomicValidator.require(draft != null, "Draft is required");
         draft.validateStructure();
@@ -106,7 +108,7 @@ public class EconomicService {
     }
 
     public EvaluationDTO evaluate(UUID projectId, UUID versionId) {
-        Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        Version version = authorizeSimulation(projectId, versionId);
         assertNoDraft(version);
         EconomicConfiguration c = configuration(versionId); validator.validate(c, nodeIds(version));
         validateExportNodes(c, version);
@@ -197,6 +199,18 @@ public class EconomicService {
         var project=authorizeProject(projectId,permission);
         return project.getVersions().stream().filter(v -> v.getId().equals(versionId) && v.isActive()).findFirst()
                 .orElseThrow(() -> new EntityNotFoundException("Version does not belong to project"));
+    }
+
+    public Version authorizeSimulation(UUID projectId, UUID versionId) {
+        Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        versionAccessGuard.assertCanSimulateVersion(versionId);
+        return version;
+    }
+
+    public Version authorizeConfigurationEdit(UUID projectId, UUID versionId) {
+        Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        versionAccessGuard.assertCanEditVersion(versionId);
+        return version;
     }
 
     // Structural validation already requires a conversion for every variable rule,

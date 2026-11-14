@@ -29,7 +29,7 @@ class EconomicJobServiceTest {
     @Test
     void submissionFreezesInputsAndQueuesWithoutPublishingEvaluation() {
         var version=version();
-        when(economics.authorize(project,versionId,ProjectMemberPermission.EDIT_PROJECT)).thenReturn(version);
+        when(economics.authorizeSimulation(project,versionId)).thenReturn(version);
         when(economics.configuration(versionId)).thenReturn(configuration());
         when(economics.nodeIds(version)).thenReturn(Set.of(FIRST,SECOND));
         when(jobs.saveAndFlush(any())).thenAnswer(c->c.getArgument(0));
@@ -41,7 +41,7 @@ class EconomicJobServiceTest {
     @Test
     void retryUsesFrozenInputAndSeedWithoutReadingCurrentConfiguration() throws Exception {
         var old=job();ReflectionTestUtils.setField(old,"status",INTERRUPTED);
-        when(economics.authorize(project,versionId,ProjectMemberPermission.EDIT_PROJECT)).thenReturn(version());
+        when(economics.authorizeSimulation(project,versionId)).thenReturn(version());
         when(jobs.findByIdAndVersionId(id,versionId)).thenReturn(Optional.of(old));
         when(jobs.saveAndFlush(any())).thenAnswer(c->{
             EconomicJob copy=c.getArgument(0);
@@ -106,5 +106,20 @@ class EconomicJobServiceTest {
         job.roundCompleted(2);job.complete(UUID.randomUUID());
         assertEquals(COMPLETED,job.getStatus());
         job.fail("Late error",false);assertEquals(COMPLETED,job.getStatus());
+    }
+
+    @Test
+    void submissionRefusedBySimulationPermissionQueuesNothing() {
+        when(economics.authorizeSimulation(project,versionId)).thenThrow(new org.enerscope.common.ForbiddenException("You are not allowed to simulate this version"));
+        assertThrows(org.enerscope.common.ForbiddenException.class,()->service.submit(project,versionId,null));
+        verify(economics,never()).configuration(any());
+        verifyNoInteractions(jobs);
+    }
+
+    @Test
+    void retryRefusedBySimulationPermissionQueuesNothing() {
+        when(economics.authorizeSimulation(project,versionId)).thenThrow(new org.enerscope.common.ForbiddenException("You are not allowed to simulate this version"));
+        assertThrows(org.enerscope.common.ForbiddenException.class,()->service.retry(project,versionId,id));
+        verifyNoInteractions(jobs);
     }
 }

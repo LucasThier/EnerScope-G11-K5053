@@ -252,6 +252,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        accessGuard.assertCanViewVersion(versionId);
 
         List<DiagramNodeDTO> nodes = (version.getNodeSnapshot() == null
                 ? List.<BaseNode>of()
@@ -357,6 +358,7 @@ public class VersionService {
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
+        accessGuard.assertCanViewVersion(versionId);
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
         if (!version.getNodeSnapshot().contains(node)) {

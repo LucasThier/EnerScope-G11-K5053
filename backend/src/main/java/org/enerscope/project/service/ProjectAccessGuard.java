@@ -78,14 +78,14 @@ public class ProjectAccessGuard {
             return;
         }
         boolean allowed = projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())
-                .map(member -> hasPermission(member, permission))
+                .map(member -> grants(member, permission))
                 .orElse(false);
         if (!allowed) {
             deny(caller, action, projectId);
         }
     }
 
-    private boolean hasPermission(ProjectMember member, ProjectMemberPermission permission) {
+    public static boolean grants(ProjectMember member, ProjectMemberPermission permission) {
         return member.getRoles().stream()
                 .anyMatch(role -> role.getPermissions().contains(permission));
     }
