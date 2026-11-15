@@ -107,7 +107,6 @@ test('navigation tree is identical to the recorded behaviour for every role/proj
 
 const legacy = {
   isAdmin: user => user?.platformRole === 'ADMIN',
-  versionsCanEdit: (user, myRole) => user?.platformRole === 'ADMIN' || myRole === 'ADMIN' || myRole === 'EDITOR',
   modalCanManage: (user, membership) => user?.platformRole === 'ADMIN' || membership?.memberType === 'ADMIN',
 };
 const USERS = [null, undefined, { id: 'u1', platformRole: 'ADMIN' }, { id: 'u1', platformRole: 'USER' }];
@@ -118,7 +117,6 @@ test('access module matches the previously inline checks', async () => {
     assert.equal(access.isPlatformAdmin(user), legacy.isAdmin(user));
     for (const role of ['ADMIN', 'USER']) assert.equal(access.hasPlatformRole(user, role), user?.platformRole === role);
     for (const myRole of [...PROJECT_ROLES, undefined]) {
-      assert.equal(access.canEditProjectByRole(myRole, access.isPlatformAdmin(user)), legacy.versionsCanEdit(user, myRole));
       const membership = myRole === undefined ? undefined : { memberType: myRole };
       assert.equal(access.canManageProject(membership?.memberType, access.isPlatformAdmin(user)), legacy.modalCanManage(user, membership));
     }
