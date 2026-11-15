@@ -59,11 +59,21 @@ class VersionAccessTest {
     }
 
     @Test
-    void versionEditorCanSimulateWithoutAPersistedSimulatePermission() {
+    void versionEditorCanSimulateThroughItsStoredSimulatePermission() {
         VersionMemberRole editor = role(VersionMemberType.EDITOR, VerticalEnum.EXPORT);
 
-        assertFalse(editor.getPermissions().contains(VersionMemberPermission.SIMULATE_VERSION));
+        assertTrue(editor.getPermissions().contains(VersionMemberPermission.SIMULATE_VERSION));
         assertTrue(VersionAccess.fromVersionRoles(List.of(editor)).can(VersionCapability.SIMULATE));
+    }
+
+    @Test
+    void versionEditorRowWithoutTheStoredPermissionCannotSimulate() {
+        // The permission now lives in data, not in a code rule: a row the V24 backfill has not reached does not simulate.
+        VersionMemberRole unmigrated = new VersionMemberRole("EDITOR", VersionMemberType.EDITOR,
+                EnumSet.of(VersionMemberPermission.EDIT_VERSION, VersionMemberPermission.VIEW_VERSION),
+                VerticalEnum.EXPORT);
+
+        assertFalse(VersionAccess.fromVersionRoles(List.of(unmigrated)).can(VersionCapability.SIMULATE));
     }
 
     @Test

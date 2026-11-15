@@ -91,10 +91,6 @@ public final class VersionAccess {
         if (capability == VersionCapability.VIEW) {
             return true;
         }
-        if (capability == VersionCapability.SIMULATE
-                && roles.stream().anyMatch(role -> role.getMemberType() == VersionMemberType.EDITOR)) {
-            return true;
-        }
         return VersionAccessGuard.carries(roles, capability.versionPermission());
     }
 

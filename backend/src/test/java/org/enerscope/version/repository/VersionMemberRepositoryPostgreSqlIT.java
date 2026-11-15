@@ -16,6 +16,7 @@ import org.enerscope.version.model.Version;
 import org.enerscope.version.model.VersionMember;
 import org.enerscope.version.model.VersionMemberRole;
 import org.enerscope.version.model.enums.VersionAccessSource;
+import org.enerscope.version.model.enums.VersionMemberPermission;
 import org.enerscope.version.model.enums.VersionMemberType;
 import org.enerscope.version.service.VersionAccessService;
 import org.junit.jupiter.api.AfterEach;
@@ -275,6 +276,60 @@ class VersionMemberRepositoryPostgreSqlIT {
         Version version = new Version(name, null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         em.persist(version);
         return version;
+    }
+
+    /**
+     * V24 backfills SIMULATE_VERSION on EDITOR roles and must be safe to run
+     * again: a legacy EDITOR row (EDIT + VIEW only) gains the permission, a
+     * second execution changes nothing, and no other role type is touched.
+     */
+    @Test
+    void v24BackfillsEditorSimulatePermissionAndIsIdempotent() throws Exception {
+        User legacy = user();
+        joinProject(legacy);
+        VersionMemberRole legacyEditor = new VersionMemberRole("EDITOR", VersionMemberType.EDITOR,
+                EnumSet.of(VersionMemberPermission.EDIT_VERSION, VersionMemberPermission.VIEW_VERSION),
+                VerticalEnum.EXPORT);
+        grant(legacy, first, legacyEditor);
+        em.flush();
+        String sql = new String(new org.springframework.core.io.ClassPathResource(
+                "db/migration/V24__editor_simulate_permission.sql").getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8);
+
+        long simulatorsBefore = countPermissionRows("SIMULATOR", "SIMULATE_VERSION");
+        long adminsBefore = countPermissionRows("ADMIN", "MANAGE_VERSION");
+        int firstRun = em.createNativeQuery(sql).executeUpdate();
+        long afterFirst = countAllPermissionRows();
+        int secondRun = em.createNativeQuery(sql).executeUpdate();
+
+        assertTrue(firstRun >= 0);
+        assertEquals(0, secondRun, "a second execution must insert nothing");
+        assertEquals(afterFirst, countAllPermissionRows());
+        em.clear();
+        assertTrue(em.find(VersionMemberRole.class, legacyEditor.getId()).getPermissions()
+                .contains(VersionMemberPermission.SIMULATE_VERSION));
+        assertEquals(countEditorRoles(), countPermissionRows("EDITOR", "SIMULATE_VERSION"));
+        assertEquals(simulatorsBefore, countPermissionRows("SIMULATOR", "SIMULATE_VERSION"));
+        assertEquals(adminsBefore, countPermissionRows("ADMIN", "MANAGE_VERSION"));
+    }
+
+    private long countPermissionRows(String memberType, String permission) {
+        return ((Number) em.createNativeQuery("""
+                SELECT count(*) FROM version_member_role_permission p
+                JOIN version_member_role r ON r.id = p.version_member_role_id
+                WHERE r.member_type = :type AND p.permission = :permission""")
+                .setParameter("type", memberType).setParameter("permission", permission)
+                .getSingleResult()).longValue();
+    }
+
+    private long countAllPermissionRows() {
+        return ((Number) em.createNativeQuery("SELECT count(*) FROM version_member_role_permission")
+                .getSingleResult()).longValue();
+    }
+
+    private long countEditorRoles() {
+        return ((Number) em.createNativeQuery("SELECT count(*) FROM version_member_role WHERE member_type = 'EDITOR'")
+                .getSingleResult()).longValue();
     }
 
     private User user() {

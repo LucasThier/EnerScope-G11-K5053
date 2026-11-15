@@ -247,7 +247,7 @@ public class VersionAccessGuard {
     /**
      * Ensures the caller may run the simulation for this version. A caller
      * holding a version role needs {@code SIMULATE_VERSION} from it
-     * ({@code ADMIN} or {@code SIMULATOR}) or the {@code EDITOR} role, unless
+     * (stored on {@code ADMIN}, {@code EDITOR} and {@code SIMULATOR} roles), unless
      * they are an ADMIN of the owning project, who always passes; only a
      * caller with no version role falls back to {@code assertCanEditProject}
      * on the owning project.
