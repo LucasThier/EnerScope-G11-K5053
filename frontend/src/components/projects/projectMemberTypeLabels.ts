@@ -1,8 +1,8 @@
 import type { ProjectMemberType } from '../../types/project';
 
 export const PROJECT_MEMBER_TYPE_LABELS: Record<ProjectMemberType, string> = {
-  ADMIN: 'Administrador',
-  EDITOR: 'Editor',
+  ADMIN: 'Administrador del proyecto',
+  EDITOR: 'Editor del proyecto',
 };
 
 export const EDITOR_LIMITS = 'Un Editor no administra integrantes ni edita el proyecto.';

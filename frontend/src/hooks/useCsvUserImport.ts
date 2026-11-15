@@ -206,6 +206,8 @@ export function useCsvUserImport({
       const status = getErrorStatus(run.error);
       if (status === null) {
         setSendError('Se perdió la conexión con el servidor durante la importación.');
+      } else if (status === 413) {
+        setSendError('El archivo supera el tamaño máximo de 1 MB.');
       } else if (status >= 500) {
         setSendError('El servidor no pudo completar la importación.');
       } else {

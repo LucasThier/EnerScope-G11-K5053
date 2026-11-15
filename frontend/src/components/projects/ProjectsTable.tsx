@@ -12,6 +12,7 @@ interface ProjectsTableProps {
   onEdit: (project: ProjectSummary) => void;
   onDelete: (project: ProjectSummary) => void;
   onManageMembers: (project: ProjectSummary) => void;
+  onViewTeam: (project: ProjectSummary) => void;
   onViewVersions: (project: ProjectSummary) => void;
 }
 
@@ -26,6 +27,7 @@ export function ProjectsTable({
   onEdit,
   onDelete,
   onManageMembers,
+  onViewTeam,
   onViewVersions,
 }: ProjectsTableProps) {
   return (
@@ -92,11 +94,19 @@ export function ProjectsTable({
                   >
                     <BranchIcon className="h-4 w-4" />
                   </RowButton>
-                  {canManageProject(project.myRole, isPlatformAdmin) && (
+                  {canManageProject(project.myRole, isPlatformAdmin) ? (
                     <RowButton
                       label={`Administrar los integrantes de ${project.name}`}
                       title="Administrar integrantes"
                       onClick={() => onManageMembers(project)}
+                    >
+                      <TeamIcon className="h-4 w-4" />
+                    </RowButton>
+                  ) : (
+                    <RowButton
+                      label={`Ver equipo de ${project.name}`}
+                      title="Ver equipo"
+                      onClick={() => onViewTeam(project)}
                     >
                       <TeamIcon className="h-4 w-4" />
                     </RowButton>

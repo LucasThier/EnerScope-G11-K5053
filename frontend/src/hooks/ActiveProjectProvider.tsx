@@ -19,9 +19,7 @@ const LAST_PROJECT_KEY = 'lastProjectId';
  *
  * <p>Resolution order is deliberate: a project id in the URL wins, so a shared
  * or bookmarked link always opens the project it names; otherwise the last
- * selection is restored; otherwise the first project. Project-scoped routes do
- * not exist yet, so in practice the stored preference decides today — the URL
- * branch starts working the moment those routes land, with no change here.</p>
+ * selection is restored; otherwise the first project.</p>
  */
 export function ActiveProjectProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);

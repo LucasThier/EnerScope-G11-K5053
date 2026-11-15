@@ -188,8 +188,18 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   existing version is offered to anyone who can edit the project; the **first
   (root) version** of a project only to the project administrator. An editor on
   an empty project sees *Pedile al administrador del proyecto que cree la primera
-  versión.* Deleting a version deletes the whole subtree and needs permission on
-  every version in it.
+  versión.* The parent choices of **Nueva versión** are limited to versions the
+  caller can edit, and **Mergear** appears only when the caller can manage the
+  parent (both read from `/projects/:id/access`). Deleting a version deletes the
+  whole subtree and needs permission on every version in it.
+- **Roles del proyecto** are labelled *Administrador del proyecto* and *Editor del
+  proyecto*. In the projects table, members who cannot administer see **Ver
+  equipo** instead of the manage button.
+- **Configuración del escenario**: *Guardar* follows `canEditEconomicConfiguration`;
+  *Crear copia simple* needs edit permission on every vertical of the scenario
+  (`editableVerticals`) and otherwise shows which verticals are missing.
+- A 403 for a user cached as platform administrator re-reads the user (at most
+  once every 5 s); if the session cannot be renewed the app returns to the login.
 - **Cadena de valor** (`/editor`) is in Spanish: screen copy and every node,
   field, state and vertical label live in `components/editor/nodeCatalog.ts`
   (Pozo, Red de recolección, Planta de tratamiento, Gasoducto, Planta

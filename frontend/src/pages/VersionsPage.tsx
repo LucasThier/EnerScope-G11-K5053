@@ -21,6 +21,8 @@ import {
   canManageProject as resolveCanManageProject,
   isPlatformAdmin as resolveIsPlatformAdmin,
 } from '../permissions/access';
+import { useProjectAccess } from '../hooks/useProjectAccess';
+import { canBranchFromParent, canMergeIntoParent } from '../utils/versionAccessRules';
 import { useVersionConflicts } from '../hooks/useVersionConflicts';
 import { useVersions } from '../hooks/useVersions';
 import { buildVersionTree, getDescendants } from '../utils/versionTree';
@@ -54,6 +56,15 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
   const canEdit = canEditProjectByRole(project?.myRole, isPlatformAdmin);
   const canManage = resolveCanManageProject(project?.myRole, isPlatformAdmin);
   const canCreateVersion = versions.length > 0 ? canEdit : canManage;
+  const { access } = useProjectAccess(projectId);
+  const canMergeInto = useCallback(
+    (parentVersionId: string) => (access ? canMergeIntoParent(access, parentVersionId) : canManage),
+    [access, canManage],
+  );
+  const canBranchFrom = useCallback(
+    (parentVersionId: string) => (access ? canBranchFromParent(access, parentVersionId) : canEdit),
+    [access, canEdit],
+  );
 
   const tree = useMemo(() => buildVersionTree(versions), [versions]);
   const descendants = useMemo(
@@ -159,6 +170,7 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
           <VersionTree
             nodes={tree}
             canEdit={canEdit}
+            canMergeInto={canMergeInto}
             unresolvedConflicts={unresolvedByVersion}
             onDelete={(version, isRoot) => setDeleting({ version, isRoot })}
             onMerge={setMerging}
@@ -181,6 +193,7 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
           <NewVersionModal
             projectId={projectId}
             canCreateRoot={canManage}
+            canBranchFrom={canBranchFrom}
             open={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             onCreated={reload}

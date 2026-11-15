@@ -17,12 +17,25 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
   'User not found': 'No se encontró la cuenta.',
   'Member not found': 'Esa persona ya no integra el proyecto.',
   'Project not found': 'El proyecto no existe o fue eliminado.',
-  'You are not allowed to manage this project':
-    'No tenés permiso para administrar los integrantes de este proyecto.',
+  'You are not allowed to manage this project': 'No tenés permiso para administrar este proyecto.',
   'You are not allowed to view this project': 'No tenés acceso a este proyecto.',
   'You are not allowed to edit this project':
     'No tenés permiso para editar las versiones de este proyecto.',
   'You are not allowed to access this version': 'No tenés acceso a esta versión.',
+  'You are not allowed to edit this version': 'No tenés permiso para editar esta versión.',
+  "You are not allowed to edit this vertical's nodes in this version":
+    'No tenés permiso para editar los nodos de esa vertical en esta versión.',
+  'You are not allowed to simulate this version': 'No tenés permiso para simular esta versión.',
+  'Project permission required: VIEW_PROJECT': 'No tenés acceso a este proyecto.',
+  'Resource not found': 'No se encontró el recurso pedido.',
+  'The versions belong to different projects':
+    'No se pueden relacionar versiones de proyectos distintos.',
+  'Parent version must belong to the same project':
+    'La versión padre debe pertenecer al mismo proyecto.',
+  'A version cannot be its own ancestor':
+    'Esa versión no puede ser su propia ancestra: el padre elegido deriva de ella.',
+  'Simulation graph contains a cycle':
+    'El diagrama tiene un ciclo: revisá las conexiones antes de simular.',
   'You are not allowed to manage this version': 'No tenés permiso para administrar esta versión.',
   'You are not allowed to delete one or more versions below this one':
     'No podés eliminar esta versión porque tiene versiones derivadas que no tenés permiso para eliminar.',
@@ -63,6 +76,7 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
 };
 
 const KNOWN_BACKEND_PREFIXES: [string, string][] = [
+  ['Node vertical does not match its type:', 'La vertical del nodo no corresponde a su tipo.'],
   ['Version not found with id:', 'La versión no existe o ya fue eliminada.'],
   ['Version conflict not found with id:', 'El conflicto no existe o ya fue resuelto.'],
   ['Node with id', 'El nodo ya no existe en esta versión.'],

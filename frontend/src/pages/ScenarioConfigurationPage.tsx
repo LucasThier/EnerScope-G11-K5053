@@ -4,6 +4,10 @@ import { useAuth } from '../hooks/useAuth';
 import { canEditProjectByPermissions, isPlatformAdmin } from '../permissions/access';
 import { economicsApi } from '../api/economics';
 import { projectsApi } from '../api/projects';
+import { versionAccessApi } from '../api/versionAccess';
+import { findVersionAccess, uneditableVerticals, UNKNOWN_VERTICAL } from '../utils/versionAccessRules';
+import { VERTICAL_LABELS } from '../components/editor/nodeCatalog';
+import type { Vertical } from '../types/diagram';
 import { scenarioConfigurationApi as api } from '../api/scenarioConfiguration';
 import { getErrorMessage, getErrorStatus } from '../api/errors';
 import { useActiveProject } from '../hooks/useActiveProject';
@@ -25,7 +29,7 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
  const {reload:reloadProjects}=useActiveProject();
  const navigate=useNavigate();
  const [snapshot,setSnapshot]=useState<ScenarioConfiguration|null>(null),[form,setForm]=useState<ScenarioSave|null>(null);
- const [baseline,setBaseline]=useState(''),[scenario,setScenario]=useState<Scenario|null>(null),[canEdit,setCanEdit]=useState(false);
+ const [baseline,setBaseline]=useState(''),[scenario,setScenario]=useState<Scenario|null>(null),[canEdit,setCanEdit]=useState(false),[editableVerticals,setEditableVerticals]=useState<Vertical[]|null>(null);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[conflict,setConflict]=useState(false);
  const [operationTab,setOperationTab]=useState(false);
  const latest=useRef({snapshot,form,baseline}),inFlight=useRef(false);
@@ -41,10 +45,11 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
  useEffect(()=>{
   let cancelled=false;
   const caller={id:user?.id,platformRole:user?.platformRole};
-  Promise.all([api.get(projectId,versionId),economicsApi.scenarios(projectId),isPlatformAdmin(caller)?Promise.resolve(null):projectsApi.members(projectId)])
-   .then(([state,scenarios,members])=>{
+  Promise.all([api.get(projectId,versionId),economicsApi.scenarios(projectId),isPlatformAdmin(caller)?Promise.resolve(null):projectsApi.members(projectId),versionAccessApi.projectAccess(projectId).then(r=>r.data.data??null).catch(()=>null)])
+   .then(([state,scenarios,members,projectAccess])=>{
     if(cancelled)return;const selected=scenarios.find(s=>s.id===versionId);if(!selected)throw new Error('Escenario no disponible.');
-    setScenario(selected);setCanEdit(canEditProjectByPermissions(caller,members?.data.data));hydrate(state);
+    const versionAccess=findVersionAccess(projectAccess,versionId);
+    setScenario(selected);setCanEdit(versionAccess?versionAccess.canEditEconomicConfiguration:canEditProjectByPermissions(caller,members?.data.data));setEditableVerticals(versionAccess?versionAccess.editableVerticals:null);hydrate(state);
    }).catch(e=>{if(cancelled)return;if(isProjectAccessLoss(getErrorStatus(e)))void reloadProjects();setError(getErrorMessage(e,'No se pudo cargar la configuración.'));});
   return ()=>{cancelled=true;};
  },[projectId,versionId,user?.id,user?.platformRole,hydrate,reloadProjects]);
@@ -78,7 +83,7 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
   finally{inFlight.current=false;setBusy(false);}
  }
  async function createSimpleCopy() {
-  if(!snapshot?.configuration || !scenario || !canEdit || inFlight.current || dirty || conflict || snapshot.draft || snapshot.legacyDraft)return;
+  if(!snapshot?.configuration || !scenario || !canEdit || !editableVerticals || uneditableVerticals(snapshot.nodes,editableVerticals).length>0 || inFlight.current || dirty || conflict || snapshot.draft || snapshot.legacyDraft)return;
   if(!window.confirm('Crear una copia con una entidad al 100 %, ingresos gravados y costos deducibles. No se trasladan participaciones, quebrantos, transferencias internas ni cobros diferidos. Se conservan los originales y sus resultados. Revisá los importes y vigencias de la copia antes de simular.'))return;
   inFlight.current=true;setBusy(true);setError('');
   let copyId:string|undefined;
@@ -103,6 +108,8 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
  }
  if(!snapshot||!form||!scenario)return error?<Alert tone="error">{error}</Alert>:<p role="status">Cargando configuración…</p>;
  const disabled=!canEdit||conflict;
+ const blockedVerticals=snapshot&&editableVerticals?uneditableVerticals(snapshot.nodes,editableVerticals):null;
+ const copyBlockedReason=!snapshot?null:!blockedVerticals?'No pudimos verificar tus permisos por vertical, por eso no se puede crear la copia.':blockedVerticals.length>0?'Para crear la copia necesitás poder editar todas las verticales del escenario. Te falta permiso en: '+blockedVerticals.map(v=>v===UNKNOWN_VERTICAL?'tipo de nodo desconocido':VERTICAL_LABELS[v]).join(', ')+'.':null;
  return <div className="space-y-5">
  <Link className="text-brand-800 underline" to={'/projects/'+projectId+'/scenario-configurations'}>← Configuración del Escenario / {scenario.name}</Link>
  <header className="flex flex-wrap justify-between gap-3"><h1 className="text-2xl font-semibold">Configuración del Escenario</h1><span role="status">{busy?'Guardando…':dirty?'Cambios sin guardar':'Sin cambios pendientes'}</span></header>
@@ -125,7 +132,8 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
   <p>Este escenario contiene reglas que el formulario simple no representa. Sus datos y resultados se conservan intactos. Podés crear una copia para editarla con el formulario simple.</p>
   <dl className="grid gap-3 sm:grid-cols-2"><div><dt>Año de inversión</dt><dd>{form.editor.value.startYear}</dd></div><div><dt>Años operativos</dt><dd>{form.editor.value.years}</dd></div><div><dt>Moneda</dt><dd>{form.editor.value.currency}</dd></div><div><dt>Entidades fiscales</dt><dd>{form.editor.value.taxEntities.length}</dd></div></dl>
   <p className="text-sm text-ink-500">La copia usa una entidad al 100 %, ingresos gravados y costos deducibles. Debés revisar importes y vigencias: no reproduce participaciones, quebrantos, transferencias internas ni cobros diferidos.</p>
-  <Button disabled={disabled||busy||dirty||!!snapshot.draft||!!snapshot.legacyDraft} onClick={()=>void createSimpleCopy()}>Crear copia simple</Button>
+  <Button disabled={disabled||busy||dirty||!!copyBlockedReason||!!snapshot.draft||!!snapshot.legacyDraft} onClick={()=>void createSimpleCopy()}>Crear copia simple</Button>
+  {copyBlockedReason&&<Alert>{copyBlockedReason}</Alert>}
   {(snapshot.draft||snapshot.legacyDraft)&&<><p>Hay un borrador conservado. Descartalo explícitamente para crear una copia desde la configuración publicada.</p><Button variant="ghost" disabled={!canEdit||busy} onClick={()=>void discard()}>Descartar cambios</Button></>}
  </section>}
  </div>;

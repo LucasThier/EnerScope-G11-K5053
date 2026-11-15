@@ -125,6 +125,7 @@ export function ProjectsPage() {
             onEdit={setEditing}
             onDelete={setDeleting}
             onManageMembers={(project) => navigate(`/projects/${project.id}/team`)}
+            onViewTeam={(project) => navigate(`/projects/${project.id}/team`)}
             onViewVersions={(project) => {
               selectProject(project.id);
               navigate(`/projects/${project.id}/versions`);
