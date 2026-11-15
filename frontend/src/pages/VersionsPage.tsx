@@ -15,14 +15,13 @@ import {
 import { ResolveConflictsDialog } from '../components/versions/ResolveConflictsDialog';
 import { VersionTree } from '../components/versions/VersionTree';
 import { useActiveProject } from '../hooks/useActiveProject';
-import { useAuth } from '../hooks/useAuth';
+import { useGuardedProjectAccess } from '../hooks/useGuardedProjectAccess';
+import { AccessFailureAlert } from '../components/versionRoles/AccessFailureAlert';
 import {
-  canEditProjectByRole,
-  canManageProject as resolveCanManageProject,
-  isPlatformAdmin as resolveIsPlatformAdmin,
-} from '../permissions/access';
-import { useProjectAccess } from '../hooks/useProjectAccess';
-import { canBranchFromParent, canMergeIntoParent } from '../utils/versionAccessRules';
+  canBranchFromParent,
+  canMergeIntoParent,
+  projectVersioning,
+} from '../utils/versionAccessRules';
 import { useVersionConflicts } from '../hooks/useVersionConflicts';
 import { useVersions } from '../hooks/useVersions';
 import { buildVersionTree, getDescendants } from '../utils/versionTree';
@@ -39,7 +38,6 @@ export function VersionsPage() {
 }
 
 function VersionsWorkspace({ projectId }: { projectId?: string }) {
-  const { user } = useAuth();
   const { projects, reload: reloadProjects } = useActiveProject();
   const { versions, loading, error, errorStatus, reload, deleteVersion, mergeVersion } = useVersions(
     projectId ?? null,
@@ -52,18 +50,18 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
   const [resolving, setResolving] = useState<VersionSummary | null>(null);
 
   const project = projects.find((candidate) => candidate.id === projectId);
-  const isPlatformAdmin = resolveIsPlatformAdmin(user);
-  const canEdit = canEditProjectByRole(project?.myRole, isPlatformAdmin);
-  const canManage = resolveCanManageProject(project?.myRole, isPlatformAdmin);
-  const canCreateVersion = versions.length > 0 ? canEdit : canManage;
-  const { access } = useProjectAccess(projectId);
+  const { access, failure: accessFailure, retry: retryAccess } = useGuardedProjectAccess(projectId);
+  const { canEdit, canCreateRoot, canCreateVersion } = projectVersioning(
+    access,
+    versions.length,
+  );
   const canMergeInto = useCallback(
-    (parentVersionId: string) => (access ? canMergeIntoParent(access, parentVersionId) : canManage),
-    [access, canManage],
+    (parentVersionId: string) => canMergeIntoParent(access, parentVersionId),
+    [access],
   );
   const canBranchFrom = useCallback(
-    (parentVersionId: string) => (access ? canBranchFromParent(access, parentVersionId) : canEdit),
-    [access, canEdit],
+    (parentVersionId: string) => canBranchFromParent(access, parentVersionId),
+    [access],
   );
 
   const tree = useMemo(() => buildVersionTree(versions), [versions]);
@@ -148,6 +146,8 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
         )}
       </header>
 
+      <AccessFailureAlert message={accessFailure} onRetry={() => void retryAccess()} />
+
       <Card padded={false} className="overflow-hidden">
         {error ? (
           <div className="px-4 py-6">
@@ -156,13 +156,13 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
         ) : versions.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <p className="text-sm text-ink-500">Este proyecto todavía no tiene versiones.</p>
-            {canManage && (
+            {canCreateRoot && (
               <Button className="mt-4" onClick={() => setIsModalOpen(true)}>
                 <PlusIcon className="h-4 w-4" />
                 Nueva versión
               </Button>
             )}
-            {canEdit && !canManage && (
+            {canEdit && !canCreateRoot && (
               <p className="mt-2 text-sm text-ink-500">{FIRST_VERSION_ADMIN_MESSAGE}</p>
             )}
           </div>
@@ -192,7 +192,7 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
         <>
           <NewVersionModal
             projectId={projectId}
-            canCreateRoot={canManage}
+            canCreateRoot={canCreateRoot}
             canBranchFrom={canBranchFrom}
             open={isModalOpen}
             onClose={() => setIsModalOpen(false)}

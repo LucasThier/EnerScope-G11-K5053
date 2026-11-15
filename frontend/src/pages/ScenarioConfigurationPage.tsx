@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useBlocker, useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import { canEditProjectByPermissions, isPlatformAdmin } from '../permissions/access';
+import { useGuardedProjectAccess } from '../hooks/useGuardedProjectAccess';
+import { AccessFailureAlert } from '../components/versionRoles/AccessFailureAlert';
 import { economicsApi } from '../api/economics';
 import { projectsApi } from '../api/projects';
-import { versionAccessApi } from '../api/versionAccess';
-import { findVersionAccess, uneditableVerticals, UNKNOWN_VERTICAL } from '../utils/versionAccessRules';
-import { VERTICAL_LABELS } from '../components/editor/nodeCatalog';
-import type { Vertical } from '../types/diagram';
+import { scenarioCopyBlockedReason, versionEconomics } from '../utils/versionAccessRules';
 import { scenarioConfigurationApi as api } from '../api/scenarioConfiguration';
 import { getErrorMessage, getErrorStatus } from '../api/errors';
 import { useActiveProject } from '../hooks/useActiveProject';
@@ -25,11 +22,12 @@ export function ScenarioConfigurationPage() {
  return <Workspace key={projectId+versionId} projectId={projectId} versionId={versionId}/>;
 }
 function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
- const {user}=useAuth();
  const {reload:reloadProjects}=useActiveProject();
  const navigate=useNavigate();
  const [snapshot,setSnapshot]=useState<ScenarioConfiguration|null>(null),[form,setForm]=useState<ScenarioSave|null>(null);
- const [baseline,setBaseline]=useState(''),[scenario,setScenario]=useState<Scenario|null>(null),[canEdit,setCanEdit]=useState(false),[editableVerticals,setEditableVerticals]=useState<Vertical[]|null>(null);
+ const [baseline,setBaseline]=useState(''),[scenario,setScenario]=useState<Scenario|null>(null);
+ const {access,failure:accessFailure,retry:retryAccess}=useGuardedProjectAccess(projectId);
+ const {canEditConfiguration:canEdit,editableVerticals}=versionEconomics(access,versionId);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[conflict,setConflict]=useState(false);
  const [operationTab,setOperationTab]=useState(false);
  const latest=useRef({snapshot,form,baseline}),inFlight=useRef(false);
@@ -44,15 +42,13 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
  },[]);
  useEffect(()=>{
   let cancelled=false;
-  const caller={id:user?.id,platformRole:user?.platformRole};
-  Promise.all([api.get(projectId,versionId),economicsApi.scenarios(projectId),isPlatformAdmin(caller)?Promise.resolve(null):projectsApi.members(projectId),versionAccessApi.projectAccess(projectId).then(r=>r.data.data??null).catch(()=>null)])
-   .then(([state,scenarios,members,projectAccess])=>{
+  Promise.all([api.get(projectId,versionId),economicsApi.scenarios(projectId)])
+   .then(([state,scenarios])=>{
     if(cancelled)return;const selected=scenarios.find(s=>s.id===versionId);if(!selected)throw new Error('Escenario no disponible.');
-    const versionAccess=findVersionAccess(projectAccess,versionId);
-    setScenario(selected);setCanEdit(versionAccess?versionAccess.canEditEconomicConfiguration:canEditProjectByPermissions(caller,members?.data.data));setEditableVerticals(versionAccess?versionAccess.editableVerticals:null);hydrate(state);
+    setScenario(selected);hydrate(state);
    }).catch(e=>{if(cancelled)return;if(isProjectAccessLoss(getErrorStatus(e)))void reloadProjects();setError(getErrorMessage(e,'No se pudo cargar la configuración.'));});
   return ()=>{cancelled=true;};
- },[projectId,versionId,user?.id,user?.platformRole,hydrate,reloadProjects]);
+ },[projectId,versionId,hydrate,reloadProjects]);
  useEffect(()=>{
   let cancelled=false,checking=false;
   async function refresh() {
@@ -83,7 +79,7 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
   finally{inFlight.current=false;setBusy(false);}
  }
  async function createSimpleCopy() {
-  if(!snapshot?.configuration || !scenario || !canEdit || !editableVerticals || uneditableVerticals(snapshot.nodes,editableVerticals).length>0 || inFlight.current || dirty || conflict || snapshot.draft || snapshot.legacyDraft)return;
+  if(!snapshot?.configuration || !scenario || !canEdit || scenarioCopyBlockedReason(snapshot.nodes,editableVerticals,!!accessFailure) || inFlight.current || dirty || conflict || snapshot.draft || snapshot.legacyDraft)return;
   if(!window.confirm('Crear una copia con una entidad al 100 %, ingresos gravados y costos deducibles. No se trasladan participaciones, quebrantos, transferencias internas ni cobros diferidos. Se conservan los originales y sus resultados. Revisá los importes y vigencias de la copia antes de simular.'))return;
   inFlight.current=true;setBusy(true);setError('');
   let copyId:string|undefined;
@@ -108,12 +104,12 @@ function Workspace({projectId,versionId}:{projectId:string;versionId:string}) {
  }
  if(!snapshot||!form||!scenario)return error?<Alert tone="error">{error}</Alert>:<p role="status">Cargando configuración…</p>;
  const disabled=!canEdit||conflict;
- const blockedVerticals=snapshot&&editableVerticals?uneditableVerticals(snapshot.nodes,editableVerticals):null;
- const copyBlockedReason=!snapshot?null:!blockedVerticals?'No pudimos verificar tus permisos por vertical, por eso no se puede crear la copia.':blockedVerticals.length>0?'Para crear la copia necesitás poder editar todas las verticales del escenario. Te falta permiso en: '+blockedVerticals.map(v=>v===UNKNOWN_VERTICAL?'tipo de nodo desconocido':VERTICAL_LABELS[v]).join(', ')+'.':null;
+ const copyBlockedReason=scenarioCopyBlockedReason(snapshot.nodes,editableVerticals,!!accessFailure);
  return <div className="space-y-5">
  <Link className="text-brand-800 underline" to={'/projects/'+projectId+'/scenario-configurations'}>← Configuración del Escenario / {scenario.name}</Link>
  <header className="flex flex-wrap justify-between gap-3"><h1 className="text-2xl font-semibold">Configuración del Escenario</h1><span role="status">{busy?'Guardando…':dirty?'Cambios sin guardar':'Sin cambios pendientes'}</span></header>
  <p className="text-sm text-ink-500">Guardá la configuración económica y operativa. La ejecución se inicia desde Simulación de Escenarios.</p>
+ <AccessFailureAlert message={accessFailure} onRetry={()=>void retryAccess()}/>
  {error&&<Alert tone="error">{error}</Alert>}{notice&&<Alert>{notice}</Alert>}
  {snapshot.errors.length>0&&<Alert tone="error"><ul>{snapshot.errors.map((e,i)=><li key={i}>{e}</li>)}</ul></Alert>}
  {conflict&&<Alert tone="error">El escenario cambió desde otra pantalla. Tus cambios se conservan; para evitar sobrescribir datos, recargá descartando los cambios afectados.<Button variant="ghost" disabled={busy} onClick={()=>void discard()}>Descartar y recargar</Button></Alert>}

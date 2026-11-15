@@ -14,7 +14,14 @@ interface UseProjectAccess {
   reload: () => Promise<void>;
 }
 
-export function useProjectAccess(projectId: string | undefined): UseProjectAccess {
+interface ProjectAccessOptions {
+  withSummaries?: boolean;
+}
+
+export function useProjectAccess(
+  projectId: string | undefined,
+  { withSummaries = false }: ProjectAccessOptions = {},
+): UseProjectAccess {
   const [access, setAccess] = useState<ProjectAccess | null>(null);
   const [summaries, setSummaries] = useState<VersionSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +32,7 @@ export function useProjectAccess(projectId: string | undefined): UseProjectAcces
   const load = useCallback(async (id: string) => {
     const [accessResult, versionsResult] = await Promise.allSettled([
       versionAccessApi.projectAccess(id),
-      projectsApi.listVersions(id),
+      withSummaries ? projectsApi.listVersions(id) : Promise.resolve(null),
     ]);
     if (latestProject.current !== id) {
       return;
@@ -45,10 +52,12 @@ export function useProjectAccess(projectId: string | undefined): UseProjectAcces
       }
     }
     setSummaries(
-      versionsResult.status === 'fulfilled' ? (versionsResult.value.data.data ?? []) : [],
+      versionsResult.status === 'fulfilled' && versionsResult.value
+        ? (versionsResult.value.data.data ?? [])
+        : [],
     );
     setLoadedFor(id);
-  }, []);
+  }, [withSummaries]);
 
   useEffect(() => {
     latestProject.current = projectId;

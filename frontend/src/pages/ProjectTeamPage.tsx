@@ -22,7 +22,8 @@ import { useAuth } from '../hooks/useAuth';
 import { isPlatformAdmin as resolveIsPlatformAdmin } from '../permissions/access';
 import { useMemberRoleChange } from '../hooks/useMemberRoleChange';
 import { useProjectAccess } from '../hooks/useProjectAccess';
-import { canManageProject } from '../utils/projectPermissions';
+import { accessFailureMessage } from '../utils/versionAccessRules';
+import { AccessFailureAlert } from '../components/versionRoles/AccessFailureAlert';
 import { lastProjectAdminReason } from '../utils/membershipGuards';
 import { callerProjectRoleLabel } from '../utils/versionRoles';
 import type { ProjectMember, ProjectMemberType } from '../types/project';
@@ -47,7 +48,7 @@ export function ProjectTeamPage() {
   const [removing, setRemoving] = useState<ProjectMember | null>(null);
   const [removedCount, setRemovedCount] = useState(0);
   const [searchParams, setSearchParams] = useSearchParams();
-  const projectAccess = useProjectAccess(projectId);
+  const projectAccess = useProjectAccess(projectId, { withSummaries: true });
   const reloadAccess = projectAccess.reload;
 
   const activeTab = searchParams.get('tab') === 'roles' ? 'roles' : 'integrantes';
@@ -162,9 +163,8 @@ export function ProjectTeamPage() {
   }
 
   const callerMembership = members.find((member) => member.userId === caller?.id);
-  const canManage =
-    projectAccess.access?.canManageProject ??
-    canManageProject(callerMembership?.memberType, isPlatformAdmin);
+  const canManage = projectAccess.access?.canManageProject ?? false;
+  const accessFailure = accessFailureMessage(projectAccess.error, false);
   const callerRoleLabel = callerProjectRoleLabel(
     projectAccess.access?.projectRole ?? callerMembership?.memberType,
     projectAccess.access?.platformAdmin ?? isPlatformAdmin,
@@ -192,6 +192,8 @@ export function ProjectTeamPage() {
         )}
       </header>
 
+      <AccessFailureAlert message={accessFailure} onRetry={() => void reloadAccess()} />
+
       <Tabs
         label="Equipo del proyecto"
         idPrefix={TABS_PREFIX}
@@ -201,7 +203,7 @@ export function ProjectTeamPage() {
       />
 
       <TabPanel idPrefix={TABS_PREFIX} id="integrantes" active={activeTab}>
-        {!error && !canManage && (
+        {!error && !canManage && !projectAccess.loading && !accessFailure && (
           <Alert tone="info" className="mb-4">
             Podés ver quiénes integran el proyecto. Solo los Administradores del proyecto pueden
             cambiar el equipo.

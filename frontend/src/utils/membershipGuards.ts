@@ -1,5 +1,5 @@
 import { isPlatformAdmin } from '../permissions/access';
-import type { OrganizationMemberSummary, UserSummary } from '../types/auth';
+import type { OrganizationMemberSummary, OrganizationSummary, UserSummary } from '../types/auth';
 import type { ProjectMember } from '../types/project';
 
 export const LAST_OWNER_REASON = 'Es la única persona con rol Propietario.';
@@ -44,4 +44,12 @@ export function canManageOrganizationUsers(
       member.active &&
       member.permissions.includes('MANAGE_ORGANIZATION'),
   );
+}
+
+export function canAddOrganizationMembers(
+  caller: UserSummary | null,
+  members: OrganizationMemberSummary[],
+  organization: Pick<OrganizationSummary, 'active'> | null | undefined,
+): boolean {
+  return organization?.active === true && canManageOrganizationUsers(caller, members);
 }

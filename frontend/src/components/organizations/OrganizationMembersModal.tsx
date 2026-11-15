@@ -13,7 +13,7 @@ import { getErrorMessage } from '../../api/errors';
 import { useAuth } from '../../hooks/useAuth';
 import { useCsvUserImport } from '../../hooks/useCsvUserImport';
 import { useMemberRoleChange } from '../../hooks/useMemberRoleChange';
-import { canManageOrganizationUsers, lastOwnerReason } from '../../utils/membershipGuards';
+import { canAddOrganizationMembers, lastOwnerReason } from '../../utils/membershipGuards';
 import type {
   OrganizationMemberSummary,
   OrganizationMemberType,
@@ -103,7 +103,7 @@ export function OrganizationMembersModal({
   useEffect(() => {
     setImporting(false);
     setAdding(false);
-    setChoosing(initialStep === 'choose');
+    setChoosing(initialStep === 'choose' && organization?.active === true);
     if (!organizationId) {
       setMembers([]);
       setError(null);
@@ -137,7 +137,7 @@ export function OrganizationMembersModal({
     return () => {
       cancelled = true;
     };
-  }, [organizationId, initialStep]);
+  }, [organizationId, initialStep, organization?.active]);
 
   async function handleRemove() {
     if (!organizationId || !confirming) {
@@ -159,7 +159,7 @@ export function OrganizationMembersModal({
 
   function leaveAdding() {
     setAdding(false);
-    setChoosing(initialStep === 'choose');
+    setChoosing(initialStep === 'choose' && organization?.active === true);
   }
 
   const isSelf = confirming !== null && caller !== null && confirming.userId === caller.id;
@@ -286,7 +286,13 @@ export function OrganizationMembersModal({
         <div>
           {error && <Alert tone="error">{error}</Alert>}
 
-          {canManageOrganizationUsers(caller, members) && (
+          {organization && !organization.active && (
+            <Alert tone="info">
+              La organización está inactiva: no se pueden agregar integrantes ni importar un CSV.
+            </Alert>
+          )}
+
+          {canAddOrganizationMembers(caller, members, organization) && (
             <div className="mb-4 flex flex-wrap justify-end gap-2">
               <Button variant="secondary" onClick={() => setAdding(true)}>
                 <PlusIcon className="h-4 w-4" />

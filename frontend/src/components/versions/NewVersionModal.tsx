@@ -6,6 +6,15 @@ import { Modal, ModalFooter } from '../ui/Modal';
 import { TextField } from '../ui/TextField';
 import { getErrorMessage } from '../../api/errors';
 import { useVersions } from '../../hooks/useVersions';
+import {
+  FIRST_VERSION_ADMIN_MESSAGE,
+  NO_EDITABLE_PARENT_MESSAGE,
+  newVersionBlockMessage,
+  newVersionMode,
+  parentForNewVersion,
+  pickDefaultParent,
+  validateVersionName,
+} from '../../utils/newVersion';
 
 interface NewVersionModalProps {
   projectId: string;
@@ -19,11 +28,7 @@ interface NewVersionModalProps {
 
 const NAME_MAX = 320;
 
-export const NO_EDITABLE_PARENT_MESSAGE =
-  'No tenés permiso para editar ninguna versión de este proyecto, así que no podés crear una versión derivada.';
-
-export const FIRST_VERSION_ADMIN_MESSAGE =
-  'Pedile al administrador del proyecto que cree la primera versión.';
+export { FIRST_VERSION_ADMIN_MESSAGE, NO_EDITABLE_PARENT_MESSAGE };
 
 export function NewVersionModal({
   projectId,
@@ -54,23 +59,21 @@ export function NewVersionModal({
   }, [open]);
 
   useEffect(() => {
-    if (!open || loadingVersions || parents.length === 0) {
+    if (!open || loadingVersions) {
       return;
     }
-    if (defaultParentId && parents.some((version) => version.id === defaultParentId)) {
-      setParentVersionId(defaultParentId);
-      return;
+    const picked = pickDefaultParent(parents, defaultParentId);
+    if (picked) {
+      setParentVersionId(picked);
     }
-    const root = parents.find((version) => version.parentVersionId === null) ?? parents[0];
-    setParentVersionId(root.id);
   }, [open, loadingVersions, parents, defaultParentId]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitError(null);
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setNameError('El nombre es obligatorio.');
+    const checked = validateVersionName(name);
+    if (checked.name === null) {
+      setNameError(checked.error);
       return;
     }
     setNameError(null);
@@ -78,8 +81,8 @@ export function NewVersionModal({
     setSubmitting(true);
     try {
       const createdId = await createVersion({
-        name: trimmedName,
-        parentVersion: versions.length > 0 ? parentVersionId : null,
+        name: checked.name,
+        parentVersion: parentForNewVersion(versions.length, parentVersionId),
       });
       await onCreated(createdId);
       onClose();
@@ -90,13 +93,19 @@ export function NewVersionModal({
     }
   }
 
+  const mode = newVersionMode({
+    loading: loadingVersions,
+    versionCount: versions.length,
+    parentCount: parents.length,
+    canCreateRoot,
+  });
+  const blockMessage = newVersionBlockMessage(mode);
+
   return (
     <Modal open={open} onClose={onClose} title="Nueva versión">
-      {!loadingVersions && ((versions.length === 0 && !canCreateRoot) || (versions.length > 0 && parents.length === 0)) ? (
+      {blockMessage ? (
         <div className="flex flex-col gap-4">
-          <Alert tone="info">
-            {versions.length === 0 ? FIRST_VERSION_ADMIN_MESSAGE : NO_EDITABLE_PARENT_MESSAGE}
-          </Alert>
+          <Alert tone="info">{blockMessage}</Alert>
           <ModalFooter>
             <Button type="button" variant="ghost" onClick={onClose}>
               Cerrar

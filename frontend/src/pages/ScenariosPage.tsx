@@ -1,9 +1,9 @@
 import { scenarioConfigurationApi } from '../api/scenarioConfiguration';
 import type { ScenarioReadiness } from '../types/scenarioConfiguration';
 import { SimulationDialog } from '../components/economics/SimulationDialog';
-import { projectsApi } from '../api/projects';
-import { useAuth } from '../hooks/useAuth';
-import { canEditProjectByPermissions, isPlatformAdmin } from '../permissions/access';
+import { useGuardedProjectAccess } from '../hooks/useGuardedProjectAccess';
+import { AccessFailureAlert } from '../components/versionRoles/AccessFailureAlert';
+import { versionEconomics } from '../utils/versionAccessRules';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { economicsApi } from '../api/economics';
@@ -24,39 +24,38 @@ export function ScenariosPage({ configuration = false }: { configuration?: boole
 function ScenariosWorkspace({ projectId, configuration }: { projectId: string; configuration: boolean }) {
   const [readiness,setReadiness]=useState<ScenarioReadiness[]>([]);
   const [simulating,setSimulating]=useState<Scenario|null>(null);
-  const { user } = useAuth();
   const { reload: reloadProjects } = useActiveProject();
-  const [canEdit, setCanEdit] = useState(false);
+  const { access, failure: accessFailure, retry: retryAccess } = useGuardedProjectAccess(projectId);
   const [state, setState] = useState<{ project: string; scenarios: Scenario[]; error: string; loading: boolean }>({ project: '', scenarios: [], error: '', loading: true });
   const [search, setSearch] = useState('');
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     let cancelled = false;
-    const caller = { id: user?.id, platformRole: user?.platformRole };
-    Promise.all([configuration ? Promise.resolve([]) : scenarioConfigurationApi.readiness(projectId), economicsApi.scenarios(projectId), isPlatformAdmin(caller) ? Promise.resolve(null) : projectsApi.members(projectId)]).then(([ready, scenarios, members]) => {
+    Promise.all([configuration ? Promise.resolve([]) : scenarioConfigurationApi.readiness(projectId), economicsApi.scenarios(projectId)]).then(([ready, scenarios]) => {
       if (!cancelled) setReadiness(ready);
-      if (!cancelled) setCanEdit(canEditProjectByPermissions(caller, members?.data.data));
       if (!cancelled) setState({ project: projectId, scenarios, error: '', loading: false });
     }).catch(error => { if (!cancelled && isProjectAccessLoss(getErrorStatus(error))) void reloadProjects(); if (!cancelled) setState({ project: projectId, scenarios: [], error: getErrorMessage(error, 'No se pudieron cargar los escenarios.'), loading: false }); });
     return () => { cancelled = true; };
-  }, [projectId, retry, user?.id, user?.platformRole, configuration, reloadProjects]);
+  }, [projectId, retry, configuration, reloadProjects]);
   const loading = state.loading || state.project !== projectId;
   const filtered = state.scenarios.filter(s => s.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
   return <div className="space-y-6">
     <header><h1 className="text-2xl font-semibold text-ink-800">{configuration ? 'Configuración del Escenario' : 'Simulación de Escenarios'}</h1>
       <p className="mt-1 text-sm text-ink-500">{configuration ? 'Seleccioná una versión disponible para editar la configuración económica y operativa del escenario a simular' : 'Seleccioná Simular para elegir las rondas y la semilla. El nombre del escenario abre su historial y resultados.'}</p></header>
+    <AccessFailureAlert message={accessFailure} onRetry={() => void retryAccess()} />
     {loading ? <p role="status">Cargando escenarios…</p> : state.error ? <Alert tone="error">{state.error} <Button variant="ghost" onClick={() => { setState(s => ({ ...s, loading: true })); setRetry(n => n + 1); }}>Reintentar</Button></Alert> :
       <Card><TextField label={configuration ? "Buscar Versión" : "Buscar escenario"} value={search} onChange={e => setSearch(e.target.value)} />
         {!state.scenarios.length ? <p className="mt-6 text-sm text-ink-500">Este proyecto todavía no tiene versiones disponibles.</p> :
           <div className="mt-6 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b border-ink-200"><th className="p-3">{configuration ? "Versiones Disponibles" : "Escenario"}</th><th className="p-3">Actualizado</th><th className="p-3">Acción</th></tr></thead><tbody>
             {filtered.map(s => {
               const status=readiness.find(r=>r.versionId===s.id);
+              const rights=versionEconomics(access,s.id);
               return <tr key={s.id} className="border-b border-ink-100"><td className="p-3 font-medium">
                 <Link className="text-brand-800 underline" to={`/projects/${projectId}/versions/${s.id}/economics/${configuration ? 'configuration' : 'history'}`}>{s.name}</Link>
                 {!configuration && <p className="mt-1 text-xs text-ink-500">{status?.ready ? 'Listo para simular' : status?.errors.join(' ') || 'No se pudo verificar la configuración.'}</p>}
               </td><td className="p-3">{formatDate(s.lastModified)}</td><td className="p-3">
-                {configuration ? <Link className="text-brand-800 underline" to={`/projects/${projectId}/versions/${s.id}/economics/configuration`}>Configurar Escenario</Link> :
-                  <Button disabled={!canEdit || !status?.ready} onClick={()=>setSimulating(s)}>Simular</Button>}
+                {configuration ? (rights.canViewConfiguration ? <Link className="text-brand-800 underline" to={`/projects/${projectId}/versions/${s.id}/economics/configuration`}>Configurar Escenario</Link> : <span className="text-ink-500">Sin acceso a la configuración</span>) :
+                  <Button disabled={!rights.canSimulate || !status?.ready} onClick={()=>setSimulating(s)}>Simular</Button>}
               </td></tr>;
             })}
           </tbody></table>{!filtered.length && <p className="p-3">No hay versiones que coincidan con la búsqueda.</p>}</div>}

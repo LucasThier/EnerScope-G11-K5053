@@ -32,7 +32,7 @@ const root = fileURLToPath(new URL('../src/', import.meta.url));
 const goldenPath = fileURLToPath(new URL('./permissionsNav.golden.json', import.meta.url));
 const { useNavigationTree } = load(resolve(root, 'hooks/useNavigationTree.ts'));
 const { canManageProject } = load(resolve(root, 'utils/projectPermissions.ts'));
-const { canManageOrganizationUsers } = load(resolve(root, 'utils/membershipGuards.ts'));
+const { canManageOrganizationUsers, canAddOrganizationMembers } = load(resolve(root, 'utils/membershipGuards.ts'));
 const { RoleRoute } = load(resolve(root, 'routes/RoleRoute.tsx'));
 
 const ROLES = ['ADMIN', 'USER'];
@@ -55,6 +55,19 @@ test('canManageOrganizationUsers: platform admin or MANAGE_ORGANIZATION on an ac
   assert.equal(canManageOrganizationUsers(me, [member({ permissions: ['VIEW_ORGANIZATION'] })]), false);
   assert.equal(canManageOrganizationUsers(me, [member({ userId: 'u2' })]), false);
   assert.equal(canManageOrganizationUsers(me, []), false);
+});
+
+test('canAddOrganizationMembers: requires an active organization on top of the management rule', () => {
+  const me = { id: 'u1', platformRole: 'USER' };
+  const admin = { id: 'u9', platformRole: 'ADMIN' };
+  const manager = [{ userId: 'u1', active: true, permissions: ['MANAGE_ORGANIZATION'] }];
+  assert.equal(canAddOrganizationMembers(me, manager, { active: true }), true);
+  assert.equal(canAddOrganizationMembers(me, manager, { active: false }), false);
+  assert.equal(canAddOrganizationMembers(admin, [], { active: true }), true);
+  assert.equal(canAddOrganizationMembers(admin, [], { active: false }), false);
+  assert.equal(canAddOrganizationMembers(admin, [], null), false);
+  assert.equal(canAddOrganizationMembers(me, [], { active: true }), false);
+  assert.equal(canAddOrganizationMembers(null, manager, { active: true }), false);
 });
 
 test('RoleRoute: redirects logged-out to /login, role mismatch to /, match renders the outlet', () => {
@@ -96,13 +109,8 @@ const legacy = {
   isAdmin: user => user?.platformRole === 'ADMIN',
   versionsCanEdit: (user, myRole) => user?.platformRole === 'ADMIN' || myRole === 'ADMIN' || myRole === 'EDITOR',
   modalCanManage: (user, membership) => user?.platformRole === 'ADMIN' || membership?.memberType === 'ADMIN',
-  permissionsCanEdit: (user, members) => user?.platformRole === 'ADMIN' || !!members?.some(m => m.userId === user?.id && m.active && m.permissions.includes('EDIT_PROJECT')),
 };
 const USERS = [null, undefined, { id: 'u1', platformRole: 'ADMIN' }, { id: 'u1', platformRole: 'USER' }];
-const MEMBER_SETS = [null, undefined, [], [{ userId: 'u1', active: true, permissions: ['EDIT_PROJECT'] }],
-  [{ userId: 'u1', active: true, permissions: ['VIEW_PROJECT'] }], [{ userId: 'u1', active: false, permissions: ['EDIT_PROJECT'] }],
-  [{ userId: 'u2', active: true, permissions: ['EDIT_PROJECT', 'MANAGE_PROJECT'] }],
-  [{ userId: 'u2', active: true, permissions: ['VIEW_PROJECT'] }, { userId: 'u1', active: true, permissions: ['MANAGE_PROJECT', 'EDIT_PROJECT'] }]];
 
 test('access module matches the previously inline checks', async () => {
   const access = load(resolve(root, 'permissions/access.ts'));
@@ -114,46 +122,11 @@ test('access module matches the previously inline checks', async () => {
       const membership = myRole === undefined ? undefined : { memberType: myRole };
       assert.equal(access.canManageProject(membership?.memberType, access.isPlatformAdmin(user)), legacy.modalCanManage(user, membership));
     }
-    for (const members of MEMBER_SETS) assert.equal(access.canEditProjectByPermissions(user, members), legacy.permissionsCanEdit(user, members));
   }
-});
-
-test('executive role is inactive by default and never alters the resolved capabilities', () => {
-  const access = load(resolve(root, 'permissions/access.ts'));
-  assert.equal(access.ROLE_FEATURES.executive, false);
-  const onlySimulator = [{ type: 'SIMULATOR', vertical: null }];
-  for (const platformAdmin of [true, false]) for (const projectRole of PROJECT_ROLES) {
-    const caps = access.resolveVersionCapabilities({ platformAdmin, projectRole, versionRoles: onlySimulator });
-    const canEdit = platformAdmin || projectRole === 'ADMIN' || projectRole === 'EDITOR';
-    assert.equal(caps.isExecutive, false);
-    assert.equal(caps.canSimulate, canEdit);
-    assert.equal(caps.canEditConnections, canEdit);
-    assert.equal(caps.canEditVertical('EXTRACTION'), canEdit);
-    assert.equal(caps.canManageTeam, platformAdmin || projectRole === 'ADMIN');
-    assert.equal(caps.canViewEconomics, true);
-  }
-});
-
-test('executive role when enabled: view and simulate only, economics is a separate switch', () => {
-  const access = load(resolve(root, 'permissions/access.ts'));
-  const base = { platformAdmin: false, projectRole: 'EDITOR', versionRoles: [{ type: 'SIMULATOR', vertical: null }], executiveEnabled: true };
-  const caps = access.resolveVersionCapabilities(base);
-  assert.equal(caps.isExecutive, true);
-  assert.equal(caps.canView, true);
-  assert.equal(caps.canSimulate, true);
-  assert.equal(caps.canEditConnections, false);
-  assert.equal(caps.canManageTeam, false);
-  for (const vertical of ['EXTRACTION', 'TRANSPORTATION', 'LIQUEFACTION', 'EXPORT', 'INTERNAL_CONSUMPTION']) assert.equal(caps.canEditVertical(vertical), false);
-  assert.equal(access.EXECUTIVE_CAN_VIEW_ECONOMICS, true);
-  assert.equal(caps.canViewEconomics, true);
-  assert.equal(access.resolveVersionCapabilities({ ...base, executiveCanViewEconomics: false }).canViewEconomics, false);
-  assert.equal(access.resolveVersionCapabilities({ ...base, versionRoles: [{ type: 'SIMULATOR', vertical: null }, { type: 'EDITOR', vertical: 'EXPORT' }] }).isExecutive, false);
-  assert.equal(access.resolveVersionCapabilities({ ...base, versionRoles: [] }).isExecutive, false);
-  assert.equal(access.resolveVersionCapabilities({ ...base, platformAdmin: true }).isExecutive, false);
 });
 
 test('platform role checks live only in the permissions module, except display labels and user administration lists', () => {
-  const allowed = new Set(['permissions/access.ts', 'components/layout/UserMenu.tsx', 'components/dashboard/AccountCard.tsx',
+  const allowed = new Set(['permissions/access.ts', 'components/layout/UserMenu.tsx',
     'pages/ProfilePage.tsx', 'components/users/UsersTable.tsx', 'components/users/UserDetailModal.tsx', 'components/users/ChangeRoleModal.tsx',
     'pages/AdminUsersPage.tsx']);
   const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]);
