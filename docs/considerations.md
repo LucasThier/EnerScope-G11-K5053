@@ -2796,10 +2796,14 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     session. From reading the frontend code (not tested end to end): a
     demoted admin keeps seeing admin navigation (the stored `UserSummary` says
     `ADMIN`) until a reload, and those calls answer `403`.
-  - **Not verified:** how `POST /nodes/pipeline-connection` behaves — no test
-    covers it, so it is only known to carry the platform-admin check in
-    `NodeController` — and whether existing databases hold node rows whose
-    stored vertical does not match their type.
+  - **Update (2026-11-15, later):** the `POST /nodes/pipeline-connection` body
+    now binds. `PIPELINE_CONECTION` was added to `NodeRequestDeserializer` (commit
+    `fe54ddf`) and `NodeRequestDeserializerTest` covers it
+    (`pipelineConnectionBodyKeepsItsOwnFields`, and the type is in
+    `everySupportedNodeTypeSelectsItsDeclaredClass`). **Still not verified:** the
+    endpoint over HTTP — `NodeCreateAccessHttpTest` covers 12 of the 13
+    `POST /nodes/*`, not this one — and whether existing databases hold node rows
+    whose stored vertical does not match their type.
 
 - 2026-11-14 — Branches, merge and conflicts no longer cross projects
   (`update-frontend`, commit `5d5ccc3`). Tests in [`testing.md`](testing.md) →
@@ -3248,3 +3252,36 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     49 of them seen in a manual run. The `backend-it` CI job is still
     `continue-on-error`.
 
+
+- 2026-11-15 (later) — `FLNG_UNIT` edit no longer copies the ship capacity into
+  the gas consumption (`update-frontend`, commit `3d19cd7`; tests in
+  [`testing.md`](testing.md) → *FLNG unit: ship capacity and gas consumption*).
+  - **The bug.** `NodeService.editFLNGUnit` did
+    `unit.setGasConsumption(dto.getShipCapacity())`; it now reads
+    `dto.getGasConsumption()`. Separately, the node detail
+    (`VersionService`, `typeAttributes`) omitted both fields; it now returns
+    `shipCapacity` and `gasConsumption`.
+  - **Data written before the fix may be wrong.** Any FLNG edited before this
+    commit can have `gas_consumption` equal to `ship_capacity` because of the
+    copy; nothing in the data says which edits did it, and **no migration repairs
+    it** (the right value is not recoverable). A FLNG that never had its gas
+    consumption edited also looks like that if both were created equal, so equal
+    values are a hint, not proof. **To measure it after the merge** (not run
+    yet): count FLNG rows with `ship_capacity = gas_consumption`, per version,
+    and compare with the creation payloads if they are kept.
+  - **Known debt found in this pass (left as is):**
+    - **`TreatmentPlant.contaminantWaste` is not persisted.** The DTO field is
+      accepted and passed to the constructor, but the entity does not keep it, so
+      the node detail returns `0.0` (`VersionService` has a comment saying so).
+      A value typed in the editor is lost on save.
+    - **Numeric DTO fields unbox and throw `NullPointerException` on `null`.**
+      `FLNGUnitDTO` and other DTOs declare wrapper types (`Integer shipCapacity`,
+      `Float gasConsumption`) while the entities hold primitives (`int`, `float`),
+      so a body that omits or nulls one throws `NullPointerException` at the
+      setter call. Read from the code, **not tested**: the HTTP status it ends in
+      was not checked (expected an unhandled `500`, not a `400`).
+    - **The node DTOs have no `@Valid` / `@NotNull`.** Only the organization DTOs
+      are validated, so nothing rejects a missing or out-of-range value before the
+      service. Fixing the two points above properly means adding validation here.
+  - **Test counts.** `mvn test`: 1492 executions in 88 classes, 0 failures/errors/
+    skipped (1314 cases in the sources); +4 over the previous entry (1488).

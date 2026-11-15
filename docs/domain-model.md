@@ -332,6 +332,13 @@ concrete node type (`Well`, `GatheringNetwork`, `TreatmentPlant`, `Pipeline`,
 | `investmentCost` | InvestmentCost | `@OneToOne` |
 | plus per-type fields | | capacities, costs, etc. |
 
+`FLNGUnit` keeps two separate numbers: `shipCapacity` (the vessel) and
+`gasConsumption` (its own gas use). They are independent; the node detail
+returns both. Earlier edits copied one into the other — see
+[`considerations.md`](considerations.md) (*`FLNG_UNIT` edit no longer copies…*).
+`TreatmentPlant.contaminantWaste` is accepted by the DTO but **not persisted**
+(it reads back as `0`).
+
 ### NodeGraphData
 
 Presentation data of a node, holding **two independent, nullable positions**:

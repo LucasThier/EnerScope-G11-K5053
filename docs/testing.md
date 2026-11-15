@@ -92,7 +92,7 @@ executions differ; for every other class they are the same number. No class uses
 | `node.model.enums.NodeTypeEnumTest` | Unit | 6 | 50 |
 | `node.repository.ConsumptionPersistenceTest` | Data | 1 | 1 |
 | `node.service.NodeClonerRoleTest` | Unit | 2 | 2 |
-| `node.service.NodeServiceTest` | Unit | 5 | 5 |
+| `node.service.NodeServiceTest` | Unit | 7 | 7 |
 | `organization.controller.BulkUploadSizeLimitHttpTest` | Integration | 2 | 2 |
 | `organization.controller.OrganizationControllerTest` | Web | 47 | 47 |
 | `organization.repository.OrganizationMemberRepositoryTest` | Data | 17 | 17 |
@@ -119,6 +119,7 @@ executions differ; for every other class they are the same number. No class uses
 | `user.service.PasswordGeneratorTest` | Unit | 4 | 4 |
 | `user.service.UserServiceTest` | Unit | 58 | 58 |
 | `util.AuthUtilTest` | Unit | 7 | 7 |
+| `version.controller.FlngUnitShipAndGasHttpTest` | Integration | 2 | 2 |
 | `version.controller.ProjectExecutiveHttpTest` | Integration | 12 | 12 |
 | `version.controller.ProjectVersionMembersHttpTest` | Integration | 5 | 5 |
 | `version.controller.VersionAccessControllerTest` | Web | 3 | 3 |
@@ -148,7 +149,7 @@ executions differ; for every other class they are the same number. No class uses
 | `version.service.VersionMemberServiceTest` | Unit | 39 | 39 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 | 10 |
 | `version.service.VersionServiceTest` | Unit | 63 | 63 |
-| **Total (87 classes)** | | **1310** | **1488** |
+| **Total (88 classes)** | | **1314** | **1492** |
 
 > **`mvn test` on 2026-11-15 (13:35, run for this update): 1362 executions,
 > 0 failures, 0 errors, 0 skipped**, in 80 classes (`1238` methods). Executions
@@ -200,6 +201,12 @@ executions differ; for every other class they are the same number. No class uses
 > `VersionAccessServiceTest` 15→16, `VersionAccessHttpTest` 14→15. Details in
 > [*Project member type EXECUTIVE*](#project-member-type-executive--2026-11-15).
 > The new `ProjectRepositoryPostgreSqlIT` case is **not** in that 1488.
+
+> **Update — FLNG ship capacity and gas consumption.** `mvn test` after it:
+> **1492 executions, 0 failures, 0 errors, 0 skipped, in 88 classes (1314
+> cases)**; the table above already reflects it. +4 cases: `NodeServiceTest` 5→7
+> and the new `FlngUnitShipAndGasHttpTest` (2). Details in
+> [*FLNG unit: ship capacity and gas consumption*](#flng-unit-ship-capacity-and-gas-consumption--2026-11-15).
 
 ### PostgreSQL classes (`*IT`, by hand)
 
@@ -2251,7 +2258,8 @@ real `version_member` rows:
 
 `node.controller.NodeCreateAccessHttpTest` — Integration, 9 cases / 43
 executions (12 of the 13 `POST /nodes/*` endpoints; `/nodes/pipeline-connection`
-is not covered by any test, so its behaviour is **not verified**):
+is still not covered over HTTP — only its body deserialization is, by
+`NodeRequestDeserializerTest.pipelineConnectionBodyKeepsItsOwnFields`):
 
 | Case | Verifies |
 | --- | --- |
@@ -3279,3 +3287,24 @@ what each test pins. Behaviour: [`backend/README.md`](../backend/README.md).
 
 Run both by hand: `ECONOMIC_TEST_DATABASE_URL=… mvn -B verify` against a disposable
 database (see [*PostgreSQL classes*](#postgresql-classes-it-by-hand)).
+
+## FLNG unit: ship capacity and gas consumption — 2026-11-15
+
+Backend only. Counts are in the Summary (+4 cases, 1492 executions). Behaviour and
+the data caveat: [`considerations.md`](considerations.md).
+
+- **`node.service.NodeServiceTest`** (+2, Unit):
+  - `saveFlngUnitKeepsShipCapacityAndGasConsumptionSeparate` — `saveFLNGUnit` stores
+    `shipCapacity` (3) and `gasConsumption` (30.5) from their own DTO fields.
+  - `editFlngUnitWritesGasConsumptionFromItsOwnFieldAndDoesNotOverwriteShipCapacity` —
+    **regression:** `editFLNGUnit` writes `gasConsumption` from the DTO's own field, not
+    from `shipCapacity`; three consecutive edits (both change, only gas changes, only ship
+    changes) each leave the unchanged field alone.
+- **`version.controller.FlngUnitShipAndGasHttpTest`** (new, 2, full context on H2):
+  - `createStoresAndReturnsShipCapacityAndGasConsumptionSeparately` — `POST
+    /version/{id}/node` with ship capacity 3 and gas consumption 30.5, then `GET
+    /version/{id}/node/{nodeId}`: `attributes.shipCapacity` and `attributes.gasConsumption`
+    come back as 3 and 30.5.
+  - `editStoresBothValuesAndOneDoesNotOverwriteTheOther` — three `PATCH
+    /version/{id}/node/{nodeId}` edits (8/44.25, then only gas → 8/11.5, then only ship →
+    2/11.5), each followed by a `GET` that returns exactly those two values.

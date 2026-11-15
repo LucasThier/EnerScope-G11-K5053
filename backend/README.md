@@ -296,6 +296,19 @@ in the request; if sent and different, create and edit (`/nodes/*` and
 Cloning a node (branches) recomputes the role from the type; with a `null` type
 it copies the stored role, since there is nothing to derive it from.
 
+### FLNG unit attributes
+
+`GET /version/{id}/node/{nodeId}` returns `attributes.shipCapacity` (the vessel)
+and `attributes.gasConsumption` (its own gas use) for a `FLNG_UNIT`; they are
+independent and `PATCH /version/{id}/node/{nodeId}` stores each from its own
+field. Before `3d19cd7` an edit copied `shipCapacity` into `gasConsumption` and
+the detail returned neither, so FLNG edited earlier may hold equal values; no
+migration repairs them. Known gaps in the node DTOs (not fixed): they carry no
+`@Valid`/`@NotNull`, numeric wrapper fields (`Integer`/`Float`) unbox into
+primitive entity fields and throw `NullPointerException` when `null`, and
+`TreatmentPlant.contaminantWaste` is accepted but not persisted (reads back as
+`0`). Details: [`docs/considerations.md`](../docs/considerations.md).
+
 ### Version members (`/version/{id}/members`, `/version/{id}/member-candidates`)
 
 - **Project administrators administer every version.** An active project member
