@@ -2556,8 +2556,8 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     **once up front**.
   - **The endpoint** is `POST /organizations/{organizationId}/users/bulk`,
     multipart, field name `file`. The client allows it a 180s timeout, because
-    hashing a password per row is slow and the default would cut a 100-row file
-    off mid-flight.
+    hashing a password per row is slow and the default would cut a large file
+    off mid-flight (the frontend now sends batches of 50; see the limits below).
   - **The format.** A header row is required. `mail`, `firstName` and
     `lastName` are mandatory; `role` is optional and takes `OWNER`/`MEMBER`
     (case-insensitive), defaulting to `MEMBER`. Column names are matched
@@ -2581,12 +2581,13 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     its reason, and imports only the valid ones. The backend re-checks all of it
     and reports per-row failures with `line` (1-based, header is line 1) and
     `mail`. The two message sets are kept in step by `translateBackendMessage`.
-  - **The limits are 100 data rows and 1 MB per file, and both are enforced in
-    the browser only.** 100 because each account costs seconds of password
-    hashing; 1 MB because that is exactly Spring's default multipart
-    `max-file-size`, so the browser refuses the file the server would have
-    refused badly (see below; *since 2026-11-15 the server answers `413`*). Over either limit the preview still renders, the
-    import button stays disabled, and the message says to split the file.
+  - **The limits are up to 500 users (data rows) and 1 MB per file, enforced in
+    both the browser and the backend.** The client sends the valid rows in
+    batches of 50, with a progress bar and a *Cancelar* button. The backend
+    answers `400` if a file has more than 500 rows and `413` if the file exceeds
+    1 MB (see the 2026-11-15 entries below). Over either limit the preview still
+    renders, the import button stays disabled, and the message says to split the
+    file. *(An earlier version of this entry said 100 rows, browser only.)*
   - **The generated passwords are shown once.** The response's `credentialsCsv`
     (`mail,password`) is never persisted and cannot be re-fetched. The screen
     says so, the download is a BOM-prefixed
@@ -3148,6 +3149,18 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
       still open (and `*IT` classes need a PostgreSQL started by hand). The
       rewritten class runs without `NON_KEYWORDS=YEAR` in its URL and passes; why
       `year` no longer needs it there was not investigated.
+    - **A non-existent id answers `404`/`400` before the permission check, so a
+      caller can tell whether it exists.** Besides the two project cases above:
+      `ScenarioConfigurationService.readiness` (~150) loads the project (`404`)
+      before `authorizeProject`; `VersionQueryService.list` (~23) answers `404
+      Project not found` before checking membership; `ProjectService.listMembers`
+      (~162) answers `400 Project not found` before `assertCanViewProject`; and
+      `VersionConflictService.getConflictsForVersion` (~136) answers
+      `VersionNotFoundException` before `assertCanViewVersion`. Not changed.
+    - **`GET /users/search` exposes name and email across organizations.** It
+      returns the name and email of any active platform user to an organization
+      owner (lookup by exact email, not limited to their own organization).
+      Product decision pending: keep it, or restrict it.
   - **Test counts and their source.** `mvn test` (run on 2026-11-15 for this
     entry): 1362 executions in 80 classes, 0 failures/errors/skipped, from the
     Surefire reports; 1238 cases counted in the sources. `npm test`: 173 tests in
