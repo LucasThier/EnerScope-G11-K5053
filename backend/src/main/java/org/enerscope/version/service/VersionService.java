@@ -417,6 +417,8 @@ public class VersionService {
             a.put("mtpaRatio", (double) f.getMTPARatio());
             a.put("intermediateStorage", (double) f.getIntermediateStorage());
             a.put("vesselDepth", (double) f.getVesselDepth());
+            a.put("shipCapacity", (double) f.getShipCapacity());
+            a.put("gasConsumption", (double) f.getGasConsumption());
             a.put("hiringCost", money(f.getHiringCost()));
         } else if (node instanceof SeaportTerminal s) {
             a.put("intermediateStorage", (double) s.getIntermediateStorage());

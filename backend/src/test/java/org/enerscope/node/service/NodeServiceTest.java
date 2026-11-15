@@ -8,6 +8,8 @@ import org.enerscope.node.model.enums.NodeTypeEnum;
 import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.node.model.extraction.Well;
+import org.enerscope.node.model.liquefaction.FLNGUnit;
+import org.enerscope.node.repository.FLNGUnitRepository;
 import org.enerscope.node.repository.WellRepository;
 import org.enerscope.probabilistic.ConstantValue;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -218,5 +221,69 @@ class NodeServiceTest {
         org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
                 () -> nodeService.editWell(well, dto));
         org.junit.jupiter.api.Assertions.assertNull(well.getType());
+    }
+
+    private static FLNGUnitDTO flngDto(int shipCapacity, float gasConsumption) {
+        FLNGUnitDTO dto = new FLNGUnitDTO();
+        dto.setName("FLNG");
+        dto.setState(NodeStateEnum.PROPOSED);
+        dto.setStartupDate(Instant.parse("2025-01-01T00:00:00Z"));
+        dto.setLifespanInMonths(120);
+        dto.setUpkeepCosts(100f);
+        dto.setMaintenanceIntervalInDays(30);
+        dto.setOperatingCosts(50f);
+        dto.setWastePercentage(0.1f);
+        dto.setMaxProcessingCapacity(140f);
+        dto.setMTPARatio(1f);
+        dto.setIntermediateStorage(80f);
+        dto.setVesselDepth(20f);
+        dto.setHiringCost(1000f);
+        dto.setShipCapacity(shipCapacity);
+        dto.setGasConsumption(gasConsumption);
+        InvestmentCostComponentDTO component = new InvestmentCostComponentDTO();
+        component.setName("Build");
+        component.setAmount(1000f);
+        component.setCostBasis(CostBasisEnum.FLAT);
+        InvestmentCostDTO investment = new InvestmentCostDTO();
+        investment.setComponents(List.of(component));
+        dto.setInvestmentCost(investment);
+        dto.setGraphData(new NodeGraphDataDTO(new GraphPositionDTO(1.0, 2.0), null));
+        dto.setType(new NodeTypeDataDTO(VerticalEnum.LIQUEFACTION,
+                StructuralRoleEnum.INTERMEDIATE, NodeTypeEnum.FLNG_UNIT));
+        return dto;
+    }
+
+    @Test
+    void saveFlngUnitKeepsShipCapacityAndGasConsumptionSeparate() {
+        FLNGUnitRepository repo = mock(FLNGUnitRepository.class);
+        when(repo.save(any(FLNGUnit.class))).thenAnswer(inv -> inv.getArgument(0));
+        NodeService service = new NodeService(null, null, null, null, repo, null,
+                null, null, null, null, null, null, null);
+
+        FLNGUnit saved = service.saveFLNGUnit(flngDto(3, 30.5f));
+
+        assertEquals(3, saved.getShipCapacity());
+        assertEquals(30.5f, saved.getGasConsumption());
+    }
+
+    @Test
+    void editFlngUnitWritesGasConsumptionFromItsOwnFieldAndDoesNotOverwriteShipCapacity() {
+        FLNGUnit unit = new FLNGUnit();
+        unit.setShipCapacity(1);
+        unit.setGasConsumption(2f);
+
+        nodeService.editFLNGUnit(unit, flngDto(7, 45.5f));
+
+        assertEquals(7, unit.getShipCapacity());
+        assertEquals(45.5f, unit.getGasConsumption());
+
+        // A second edit changing only one of them must not drag the other along.
+        nodeService.editFLNGUnit(unit, flngDto(7, 12.25f));
+        assertEquals(7, unit.getShipCapacity());
+        assertEquals(12.25f, unit.getGasConsumption());
+
+        nodeService.editFLNGUnit(unit, flngDto(9, 12.25f));
+        assertEquals(9, unit.getShipCapacity());
+        assertEquals(12.25f, unit.getGasConsumption());
     }
 }

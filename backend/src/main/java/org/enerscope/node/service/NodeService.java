@@ -528,7 +528,7 @@ public class NodeService {
       unit.setOperatingCosts(dto.getOperatingCosts() != null ? MoneyAmount.of(dto.getOperatingCosts()) : null);
       unit.setWastePercentage(dto.getWastePercentage());
       unit.setShipCapacity(dto.getShipCapacity());
-      unit.setGasConsumption(dto.getShipCapacity());
+      unit.setGasConsumption(dto.getGasConsumption());
 
       // Update related entities
       if (dto.getInvestmentCost() != null) {
