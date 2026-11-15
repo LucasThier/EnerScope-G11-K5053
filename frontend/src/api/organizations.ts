@@ -1,4 +1,5 @@
 import { client } from './client';
+import { invalidatesAccess } from './accessEvents';
 import type {
   AddOrganizationMemberRequest,
   BulkRegistrationResult,
@@ -41,10 +42,10 @@ export const organizationsApi = {
     client.patch(`/organizations/${organizationId}`, data),
 
   deactivate: (organizationId: string): Promise<AxiosResponse<ApiResponse<null>>> =>
-    client.delete(`/organizations/${organizationId}`),
+    invalidatesAccess(client.delete(`/organizations/${organizationId}`)),
 
   reactivate: (organizationId: string): Promise<AxiosResponse<ApiResponse<null>>> =>
-    client.post(`/organizations/${organizationId}/reactivate`),
+    invalidatesAccess(client.post(`/organizations/${organizationId}/reactivate`)),
 
   members: (
     organizationId: string,
@@ -55,14 +56,14 @@ export const organizationsApi = {
     organizationId: string,
     memberId: string,
   ): Promise<AxiosResponse<ApiResponse<null>>> =>
-    client.delete(`/organizations/${organizationId}/members/${memberId}`),
+    invalidatesAccess(client.delete(`/organizations/${organizationId}/members/${memberId}`)),
 
   changeMemberRole: (
     organizationId: string,
     memberId: string,
     data: UpdateOrganizationMemberRoleRequest,
   ): Promise<AxiosResponse<ApiResponse<OrganizationMemberSummary>>> =>
-    client.patch(`/organizations/${organizationId}/members/${memberId}`, data),
+    invalidatesAccess(client.patch(`/organizations/${organizationId}/members/${memberId}`, data)),
 
   registerUser: (
     organizationId: string,

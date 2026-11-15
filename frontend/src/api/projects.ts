@@ -38,7 +38,7 @@ export const projectsApi = {
     client.patch(`/projects/${projectId}`, data),
 
   remove: (projectId: string): Promise<AxiosResponse<ApiResponse<null>>> =>
-    client.delete(`/projects/${projectId}`),
+    invalidatesAccess(client.delete(`/projects/${projectId}`), projectId),
 
   /** Members of a project: readable by platform admins and by members of the project. */
   members: (projectId: string): Promise<AxiosResponse<ApiResponse<ProjectMember[]>>> =>
