@@ -221,7 +221,8 @@ public class VersionController {
     @Operation(summary = "Grant a role on a version",
             description = "Grants a user a role on the version: ADMIN (delete/merge/resolve conflicts), "
                     + "EDITOR for one vertical, or SIMULATOR. Adds the role on top of whatever roles the "
-                    + "user already has on this version - it never replaces them.")
+                    + "user already has on this version - it never replaces them. Only a project ADMIN or a "
+                    + "platform ADMIN may call it.")
     public ResponseEntity<ApiResponse<VersionMemberDTO>> addVersionMember(
             @PathVariable UUID versionId,
             @Valid @RequestBody AddVersionMemberRoleRequestDTO data) {
@@ -230,7 +231,8 @@ public class VersionController {
     }
 
     @GetMapping(value = "/{versionId}/members", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(summary = "List the members of a version", description = "Returns every member with every role they hold on this version.")
+    @Operation(summary = "List the members of a version", description = "Returns every member with every role they hold on this version. Only a project "
+                    + "ADMIN or a platform ADMIN may call it.")
     public ResponseEntity<ApiResponse<List<VersionMemberDTO>>> listVersionMembers(
             @PathVariable UUID versionId) {
         List<VersionMemberDTO> members = versionMemberService.listMembers(versionId).stream()
@@ -242,7 +244,8 @@ public class VersionController {
     @DeleteMapping(value = "/{versionId}/members/{memberId}/roles/{roleId}")
     @Operation(summary = "Revoke a version role",
             description = "Revokes a single role from a member. If it was their only role on this "
-                    + "version, the membership itself is removed.")
+                    + "version, the membership itself is removed. Only a project ADMIN or a platform ADMIN may "
+                    + "call it.")
     public ResponseEntity<ApiResponse<Void>> removeVersionMemberRole(
             @PathVariable UUID versionId,
             @PathVariable UUID memberId,
@@ -254,7 +257,7 @@ public class VersionController {
     @GetMapping(value = "/{versionId}/member-candidates", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "List the users that can be granted a version role",
             description = "Active members of the version's owning project. The optional q filters by "
-                    + "first name, last name or mail.")
+                    + "first name, last name or mail. Only a project ADMIN or a platform ADMIN may call it.")
     public ResponseEntity<ApiResponse<List<VersionMemberCandidateDTO>>> listVersionMemberCandidates(
             @PathVariable UUID versionId,
             @RequestParam(required = false) String q) {

@@ -204,7 +204,6 @@ class VersionMemberServiceTest {
         User caller = regularUser("editor@enerscope.org");
         authenticateAs(caller);
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
-        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId())).thenReturn(Optional.empty());
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
         when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
                 .thenReturn(Optional.of(projectMemberWithEditPermission()));
@@ -362,16 +361,13 @@ class VersionMemberServiceTest {
     }
 
     @Test
-    void aProjectAdminHoldingANarrowVersionRoleCanStillGrantRoles() {
+    void aProjectAdminCanGrantRoles() {
         UUID versionId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         Version version = new Version("v1", null, null, null, null, null);
         User target = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
         User caller = regularUser("projectadmin@enerscope.org");
-        VersionMember narrow = new VersionMember(caller, version);
-        narrow.addRole(new VersionMemberRole("SIMULATOR", VersionMemberType.SIMULATOR,
-                VersionMember.defaultPermissionsFor(VersionMemberType.SIMULATOR), null));
         ProjectMember callerMembership = activeProjectMember(caller);
         callerMembership.addRole(new org.enerscope.project.model.ProjectMemberRole(
                 "ADMIN", org.enerscope.project.model.enums.ProjectMemberType.ADMIN,
@@ -379,8 +375,6 @@ class VersionMemberServiceTest {
                         org.enerscope.project.model.enums.ProjectMemberType.ADMIN)));
         authenticateAs(caller);
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
-        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
-                .thenReturn(Optional.of(narrow));
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
         when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
                 .thenReturn(Optional.of(callerMembership));
@@ -394,6 +388,70 @@ class VersionMemberServiceTest {
                 new AddVersionMemberRoleRequestDTO(userId, VersionMemberType.SIMULATOR, null));
 
         assertEquals(1, saved.getRoles().size());
+    }
+
+    @Test
+    void aVersionAdminWhoIsOnlyAProjectEditorCannotManageRoles() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        Version version = new Version("v1", null, null, null, null, null);
+        User caller = regularUser("versionadmin@enerscope.org");
+        authenticateAs(caller);
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(versionRepository.existsById(versionId)).thenReturn(true);
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(projectMemberWithEditPermission()));
+
+        ForbiddenException denied = assertThrows(ForbiddenException.class, () -> service.addRole(versionId,
+                new AddVersionMemberRoleRequestDTO(UUID.randomUUID(), VersionMemberType.SIMULATOR, null)));
+        assertEquals("You are not allowed to manage the roles of this version", denied.getMessage());
+        assertThrows(ForbiddenException.class, () -> service.listMembers(versionId));
+        assertThrows(ForbiddenException.class,
+                () -> service.removeRole(versionId, UUID.randomUUID(), UUID.randomUUID()));
+        assertThrows(ForbiddenException.class, () -> service.listMemberCandidates(versionId, null));
+        verify(versionMemberRepository, never()).findEffectiveByVersionIdAndUserId(any(), any());
+        verify(versionMemberRepository, never()).save(any());
+        verify(versionMemberRepository, never()).delete(any());
+        verify(versionMemberRepository, never()).findByVersionIdWithUser(any());
+        verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
+    }
+
+    @Test
+    void aProjectAdminCanListTheMembersAndTheCandidatesOfAVersionWithoutRolesOfItsOwn() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("projectadmin@enerscope.org");
+        ProjectMember callerMembership = activeProjectMember(caller);
+        callerMembership.addRole(new org.enerscope.project.model.ProjectMemberRole(
+                "ADMIN", org.enerscope.project.model.enums.ProjectMemberType.ADMIN,
+                org.enerscope.project.model.ProjectMember.defaultPermissionsFor(
+                        org.enerscope.project.model.enums.ProjectMemberType.ADMIN)));
+        authenticateAs(caller);
+        when(versionRepository.existsById(versionId)).thenReturn(true);
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(callerMembership));
+        when(versionMemberRepository.findByVersionIdWithUser(versionId)).thenReturn(List.of());
+        when(projectMemberRepository.findByProjectIdWithUser(projectId)).thenReturn(List.of(callerMembership));
+
+        assertEquals(0, service.listMembers(versionId).size());
+        assertEquals(1, service.listMemberCandidates(versionId, null).size());
+    }
+
+    @Test
+    void aProjectEditorCannotListTheMembersOfAVersion() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("editor@enerscope.org");
+        authenticateAs(caller);
+        when(versionRepository.existsById(versionId)).thenReturn(true);
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(projectMemberWithEditPermission()));
+
+        assertThrows(ForbiddenException.class, () -> service.listMembers(versionId));
+        verify(versionMemberRepository, never()).findByVersionIdWithUser(any());
     }
 
     // ---- helpers -----------------------------------------------------------

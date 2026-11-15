@@ -4,6 +4,7 @@ export const MAX_ROWS = 100;
 export const MAX_FILE_BYTES = 1024 * 1024;
 const NAME_MIN = 2;
 const NAME_MAX = 60;
+const JOB_TITLE_MAX = 120;
 const QUOTE = '"';
 const BOM = '\uFEFF';
 const MAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -13,6 +14,7 @@ const MAIL_HEADERS = ['mail', 'email', 'e-mail', 'correo'];
 const FIRST_NAME_HEADERS = ['firstname', 'first_name', 'first name', 'nombre'];
 const LAST_NAME_HEADERS = ['lastname', 'last_name', 'last name', 'apellido'];
 const ROLE_HEADERS = ['role', 'rol', 'membertype', 'member_type', 'member type', 'tipo'];
+const JOB_TITLE_HEADERS = ['jobtitle', 'job_title', 'job title', 'puesto', 'cargo'];
 
 const COLUMN_LABELS: Record<ColumnKey, string> = {
   mail: 'email',
@@ -28,6 +30,7 @@ export interface ImportRow {
   firstName: string;
   lastName: string;
   role: OrganizationMemberType | null;
+  jobTitle: string;
   error: string | null;
 }
 
@@ -128,6 +131,7 @@ function resolveColumns(header: string[]) {
   let firstName: number | null = null;
   let lastName: number | null = null;
   let role: number | null = null;
+  let jobTitle: number | null = null;
 
   keys.forEach((key, index) => {
     if (mail === null && MAIL_HEADERS.includes(key)) {
@@ -138,10 +142,12 @@ function resolveColumns(header: string[]) {
       lastName = index;
     } else if (role === null && ROLE_HEADERS.includes(key)) {
       role = index;
+    } else if (jobTitle === null && JOB_TITLE_HEADERS.includes(key)) {
+      jobTitle = index;
     }
   });
 
-  return { mail, firstName, lastName, role };
+  return { mail, firstName, lastName, role, jobTitle };
 }
 
 function cell(fields: string[], index: number | null): string {
@@ -213,6 +219,7 @@ export function parseImportCsv(raw: string): ParsedImport {
     const lastName = cell(record.fields, columns.lastName);
     const rawRole = cell(record.fields, columns.role);
     const role = parseRole(rawRole);
+    const jobTitle = cell(record.fields, columns.jobTitle);
 
     let error: string | null = null;
     if (mail === '') {
@@ -233,6 +240,8 @@ export function parseImportCsv(raw: string): ParsedImport {
           : `El apellido debe tener entre ${NAME_MIN} y ${NAME_MAX} caracteres.`;
     } else if (role === 'invalid') {
       error = `«${rawRole}» no es un rol válido: usá Propietario (OWNER) o Miembro (MEMBER).`;
+    } else if (jobTitle.length > JOB_TITLE_MAX) {
+      error = `El puesto no puede superar los ${JOB_TITLE_MAX} caracteres.`;
     }
 
     if (error === null) {
@@ -245,6 +254,7 @@ export function parseImportCsv(raw: string): ParsedImport {
       firstName,
       lastName,
       role: role === 'invalid' ? null : role,
+      jobTitle,
       error,
     };
   });
@@ -281,8 +291,14 @@ function toCsv(rows: string[][], guardFormulas: boolean): string {
 
 export function buildNormalizedCsv(rows: ImportRow[]): string {
   const valid = rows.filter((row) => row.error === null);
-  const body = valid.map((row) => [row.mail, row.firstName, row.lastName, row.role ?? '']);
-  return toCsv([['mail', 'firstName', 'lastName', 'role'], ...body], false);
+  const body = valid.map((row) => [
+    row.mail,
+    row.firstName,
+    row.lastName,
+    row.role ?? '',
+    row.jobTitle,
+  ]);
+  return toCsv([['mail', 'firstName', 'lastName', 'role', 'jobTitle'], ...body], false);
 }
 
 export function buildTemplateCsv(): string {
@@ -290,9 +306,9 @@ export function buildTemplateCsv(): string {
     BOM +
     toCsv(
       [
-        ['mail', 'firstName', 'lastName', 'role'],
-        ['ana.perez@ejemplo.com', 'Ana', 'Pérez', 'MEMBER'],
-        ['luis.gomez@ejemplo.com', 'Luis', 'Gómez', 'OWNER'],
+        ['mail', 'firstName', 'lastName', 'role', 'jobTitle'],
+        ['ana.perez@ejemplo.com', 'Ana', 'Pérez', 'MEMBER', 'Analista'],
+        ['luis.gomez@ejemplo.com', 'Luis', 'Gómez', 'OWNER', 'Gerente de proyectos'],
       ],
       true,
     )

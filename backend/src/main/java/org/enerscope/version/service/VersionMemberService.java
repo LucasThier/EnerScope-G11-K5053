@@ -45,16 +45,15 @@ public class VersionMemberService {
     private final AppLogger logger;
 
     /**
-     * Grants a user one role on a version. Restricted to callers who can
-     * manage the version (its ADMIN members, or the owning project's ADMIN,
-     * or a platform ADMIN) — without the check, any authenticated user could
-     * grant themselves access to any version.
+     * Grants a user one role on a version. Restricted to the owning project's
+     * ADMIN or a platform ADMIN — without the check, any authenticated user
+     * could grant themselves access to any version.
      */
     @Transactional
     public VersionMember addRole(UUID versionId, AddVersionMemberRoleRequestDTO data) {
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
-        accessGuard.assertCanManageVersion(versionId);
+        accessGuard.assertCanManageVersionRoles(versionId);
         validateRoleShape(data);
 
         User user = userRepository.findById(data.userId())
@@ -103,15 +102,15 @@ public class VersionMemberService {
     }
 
     /**
-     * Every member of the version with their roles. As permissive as reading
-     * the version itself: any version role or project membership is enough.
+     * Every member of the version with their roles. Restricted to the callers
+     * who can manage its roles: the owning project's ADMIN or a platform ADMIN.
      */
     @Transactional(readOnly = true)
     public List<VersionMember> listMembers(UUID versionId) {
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
-        accessGuard.assertCanViewVersion(versionId);
+        accessGuard.assertCanManageVersionRoles(versionId);
         return versionMemberRepository.findByVersionIdWithUser(versionId);
     }
 
@@ -126,7 +125,7 @@ public class VersionMemberService {
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
-        accessGuard.assertCanManageVersion(versionId);
+        accessGuard.assertCanManageVersionRoles(versionId);
 
         VersionMember member = versionMemberRepository.findByIdAndVersionId(memberId, versionId)
                 .orElseThrow(() -> new EntityNotFoundException("Member not found"));
@@ -158,7 +157,7 @@ public class VersionMemberService {
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
-        accessGuard.assertCanManageVersion(versionId);
+        accessGuard.assertCanManageVersionRoles(versionId);
         UUID projectId = projectRepository.findIdByVersionId(versionId)
                 .orElseThrow(() -> new IllegalArgumentException("Version is not attached to any project"));
 

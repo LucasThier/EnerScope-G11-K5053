@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { PageLoader } from '../components/ui/PageLoader';
+import { TabPanel, Tabs } from '../components/ui/Tabs';
 import { MembersTable } from '../components/members/MembersTable';
+import { VersionRolesTab } from '../components/versionRoles/VersionRolesTab';
 import { AddProjectMemberCard } from '../components/projects/AddProjectMemberCard';
 import { ProjectRoleChangeConfirmation } from '../components/projects/ProjectRoleChangeConfirmation';
 import { RemoveProjectMemberDialog } from '../components/projects/RemoveProjectMemberDialog';
@@ -19,11 +21,19 @@ import { useActiveProject } from '../hooks/useActiveProject';
 import { useAuth } from '../hooks/useAuth';
 import { isPlatformAdmin as resolveIsPlatformAdmin } from '../permissions/access';
 import { useMemberRoleChange } from '../hooks/useMemberRoleChange';
+import { useProjectAccess } from '../hooks/useProjectAccess';
 import { canManageProject } from '../utils/projectPermissions';
 import { lastProjectAdminReason } from '../utils/membershipGuards';
+import { callerProjectRoleLabel } from '../utils/versionRoles';
 import type { ProjectMember, ProjectMemberType } from '../types/project';
 
 const countsAsAdmin = (member: ProjectMember) => member.memberType === 'ADMIN' && member.active;
+
+const TABS = [
+  { id: 'integrantes', label: 'Integrantes' },
+  { id: 'roles', label: 'Roles por versión' },
+];
+const TABS_PREFIX = 'project-team';
 
 export function ProjectTeamPage() {
   const { projectId } = useParams();
@@ -36,6 +46,30 @@ export function ProjectTeamPage() {
   const [forbidden, setForbidden] = useState(false);
   const [removing, setRemoving] = useState<ProjectMember | null>(null);
   const [removedCount, setRemovedCount] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const projectAccess = useProjectAccess(projectId);
+  const reloadAccess = projectAccess.reload;
+
+  const activeTab = searchParams.get('tab') === 'roles' ? 'roles' : 'integrantes';
+
+  const changeTab = useCallback(
+    (tabId: string) => {
+      setSearchParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+          if (tabId === 'roles') {
+            next.set('tab', 'roles');
+          } else {
+            next.delete('tab');
+            next.delete('version');
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   const project = projects.find((candidate) => candidate.id === projectId);
   const projectName = project?.name ?? 'el proyecto';
@@ -72,6 +106,7 @@ export function ProjectTeamPage() {
   async function handleChanged() {
     await reloadMembers();
     await reloadProjects();
+    await reloadAccess();
   }
 
   async function handleRemoved(removedSelf: boolean) {
@@ -91,11 +126,15 @@ export function ProjectTeamPage() {
     [projectId],
   );
 
-  const handleRoleUpdated = useCallback((updated: ProjectMember) => {
-    setMembers((current) =>
-      current.map((member) => (member.id === updated.id ? updated : member)),
-    );
-  }, []);
+  const handleRoleUpdated = useCallback(
+    (updated: ProjectMember) => {
+      setMembers((current) =>
+        current.map((member) => (member.id === updated.id ? updated : member)),
+      );
+      void reloadAccess();
+    },
+    [reloadAccess],
+  );
 
   const handleSelfDemoted = useCallback(async () => {
     if (!isPlatformAdmin) {
@@ -123,10 +162,13 @@ export function ProjectTeamPage() {
   }
 
   const callerMembership = members.find((member) => member.userId === caller?.id);
-  const canManage = canManageProject(callerMembership?.memberType, isPlatformAdmin);
-  if (!error && !canManage) {
-    return <Navigate to="/projects" replace />;
-  }
+  const canManage =
+    projectAccess.access?.canManageProject ??
+    canManageProject(callerMembership?.memberType, isPlatformAdmin);
+  const callerRoleLabel = callerProjectRoleLabel(
+    projectAccess.access?.projectRole ?? callerMembership?.memberType,
+    projectAccess.access?.platformAdmin ?? isPlatformAdmin,
+  );
 
   return (
     <div>
@@ -138,44 +180,83 @@ export function ProjectTeamPage() {
           {project?.name ?? 'Integrantes del proyecto'}
         </h1>
         <p className="mt-1 text-sm text-ink-500">
-          Quiénes integran el proyecto y con qué rol. Los administradores gestionan el equipo y
-          editan el proyecto; los editores trabajan sobre sus versiones.
+          Quiénes integran el proyecto y qué puede hacer cada persona en cada versión. Los
+          Administradores del proyecto gestionan el equipo, asignan los roles de cada versión y
+          administran todas las versiones.
         </p>
+        {callerRoleLabel && (
+          <p className="mt-1 text-sm text-ink-700">
+            Tu rol en el proyecto:{' '}
+            <span className="font-semibold text-ink-800">{callerRoleLabel}</span>.
+          </p>
+        )}
       </header>
 
-      <Card padded={false} className="overflow-hidden">
-        {error ? (
-          <div className="px-4 py-6">
-            <Alert tone="error">{error}</Alert>
-          </div>
-        ) : members.length === 0 ? (
-          <div className="px-4 py-6">
-            <Alert tone="info">Este proyecto todavía no tiene integrantes.</Alert>
-          </div>
-        ) : (
-          <MembersTable
-            members={members}
-            roleLabels={PROJECT_MEMBER_TYPE_LABELS}
-            inactiveLabel={INACTIVE_ACCOUNT_LABEL}
-            inactiveTitle={INACTIVE_ACCOUNT_TITLE}
-            removeLabel={(fullName) => `Quitar a ${fullName} del proyecto`}
-            changeRoleLabel={(fullName) => `Cambiar el rol de ${fullName} en el proyecto`}
-            onRemove={setRemoving}
-            onChangeRole={roleChange.requestChange}
-            disabledReason={(member) => lastProjectAdminReason(members, member)}
-            busyMemberId={roleChange.busyMemberId}
-            roleError={roleChange.pending ? null : roleChange.error}
+      <Tabs
+        label="Equipo del proyecto"
+        idPrefix={TABS_PREFIX}
+        tabs={TABS}
+        active={activeTab}
+        onChange={changeTab}
+      />
+
+      <TabPanel idPrefix={TABS_PREFIX} id="integrantes" active={activeTab}>
+        {!error && !canManage && (
+          <Alert tone="info" className="mb-4">
+            Podés ver quiénes integran el proyecto. Solo los Administradores del proyecto pueden
+            cambiar el equipo.
+          </Alert>
+        )}
+
+        <Card padded={false} className="overflow-hidden">
+          {error ? (
+            <div className="px-4 py-6">
+              <Alert tone="error">{error}</Alert>
+            </div>
+          ) : members.length === 0 ? (
+            <div className="px-4 py-6">
+              <Alert tone="info">Este proyecto todavía no tiene integrantes.</Alert>
+            </div>
+          ) : (
+            <MembersTable
+              members={members}
+              roleLabels={PROJECT_MEMBER_TYPE_LABELS}
+              inactiveLabel={INACTIVE_ACCOUNT_LABEL}
+              inactiveTitle={INACTIVE_ACCOUNT_TITLE}
+              removeLabel={(fullName) => `Quitar a ${fullName} del proyecto`}
+              changeRoleLabel={(fullName) => `Cambiar el rol de ${fullName} en el proyecto`}
+              onRemove={canManage ? setRemoving : undefined}
+              onChangeRole={canManage ? roleChange.requestChange : undefined}
+              disabledReason={
+                canManage ? (member) => lastProjectAdminReason(members, member) : undefined
+              }
+              busyMemberId={roleChange.busyMemberId}
+              roleError={roleChange.pending ? null : roleChange.error}
+            />
+          )}
+        </Card>
+
+        {!error && canManage && (
+          <AddProjectMemberCard
+            key={`${projectId}-${removedCount}`}
+            projectId={projectId}
+            onAdded={handleChanged}
           />
         )}
-      </Card>
+      </TabPanel>
 
-      {!error && (
-        <AddProjectMemberCard
-          key={`${projectId}-${removedCount}`}
+      <TabPanel idPrefix={TABS_PREFIX} id="roles" active={activeTab}>
+        <VersionRolesTab
           projectId={projectId}
-          onAdded={handleChanged}
+          access={projectAccess.access}
+          summaries={projectAccess.summaries}
+          loading={projectAccess.loading}
+          error={projectAccess.error}
+          projectMembers={members}
+          callerUserId={caller?.id ?? null}
+          reload={reloadAccess}
         />
-      )}
+      </TabPanel>
 
       <Modal open={roleChange.pending !== null} onClose={roleChange.cancel} title="Cambiar el rol">
         {roleChange.pending && (

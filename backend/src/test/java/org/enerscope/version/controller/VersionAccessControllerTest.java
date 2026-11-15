@@ -64,7 +64,7 @@ class VersionAccessControllerTest {
         VersionAccessDTO version = new VersionAccessDTO(versionId, "Base", VersionAccessSource.VERSION_ROLES,
                 List.of(new VersionRoleGrantDTO(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION)), "EDITOR",
                 List.of(VerticalEnum.EXTRACTION, VerticalEnum.INTERNAL_CONSUMPTION),
-                true, true, true, true, false, true, true, true);
+                true, true, true, true, false, false, true, true, true);
         when(service.resolveForProject(projectId)).thenReturn(new ProjectAccessDTO(projectId, false,
                 ProjectMemberType.EDITOR, List.of(ProjectMemberPermission.EDIT_PROJECT, ProjectMemberPermission.VIEW_PROJECT),
                 false, true, List.of(version)));
@@ -80,7 +80,8 @@ class VersionAccessControllerTest {
                 .andExpect(jsonPath("$.data.versions[0].roles[0].vertical").value("EXTRACTION"))
                 .andExpect(jsonPath("$.data.versions[0].editableVerticals[1]").value("INTERNAL_CONSUMPTION"))
                 .andExpect(jsonPath("$.data.versions[0].canSimulate").value(true))
-                .andExpect(jsonPath("$.data.versions[0].canManage").value(false));
+                .andExpect(jsonPath("$.data.versions[0].canManage").value(false))
+                .andExpect(jsonPath("$.data.versions[0].canManageRoles").value(false));
     }
 
     @Test

@@ -129,6 +129,22 @@ public class VersionAccessGuard {
     }
 
     /**
+     * Ensures the caller may assign, change, revoke or list the roles of a
+     * version. Unlike {@link #assertCanManageVersion}, holding an {@code ADMIN}
+     * version role is not enough: only a platform ADMIN or an ADMIN of the
+     * owning project may govern who has access to the version.
+     */
+    public void assertCanManageVersionRoles(UUID versionId) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
+            return;
+        }
+        if (!isProjectAdmin(versionId)) {
+            deny(caller, versionId, "manage the roles of");
+        }
+    }
+
+    /**
      * Ensures the caller may edit a node of the given vertical. A caller
      * holding a version role is judged solely by it: an {@code ADMIN} role
      * covers every vertical; an {@code EDITOR} role covers only the one

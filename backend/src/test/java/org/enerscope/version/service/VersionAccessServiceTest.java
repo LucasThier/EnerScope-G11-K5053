@@ -107,6 +107,7 @@ class VersionAccessServiceTest {
         assertFalse(simulator.canEditConnections());
         assertTrue(simulator.canSimulate());
         assertFalse(simulator.canManage());
+        assertFalse(simulator.canManageRoles());
         assertTrue(simulator.canViewEconomicResults());
         assertTrue(simulator.canViewEconomicConfiguration());
         assertFalse(simulator.canEditEconomicConfiguration());
@@ -120,6 +121,7 @@ class VersionAccessServiceTest {
         assertTrue(fallback.canEdit());
         assertTrue(fallback.canSimulate());
         assertFalse(fallback.canManage());
+        assertFalse(fallback.canManageRoles());
         assertTrue(fallback.canEditEconomicConfiguration());
     }
 
@@ -154,6 +156,7 @@ class VersionAccessServiceTest {
 
         assertTrue(access.canManageProject());
         assertTrue(access.versions().stream().allMatch(VersionAccessDTO::canManage));
+        assertTrue(access.versions().stream().allMatch(VersionAccessDTO::canManageRoles));
         assertTrue(access.versions().stream().allMatch(v -> "ADMIN".equals(v.effectiveRole())));
         assertTrue(access.versions().stream().allMatch(v -> v.source() == VersionAccessSource.PROJECT_ADMIN));
     }
@@ -177,6 +180,7 @@ class VersionAccessServiceTest {
         assertTrue(narrowed.canEditConnections());
         assertTrue(narrowed.canSimulate());
         assertTrue(narrowed.canManage());
+        assertTrue(narrowed.canManageRoles());
         assertTrue(narrowed.canEditEconomicConfiguration());
     }
 
@@ -191,7 +195,23 @@ class VersionAccessServiceTest {
 
         assertEquals(VersionAccessSource.VERSION_ROLES, narrowed.source());
         assertFalse(narrowed.canManage());
+        assertFalse(narrowed.canManageRoles());
         assertFalse(narrowed.canEdit());
+    }
+
+    @Test
+    void aVersionAdminWhoIsNotAProjectAdminManagesTheVersionButNotItsRoles() {
+        authenticate(caller);
+        joinProject(ProjectMemberType.EDITOR);
+        VersionMember member = versionMember(simulated, role(VersionMemberType.ADMIN, null));
+        when(versionMemberRepository.findByUserIdAndVersionIdIn(eq(caller.getId()), any())).thenReturn(List.of(member));
+
+        VersionAccessDTO administered = service.resolveForProject(projectId).versions().getFirst();
+
+        assertEquals(VersionAccessSource.VERSION_ROLES, administered.source());
+        assertEquals("ADMIN", administered.effectiveRole());
+        assertTrue(administered.canManage());
+        assertFalse(administered.canManageRoles());
     }
 
     @Test
@@ -216,7 +236,7 @@ class VersionAccessServiceTest {
         assertTrue(access.canManageProject());
         assertTrue(access.canCreateVersions());
         assertTrue(access.versions().stream().allMatch(v -> v.source() == VersionAccessSource.PLATFORM_ADMIN
-                && v.canManage() && v.canEdit() && v.canSimulate() && "ADMIN".equals(v.effectiveRole())));
+                && v.canManage() && v.canManageRoles() && v.canEdit() && v.canSimulate() && "ADMIN".equals(v.effectiveRole())));
         verifyNoInteractions(versionMemberRepository);
     }
 

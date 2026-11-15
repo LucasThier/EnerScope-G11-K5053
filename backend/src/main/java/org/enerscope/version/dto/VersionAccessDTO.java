@@ -18,6 +18,7 @@ public record VersionAccessDTO(
         boolean canEditConnections,
         boolean canSimulate,
         boolean canManage,
+        boolean canManageRoles,
         boolean canViewEconomicResults,
         boolean canViewEconomicConfiguration,
         boolean canEditEconomicConfiguration

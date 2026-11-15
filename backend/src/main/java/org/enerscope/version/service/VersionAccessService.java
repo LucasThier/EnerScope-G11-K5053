@@ -126,6 +126,7 @@ public class VersionAccessService {
                 access.can(VersionCapability.EDIT_CONNECTIONS),
                 access.can(VersionCapability.SIMULATE),
                 access.can(VersionCapability.MANAGE),
+                access.canManageRoles(),
                 canView,
                 canView,
                 canEdit);

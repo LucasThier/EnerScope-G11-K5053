@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -53,6 +54,7 @@ class VersionBranchAccessHttpTest {
     private static final String VERTICAL_DENIED = "You are not allowed to edit this vertical's nodes in this version";
     private static final String EDIT_DENIED = "You are not allowed to edit this version";
     private static final String MANAGE_DENIED = "You are not allowed to manage this version";
+    private static final String ROLES_DENIED = "You are not allowed to manage the roles of this version";
     private static final Map<VerticalEnum, NodeTypeEnum> TYPE_OF = new EnumMap<>(Map.of(
             VerticalEnum.EXTRACTION, NodeTypeEnum.WELL,
             VerticalEnum.TRANSPORTATION, NodeTypeEnum.PIPELINE,
@@ -161,6 +163,39 @@ class VersionBranchAccessHttpTest {
                 .content("{\"userId\":\"" + colleague.getId() + "\",\"memberType\":\"SIMULATOR\"}"))
                 .andExpect(status().isCreated());
         perform(projectAdmin, delete("/version/" + child)).andExpect(status().isOk());
+    }
+
+    @Test
+    void aVersionAdminWhoIsNotAProjectAdminCannotManageRolesButStillAdministersTheVersion() throws Exception {
+        User versionAdmin = fixture.projectEditorWithVersionRoles(VersionMemberType.ADMIN);
+        User colleague = fixture.projectMember(ProjectMemberType.EDITOR);
+        UUID version = fixture.version().getId();
+        String grant = "{\"userId\":\"" + colleague.getId() + "\",\"memberType\":\"SIMULATOR\"}";
+
+        expectForbidden(perform(versionAdmin, post("/version/" + version + "/members")
+                .contentType(MediaType.APPLICATION_JSON).content(grant)), ROLES_DENIED);
+        expectForbidden(perform(versionAdmin, get("/version/" + version + "/members")), ROLES_DENIED);
+        expectForbidden(perform(versionAdmin, get("/version/" + version + "/member-candidates")), ROLES_DENIED);
+        expectForbidden(perform(versionAdmin, delete("/version/" + version + "/members/" + UUID.randomUUID()
+                + "/roles/" + UUID.randomUUID())), ROLES_DENIED);
+        UUID node = fixture.addNode(TYPE_OF.get(VerticalEnum.EXTRACTION));
+        rename(versionAdmin, version, node).andExpect(status().isOk());
+    }
+
+    @Test
+    void aProjectAdminAndAPlatformAdminListAndGrantRolesOfAVersionWithNoRolesOfTheirOwn() throws Exception {
+        User projectAdmin = fixture.projectMember(ProjectMemberType.ADMIN);
+        User platformAdmin = fixture.user(PlatformRole.ADMIN);
+        User colleague = fixture.projectMember(ProjectMemberType.EDITOR);
+        UUID version = fixture.version().getId();
+
+        perform(projectAdmin, get("/version/" + version + "/members")).andExpect(status().isOk());
+        perform(projectAdmin, get("/version/" + version + "/member-candidates")).andExpect(status().isOk());
+        perform(platformAdmin, get("/version/" + version + "/members")).andExpect(status().isOk());
+        perform(projectAdmin, post("/version/" + version + "/members")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"userId\":\"" + colleague.getId() + "\",\"memberType\":\"SIMULATOR\"}"))
+                .andExpect(status().isCreated());
     }
 
     @Test

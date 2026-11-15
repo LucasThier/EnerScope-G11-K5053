@@ -23,6 +23,16 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
   'You are not allowed to edit this project':
     'No tenés permiso para editar las versiones de este proyecto.',
   'You are not allowed to access this version': 'No tenés acceso a esta versión.',
+  'You are not allowed to manage this version': 'No tenés permiso para administrar esta versión.',
+  'You are not allowed to manage the roles of this version':
+    'Solo los Administradores del proyecto pueden asignar, cambiar o quitar roles de versión.',
+  'User already has this role': 'Esa persona ya tiene ese rol en la versión.',
+  'EDITOR roles require a vertical': 'Elegí la vertical del Editor.',
+  "User is not a member of the version's project":
+    'Esa persona no integra el proyecto de esta versión.',
+  'Version is not attached to any project': 'La versión no pertenece a ningún proyecto.',
+  'Role not found': 'Ese rol ya no existe en esta versión.',
+  'memberType cannot be null': 'Elegí un rol.',
   'Version name cannot be null': 'El nombre de la versión es obligatorio.',
   'Version name cannot be blank or whitespace only': 'El nombre de la versión es obligatorio.',
   'Organization not found': 'La organización no existe o fue desactivada.',
@@ -52,6 +62,11 @@ const KNOWN_BACKEND_PREFIXES: [string, string][] = [
   ['Version not found with id:', 'La versión no existe o ya fue eliminada.'],
   ['Version conflict not found with id:', 'El conflicto no existe o ya fue resuelto.'],
   ['Node with id', 'El nodo ya no existe en esta versión.'],
+  ['ADMIN roles apply to the whole version', 'Ese rol aplica a toda la versión, no a una vertical.'],
+  [
+    'SIMULATOR roles apply to the whole version',
+    'Ese rol aplica a toda la versión, no a una vertical.',
+  ],
   [
     'CSV header is missing required column(s):',
     'Al archivo le faltan columnas obligatorias. Descargá la plantilla para ver los nombres que acepta.',
@@ -96,6 +111,16 @@ export function getErrorMessage(error: unknown, fallback = 'Algo salió mal'): s
     return error.message || fallback;
   }
   return fallback;
+}
+
+export function getVersionRoleErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof AxiosError) {
+    const data = error.response?.data as ApiResponse<unknown> | undefined;
+    if (data?.message === 'Member not found') {
+      return 'Esa persona ya no tiene roles en esta versión.';
+    }
+  }
+  return getErrorMessage(error, fallback);
 }
 
 export function getErrorStatus(error: unknown): number | null {

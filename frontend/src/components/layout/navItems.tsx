@@ -30,7 +30,7 @@ export const MY_ORGANIZATIONS = {
 export type NavRequirement =
   | 'platformAdmin'
   | 'organizationMember'
-  | 'manageableProject'
+  | 'projectTeam'
   | 'activeProject'
   | 'scenarioConfiguration'
   | 'scenarioSimulation';
@@ -78,7 +78,7 @@ export const NAV_GROUPS: NavGroup[] = [
           {
             label: 'Equipo del proyecto',
             matchPattern: PROJECT_TEAM_PATH_PATTERN,
-            requires: 'manageableProject',
+            requires: 'projectTeam',
           },
         ],
       },

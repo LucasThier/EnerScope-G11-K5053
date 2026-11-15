@@ -71,6 +71,10 @@ public final class VersionAccess {
         };
     }
 
+    public boolean canManageRoles() {
+        return source == VersionAccessSource.PLATFORM_ADMIN || source == VersionAccessSource.PROJECT_ADMIN;
+    }
+
     public boolean canEditVertical(VerticalEnum vertical) {
         return switch (source) {
             case PLATFORM_ADMIN, PROJECT_ADMIN -> true;

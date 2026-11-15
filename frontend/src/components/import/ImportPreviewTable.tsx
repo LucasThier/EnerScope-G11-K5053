@@ -9,6 +9,7 @@ const headerCell = 'px-3 py-2 text-left text-xs font-medium uppercase tracking-w
 const bodyCell = 'px-3 py-2 align-top text-sm text-ink-700';
 
 export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
+  const showJobTitle = rows.some((row) => row.jobTitle !== '');
   return (
     <div
       tabIndex={0}
@@ -31,11 +32,13 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
             <th scope="col" className={headerCell}>
               Nombre
             </th>
+            {showJobTitle && (
+              <th scope="col" className={headerCell}>
+                Puesto
+              </th>
+            )}
             <th scope="col" className={headerCell}>
               Rol
-            </th>
-            <th scope="col" className={headerCell}>
-              Estado
             </th>
           </tr>
         </thead>
@@ -48,19 +51,20 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
               }`}
             >
               <td className={`${bodyCell} tabular-nums text-ink-500`}>{row.line}</td>
-              <td className={`${bodyCell} break-all`}>{row.mail || '—'}</td>
+              <td className={`${bodyCell} break-all`}>
+                {row.mail || '—'}
+                {row.error && (
+                  <span className="mt-0.5 block text-xs font-medium text-danger-700">
+                    {row.error}
+                  </span>
+                )}
+              </td>
               <td className={bodyCell}>
                 {`${row.firstName} ${row.lastName}`.trim() || '—'}
               </td>
+              {showJobTitle && <td className={bodyCell}>{row.jobTitle || '—'}</td>}
               <td className={`${bodyCell} whitespace-nowrap`}>
                 {MEMBER_TYPE_LABELS[row.role ?? 'MEMBER']}
-              </td>
-              <td className={bodyCell}>
-                {row.error ? (
-                  <span className="font-medium text-danger-700">{row.error}</span>
-                ) : (
-                  <span className="text-ink-500">Se va a crear</span>
-                )}
               </td>
             </tr>
           ))}

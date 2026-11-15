@@ -2079,7 +2079,17 @@
     },
     {
      "label": "Proyectos",
-     "to": "/projects"
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
     },
     {
      "label": "Cadena de valor",
@@ -2280,7 +2290,17 @@
     },
     {
      "label": "Proyectos",
-     "to": "/projects"
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
     },
     {
      "label": "Cadena de valor",
@@ -2761,7 +2781,17 @@
     },
     {
      "label": "Proyectos",
-     "to": "/projects"
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
     },
     {
      "label": "Cadena de valor",
@@ -3008,7 +3038,17 @@
     },
     {
      "label": "Proyectos",
-     "to": "/projects"
+     "children": [
+      {
+       "label": "Todos los proyectos",
+       "to": "/projects"
+      },
+      {
+       "label": "Equipo del proyecto",
+       "fullLabel": "Equipo del proyecto: P",
+       "to": "/projects/p/team"
+      }
+     ]
     },
     {
      "label": "Cadena de valor",

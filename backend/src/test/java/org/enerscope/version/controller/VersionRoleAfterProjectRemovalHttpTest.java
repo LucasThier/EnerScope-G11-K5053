@@ -56,7 +56,7 @@ class VersionRoleAfterProjectRemovalHttpTest {
     @Test
     void removingAVersionAdminFromTheProjectDeletesTheirVersionRolesAndRevokesAccess() throws Exception {
         User versionAdmin = fixture.projectEditorWithVersionRoles(VersionMemberType.ADMIN);
-        mvc.perform(get(candidatesPath()).header("Authorization", fixture.bearer(versionAdmin)))
+        mvc.perform(get(diagramPath()).header("Authorization", fixture.bearer(versionAdmin)))
                 .andExpect(status().isOk());
 
         mvc.perform(delete("/projects/" + fixture.project().getId() + "/members/" + projectMemberId(versionAdmin))
@@ -91,7 +91,7 @@ class VersionRoleAfterProjectRemovalHttpTest {
                 .andExpect(status().isOk());
 
         assertEquals(1L, versionMemberRows(staying));
-        mvc.perform(get(candidatesPath()).header("Authorization", fixture.bearer(staying)))
+        mvc.perform(get(diagramPath()).header("Authorization", fixture.bearer(staying)))
                 .andExpect(status().isOk());
     }
 

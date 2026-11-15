@@ -144,7 +144,8 @@ export function ImportUsersCsvFlow({ flow, organizationName }: ImportUsersCsvFlo
         <span className="font-medium text-ink-800">mail</span>,{' '}
         <span className="font-medium text-ink-800">firstName</span> y{' '}
         <span className="font-medium text-ink-800">lastName</span>, y opcionalmente{' '}
-        <span className="font-medium text-ink-800">role</span> (Propietario o Miembro). Cada
+        <span className="font-medium text-ink-800">role</span> (Propietario o Miembro) y{' '}
+        <span className="font-medium text-ink-800">jobTitle</span> (puesto). Cada
         persona se crea con una contraseña generada y queda como integrante de{' '}
         <span className="font-semibold text-ink-800">{organizationName}</span>.
       </p>
