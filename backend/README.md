@@ -104,7 +104,7 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `POST` | `/auth/login` | public | Authenticate, returns a session (with the user + role) |
 | `POST` | `/auth/refresh` | public | Exchange a refresh token for a new session |
 | `POST` | `/auth/logout` | public | No-op server side (client clears tokens) |
-| `GET` | `/organizations` | bearer | List organizations (all for admins; own for other users) |
+| `GET` | `/organizations` | bearer | List organizations (all for admins; own for other users). `?mine=true` returns only the caller's own memberships, admins included, each with the caller's `memberType` |
 | `POST` | `/organizations` | admin | Create an organization |
 | `GET` | `/organizations/{organizationId}/members` | admin / org member | List the organization's members with their identity fields |
 | `POST` | `/organizations/{organizationId}/members` | admin / org owner | Add an existing user to the organization with a role (`OWNER`/`MEMBER`) |
@@ -113,18 +113,19 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `GET` | `/projects` | bearer | List projects (all for admins; own memberships for other users). Optional `?organizationId=` filter |
 | `POST` | `/projects` | admin / org member | Create a project under an organization the caller belongs to |
 | `POST` | `/projects/{projectId}/members` | admin / project admin | Add a user to the project with a role (`ADMIN`/`EDITOR`) |
-| `POST` | `/projects/{projectId}/version` | admin / project editor | Create a version of a project, optionally under a parent version |
+| `GET` | `/projects/{projectId}/access` | admin / project member | What the caller may do on each version of the project (`source`, roles, `can*` flags, `canManageRoles`) |
+| `POST` | `/projects/{projectId}/version` | admin / project editor with a parent; **admin / project admin without one** | Create a version of a project, optionally under a parent version; the creator becomes `ADMIN` of a child |
 | `POST` | `/version/createtest` | admin | Create a version detached from every project |
 | `GET` | `/version/{id}` | admin / project member | Read a version |
-| `PATCH` | `/version/{id}` | admin / project editor | Rename a version or re-parent it |
-| `DELETE` | `/version/{id}` | admin / project editor | Delete a version and every version below it |
+| `PATCH` | `/version/{id}` | admin / project editor (re-parenting also needs to manage the version and edit the new parent) | Rename a version or re-parent it |
+| `DELETE` | `/version/{id}` | admin / project admin or version admin, of **every** version in the subtree | Delete a version and every version below it, in one transaction; `403` (naming no version) and nothing deleted if any is refused |
 | `POST` `PATCH` `DELETE` | `/version/{id}/node[/{nodeId}]` | admin / project editor | Add, edit or remove a node in a version |
 | `POST` `PATCH` `DELETE` | `/version/{id}/connection[/{connectionId}]` | admin / project editor | Add, edit or remove a connection in a version |
-| `PATCH` | `/version/merge/{subId}` | admin / project editor or version admin | Merge a subversion into its parent |
-| `POST` | `/version/{id}/members` | admin / project admin or version admin | Grant a user a version role (`ADMIN`/`EDITOR`+vertical/`SIMULATOR`) |
-| `GET` | `/version/{id}/members` | admin / project or version member | List a version's members and their roles |
-| `DELETE` | `/version/{id}/members/{memberId}/roles/{roleId}` | admin / project admin or version admin | Revoke one version role |
-| `GET` | `/version/{id}/member-candidates` | admin / project admin or version admin | List project members who can be granted a version role |
+| `PATCH` | `/version/merge/{subId}` | admin / admin of the destination version (project or version admin) who may also edit the changed verticals | Merge a subversion into its parent |
+| `POST` | `/version/{id}/members` | admin / **project admin** | Grant a user a version role (`ADMIN`/`EDITOR`+vertical/`SIMULATOR`) |
+| `GET` | `/version/{id}/members` | admin / **project admin** | List a version's members and their roles |
+| `DELETE` | `/version/{id}/members/{memberId}/roles/{roleId}` | admin / **project admin** | Revoke one version role |
+| `GET` | `/version/{id}/member-candidates` | admin / **project admin** | List project members who can be granted a version role |
 | `PATCH` | `/users/me/password` | bearer | Change your own password (requires the current one) |
 | `GET` | `/health` | public | Liveness probe |
 
@@ -133,22 +134,27 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 Upload a CSV (`multipart/form-data`, form field **`file`**) to create many users
 at once and add them **into the organization** as members. Allowed for platform
 admins and organization owners (members with `MANAGE_ORGANIZATION`). The file
-needs a header row with columns for the email, first name and last name, plus an
-optional `role` column. Column names are case-insensitive and a few aliases are
-accepted:
+needs a header row with columns for the email, first name and last name, plus
+optional `role` and `jobTitle` columns, and **at most 500 data rows** (the header
+does not count): a larger file answers `400 The CSV file has more than 500
+rows`, after the caller is authorized and before any row is created. The web
+client splits larger imports into batches of 50 rows. Column names are
+case-insensitive and a few aliases are accepted:
 
 - email → `mail`, `email`, `e-mail`, `correo`
 - first name → `firstName`, `first_name`, `first name`, `nombre`
 - last name → `lastName`, `last_name`, `last name`, `apellido`
 - role (optional) → `role`, `rol`, `memberType`, `tipo` — values `OWNER`/`MEMBER`,
   defaulting to `MEMBER` when the column or cell is absent
+- job title (optional) → `jobTitle`, `job_title`, `job title`, `puesto`, `cargo` —
+  up to 120 characters; a longer one fails that row, a blank one is stored as none
 
 Example input:
 
 ```csv
-mail,firstName,lastName,role
-jane@example.com,Jane,Doe,MEMBER
-john@example.com,John,Roe,OWNER
+mail,firstName,lastName,role,jobTitle
+jane@example.com,Jane,Doe,MEMBER,Analyst
+john@example.com,John,Roe,OWNER,Project lead
 ```
 
 Each valid row is created as a regular platform user with a **securely generated
@@ -172,7 +178,8 @@ added to the organization with the given membership role. The response envelope'
 ```
 
 Invalid or duplicate rows do not abort the batch: they are skipped and listed in
-`failures` (with the line number and reason), never carrying a password.
+`failures` (with the line number — within the uploaded file, the header being
+line 1 — and the reason), never carrying a password.
 
 ### Your own account (`PATCH /users/me/password`)
 
@@ -183,9 +190,8 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
 - The new password is held to the same minimum as registration (8 characters).
   A wrong current password answers `400 Current password is incorrect`.
 - This is what closes the loop on admin-created and bulk-registered accounts,
-  which start with a password chosen by somebody else. **There is no screen for
-  it yet** — the frontend card is pending, so for now it is reachable from
-  Swagger or a client.
+  which start with a password chosen by somebody else. The web client
+  reaches it from the profile screen (`ProfilePage` → `ChangePasswordForm`).
 
 ### Organizations (`POST /organizations/**`)
 
@@ -246,20 +252,26 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   `Project` was.
 ### Version members (`/version/{id}/members`, `/version/{id}/member-candidates`)
 
-- Version-level roles only come into play for someone who has **no** role on
-  the version at all: with none, access falls back to project membership (a
-  project `ADMIN` is therefore a version `ADMIN` too, by default). The moment
-  a user holds *any* role on a version, that role is the **sole** source of
-  truth for what they may do on it — it is never topped up by what their
-  project role would otherwise allow. A `SIMULATOR` cannot edit the version's
-  name, a node or a connection even though every project member can; an
-  `EDITOR` scoped to `EXTRACTION` cannot touch a `TRANSPORTATION` node.
+- **Project administrators administer every version.** An active project member
+  holding `MANAGE_PROJECT` (the project `ADMIN`) can do everything on every
+  version of the project, whatever version roles they hold; their explicit roles
+  are kept and shown but never narrow them (`GET /projects/{id}/access` reports
+  the source as `PROJECT_ADMIN`). A platform `ADMIN` can do everything too.
+- For everybody else, version-level roles only come into play for someone who
+  has **no** role on the version at all: with none, access falls back to project
+  membership. The moment a non-admin holds *any* role on a version, that role is
+  the **sole** source of truth for what they may do on it — it is never topped
+  up by what their project role would otherwise allow. A `SIMULATOR` cannot edit
+  the version's name, a node or a connection even though every project member
+  can; an `EDITOR` scoped to `EXTRACTION` cannot touch a `TRANSPORTATION` node.
+  A role only counts while its holder is an **active** member of the project.
 - Three roles: `ADMIN` (delete the version, merge a subversion into it,
-  resolve its conflicts), `EDITOR` (scoped to exactly one `vertical` — e.g.
+  resolve its conflicts, re-parent it — **not** manage who has access, which is
+  reserved to project and platform admins), `EDITOR` (scoped to exactly one `vertical` — e.g.
   `EXTRACTION` — plus `INTERNAL_CONSUMPTION` nodes and connections, which any
   `EDITOR` may touch regardless of their assigned vertical), and `SIMULATOR`
-  (view only, plus a future simulation endpoint). Every role grants read
-  access to the version.
+  (view and simulate; no editing). Every role grants read access to the
+  version.
 - Unlike a project member, a version member may hold **any number of roles
   at once** — e.g. `EDITOR` for two verticals plus `SIMULATOR`. `POST
   /version/{id}/members` always **adds** a role (`userId`, `memberType`,
@@ -267,9 +279,20 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   "change role" that replaces the set. `DELETE
   /version/{id}/members/{memberId}/roles/{roleId}` revokes one role; once a
   member's last role is revoked, the membership itself is removed.
+- **Only a project `ADMIN` or a platform `ADMIN` may grant, revoke or list
+  roles** (and list the candidates): `403 You are not allowed to manage the
+  roles of this version` for anyone else, a version `ADMIN` included. An unknown
+  version id answers `404` on these endpoints before the permission is checked.
 - Granting a role requires the target user to already be an active member of
   the version's owning project — `GET /version/{id}/member-candidates` lists
   exactly those users.
+- Creating a child version **copies the parent's roles** to the child, and its
+  creator becomes `ADMIN` of the child (a project or platform admin gets no row:
+  they already administer it). A version with no parent (a root) can only be
+  created by a project or platform `ADMIN`.
+- Deleting a version deletes everything below it and needs permission to
+  administer **every** version in the subtree; a descendant of another project
+  (or of none) can only be deleted by a platform `ADMIN`.
 - **Snapshots start empty, never null.** A version is created with empty
   `nodeSnapshot`/`connectionSnapshot` lists, so the create response and a later
   read answer the same shape (`[]`), and the in-place mutations the service does

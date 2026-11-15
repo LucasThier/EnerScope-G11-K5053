@@ -32,7 +32,7 @@ access-token `role` claim and mapped to a Spring Security `ROLE_*` authority.
 **`jobTitle` is not a role.** It is descriptive text with no bearing on
 authorization, and it is not carried in the token claims: it reaches the client
 through `UserSummaryDTO` on login and refresh, both of which read the user from
-the database. Set it at registration; there is no endpoint to change it yet.
+the database. Set it at registration (including the bulk CSV `jobTitle` column) and change it afterwards with `PATCH /users/me`, which only edits the caller's own profile.
 
 ### Authentication & registration
 
@@ -45,7 +45,12 @@ Registration is **not** self-service. Accounts are created by:
   `POST /organizations/{id}/users` (one user) or
   `POST /organizations/{id}/users/bulk` (a CSV batch), which create `USER`
   accounts and add them to the organization (as `MEMBER` by default; the bulk CSV
-  may set `OWNER`/`MEMBER` per row).
+  may set `OWNER`/`MEMBER` per row and, with an optional `jobTitle` column
+  — aliases `job_title`, `job title`, `puesto`, `cargo`; ≤120 characters — the
+  user's job title). A bulk file may hold **at most 500 data rows** (the header
+  does not count); a larger one is refused whole with `400 The CSV file has more
+  than 500 rows`, after the caller is authorized. A row that fails validation is
+  skipped and reported with its line; it does not abort the batch.
 
 The seeded `admin@enerscope.org` starts with `platformRole = ADMIN` and is the
 bootstrap administrator.
@@ -166,16 +171,38 @@ Four role scopes exist and they are independent of each other:
   organization membership, in one transaction.
 - **The reverse does not hold:** removing someone from a project leaves their
   organization membership untouched.
-- **A version role overrides the project role, on that version only.** With a
-  version role, `VersionAccessGuard` and `VersionAccess` decide from it alone;
-  without one they fall back to the project role (`VersionCapability` names
-  the project permission each capability falls back to); a platform `ADMIN`
-  can do everything. A version `EDITOR` edits its own vertical plus
-  `INTERNAL_CONSUMPTION` and may simulate (a rule in code, not a stored
-  permission). `GET /projects/{id}/access` returns the result per version.
-- **A version role needs project membership.** Granting one requires being a
-  project member, and the guard only counts a role while a `project_member`
-  row exists (`findEffectiveByVersionIdAndUserId`).
+- **A version role overrides the project role, on that version only — except
+  for the project administrator.** With a version role, `VersionAccessGuard`
+  and `VersionAccess` decide from it alone; without one they fall back to the
+  project role (`VersionCapability` names the project permission each
+  capability falls back to); a platform `ADMIN` can do everything. A version
+  `EDITOR` edits its own vertical plus `INTERNAL_CONSUMPTION` and may simulate
+  (a rule in code, not a stored permission). **A project `ADMIN` (an active
+  member holding `MANAGE_PROJECT`) administers every version of the project
+  whatever version roles they hold**; their explicit roles are kept and shown
+  but never narrow them. `GET /projects/{id}/access` returns the result per
+  version: `source` is `PLATFORM_ADMIN`, `PROJECT_ADMIN`, `VERSION_ROLES` or
+  `PROJECT_FALLBACK`, and `canManageRoles` says whether the caller may assign
+  roles on that version.
+- **Only the project `ADMIN` and the platform `ADMIN` assign, revoke and list
+  version roles** (`assertCanManageVersionRoles`; also the member-candidates
+  listing). A version `ADMIN` who is not a project admin cannot. `MANAGE_VERSION`
+  still covers deleting the version, being the destination of a merge,
+  resolving conflicts and re-parenting. A version member holds any number of
+  roles at once; roles are granted and revoked one by one (there is no "change
+  role").
+- **A version role needs an active project membership.** Granting one requires
+  being an active project member, and the guard only counts a role while the
+  `project_member` row exists **and is active** (`findEffectiveByVersionIdAndUserId`).
+- **Creating a child version.** The child receives a copy of the parent's
+  version roles (vertical and permissions included; later changes do not
+  propagate), and **its creator becomes `ADMIN` of the child** unless they are a
+  project or platform admin (who already administer it). Root versions (no
+  parent) can be created only by a project `ADMIN` or a platform `ADMIN`.
+- **Deleting a version deletes its subtree**, in one transaction, and needs
+  permission to administer every version in it; a descendant of another
+  project, or of none, can only be deleted by a platform `ADMIN`. Nothing is
+  deleted when any descendant is refused.
 - **Leaving a project or an organization removes the version roles.**
   `ProjectService.removeMember` and `OrganizationService.removeMember` delete
   the person's `version_member` rows in the affected projects, in the same
@@ -232,8 +259,11 @@ No creation timestamp field of its own; it reuses `createdAt` from
 | `project` | Project | `@ManyToOne`, required |
 | `parentVersion` | Version | `@ManyToOne`, self-reference, optional (the first version of a project has none) |
 
-`VersionService` rejects a `parentVersion` that belongs to a different
-`project` than the one the new version is being created under.
+`ProjectService.saveVersion` rejects a `parentVersion` that belongs to a
+different `project` than the one the new version is being created under, and a
+version without a parent (a root) can only be created by a project `ADMIN` or a
+platform `ADMIN`. `VersionLineage` applies the same-project rule when merging,
+resolving conflicts and re-parenting.
 
 A `Version` now **owns the diagram**: its `nodeSnapshot` (`List<BaseNode>` via
 the `versionXNode` join table) and `connectionSnapshot` (`List<NodeConnection>`

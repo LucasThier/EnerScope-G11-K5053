@@ -177,10 +177,14 @@ public class OrganizationController {
 
     @PostMapping(value = "/{organizationId}/users/bulk", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Bulk-register users into an organization",
-            description = "Upload a CSV with 'mail', 'firstName', 'lastName' (and optional 'role') "
-                    + "columns. Each valid row is created with a securely generated password and "
+            description = "Upload a CSV with 'mail', 'firstName', 'lastName' (and optional 'role' and "
+                    + "'jobTitle') columns. Each valid row is created with a securely generated password and "
                     + "added to the organization (default MEMBER). Allowed for platform admins and "
-                    + "organization owners. The response includes a 'mail,password' CSV to distribute.")
+                    + "organization owners; authorization is checked before the CSV content is validated. "
+                    + "At most 500 data rows (the header does not count): a larger file answers 400 "
+                    + "'The CSV file has more than 500 rows'. Invalid rows do not abort the batch; they "
+                    + "come back as failures with their line in the file. The response includes a "
+                    + "'mail,password' CSV to distribute.")
     public ResponseEntity<ApiResponse<BulkRegistrationResultDTO>> bulkRegisterUsers(
             @PathVariable UUID organizationId,
             @RequestParam("file") MultipartFile file) {

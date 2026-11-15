@@ -66,18 +66,27 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   `aria-describedby`/`aria-invalid` wiring, the focus trap and the single set of
   control heights. Add a variant to the component rather than a one-off in a
   screen.
-- The signed-in sidebar is a **transient overlay**, not a persistent rail: the
-  app opens it once on `/app`, the left screen edge and `Ctrl`/`Cmd`+`B` open
-  it, any navigation closes it, and below `64rem` it is a drawer.
-  `useNavigationTree` **hides** the sections the caller cannot reach.
-- **Membership has three independent role scopes** (platform, organization,
-  project), belonging to the organization is a prerequisite for belonging to one
+- The signed-in sidebar is **fixed at `80rem` and wider** while it is pinned
+  (the default; the pin button at its foot, `Ctrl`/`Cmd`+`B` and the
+  `sidebarPinned` LocalStorage key control it) and a **transient overlay**
+  otherwise: with the pin off, or between `64rem` and `80rem`, the app opens it
+  once on `/app`, the left screen edge and `Ctrl`/`Cmd`+`B` open it, any
+  navigation closes it, and below `64rem` it is a drawer. Exactly one leaf is
+  highlighted as current (`activeLeaf`). `useNavigationTree` **hides** the
+  sections the caller cannot reach. (This replaces the 2026-10 description of a
+  purely transient overlay.)
+- **Membership has four independent role scopes** (platform, organization,
+  project and — on top of project membership — version), belonging to the organization is a prerequisite for belonging to one
   of its projects, and an organization's last owner / a project's last
   administrator cannot be removed or demoted — **not even by a platform
   admin**. See [`domain-model.md`](domain-model.md) → *Membership rules*.
-- The frontend still has **no test runner**: the bar for a frontend change is
-  `npm run build` (type-check) plus `npm run lint`, and the rest is the manual
-  checklist in [`testing.md`](testing.md) → *Manual verification*.
+- The frontend has a **test runner**: `npm test` (the built-in `node:test`, no
+  dependency; 157 tests on 2026-11-15). The bar for a frontend change is
+  `npm test`, `npm run build` (type-check) and `npm run lint`; screens that no
+  unit test reaches stay on the manual checklist in
+  [`testing.md`](testing.md) → *Manual verification (frontend)*. If the menu
+  changes on purpose, regenerate `tests/permissionsNav.golden.json` with
+  `RECORD_PERMISSIONS_GOLDEN=1 npm test` and review the diff.
 
 ## Log
 
@@ -2631,7 +2640,8 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     on `prefers-color-scheme` inside the SVG. Fixing it means updating the
     `theme-color` meta from `useTheme` (the favicon cannot be fixed that way and
     would need two files).
-  - **`GET /organizations/owned` is fetched several times per page.**
+  - **`GET /organizations/owned` is fetched several times per page.** *(Resolved
+    2026-11-15: `MyOrganizationsProvider` now holds it — see that entry.)*
     `useOwnedOrganizations` is a plain `useState` + `useEffect` per consumer
     with **no cache and no shared provider**, and it has five callers —
     `useNavigationTree`, `AppLayout`'s title hook, `QuickActions`,
@@ -2646,18 +2656,21 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     only two, which is why there is no `RadioField` yet; a third one is the
     signal to write it, with `useField` for the wiring and `controlClasses` for
     the box.
-  - **`sidebarPinned` and `sidebarExpanded` are orphaned LocalStorage keys.**
-    The pin and the per-module expansion both moved into React state when the
-    sidebar became an overlay (the expansion now lives in `Sidebar`'s
-    `expanded` map and resets on reload). Nothing reads or writes either key any
-    more and nothing clears them, so they linger in the browsers of anyone who
-    used an earlier build. Harmless, but do not reuse those names for something
-    with a different shape — a stale value would be parsed as the new one.
-  - **The frontend has no test runner.** `package.json` has `dev`, `build`,
-    `lint` and `preview` and no test dependency, so the bar for a frontend
-    change is `npm run build` (which type-checks) plus `npm run lint`, and
-    everything else is manual — see [`testing.md`](testing.md) → *Manual
-    verification*. The pure functions written on these branches
+  - **`sidebarExpanded` is an orphaned LocalStorage key** (and `sidebarPinned`
+    was one until 2026-11-15, when the pin came back — see that entry). The
+    per-module expansion moved into React state when the sidebar became an
+    overlay (it lives in `Sidebar`'s `expanded` map and resets on reload).
+    Nothing reads or writes `sidebarExpanded` any more, so it lingers in the
+    browsers of anyone who used an earlier build. Harmless, but do not reuse the
+    name for something with a different shape — a stale value would be parsed
+    as the new one. **`sidebarPinned` is live again** with a boolean, default
+    `true`: a value left by an old build is read as the user's pin preference,
+    and anything other than `false` counts as pinned.
+  - **The frontend had no test runner when this was written (2026-10-18);
+    `npm test` exists now** (see the 2026-11-05 entry and the 2026-11-15 one),
+    so read the rest of this bullet as history. The bar then was `npm run build`
+    plus `npm run lint`, and everything else manual — see
+    [`testing.md`](testing.md) → *Manual verification*. The pure functions written on these branches
     (`utils/csvImport.ts`, `utils/membershipGuards.ts`,
     `utils/projectPermissions.ts`, `navItems.tsx`'s `moduleTitleFor` /
     `breadcrumbsFor` / `documentSectionFor`) were deliberately kept free of
@@ -2704,7 +2717,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     `assertCanEditVersion`; **reading** them stays `VIEW_PROJECT`, so a
     `SIMULATOR` reads what it cannot change. Diagram and node detail
     (`GET /version/{id}/diagram`, `GET /version/{id}/node/{n}`) require
-    `assertCanViewVersion`, after the `404` for a missing version.
+    `assertCanViewVersion`. *(Corrected 2026-11-15: the check runs **before** the
+    lookup, so a non-admin asking for a version that does not exist gets `403`,
+    and only a platform admin gets `404`.)*
   - **`POST /nodes/*` (13 endpoints) and `GET /version/conflicts` are
     platform-admin only** (`assertIsPlatformAdmin`; `403 Only platform admins
     can create nodes outside a version` / `… list every conflict`). The check
@@ -2713,7 +2728,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     the 2026-09-15 authorization entry. Nothing in the frontend calls either.
   - **A version role only counts while its holder is a project member.** The
     guard reads `VersionMemberRepository.findEffectiveByVersionIdAndUserId`
-    (the row plus an `EXISTS` on `project_member`, active or not), and the
+    (the row plus an `EXISTS` on `project_member`; **since 2026-11-15 that
+    `EXISTS` requires the membership to be active** — it used to count an
+    inactive one), and the
     version member listing applies the same filter. Removing someone from a
     project (`ProjectService.removeMember`) or from an organization
     (`OrganizationService.removeMember`) deletes their `version_member` rows in
@@ -2799,3 +2816,179 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   - **Not verified:** whether existing databases already hold a child whose
     parent is in another project — the new checks block creating one, they do
     not clean it up.
+
+- 2026-11-15 — Version roles under the project administrator, cascading delete,
+  root versions, 403 before 400, CSV cap, and the frontend that goes with them
+  (`update-frontend`, commits `158532e`, `22c4504`, `e651e24`, `81f93ac` and the
+  frontend commits before them). Tests in [`testing.md`](testing.md) → *Frontend
+  unit tests* and *Version roles, cascade delete, root versions and CSV limit*.
+  Each rule below was checked against the code on the date of this entry.
+  - **Only the project `ADMIN` and the platform `ADMIN` manage version roles.**
+    `VersionAccessGuard.assertCanManageVersionRoles` guards granting, revoking
+    and listing roles (`POST/GET /version/{id}/members`,
+    `DELETE …/members/{m}/roles/{r}`) and `GET /version/{id}/member-candidates`.
+    A version `ADMIN` who is not a project admin gets `403 You are not allowed
+    to manage the roles of this version`. There is no "change role": a change is
+    a revoke plus a grant. **`MANAGE_VERSION` keeps the rest of its meaning:**
+    deleting the version, being the destination of a merge, resolving conflicts
+    and re-parenting (`assertCanManageVersion`). This supersedes the
+    2026-11-14 wording that a version admin "can manage" without qualification.
+  - **The project administrator administers every version.** Anyone holding
+    `MANAGE_PROJECT` on an active membership passes every version check even
+    when they hold a narrower version role (`isProjectAdmin` in the guard);
+    `GET /projects/{id}/access` reports it as source `PROJECT_ADMIN`
+    (`effectiveRole` `ADMIN`) and still lists their explicit roles, and each
+    version carries `canManageRoles` (true only for `PLATFORM_ADMIN` and
+    `PROJECT_ADMIN`). The project-level `canManageProject` and `canCreateVersions`
+    flags are `MANAGE_PROJECT` and `EDIT_PROJECT`: **`canCreateVersions` is true
+    for an editor, but a root version needs `canManageProject`** — the frontend
+    does not read `canCreateVersions`.
+  - **Whoever creates a child version becomes its `ADMIN`.** After the parent's
+    roles are copied, a creator who is an active project member but not a
+    project admin gets `ADMIN` on the child — on the same membership row if
+    the copy already holds one for them, without a second `ADMIN` role if the
+    parent already made them admin. Project and platform admins get no row (they
+    already administer it). The parent is untouched: the creator stays narrow
+    there.
+  - **A version role counts only while its holder is an active project
+    member.** `VersionMemberRepository.findEffectiveByVersionIdAndUserId` now
+    requires `project_member.active`; before, an inactive membership still
+    counted. `ProjectAccessGuard.isActive` (active membership **and** active
+    account) and `grants` (also an active role) are the single check used by
+    the guard, `VersionAccess`, `EconomicService` and `VersionQueryService`.
+    Deactivated members keep their version rows (and so stay narrow if
+    reactivated); removal deletes them (2026-11-14).
+  - **Cascading delete.** `VersionService.deleteVersion` is `@Transactional`:
+    it needs `MANAGE` on the root, collects the subtree, then needs to manage
+    **every** descendant (`assertCanManageDescendant`) before deleting anything.
+    One refused descendant gives `403 You are not allowed to delete one or more
+    versions below this one` — a generic message that names no version — and
+    deletes nothing. A descendant that belongs to another project, or to none
+    (legacy data), can only be deleted by a platform admin, even by the admin of
+    that other project. The check runs before the lookup, so a non-admin
+    deleting a version that does not exist gets `403` (a platform admin gets
+    `404`).
+  - **Root versions** (`POST /projects/{id}/version` without a parent) need
+    `MANAGE_PROJECT` or a platform admin; a project `EDITOR` gets `403`. With a
+    parent, `EDIT_PROJECT` plus editing the parent, as before. The frontend
+    mirrors this: *Nueva versión* on an empty project is offered to the project
+    administrator only, and an editor sees *Pedile al administrador del proyecto
+    que cree la primera versión.*
+  - **Authorization before validation (`403` before `400`)** in
+    `ProjectService.updateProject` and `changeMemberRole`,
+    `OrganizationService.changeMemberRole`, and the bulk CSV (the `403` comes
+    before the empty-file and size checks of the service). The request body is
+    no longer validated before the caller is known to be allowed. For economic
+    configuration and the scenario save there are two layers: the version-level
+    check (`assertCanEditVersion`, `403`) runs first; the **per-vertical**
+    check (`ScenarioChangeScope`) runs after the structural validation in
+    `EconomicService.save` / `saveDraft` (so an editor sending a malformed body
+    still sees `400` first) and before the business validation in
+    `ScenarioConfigurationService.save` (whose validation errors come back in a
+    `200` body, so an editor changing another vertical's node gets `403`, not
+    the list of errors). Do not assume "403 first" there without reading the
+    order.
+  - **`403` before `404` for versions, except the role endpoints.** The version
+    reads (`getVersion`, diagram, node detail, node moves/renames/edits) and
+    `deleteVersion` check access **before** looking the version up: a version
+    that does not exist or is attached to no project answers `403 You are not
+    allowed to access this version` to a non-admin, and a platform admin (who
+    skips the check) gets `404`. The role endpoints (`addRole`, `listMembers`,
+    `removeRole`, `member-candidates`) still look the version up first, so any
+    authenticated caller can tell whether a version id exists from their `404`.
+    Left as is; make them consistent if probing matters.
+  - **Bulk CSV** (`POST /organizations/{id}/users/bulk`). New optional column
+    `jobTitle` (aliases `job_title`, `job title`, `puesto`, `cargo`; ≤120
+    characters, stored trimmed, blank = none; a longer one fails that row). A
+    file with more than **500 data rows** (the header does not count) is refused
+    whole with `400 The CSV file has more than 500 rows`, after authorization and
+    before any row is created. Row failures carry the line within the uploaded
+    batch (the header is line 1).
+  - **Frontend CSV import.** The client allows 500 rows and 1 MB, and sends the
+    valid rows in **sequential batches of 50**, each a separate
+    `POST …/users/bulk`, merging the results (one credentials header). Failures
+    are mapped back to the **real line of the original file**, not the batch
+    line. There is a progress bar and a *Cancelar* button (the in-flight batch is
+    aborted). **A cut can leave partial writes:** if a batch fails with a
+    network error or a `5xx` the client cannot know whether it was written, so
+    it keeps the credentials of the earlier batches, lists the uncertain rows
+    and the rows never sent, and warns that the accounts may exist; a `4xx`
+    batch counts as not sent. Credentials of what was created can be downloaded
+    after a cut or a cancel, and closing without downloading them asks for
+    confirmation. The action is **Agregar integrantes** (per active
+    organization) in *Administración → Organizaciones*.
+  - **Sidebar.** `SidebarProvider` keeps the menu **fixed** (pushing the
+    content) when the viewport is ≥ `80rem` and the pin is on; the pin is the
+    `sidebarPinned` LocalStorage key (boolean, default on), toggled from the pin
+    button at the foot of the sidebar — which only exists at ≥ `80rem` — or by
+    `Ctrl`/`Cmd`+`B` when it is fixed. Below `80rem`, or unpinned, it is the
+    transient overlay of 2026-10 (opens once on `/app`, the left edge and
+    `Ctrl`/`Cmd`+`B` open it, navigation closes it); below `64rem` a drawer.
+    Exactly **one** item is current at a time (`activeLeaf` picks the best
+    match). Resizing across `80rem` or `64rem` closes the overlay.
+  - **Selected project.** `ProjectRouteGuard` wraps every
+    `/projects/:projectId/*` route except `/projects` itself: a project id that
+    is not in the caller's list (deleted, someone else's) redirects to the same
+    module of the stored or first project (`projectRouteRedirect`) or to
+    `/projects`, and shows a loader while the list loads. The active project
+    resolves route → stored (`lastProjectId`) → first; a foreign route id
+    resolves to none, never to the first. `/versions` is an index that redirects
+    to `/projects/{active}/versions` when a project is active (*Versionado* per
+    active project); a `403`/`404` on a read reloads the project list, while a
+    forbidden save or mutation never does. `utils/activeProject.ts` holds the
+    pure functions and is covered by `activeProjectResolution.test.mjs`.
+  - **Project team screen** (`/projects/:projectId/team`) has two tabs,
+    *Integrantes* and *Roles por versión* (`?tab=roles&version=…`). *Roles por
+    versión* shows *Mis accesos* (what the caller can do on each version, from
+    `/access`), a version picker (filter *Solo las que administro*) and,
+    for the selected version, the members and the assignment form. Who can
+    manage roles is decided **only by `canManageRoles`** from `/access` — not
+    `canManage` — so a version administrator who is not a project admin sees
+    their own access and a notice instead of the form.
+    `permissions/access.ts` centralizes the role checks; the platform admin and
+    the project administrator administer every version.
+  - **`MyOrganizationsProvider`** loads `GET /organizations?mine=true` (only the
+    caller's memberships, platform admins included), `GET /organizations/owned`
+    and, for a platform admin, the full list, once, for the whole app; it feeds
+    the navigation, `OrganizationMemberRoute`, `MyOrganizationsPage` and the
+    workspace. `useOwnedOrganizations` now just reads `owned` from the same
+    provider, so its five callers no longer each fetch `/organizations/owned`:
+    the 2026-10-18 debt note about that is **resolved** (the provider lives in
+    `AppLayout`, so it is only available inside the signed-in shell).
+  - **Navigation tests.** `tests/permissionsCharacterization.test.mjs` pins the
+    menu for every role / project role / membership / loading combination against
+    `tests/permissionsNav.golden.json`. Regenerate the golden with
+    `RECORD_PERMISSIONS_GOLDEN=1 npm test` **only** when the menu changes on
+    purpose, and review the JSON diff. `npm test` is the built-in `node:test`
+    runner (no dependency); this replaces every older "the frontend has no test
+    runner" note.
+  - **Cadena de valor module is in Spanish.** Screen copy and node/field labels
+    live in `components/editor/nodeCatalog.ts` (`NODE_STATE_LABELS`,
+    `VERTICAL_LABELS`, each node's `label` and field `label`s). Glossary used
+    (keep it when adding a node type): *well* → **Pozo**, *gathering network* →
+    **Red de recolección**, *treatment plant* → **Planta de tratamiento**,
+    *pipeline* → **Gasoducto**, *compressing plant* → **Planta compresora**,
+    *ground liquefaction plant* → **Planta de licuefacción en tierra**, *FLNG
+    unit* → **Unidad FLNG**, *seaport terminal* → **Terminal portuaria**, *LNG
+    carrier* → **Buque metanero**, *internal / industrial consumption* →
+    **Consumo interno / industrial**; verticals **Extracción, Transporte,
+    Licuefacción, Exportación, Consumo interno**; *decline curve* → **Curva de
+    declinación**, *gas richness* → **Riqueza del gas**, *vessel depth* →
+    **Calado**, *loss per km / per metre* → **Pérdidas por kilómetro / por
+    metro**, *hiring cost* → **Costo de contratación**. DTM, MTPA and FLNG
+    stay as acronyms. Stored values and API enums stay in English; only labels
+    are translated, and the sidebar entry is *Cadena de valor* (full name *Mapa
+    de la Cadena de Valor*). The backend still answers errors in English.
+  - **Version role messages.** `api/errors.ts` translates the version
+    endpoints' `403`/`400`/`404` messages (e.g. "ask a project administrator"
+    for managing roles; the cascading-delete `403` is shown without naming
+    versions). A `403` caused by a lost membership is handled by the project
+    list reload above.
+  - **Not verified (this entry):** the Playwright scripts
+    (`tests/*-browser.mjs`, among them `sidebarPin-browser.mjs`) were not run;
+    nothing here was exercised against a PostgreSQL by me — the `*IT` counts come
+    from reports of a manual run earlier on the same day; whether any existing
+    database holds a descendant version in another project (which only a
+    platform admin can now delete) or roles whose holder is an inactive project
+    member; and the behaviour of the screens in a real browser beyond what the
+    unit tests cover.
