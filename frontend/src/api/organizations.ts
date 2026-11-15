@@ -73,12 +73,14 @@ export const organizationsApi = {
   bulkRegisterUsers: (
     organizationId: string,
     file: File,
+    signal?: AbortSignal,
   ): Promise<AxiosResponse<ApiResponse<BulkRegistrationResult>>> => {
     const form = new FormData();
     form.append('file', file);
     return client.post(`/organizations/${organizationId}/users/bulk`, form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 180_000,
+      signal,
     });
   },
 };

@@ -49,6 +49,7 @@ public class OrganizationBulkRegistrationService {
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
     private static final int NAME_MIN = 2;
     private static final int NAME_MAX = 60;
+    static final int MAX_ROWS = 500;
 
     // Header aliases -> canonical field. All keys are lower-case.
     private static final Map<String, String> MAIL_HEADERS = Map.of(
@@ -94,6 +95,9 @@ public class OrganizationBulkRegistrationService {
         List<List<String>> rows = CsvUtil.parse(csvContent);
         if (rows.isEmpty()) {
             throw new IllegalArgumentException("The CSV file is empty");
+        }
+        if (rows.size() - 1 > MAX_ROWS) {
+            throw new IllegalArgumentException("The CSV file has more than " + MAX_ROWS + " rows");
         }
 
         Columns columns = resolveColumns(rows.get(0));

@@ -81,6 +81,48 @@ export function ImportUsersCsvFlow({ flow, organizationName }: ImportUsersCsvFlo
           </ul>
         </div>
 
+        {flow.outcome && flow.outcome.status !== 'completed' && (
+          <Alert tone="warning">
+            {flow.outcome.status === 'cancelled'
+              ? 'Cancelaste la importación antes de terminar. '
+              : 'La importación se cortó antes de terminar. '}
+            Se procesaron {flow.result.total} de{' '}
+            {flow.result.total + flow.outcome.uncertainRows.length + flow.outcome.notSentRows.length}{' '}
+            filas válidas.
+            {flow.outcome.uncertainRows.length > 0 && (
+              <span className="mt-1 block">
+                {flow.outcome.uncertainRows.length === 1
+                  ? 'Una fila estaba en proceso y puede haberse creado'
+                  : `${flow.outcome.uncertainRows.length} filas estaban en proceso y pueden haberse creado`}
+                : revisá la lista de integrantes antes de reintentar, porque sus contraseñas
+                no están en el archivo de credenciales.
+              </span>
+            )}
+            {flow.outcome.notSentRows.length > 0 && (
+              <span className="mt-1 block">
+                {flow.outcome.notSentRows.length === 1
+                  ? 'Una fila no se envió.'
+                  : `${flow.outcome.notSentRows.length} filas no se enviaron.`}{' '}
+                Podés descargar las credenciales de lo ya creado y subir de nuevo solo esas
+                filas.
+              </span>
+            )}
+          </Alert>
+        )}
+
+        {flow.outcome && flow.outcome.notSentRows.length + flow.outcome.uncertainRows.length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold text-ink-800">Filas sin confirmar</h3>
+            <ul className="mt-2 flex max-h-40 flex-col gap-1 overflow-auto">
+              {[...flow.outcome.uncertainRows, ...flow.outcome.notSentRows].map((row) => (
+                <li key={`${row.line}-${row.mail}`} className="text-sm text-ink-700">
+                  Línea {row.line} — <span className="font-medium text-ink-800">{row.mail}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {flow.result.created > 0 && (
           <Alert tone="warning">
             Las contraseñas se muestran <strong>una sola vez</strong>. Descargá el archivo
@@ -116,7 +158,7 @@ export function ImportUsersCsvFlow({ flow, organizationName }: ImportUsersCsvFlo
             <ul className="mt-2 flex flex-col gap-1">
               {otherFailures.map((failure) => (
                 <li key={`${failure.line}-${failure.mail}`} className="text-sm text-ink-700">
-                  <span className="font-medium text-ink-800">{failure.mail || 'sin email'}</span>
+                  Línea {failure.line} — <span className="font-medium text-ink-800">{failure.mail || 'sin email'}</span>
                   {' — '}
                   {translateBackendMessage(failure.reason)}
                 </li>
@@ -222,15 +264,26 @@ export function ImportUsersCsvFlow({ flow, organizationName }: ImportUsersCsvFlo
         </div>
       )}
 
-      {flow.stage === 'sending' && (
-        <Alert tone="info">
-          Creando las cuentas. Puede tardar hasta un minuto según la cantidad de filas: no
-          cierres esta ventana.
-        </Alert>
+      {flow.stage === 'sending' && flow.progress && (
+        <div className="flex flex-col gap-2" aria-live="polite">
+          <label htmlFor="import-progress" className="text-sm text-ink-700">
+            Creando las cuentas: {flow.progress.done} de {flow.progress.total}. No cierres esta
+            ventana.
+          </label>
+          <progress
+            id="import-progress"
+            className="h-2 w-full"
+            max={flow.progress.total}
+            value={flow.progress.done}
+          />
+        </div>
       )}
 
       <div className="mt-2 flex flex-wrap justify-end gap-2">
-        <Button variant="ghost" onClick={flow.requestClose} disabled={flow.stage === 'sending'}>
+        <Button
+          variant="ghost"
+          onClick={flow.stage === 'sending' ? flow.cancel : flow.requestClose}
+        >
           Cancelar
         </Button>
         <Button

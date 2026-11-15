@@ -218,6 +218,28 @@ class OrganizationBulkRegistrationServiceTest {
     }
 
     @Test
+    void throwsWhenFileHasMoreThanMaxRows() {
+        StringBuilder csv = new StringBuilder("mail,firstName,lastName\n");
+        for (int i = 0; i < 501; i++) {
+            csv.append("user").append(i).append("@example.com,Jane,Doe\n");
+        }
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.register(ORG_ID, csv.toString()));
+        assertEquals("The CSV file has more than 500 rows", ex.getMessage());
+        verify(userService, never()).register(any());
+    }
+
+    @Test
+    void acceptsExactlyMaxRows() {
+        StringBuilder csv = new StringBuilder("mail,firstName,lastName\n");
+        for (int i = 0; i < 500; i++) {
+            csv.append("user").append(i).append("@example.com,Jane,Doe\n");
+        }
+        BulkRegistrationResultDTO result = service.register(ORG_ID, csv.toString());
+        assertEquals(500, result.created());
+    }
+
+    @Test
     void throwsWhenFileIsEmpty() {
         assertThrows(IllegalArgumentException.class, () -> service.register(ORG_ID, ""));
     }

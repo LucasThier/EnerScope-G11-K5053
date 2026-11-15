@@ -42,6 +42,8 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
     'No tenés permiso para dar de alta personas en esta organización.',
   'An account with that email already exists': 'Ya existe una cuenta con ese email.',
   'The CSV file is empty': 'El archivo no tiene filas.',
+  'The CSV file has more than 500 rows':
+    'El archivo supera el máximo de 500 filas por importación.',
   'The uploaded file is empty': 'No se adjuntó ningún archivo.',
   'Could not read the uploaded file': 'No se pudo leer el archivo que subiste.',
   'Missing email': 'Falta el email.',

@@ -1,6 +1,6 @@
 import type { OrganizationMemberType } from '../types/auth';
 
-export const MAX_ROWS = 100;
+export const MAX_ROWS = 500;
 export const MAX_FILE_BYTES = 1024 * 1024;
 const NAME_MIN = 2;
 const NAME_MAX = 60;

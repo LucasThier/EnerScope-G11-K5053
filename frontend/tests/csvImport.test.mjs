@@ -42,3 +42,11 @@ test('the template shows the jobTitle column and parses back cleanly', () => {
   assert.equal(parsed.invalidCount, 0);
   assert.deepEqual(parsed.rows.map((row) => row.jobTitle), ['Analista', 'Gerente de proyectos']);
 });
+
+test('the backend row-limit message is translated', () => {
+  const errors = createLoader()(resolve(root, 'api/errors.ts'));
+  assert.equal(
+    errors.translateBackendMessage('The CSV file has more than 500 rows'),
+    'El archivo supera el máximo de 500 filas por importación.',
+  );
+});
