@@ -24,7 +24,8 @@ public interface VersionMemberRepository extends JpaRepository<VersionMember, UU
               AND m.user.id = :userId
               AND EXISTS (
                   SELECT 1 FROM Project p JOIN p.versions v JOIN p.members pm
-                  WHERE v.id = :versionId AND pm.user.id = :userId AND pm.active = true)
+                  WHERE v.id = :versionId AND v.active = true AND p.active = true
+                    AND pm.user.id = :userId AND pm.active = true)
             """)
     Optional<VersionMember> findEffectiveByVersionIdAndUserId(@Param("versionId") UUID versionId,
                                                               @Param("userId") UUID userId);

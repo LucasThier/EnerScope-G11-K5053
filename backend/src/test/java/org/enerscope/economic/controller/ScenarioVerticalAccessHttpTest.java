@@ -275,6 +275,41 @@ class ScenarioVerticalAccessHttpTest {
     }
 
     @Test
+    void economicConfigurationWithAnotherVerticalsCostAndAnInvalidValueGets403Not400() throws Exception {
+        User editor = fixture.versionEditorOf(VerticalEnum.EXTRACTION);
+
+        expectDenied(saveConfiguration(editor, mutated(tree -> {
+            raiseExportCosts().accept(tree);
+            tree.put("wacc", -1);
+        }).toString()), VERTICAL_DENIED);
+
+        assertEquals(configurationJson, storedConfiguration());
+    }
+
+    @Test
+    void economicConfigurationWithOnlyAnInvalidValueStillGets400() throws Exception {
+        User editor = fixture.versionEditorOf(VerticalEnum.EXTRACTION);
+
+        saveConfiguration(editor, mutated(tree -> tree.put("wacc", -1)).toString()).andExpect(status().isBadRequest());
+
+        assertEquals(configurationJson, storedConfiguration());
+    }
+
+    @Test
+    void economicDraftOnAnotherVerticalsNodeWithAMalformedStructureGets403Not400() throws Exception {
+        User extraction = fixture.versionEditorOf(VerticalEnum.EXTRACTION);
+        User export = fixture.versionEditorOf(VerticalEnum.EXPORT);
+        ObjectNode malformed = (ObjectNode) mapper.readTree(
+                economicDraft(nodeOf.get(VerticalEnum.EXPORT).toString(), "10"));
+        ((ObjectNode) malformed.path("draft")).put("startYear", 2030);
+
+        expectDenied(saveEconomicDraft(extraction, malformed.toString()), VERTICAL_DENIED);
+        saveEconomicDraft(export, malformed.toString()).andExpect(status().isBadRequest());
+
+        assertFalse(economicDrafts.findByVersionId(versionId()).isPresent());
+    }
+
+    @Test
     void editorCopyingTheScenarioIntoAChildVersionBecomesItsAdminAndSavesEveryVerticalThere() throws Exception {
         User editor = fixture.versionEditorOf(VerticalEnum.EXTRACTION);
         ChildCopy copy = copyScenarioIntoAChild(editor);

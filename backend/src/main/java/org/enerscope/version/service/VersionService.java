@@ -229,6 +229,7 @@ public class VersionService {
         return collected;
     }
 
+    @Transactional(readOnly = true)
     public Version getVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
         accessGuard.assertCanViewVersion(id);

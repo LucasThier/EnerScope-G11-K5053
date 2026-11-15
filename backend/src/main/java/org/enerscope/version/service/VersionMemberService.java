@@ -51,9 +51,9 @@ public class VersionMemberService {
      */
     @Transactional
     public VersionMember addRole(UUID versionId, AddVersionMemberRoleRequestDTO data) {
+        accessGuard.assertCanManageVersionRoles(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
-        accessGuard.assertCanManageVersionRoles(versionId);
         validateRoleShape(data);
 
         User user = userRepository.findById(data.userId())
@@ -107,10 +107,10 @@ public class VersionMemberService {
      */
     @Transactional(readOnly = true)
     public List<VersionMember> listMembers(UUID versionId) {
+        accessGuard.assertCanManageVersionRoles(versionId);
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
-        accessGuard.assertCanManageVersionRoles(versionId);
         return versionMemberRepository.findByVersionIdWithUser(versionId);
     }
 
@@ -122,10 +122,10 @@ public class VersionMemberService {
      */
     @Transactional
     public void removeRole(UUID versionId, UUID memberId, UUID roleId) {
+        accessGuard.assertCanManageVersionRoles(versionId);
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
-        accessGuard.assertCanManageVersionRoles(versionId);
 
         VersionMember member = versionMemberRepository.findByIdAndVersionId(memberId, versionId)
                 .orElseThrow(() -> new EntityNotFoundException("Member not found"));
@@ -154,10 +154,10 @@ public class VersionMemberService {
      */
     @Transactional(readOnly = true)
     public List<VersionMemberCandidateDTO> listMemberCandidates(UUID versionId, String q) {
+        accessGuard.assertCanManageVersionRoles(versionId);
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
-        accessGuard.assertCanManageVersionRoles(versionId);
         UUID projectId = projectRepository.findIdByVersionId(versionId)
                 .orElseThrow(() -> new IllegalArgumentException("Version is not attached to any project"));
 

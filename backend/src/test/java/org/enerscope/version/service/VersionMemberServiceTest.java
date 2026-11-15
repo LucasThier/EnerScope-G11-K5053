@@ -200,10 +200,8 @@ class VersionMemberServiceTest {
     void addRoleRejectsAProjectEditorCallerWith403() {
         UUID versionId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
-        Version version = new Version("v1", null, null, null, null, null);
         User caller = regularUser("editor@enerscope.org");
         authenticateAs(caller);
-        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
         when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
                 .thenReturn(Optional.of(projectMemberWithEditPermission()));
@@ -216,6 +214,7 @@ class VersionMemberServiceTest {
     @Test
     void addRoleRejectsUnknownVersion() {
         UUID versionId = UUID.randomUUID();
+        authenticateAs(admin());
         when(versionRepository.findById(versionId)).thenReturn(Optional.empty());
 
         assertThrows(VersionNotFoundException.class, () -> service.addRole(versionId,
@@ -394,11 +393,8 @@ class VersionMemberServiceTest {
     void aVersionAdminWhoIsOnlyAProjectEditorCannotManageRoles() {
         UUID versionId = UUID.randomUUID();
         UUID projectId = UUID.randomUUID();
-        Version version = new Version("v1", null, null, null, null, null);
         User caller = regularUser("versionadmin@enerscope.org");
         authenticateAs(caller);
-        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
-        when(versionRepository.existsById(versionId)).thenReturn(true);
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
         when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
                 .thenReturn(Optional.of(projectMemberWithEditPermission()));
@@ -445,13 +441,80 @@ class VersionMemberServiceTest {
         UUID projectId = UUID.randomUUID();
         User caller = regularUser("editor@enerscope.org");
         authenticateAs(caller);
-        when(versionRepository.existsById(versionId)).thenReturn(true);
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
         when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
                 .thenReturn(Optional.of(projectMemberWithEditPermission()));
 
         assertThrows(ForbiddenException.class, () -> service.listMembers(versionId));
         verify(versionMemberRepository, never()).findByVersionIdWithUser(any());
+    }
+
+    // ---- unknown version: 403 for everyone but the platform admin ----------
+
+    @Test
+    void addRoleAnswers403ForAnUnknownVersionToARegularUser() {
+        UUID versionId = UUID.randomUUID();
+        authenticateAs(regularUser("probe@enerscope.org"));
+
+        assertThrows(ForbiddenException.class, () -> service.addRole(versionId,
+                new AddVersionMemberRoleRequestDTO(UUID.randomUUID(), VersionMemberType.SIMULATOR, null)));
+        verify(versionRepository, never()).findById(any());
+    }
+
+    @Test
+    void listMembersAnswers403ForAnUnknownVersionToARegularUser() {
+        UUID versionId = UUID.randomUUID();
+        authenticateAs(regularUser("probe@enerscope.org"));
+
+        assertThrows(ForbiddenException.class, () -> service.listMembers(versionId));
+        verify(versionRepository, never()).existsById(any());
+    }
+
+    @Test
+    void listMembersAnswers404ForAnUnknownVersionToAPlatformAdmin() {
+        UUID versionId = UUID.randomUUID();
+        authenticateAs(admin());
+        when(versionRepository.existsById(versionId)).thenReturn(false);
+
+        assertThrows(VersionNotFoundException.class, () -> service.listMembers(versionId));
+    }
+
+    @Test
+    void removeRoleAnswers403ForAnUnknownVersionToARegularUser() {
+        UUID versionId = UUID.randomUUID();
+        authenticateAs(regularUser("probe@enerscope.org"));
+
+        assertThrows(ForbiddenException.class,
+                () -> service.removeRole(versionId, UUID.randomUUID(), UUID.randomUUID()));
+        verify(versionRepository, never()).existsById(any());
+    }
+
+    @Test
+    void removeRoleAnswers404ForAnUnknownVersionToAPlatformAdmin() {
+        UUID versionId = UUID.randomUUID();
+        authenticateAs(admin());
+        when(versionRepository.existsById(versionId)).thenReturn(false);
+
+        assertThrows(VersionNotFoundException.class,
+                () -> service.removeRole(versionId, UUID.randomUUID(), UUID.randomUUID()));
+    }
+
+    @Test
+    void listMemberCandidatesAnswers403ForAnUnknownVersionToARegularUser() {
+        UUID versionId = UUID.randomUUID();
+        authenticateAs(regularUser("probe@enerscope.org"));
+
+        assertThrows(ForbiddenException.class, () -> service.listMemberCandidates(versionId, null));
+        verify(versionRepository, never()).existsById(any());
+    }
+
+    @Test
+    void listMemberCandidatesAnswers404ForAnUnknownVersionToAPlatformAdmin() {
+        UUID versionId = UUID.randomUUID();
+        authenticateAs(admin());
+        when(versionRepository.existsById(versionId)).thenReturn(false);
+
+        assertThrows(VersionNotFoundException.class, () -> service.listMemberCandidates(versionId, null));
     }
 
     // ---- helpers -----------------------------------------------------------

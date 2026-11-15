@@ -130,6 +130,7 @@ public class VersionConflictService {
     }
 
     /** Conflicts that affect the given version (it is the conflicting sibling). */
+    @Transactional(readOnly = true)
     public List<VersionConflictDTO> getConflictsForVersion(UUID versionId) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         if (!versionRepository.existsById(versionId)) {

@@ -235,7 +235,8 @@ class EconomicServiceTest {
         var configuration = exportConfiguration();
         var error = assertThrows(IllegalArgumentException.class, () -> service.save(projectId, holder.version.getId(), configuration));
         assertEquals("El volumen exportado requiere un buque del escenario.", error.getMessage());
-        verifyNoInteractions(configs, simulator, evaluations);
+        verify(configs, never()).save(any());
+        verifyNoInteractions(simulator, evaluations);
     }
 
     @Test void savedInvalidExportCannotRunSimulation() throws Exception {
@@ -286,6 +287,19 @@ class EconomicServiceTest {
         verify(drafts, never()).save(any());
     }
 
+    @Test void saveWithANullConfigurationAnswersIllegalArgumentNotNullPointer() {
+        grant(ProjectMemberPermission.EDIT_PROJECT);
+        assertThrows(IllegalArgumentException.class, () -> service.save(projectId, holder.version.getId(), null));
+        verify(configs, never()).save(any());
+    }
+
+    @Test void saveDraftWithANullBodyAnswersIllegalArgumentNotNullPointer() {
+        grant(ProjectMemberPermission.EDIT_PROJECT);
+        assertThrows(IllegalArgumentException.class, () -> service.saveDraft(projectId, holder.version.getId(),
+                new EconomicDraftDTO(1, null)));
+        verify(drafts, never()).save(any());
+    }
+
     @Test void viewerReadsDraftButCannotSaveIt() throws Exception {
         grant(ProjectMemberPermission.VIEW_PROJECT);
         var draft = incompleteDraft();
@@ -305,7 +319,7 @@ class EconomicServiceTest {
         grant(ProjectMemberPermission.EDIT_PROJECT);
         assertThrows(IllegalArgumentException.class, () -> service.saveDraft(projectId, holder.version.getId(),
                 new EconomicDraftDTO(1, MAPPER.createObjectNode())));
-        verifyNoInteractions(drafts);
+        verify(drafts, never()).save(any());
     }
 
     @Test void validatedConfigurationSaveClearsDraft() {

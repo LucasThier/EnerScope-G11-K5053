@@ -66,10 +66,10 @@ public class EconomicService {
     public EconomicConfiguration save(UUID projectId, UUID versionId, EconomicConfiguration configuration) {
         Version version = authorizeConfigurationEdit(projectId, versionId);
         lock(version);
-        validateConfiguration(configuration, version);
         var stored = configurations.findByVersionId(versionId);
         changeScope.assertCanSave(version, null,
                 stored.map(e -> read(e.getConfigurationJson(), EconomicConfiguration.class)).orElse(null), configuration);
+        validateConfiguration(configuration, version);
         var entity = stored.orElseGet(() -> new EconomicConfigurationEntity(version, ""));
         entity.replace(json(configuration)); configurations.save(entity);
         drafts.deleteByVersionId(versionId);
@@ -93,9 +93,9 @@ public class EconomicService {
         Version version = authorizeConfigurationEdit(projectId, versionId);
         lock(version);
         EconomicValidator.require(draft != null, "Draft is required");
-        draft.validateStructure();
         changeScope.assertCanSaveDraft(version, drafts.findByVersionId(versionId)
                 .map(e -> read(e.getDraftJson(), EconomicDraftDTO.class).draft()).orElse(null), draft.draft());
+        draft.validateStructure();
         var entity = drafts.findByVersionId(versionId).orElseGet(() -> new EconomicDraftEntity(version, ""));
         entity.replace(json(draft)); drafts.save(entity);
         logger.info("Economic draft saved for version {}", versionId);

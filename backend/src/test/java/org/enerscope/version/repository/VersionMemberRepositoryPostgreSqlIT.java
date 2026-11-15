@@ -168,6 +168,27 @@ class VersionMemberRepositoryPostgreSqlIT {
     }
 
     @Test
+    void effectiveLookupIgnoresTheRowsOfADeactivatedVersionOnly() {
+        em.find(Version.class, first.getId()).deactivate();
+        em.flush();
+        em.clear();
+
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(first.getId(), caller.getId()).isEmpty());
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(first.getId(), colleague.getId()).isEmpty());
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(second.getId(), caller.getId()).isPresent());
+    }
+
+    @Test
+    void effectiveLookupIgnoresEveryRowOfADeactivatedProject() {
+        em.find(Project.class, project.getId()).deactivate();
+        em.flush();
+        em.clear();
+
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(first.getId(), caller.getId()).isEmpty());
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(second.getId(), caller.getId()).isEmpty());
+    }
+
+    @Test
     void memberListingKeepsTheRowOfADeactivatedProjectMember() {
         projectMemberOf(caller).deactivate();
         em.flush();
