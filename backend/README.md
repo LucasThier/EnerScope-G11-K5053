@@ -112,7 +112,7 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `POST` | `/organizations/{organizationId}/users/bulk` | admin / org owner | Bulk-register users into the organization from a CSV; returns generated credentials |
 | `GET` | `/projects` | bearer | List projects (all for admins; own memberships for other users). Optional `?organizationId=` filter |
 | `POST` | `/projects` | admin / org member | Create a project under an organization the caller belongs to |
-| `POST` | `/projects/{projectId}/members` | admin / project admin | Add a user to the project with a role (`ADMIN`/`EDITOR`) |
+| `POST` | `/projects/{projectId}/members` | admin / project admin | Add a user to the project with a role (`ADMIN`/`EDITOR`/`EXECUTIVE`) |
 | `GET` | `/projects/{projectId}/version-members` | admin / **project admin** | Role matrix: every **active** version of the project with its members and roles, in one call (same member shape as `GET /version/{id}/members`) |
 | `GET` | `/projects/{projectId}/access` | admin / project member | What the caller may do on each version of the project (`source`, roles, `can*` flags, `canManageRoles`) |
 | `POST` | `/projects/{projectId}/version` | admin / project editor with a parent; **admin / project admin without one** | Create a version of a project, optionally under a parent version; the creator becomes `ADMIN` of a child |
@@ -241,12 +241,37 @@ line 1 — and the reason), never carrying a password.
   project is created by the people who are going to work on it. Projects are
   their own top-level resource, not nested under `/organizations`.
 - `POST /projects/{projectId}/members` adds an existing user (`userId`) to
-  the project with a `memberType` (`ADMIN` or `EDITOR`). The role's
+  the project with a `memberType` (`ADMIN`, `EDITOR` or `EXECUTIVE`). The role's
   permissions are derived server-side from the type — `ADMIN` gets
   `MANAGE_PROJECT` + `EDIT_PROJECT` + `VIEW_PROJECT`, `EDITOR` gets
-  `EDIT_PROJECT` + `VIEW_PROJECT`. Adding the same user to the same project
-  twice is rejected. Restricted to callers holding `MANAGE_PROJECT` on that
-  project (its `ADMIN` members) or a platform admin.
+  `EDIT_PROJECT` + `VIEW_PROJECT`, `EXECUTIVE` gets `VIEW_PROJECT` only. Adding
+  the same user to the same project twice is rejected. Restricted to callers
+  holding `MANAGE_PROJECT` on that project (its `ADMIN` members) or a platform
+  admin.
+- **`EXECUTIVE` is a read-only project member.** With only `VIEW_PROJECT` it
+  can read the project, its members, every version, the diagram and any node,
+  and the economic configuration, draft, scenario, evaluations and jobs; the
+  project access answers `canView` and nothing else (`effectiveRole`
+  `EXECUTIVE`, `source` `PROJECT_FALLBACK`). It gets `403` on everything that
+  writes — nodes, connections, creating, renaming or deleting versions, saving
+  the configuration, draft or scenario, simulating and retrying jobs — and on
+  managing project members, listing member candidates and version roles. Only a
+  project or platform `ADMIN` assigns or changes the type (an `EDITOR` gets
+  `403`); changing the last `ADMIN` into an `EXECUTIVE` is refused like any
+  other demotion. `GET /projects` reports the caller's role in each project as
+  `myRole`, so for an executive it is `EXECUTIVE` (`ADMIN` still wins when a
+  membership somehow carries two roles). No migration: `member_type` is a
+  free `VARCHAR(30)` with no `CHECK`.
+- **An `EXECUTIVE` cannot hold version roles.** `POST
+  /version/{id}/members` and `PUT /version/{id}/members/{memberId}/roles/{roleId}`
+  answer `400 An EXECUTIVE of the project cannot hold version roles` for any
+  role type (after the `403`/`404` checks, which keep their order). Turning an
+  existing member into an `EXECUTIVE` (`PATCH /projects/{id}/members/{memberId}`)
+  **deletes all of that user's version memberships in that project**, in the
+  same transaction, and logs how many; changing between `ADMIN` and `EDITOR`
+  leaves them alone. Going back to `EDITOR` does not restore them.
+  Tests: [`docs/testing.md`](../docs/testing.md) → *Project member type
+  EXECUTIVE*.
 
 ### Versions (`POST /projects/{projectId}/version`)
 

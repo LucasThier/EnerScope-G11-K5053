@@ -100,10 +100,11 @@ executions differ; for every other class they are the same number. No class uses
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 18 | 18 |
 | `organization.service.OrganizationServiceTest` | Unit | 88 | 88 |
 | `project.controller.ProjectControllerTest` | Web | 45 | 45 |
+| `project.model.ProjectMemberTest` | Unit | 3 | 3 |
 | `project.repository.ProjectMemberRepositoryTest` | Data | 21 | 21 |
-| `project.repository.ProjectRepositoryTest` | Data | 17 | 17 |
+| `project.repository.ProjectRepositoryTest` | Data | 18 | 18 |
 | `project.service.ProjectAccessGuardTest` | Unit | 26 | 26 |
-| `project.service.ProjectServiceTest` | Unit | 104 | 104 |
+| `project.service.ProjectServiceTest` | Unit | 108 | 108 |
 | `scenario.service.ScenarioChangeScopeTest` | Unit | 16 | 16 |
 | `session.service.SessionServiceTest` | Unit | 9 | 9 |
 | `simulator.EconomicMetricsTest` | Unit | 7 | 7 |
@@ -118,9 +119,10 @@ executions differ; for every other class they are the same number. No class uses
 | `user.service.PasswordGeneratorTest` | Unit | 4 | 4 |
 | `user.service.UserServiceTest` | Unit | 58 | 58 |
 | `util.AuthUtilTest` | Unit | 7 | 7 |
+| `version.controller.ProjectExecutiveHttpTest` | Integration | 12 | 12 |
 | `version.controller.ProjectVersionMembersHttpTest` | Integration | 5 | 5 |
 | `version.controller.VersionAccessControllerTest` | Web | 3 | 3 |
-| `version.controller.VersionAccessHttpTest` | Integration | 14 | 14 |
+| `version.controller.VersionAccessHttpTest` | Integration | 15 | 15 |
 | `version.controller.VersionBranchAccessHttpTest` | Integration | 25 | 29 |
 | `version.controller.VersionConflictsListAccessHttpTest` | Integration | 8 | 8 |
 | `version.controller.VersionControllerTest` | Web | 20 | 20 |
@@ -138,15 +140,15 @@ executions differ; for every other class they are the same number. No class uses
 | `version.dto.VersionConflictDTOTest` | Unit | 1 | 1 |
 | `version.repository.VersionConflictRepositoryTest` | Data | 6 | 6 |
 | `version.service.VersionAccessGuardTest` | Unit | 56 | 56 |
-| `version.service.VersionAccessServiceTest` | Unit | 15 | 15 |
+| `version.service.VersionAccessServiceTest` | Unit | 16 | 16 |
 | `version.service.VersionAccessTest` | Unit | 11 | 11 |
 | `version.service.VersionConflictIntegrationTest` | Integration | 11 | 11 |
 | `version.service.VersionConflictServiceTest` | Unit | 30 | 30 |
 | `version.service.VersionLineageTest` | Unit | 10 | 10 |
-| `version.service.VersionMemberServiceTest` | Unit | 36 | 36 |
+| `version.service.VersionMemberServiceTest` | Unit | 39 | 39 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 | 10 |
 | `version.service.VersionServiceTest` | Unit | 63 | 63 |
-| **Total (85 classes)** | | **1285** | **1463** |
+| **Total (87 classes)** | | **1310** | **1488** |
 
 > **`mvn test` on 2026-11-15 (13:35, run for this update): 1362 executions,
 > 0 failures, 0 errors, 0 skipped**, in 80 classes (`1238` methods). Executions
@@ -190,6 +192,15 @@ executions differ; for every other class they are the same number. No class uses
 > `ProjectVersionMembersHttpTest` (5); `MigrationCatalogTest` now expects 24
 > migrations. The two new `*IT` cases are **not** in that 1463.
 
+> **Update — project member type `EXECUTIVE`.** `mvn test` after it:
+> **1488 executions, 0 failures, 0 errors, 0 skipped, in 87 classes (1310
+> cases)**; the table above already reflects it. +25 cases: new
+> `ProjectMemberTest` (3) and `ProjectExecutiveHttpTest` (12), `ProjectServiceTest`
+> 104→108, `VersionMemberServiceTest` 36→39, `ProjectRepositoryTest` 17→18,
+> `VersionAccessServiceTest` 15→16, `VersionAccessHttpTest` 14→15. Details in
+> [*Project member type EXECUTIVE*](#project-member-type-executive--2026-11-15).
+> The new `ProjectRepositoryPostgreSqlIT` case is **not** in that 1488.
+
 ### PostgreSQL classes (`*IT`, by hand)
 
 Not run by `mvn test`; they need a PostgreSQL the test connects to (see each
@@ -206,14 +217,18 @@ added in `b4dfa71`.
 | --- | --- | --- |
 | `economic.service.PostgreSqlEconomicIT` | 4 | 4 |
 | `economic.service.ScenarioConfigurationPostgreSqlIT` | 1 own + 14 inherited from `ScenarioConfigurationTest` | 15 |
-| `project.repository.ProjectRepositoryPostgreSqlIT` | 6 | 6 |
+| `project.repository.ProjectRepositoryPostgreSqlIT` | 7 | 7 |
 | `project.service.ProjectVersionCreationPostgreSqlIT` | 10 | 10 |
 | `version.repository.VersionMemberRepositoryPostgreSqlIT` | 16 | 16 |
-| **Total (5 classes)** | | **51** |
+| **Total (5 classes)** | | **52** |
 
 `ProjectRepositoryPostgreSqlIT` and `ProjectVersionCreationPostgreSqlIT` are new
 in the 2026-11-15 section; the two new `VersionMemberRepositoryPostgreSqlIT`
-cases are in the section after it.
+cases are in the section after it. **Three of the 52 were never run**: those two
+(V24 backfill and project matrix query count) and the case added to
+`ProjectRepositoryPostgreSqlIT` for `EXECUTIVE`
+(`summariesReportExecutiveAsMyRoleOnPostgreSql`); the other 49 are as read from
+the earlier manual run.
 
 ## `ApplicationContextTest` — Integration
 
@@ -3217,3 +3232,50 @@ Backend only. Counts are in the Summary; this lists what each test pins.
   `403`; unknown project `403`/`404`; inactive versions left out and empty versions listed with `[]`; each
   version equals `GET /version/{id}/members`. `ProjectControllerTest` gained a `VersionMemberService` mock.
 
+
+## Project member type EXECUTIVE — 2026-11-15
+
+Backend only. Counts are in the Summary (+25 cases, 1488 executions); this lists
+what each test pins. Behaviour: [`backend/README.md`](../backend/README.md).
+
+- **`project.model.ProjectMemberTest`** (new, 3): `EXECUTIVE` has only `VIEW_PROJECT`; every
+  `ProjectMemberType` has default permissions (a new type without a mapping fails here);
+  `ADMIN` (all three) and `EDITOR` (`EDIT_PROJECT` + `VIEW_PROJECT`) are unchanged.
+- **`project.service.ProjectServiceTest`** (+4): `addMember` with `EXECUTIVE` stores only
+  `VIEW_PROJECT`; changing a member to `EXECUTIVE` deletes their version memberships of that
+  project (`deleteAll`); changing between `ADMIN` and `EDITOR` never touches the version
+  repository; the last `ADMIN` cannot become an `EXECUTIVE` (`IllegalArgumentException`, nothing
+  saved or deleted, role unchanged).
+- **`project.repository.ProjectRepositoryTest`** (+1, Data): `findSummaries` and
+  `findSummariesForMember` both report `EXECUTIVE` as `myRole`.
+- **`version.service.VersionMemberServiceTest`** (+3): `addRole` answers `400 An EXECUTIVE of the
+  project cannot hold version roles` for `SIMULATOR`, `ADMIN` and `EDITOR`+vertical, saving nothing;
+  `changeRole` is `400` for an executive and keeps the stored role; an unknown member is still `404`
+  before the executive check.
+- **`version.service.VersionAccessServiceTest`** (+1): an executive's project access is
+  `PROJECT_FALLBACK`, `effectiveRole` `EXECUTIVE`, no roles or editable verticals, `canView` and the
+  economic view flags only; every other capability `false`, `canManageProject` and
+  `canCreateRootVersions` `false`.
+- **`version.controller.VersionAccessHttpTest`** (+1): the same over `GET /projects/{id}/access`.
+- **`version.controller.ProjectExecutiveHttpTest`** (new, 12, full context on H2): reads `200` (own
+  `myRole` in `GET /projects`, members, versions, version, diagram, node, economic configuration,
+  draft, scenario, evaluations, jobs); access says view-only on every version; `403` on node create,
+  move, edit and delete, on creating, renaming or deleting versions, on saving configuration, draft
+  and scenario, simulating and retrying a job, and on project members, member candidates, the role
+  matrix and version members; a project `ADMIN` assigns and revokes an `EXECUTIVE` while an `EDITOR`
+  gets `403`; granting and changing a version role of an executive is `400`; `403` → `404` → `400`
+  order kept.
+
+### PostgreSQL (`*IT`, by hand, **not run**)
+
+- **`project.repository.ProjectRepositoryPostgreSqlIT`** (+1, 7 in the class):
+  `summariesReportExecutiveAsMyRoleOnPostgreSql` persists an executive member and checks that
+  `findSummariesForMember` returns `myRole = EXECUTIVE` (the `CASE` with the new `WHEN EXISTS`
+  branch on the real database). Written, never run: no PostgreSQL was started.
+- **`version.repository.VersionMemberRepositoryPostgreSqlIT`**: the V24 backfill and the
+  project-matrix statement-count cases are the two documented in
+  [*Structural role, editor simulate permission, role change and project matrix*](#structural-role-editor-simulate-permission-role-change-and-project-matrix--2026-11-15);
+  they are also still not run, and are not repeated here.
+
+Run both by hand: `ECONOMIC_TEST_DATABASE_URL=… mvn -B verify` against a disposable
+database (see [*PostgreSQL classes*](#postgresql-classes-it-by-hand)).

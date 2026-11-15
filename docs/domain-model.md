@@ -141,13 +141,15 @@ owns its own role instance(s).
 | --- | --- | --- |
 | `id` | UUID | Primary key (from `BaseEntity`) |
 | `name` | String | Defaults to the `memberType` name — no dedicated naming API yet |
-| `memberType` | `ProjectMemberType` (enum) | `ADMIN` \| `EDITOR` |
+| `memberType` | `ProjectMemberType` (enum) | `ADMIN` \| `EDITOR` \| `EXECUTIVE` |
 | `permissions` | Set\<`ProjectMemberPermission`\> (enum) | `@ElementCollection` in `project_member_role_permission`; `MANAGE_PROJECT` \| `EDIT_PROJECT` \| `VIEW_PROJECT` |
 
 `ProjectService` assigns permissions from a fixed `memberType` →
-`permissions` mapping when a member is added (`ADMIN` gets all three
-permissions, `EDITOR` gets `EDIT_PROJECT` + `VIEW_PROJECT`). There is no API
-yet to define custom roles or permission sets.
+`permissions` mapping (`ProjectMember.defaultPermissionsFor`) when a member is
+added or changes type (`ADMIN` gets all three permissions, `EDITOR` gets
+`EDIT_PROJECT` + `VIEW_PROJECT`, `EXECUTIVE` gets `VIEW_PROJECT` only). There is
+no API yet to define custom roles or permission sets. The column is a plain
+`VARCHAR(30)` without a `CHECK`, so adding `EXECUTIVE` needed no migration.
 
 ## Membership rules (platform, organization, project)
 
@@ -157,8 +159,17 @@ Four role scopes exist and they are independent of each other:
 | --- | --- | --- | --- |
 | Platform | `User.platformRole` | `ADMIN` \| `USER` | App-wide administration (user ABM, organization ABM, detached versions). |
 | Organization | `OrganizationMemberRole.memberType` | `OWNER` \| `MEMBER` | Who may manage an organization's people (`MANAGE_ORGANIZATION`). |
-| Project | `ProjectMemberRole.memberType` | `ADMIN` \| `EDITOR` | Who may manage a project and who may only edit its content. |
-| Version | `VersionMemberRole.memberType` | `ADMIN` \| `EDITOR` (per vertical) \| `SIMULATOR` | What each project member may do on one version; overrides the project role there. |
+| Project | `ProjectMemberRole.memberType` | `ADMIN` \| `EDITOR` \| `EXECUTIVE` | Who may manage a project, who may only edit its content and who may only read it (`EXECUTIVE`). |
+| Version | `VersionMemberRole.memberType` | `ADMIN` \| `EDITOR` (per vertical) \| `SIMULATOR` | What each project member may do on one version; overrides the project role there. Never held by an `EXECUTIVE`. |
+
+- **A project `EXECUTIVE` is read-only everywhere and holds no version roles.**
+  Its only permission is `VIEW_PROJECT`, so it sees every version of the
+  project (`source` `PROJECT_FALLBACK`, `effectiveRole` `EXECUTIVE`, `canView`
+  only) and can do nothing on any. Granting or changing a version role for one
+  is `400`; turning an existing member into an `EXECUTIVE` deletes their
+  version memberships in that project in the same transaction
+  (`ProjectService.changeMemberRole`). The project summaries' `myRole` has an
+  `EXECUTIVE` branch next to `ADMIN` and `EDITOR`, in that order of precedence.
 
 - **A project member must belong to the project's organization.** `ProjectService.addMember`
   looks the candidate up in `organization_member` first and rejects the request

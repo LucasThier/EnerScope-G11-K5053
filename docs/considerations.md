@@ -88,6 +88,26 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   changes on purpose, regenerate `tests/permissionsNav.golden.json` with
   `RECORD_PERMISSIONS_GOLDEN=1 npm test` and review the diff.
 
+## Pending
+
+- **"Limpieza de datos tras las pruebas" (not started; nothing has been
+  measured or deleted).** When testing is over, the test database has to be
+  cleaned of what the tests left behind:
+  - versions whose parent belongs to **another project**;
+  - orphan `version_member` rows (no longer pointing at a live version, user or
+    project membership);
+  - test users, projects and data, such as the `verif-` and `carga500`
+    families.
+  - **Order of work.** First **read-only measurement queries** (counts and
+    samples per category above, no `UPDATE`/`DELETE`), reviewed before anything
+    else. Only then a **reviewed cleanup script** that runs inside a
+    transaction and ends in **`ROLLBACK` by default** (committing is an explicit
+    edit of the script, not a flag left on by accident), and only after a
+    **backup** of the database taken beforehand.
+  - Not done here: the queries and the script do not exist yet, so the
+    criteria for "orphan" and for what counts as test data (name prefixes
+    included) are still to be confirmed against the real data before writing them.
+
 ## Log
 
 - 2026-07-03 — Initial scaffold: backend (auth/users/sessions/JWT/health),
@@ -3187,4 +3207,31 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     skipped (1285 cases in the sources). The `*IT` classes were **not** run: the 49
     from the earlier manual run plus the 2 new cases (not run) make 51. Flyway on a
     real PostgreSQL and the `V24` run are unverified here.
+
+- 2026-11-15 — Project member type `EXECUTIVE` (read-only), no version roles for it
+  (`update-frontend`, backend; tests in [`testing.md`](testing.md) → *Project member
+  type EXECUTIVE*; behaviour in [`backend/README.md`](../backend/README.md) and
+  [`domain-model.md`](domain-model.md)). This implements what earlier notes treated
+  as a missing read-only role; no earlier entry in this file was found to replace.
+  - **Implemented.** `ProjectMemberType.EXECUTIVE` with only `VIEW_PROJECT`: it
+    reads everything in the project and writes nothing; it cannot manage members or
+    version roles. `myRole` in the project summaries has an `EXECUTIVE` branch after
+    `ADMIN` and `EDITOR`. No migration (`member_type` is `VARCHAR(30)`, no `CHECK`).
+  - **Decision: an `EXECUTIVE` never holds version roles.** Granting or changing one
+    is `400` (after `403`/`404`); turning a member into an `EXECUTIVE` deletes their
+    version memberships of that project in the same transaction. *Why:* a version
+    role replaces the project role on that version, so an `EDITOR`/`SIMULATOR` role
+    would have given a "read-only" member write access. *Cost:* the purge is
+    irreversible — going back to `EDITOR` does not restore the roles — and leaves
+    only an `INFO` log line, no audit record.
+  - **Still not defined.** Seeing only some versions (an `EXECUTIVE` sees all of
+    them); whether the purge should warn first or be reversible; an organization-
+    level executive. Nothing here decides them.
+  - **Test counts.** `mvn test`: 1488 executions in 87 classes, 0 failures/errors/
+    skipped (1310 cases in the sources). `ProjectRepositoryPostgreSqlIT` gained one
+    case (`summariesReportExecutiveAsMyRoleOnPostgreSql`) that was **not run**, like
+    the two `VersionMemberRepositoryPostgreSqlIT` cases (V24 backfill, project
+    matrix query count) from the previous entry: 52 `*IT` executions are written,
+    49 of them seen in a manual run. The `backend-it` CI job is still
+    `continue-on-error`.
 
