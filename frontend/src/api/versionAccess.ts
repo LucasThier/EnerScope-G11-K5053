@@ -1,4 +1,5 @@
 import { client } from './client';
+import { invalidatesAccess } from './accessEvents';
 import type { ApiResponse } from '../types/auth';
 import type {
   AddVersionMemberRoleRequest,
@@ -18,12 +19,12 @@ export const versionAccessApi = {
     versionId: string,
     data: AddVersionMemberRoleRequest,
   ): Promise<AxiosResponse<ApiResponse<VersionMember>>> =>
-    client.post(`/version/${versionId}/members`, data),
+    invalidatesAccess(client.post(`/version/${versionId}/members`, data)),
 
   removeRole: (
     versionId: string,
     memberId: string,
     roleId: string,
   ): Promise<AxiosResponse<ApiResponse<null>>> =>
-    client.delete(`/version/${versionId}/members/${memberId}/roles/${roleId}`),
+    invalidatesAccess(client.delete(`/version/${versionId}/members/${memberId}/roles/${roleId}`)),
 };
