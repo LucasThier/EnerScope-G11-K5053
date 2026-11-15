@@ -95,7 +95,7 @@ class VersionMemberServiceTest {
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
-        when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(true);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, userId)).thenReturn(Optional.of(activeProjectMember(user)));
         when(versionMemberRepository.findByVersionIdAndUserId(versionId, userId)).thenReturn(Optional.empty());
         when(versionMemberRepository.save(any(VersionMember.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -122,7 +122,7 @@ class VersionMemberServiceTest {
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
-        when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(true);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, userId)).thenReturn(Optional.of(activeProjectMember(user)));
         when(versionMemberRepository.findByVersionIdAndUserId(versionId, userId)).thenReturn(Optional.of(existing));
         when(versionMemberRepository.save(any(VersionMember.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -167,7 +167,7 @@ class VersionMemberServiceTest {
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
-        when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(false);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, userId)).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class, () -> service.addRole(versionId,
                 new AddVersionMemberRoleRequestDTO(userId, VersionMemberType.SIMULATOR, null)));
@@ -188,7 +188,7 @@ class VersionMemberServiceTest {
         when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
         when(userRepository.findById(userId)).thenReturn(Optional.of(user));
         when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
-        when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(true);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, userId)).thenReturn(Optional.of(activeProjectMember(user)));
         when(versionMemberRepository.findByVersionIdAndUserId(versionId, userId)).thenReturn(Optional.of(existing));
 
         assertThrows(IllegalArgumentException.class, () -> service.addRole(versionId,
@@ -324,7 +324,83 @@ class VersionMemberServiceTest {
         assertEquals(user.getMail(), candidates.get(0).mail());
     }
 
+    @Test
+    void listMemberCandidatesLeavesOutInactiveProjectMemberships() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        ProjectMember inactive = activeProjectMember(new User("former@enerscope.org", "Former", "Member", "hashed"));
+        inactive.deactivate();
+        ProjectMember active = activeProjectMember(new User("jane@enerscope.org", "Jane", "Doe", "hashed"));
+        authenticateAs(admin());
+        when(versionRepository.existsById(versionId)).thenReturn(true);
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdWithUser(projectId)).thenReturn(List.of(inactive, active));
+
+        List<VersionMemberCandidateDTO> candidates = service.listMemberCandidates(versionId, null);
+
+        assertEquals(List.of("jane@enerscope.org"), candidates.stream().map(VersionMemberCandidateDTO::mail).toList());
+    }
+
+    @Test
+    void addRoleRejectsAUserWhoseProjectMembershipIsInactive() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Version version = new Version("v1", null, null, null, null, null);
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+        ProjectMember inactive = activeProjectMember(user);
+        inactive.deactivate();
+        authenticateAs(admin());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, userId)).thenReturn(Optional.of(inactive));
+
+        assertThrows(IllegalArgumentException.class, () -> service.addRole(versionId,
+                new AddVersionMemberRoleRequestDTO(userId, VersionMemberType.SIMULATOR, null)));
+        verify(versionMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void aProjectAdminHoldingANarrowVersionRoleCanStillGrantRoles() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Version version = new Version("v1", null, null, null, null, null);
+        User target = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+        User caller = regularUser("projectadmin@enerscope.org");
+        VersionMember narrow = new VersionMember(caller, version);
+        narrow.addRole(new VersionMemberRole("SIMULATOR", VersionMemberType.SIMULATOR,
+                VersionMember.defaultPermissionsFor(VersionMemberType.SIMULATOR), null));
+        ProjectMember callerMembership = activeProjectMember(caller);
+        callerMembership.addRole(new org.enerscope.project.model.ProjectMemberRole(
+                "ADMIN", org.enerscope.project.model.enums.ProjectMemberType.ADMIN,
+                org.enerscope.project.model.ProjectMember.defaultPermissionsFor(
+                        org.enerscope.project.model.enums.ProjectMemberType.ADMIN)));
+        authenticateAs(caller);
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, caller.getId()))
+                .thenReturn(Optional.of(narrow));
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(callerMembership));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(target));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, userId))
+                .thenReturn(Optional.of(activeProjectMember(target)));
+        when(versionMemberRepository.findByVersionIdAndUserId(versionId, userId)).thenReturn(Optional.empty());
+        when(versionMemberRepository.save(any(VersionMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        VersionMember saved = service.addRole(versionId,
+                new AddVersionMemberRoleRequestDTO(userId, VersionMemberType.SIMULATOR, null));
+
+        assertEquals(1, saved.getRoles().size());
+    }
+
     // ---- helpers -----------------------------------------------------------
+
+    private ProjectMember activeProjectMember(User user) {
+        return new ProjectMember(user, new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme")));
+    }
 
     private ProjectMember projectMemberWithEditPermission() {
         Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));

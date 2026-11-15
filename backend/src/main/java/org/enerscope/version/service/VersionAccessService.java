@@ -52,10 +52,14 @@ public class VersionAccessService {
 
         User caller = AuthUtil.requireSession().getUser();
         boolean platformAdmin = AuthUtil.isPlatformAdmin(caller);
-        Optional<ProjectMember> projectMember = projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId());
+        Optional<ProjectMember> projectMember = projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())
+                .filter(ProjectAccessGuard::isActive);
         VersionAccess projectFallback = VersionAccess.fromProjectMembership(projectMember);
         ProjectMemberType projectRole = projectMember
-                .flatMap(member -> member.getRoles().stream().map(ProjectMemberRole::getMemberType).findFirst())
+                .flatMap(member -> member.getRoles().stream()
+                        .filter(BaseEntity::isActive)
+                        .map(ProjectMemberRole::getMemberType)
+                        .findFirst())
                 .orElse(null);
         List<ProjectMemberPermission> projectPermissions = projectMember
                 .map(member -> Arrays.stream(ProjectMemberPermission.values())
@@ -93,6 +97,9 @@ public class VersionAccessService {
         if (platformAdmin) {
             return VersionAccess.platformAdmin();
         }
+        if (projectFallback.can(VersionCapability.MANAGE)) {
+            return VersionAccess.projectAdmin(versionMember == null ? List.of() : versionMember.getRoles());
+        }
         if (versionMember != null) {
             return VersionAccess.fromVersionRoles(versionMember.getRoles());
         }
@@ -126,7 +133,7 @@ public class VersionAccessService {
 
     private String effectiveRole(VersionAccess access, ProjectMemberType projectRole) {
         return switch (access.source()) {
-            case PLATFORM_ADMIN -> VersionMemberType.ADMIN.name();
+            case PLATFORM_ADMIN, PROJECT_ADMIN -> VersionMemberType.ADMIN.name();
             case VERSION_ROLES -> access.roles().stream()
                     .map(VersionMemberRole::getMemberType)
                     .min(Comparator.naturalOrder())

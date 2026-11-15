@@ -155,6 +155,53 @@ class VersionAccessServiceTest {
         assertTrue(access.canManageProject());
         assertTrue(access.versions().stream().allMatch(VersionAccessDTO::canManage));
         assertTrue(access.versions().stream().allMatch(v -> "ADMIN".equals(v.effectiveRole())));
+        assertTrue(access.versions().stream().allMatch(v -> v.source() == VersionAccessSource.PROJECT_ADMIN));
+    }
+
+    @Test
+    void projectAdminHoldingANarrowVersionRoleKeepsFullAccessAndStillSeesTheRole() {
+        authenticate(caller);
+        joinProject(ProjectMemberType.ADMIN);
+        VersionMember member = versionMember(simulated, role(VersionMemberType.SIMULATOR, null));
+        when(versionMemberRepository.findByUserIdAndVersionIdIn(eq(caller.getId()), any())).thenReturn(List.of(member));
+
+        VersionAccessDTO narrowed = service.resolveForProject(projectId).versions().getFirst();
+
+        assertEquals(simulated.getId(), narrowed.versionId());
+        assertEquals(VersionAccessSource.PROJECT_ADMIN, narrowed.source());
+        assertEquals(List.of(new VersionRoleGrantDTO(VersionMemberType.SIMULATOR, null)), narrowed.roles());
+        assertEquals("ADMIN", narrowed.effectiveRole());
+        assertEquals(List.of(VerticalEnum.values()), narrowed.editableVerticals());
+        assertTrue(narrowed.canView());
+        assertTrue(narrowed.canEdit());
+        assertTrue(narrowed.canEditConnections());
+        assertTrue(narrowed.canSimulate());
+        assertTrue(narrowed.canManage());
+        assertTrue(narrowed.canEditEconomicConfiguration());
+    }
+
+    @Test
+    void projectEditorHoldingANarrowVersionRoleDoesNotGetTheProjectAdminException() {
+        authenticate(caller);
+        joinProject(ProjectMemberType.EDITOR);
+        VersionMember member = versionMember(simulated, role(VersionMemberType.SIMULATOR, null));
+        when(versionMemberRepository.findByUserIdAndVersionIdIn(eq(caller.getId()), any())).thenReturn(List.of(member));
+
+        VersionAccessDTO narrowed = service.resolveForProject(projectId).versions().getFirst();
+
+        assertEquals(VersionAccessSource.VERSION_ROLES, narrowed.source());
+        assertFalse(narrowed.canManage());
+        assertFalse(narrowed.canEdit());
+    }
+
+    @Test
+    void anInactiveProjectMembershipIsRejectedWith403() {
+        authenticate(caller);
+        joinProject(ProjectMemberType.ADMIN);
+        projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()).orElseThrow().deactivate();
+
+        assertThrows(ForbiddenException.class, () -> service.resolveForProject(projectId));
+        verifyNoInteractions(versionMemberRepository);
     }
 
     @Test
@@ -220,7 +267,6 @@ class VersionAccessServiceTest {
     private void joinProject(ProjectMemberType type) {
         ProjectMember member = new ProjectMember(new User("jane@enerscope.org", "Jane", "Doe", "hashed"), project);
         member.addRole(new ProjectMemberRole(type.name(), type, ProjectMember.defaultPermissionsFor(type)));
-        when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(true);
         when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.of(member));
     }
 

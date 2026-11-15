@@ -76,7 +76,7 @@ class VersionBranchAccessHttpTest {
 
     @ParameterizedTest
     @EnumSource(VerticalEnum.class)
-    void editorOfAVerticalCreatesAChildAndCanOnlyEditThatVerticalInIt(VerticalEnum vertical) throws Exception {
+    void editorOfAVerticalCreatesAChildBecomesItsAdminAndStaysNarrowInTheParent(VerticalEnum vertical) throws Exception {
         UUID own = fixture.addNode(TYPE_OF.get(vertical));
         UUID foreign = fixture.addNode(TYPE_OF.get(anotherVerticalThan(vertical)));
         User editor = fixture.versionEditorOf(vertical);
@@ -84,7 +84,83 @@ class VersionBranchAccessHttpTest {
         UUID child = createChild(editor);
 
         rename(editor, child, childNode(child, own)).andExpect(status().isOk());
-        expectForbidden(rename(editor, child, childNode(child, foreign)), VERTICAL_DENIED);
+        rename(editor, child, childNode(child, foreign)).andExpect(status().isOk());
+        expectForbidden(rename(editor, fixture.version().getId(), foreign), VERTICAL_DENIED);
+    }
+
+    @Test
+    void theCreatorKeepsItsCopiedRolesAndGainsAdminOnTheSameMembershipRow() throws Exception {
+        User editor = fixture.versionEditorOf(VerticalEnum.EXPORT);
+
+        UUID child = createChild(editor);
+
+        List<VersionMember> members = versionMembersOf(child);
+        assertEquals(1, members.stream().filter(member -> member.getUser().getId().equals(editor.getId())).count());
+        Set<String> roles = rolesOf(members, editor);
+        assertEquals(2, roles.size());
+        assertTrue(roles.stream().anyMatch(role -> role.startsWith("EDITOR/EXPORT/")));
+        assertTrue(roles.stream().anyMatch(role -> role.startsWith("ADMIN/null/")));
+    }
+
+    @Test
+    void aCreatorWhoIsAlreadyAdminOfTheParentDoesNotGetASecondAdminRole() throws Exception {
+        User admin = fixture.projectEditorWithVersionRoles(VersionMemberType.ADMIN);
+
+        UUID child = createChild(admin);
+
+        assertEquals(1, rolesOf(versionMembersOf(child), admin).size());
+    }
+
+    @Test
+    void theAdminOfTheCreatedChildCanDeleteIt() throws Exception {
+        User editor = fixture.projectMember(ProjectMemberType.EDITOR);
+
+        UUID child = createChild(editor);
+
+        perform(editor, delete("/version/" + child)).andExpect(status().isOk());
+    }
+
+    @Test
+    void aProjectAdminOrPlatformAdminCreatingAChildGetsNoVersionRole() throws Exception {
+        User projectAdmin = fixture.projectMember(ProjectMemberType.ADMIN);
+        User platformAdmin = fixture.user(PlatformRole.ADMIN);
+
+        UUID byProjectAdmin = createChild(projectAdmin);
+        UUID byPlatformAdmin = createChild(platformAdmin);
+
+        assertTrue(versionMembersOf(byProjectAdmin).isEmpty());
+        assertTrue(versionMembersOf(byPlatformAdmin).isEmpty());
+    }
+
+    @Test
+    void projectAdminWithANarrowVersionRoleStillEditsEveryVerticalOfThatVersion() throws Exception {
+        Map<VerticalEnum, UUID> nodes = new EnumMap<>(VerticalEnum.class);
+        for (VerticalEnum vertical : VerticalEnum.values()) {
+            nodes.put(vertical, fixture.addNode(TYPE_OF.get(vertical)));
+        }
+        User projectAdmin = fixture.projectMember(ProjectMemberType.ADMIN);
+        fixture.grantVersionRole(projectAdmin, fixture.version(), VersionMemberType.SIMULATOR, null,
+                VersionMember.defaultPermissionsFor(VersionMemberType.SIMULATOR));
+
+        for (UUID node : nodes.values()) {
+            rename(projectAdmin, fixture.version().getId(), node).andExpect(status().isOk());
+        }
+    }
+
+    @Test
+    void projectAdminWithANarrowVersionRoleStillDeletesAndGrantsRolesOnThatVersion() throws Exception {
+        User projectAdmin = fixture.projectMember(ProjectMemberType.ADMIN);
+        User platformAdmin = fixture.user(PlatformRole.ADMIN);
+        UUID child = createChild(platformAdmin);
+        fixture.grantVersionRole(projectAdmin, em.find(Version.class, child), VersionMemberType.SIMULATOR, null,
+                VersionMember.defaultPermissionsFor(VersionMemberType.SIMULATOR));
+        User colleague = fixture.projectMember(ProjectMemberType.EDITOR);
+
+        perform(projectAdmin, post("/version/" + child + "/members")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"userId\":\"" + colleague.getId() + "\",\"memberType\":\"SIMULATOR\"}"))
+                .andExpect(status().isCreated());
+        perform(projectAdmin, delete("/version/" + child)).andExpect(status().isOk());
     }
 
     @Test
@@ -113,12 +189,16 @@ class VersionBranchAccessHttpTest {
     }
 
     @Test
-    void projectEditorWithoutVersionRoleKeepsTheProjectPermissionInTheChild() throws Exception {
+    void projectEditorWithoutVersionRoleBecomesAdminOfTheChildOnly() throws Exception {
         User editor = fixture.projectMember(ProjectMemberType.EDITOR);
 
         UUID child = assertCreatesAChildAndEditsEveryVertical(editor);
 
-        assertTrue(versionMembersOf(child).stream().noneMatch(member -> member.getUser().getId().equals(editor.getId())));
+        assertEquals(Set.of("ADMIN/null/ADMIN/"
+                        + new java.util.TreeSet<>(VersionMember.defaultPermissionsFor(VersionMemberType.ADMIN))),
+                rolesOf(versionMembersOf(child), editor));
+        assertTrue(versionMembersOf(fixture.version().getId()).stream()
+                .noneMatch(member -> member.getUser().getId().equals(editor.getId())));
     }
 
     @Test

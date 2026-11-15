@@ -69,9 +69,34 @@ class ProjectAccessGuardTest {
         UUID projectId = UUID.randomUUID();
         User caller = regularUser("member@enerscope.org");
         authenticateAs(caller);
-        when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(true);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(memberWith(ProjectMemberType.EDITOR)));
 
         assertDoesNotThrow(() -> guard.assertCanViewProject(projectId));
+    }
+
+    @Test
+    void assertCanViewProjectRejectsAnInactiveMembershipWith403() {
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("inactive@enerscope.org");
+        authenticateAs(caller);
+        ProjectMember member = memberWith(ProjectMemberType.EDITOR);
+        member.deactivate();
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.of(member));
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanViewProject(projectId));
+    }
+
+    @Test
+    void assertCanViewProjectRejectsAMemberWhoseAccountIsInactiveWith403() {
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("disabled@enerscope.org");
+        authenticateAs(caller);
+        ProjectMember member = memberWith(ProjectMemberType.EDITOR);
+        member.getUser().deactivate();
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.of(member));
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanViewProject(projectId));
     }
 
     @Test
@@ -88,7 +113,7 @@ class ProjectAccessGuardTest {
         UUID projectId = UUID.randomUUID();
         User caller = regularUser("outsider@enerscope.org");
         authenticateAs(caller);
-        when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(false);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.empty());
 
         assertThrows(ForbiddenException.class, () -> guard.assertCanViewProject(projectId));
     }
@@ -236,6 +261,89 @@ class ProjectAccessGuardTest {
 
         assertEquals(true, ProjectMember.defaultPermissionsFor(ProjectMemberType.ADMIN)
                 .contains(ProjectMemberPermission.MANAGE_PROJECT));
+    }
+
+    @Test
+    void assertCanEditProjectRejectsAMemberWhoseRoleIsInactiveWith403() {
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("norole@enerscope.org");
+        authenticateAs(caller);
+        ProjectMember member = memberWith(ProjectMemberType.ADMIN);
+        member.getRoles().forEach(ProjectMemberRole::deactivate);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.of(member));
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanEditProject(projectId));
+        assertThrows(ForbiddenException.class, () -> guard.assertCanManageProject(projectId));
+    }
+
+    @Test
+    void assertCanEditProjectRejectsAnInactiveMembershipWith403() {
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("inactive@enerscope.org");
+        authenticateAs(caller);
+        ProjectMember member = memberWith(ProjectMemberType.ADMIN);
+        member.deactivate();
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.of(member));
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanEditProject(projectId));
+    }
+
+    @Test
+    void canManageProjectIsTrueForAProjectAdmin() {
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("admin@project.org");
+        authenticateAs(caller);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(memberWith(ProjectMemberType.ADMIN)));
+
+        assertEquals(true, guard.canManageProject(projectId));
+    }
+
+    @Test
+    void canManageProjectIsFalseForAnEditorWithoutThrowing() {
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("editor@project.org");
+        authenticateAs(caller);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(memberWith(ProjectMemberType.EDITOR)));
+
+        assertEquals(false, guard.canManageProject(projectId));
+    }
+
+    @Test
+    void canManageProjectIsFalseForANonMemberWithoutThrowing() {
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("outsider@project.org");
+        authenticateAs(caller);
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.empty());
+
+        assertEquals(false, guard.canManageProject(projectId));
+    }
+
+    @Test
+    void canManageProjectIsFalseForAnAdminWhoseMembershipIsInactive() {
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("former@project.org");
+        authenticateAs(caller);
+        ProjectMember member = memberWith(ProjectMemberType.ADMIN);
+        member.deactivate();
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.of(member));
+
+        assertEquals(false, guard.canManageProject(projectId));
+    }
+
+    @Test
+    void canManageProjectIsTrueForAPlatformAdminWithoutMembershipLookup() {
+        authenticateAs(platformAdmin());
+
+        assertEquals(true, guard.canManageProject(UUID.randomUUID()));
+
+        verifyNoInteractions(projectMemberRepository);
+    }
+
+    @Test
+    void canManageProjectRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class, () -> guard.canManageProject(UUID.randomUUID()));
     }
 
     // ---- helpers -------------------------------------------------------------

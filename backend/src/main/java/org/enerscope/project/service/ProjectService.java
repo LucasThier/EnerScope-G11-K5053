@@ -16,6 +16,7 @@ import org.enerscope.project.dto.UpdateProjectRequestDTO;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.model.ProjectMemberRole;
+import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.project.repository.ProjectRepository;
@@ -28,6 +29,7 @@ import org.enerscope.version.dto.VersionSummaryDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.model.VersionMember;
 import org.enerscope.version.model.VersionMemberRole;
+import org.enerscope.version.model.enums.VersionMemberType;
 import org.enerscope.version.repository.VersionMemberRepository;
 import org.enerscope.version.service.VersionAccessGuard;
 import org.enerscope.version.service.VersionService;
@@ -37,6 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -354,14 +358,14 @@ public class ProjectService {
                 project.addVersion(version);
                 projectRepository.save(project);
                 if (parentId != null) {
-                        copyVersionRoles(parentId, version);
+                        copyVersionRoles(projectId, parentId, version);
                 }
 
                 logger.info("Created version {} in project {}", version.getName(), project.getName());
                 return version;
         }
 
-        private void copyVersionRoles(UUID parentId, Version child) {
+        private void copyVersionRoles(UUID projectId, UUID parentId, Version child) {
                 List<VersionMember> copies = new ArrayList<>();
                 for (VersionMember member : versionMemberRepository.findByVersionIdWithUser(parentId)) {
                         VersionMember copy = new VersionMember(member.getUser(), child);
@@ -371,11 +375,41 @@ public class ProjectService {
                         }
                         copies.add(copy);
                 }
+                grantCreatorAdmin(projectId, child, copies);
                 if (!copies.isEmpty()) {
                         versionMemberRepository.saveAll(copies);
                 }
                 logger.info("Copied {} version member(s) from version {} to version {}",
                                 copies.size(), parentId, child.getName());
+        }
+
+        private void grantCreatorAdmin(UUID projectId, Version child, List<VersionMember> copies) {
+                User caller = AuthUtil.requireSession().getUser();
+                if (AuthUtil.isPlatformAdmin(caller)) {
+                        return;
+                }
+                Optional<ProjectMember> membership = projectMemberRepository
+                                .findByProjectIdAndUserId(projectId, caller.getId())
+                                .filter(ProjectAccessGuard::isActive);
+                if (membership.isEmpty()
+                                || ProjectAccessGuard.grants(membership.get(), ProjectMemberPermission.MANAGE_PROJECT)) {
+                        return;
+                }
+                VersionMember creator = copies.stream()
+                                .filter(copy -> Objects.equals(copy.getUser().getId(), caller.getId()))
+                                .findFirst()
+                                .orElseGet(() -> {
+                                        VersionMember created = new VersionMember(membership.get().getUser(), child);
+                                        copies.add(created);
+                                        return created;
+                                });
+                boolean alreadyAdmin = creator.getRoles().stream()
+                                .anyMatch(role -> role.getMemberType() == VersionMemberType.ADMIN);
+                if (!alreadyAdmin) {
+                        creator.addRole(new VersionMemberRole(VersionMemberType.ADMIN.name(), VersionMemberType.ADMIN,
+                                        new HashSet<>(VersionMember.defaultPermissionsFor(VersionMemberType.ADMIN)), null));
+                        logger.info("Granted ADMIN on version {} to its creator {}", child.getName(), caller.getMail());
+                }
         }
 
 }

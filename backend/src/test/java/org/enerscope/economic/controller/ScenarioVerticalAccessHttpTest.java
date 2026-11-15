@@ -275,13 +275,13 @@ class ScenarioVerticalAccessHttpTest {
     }
 
     @Test
-    void editorCopyingTheScenarioIntoAChildVersionKeepsOnlyItsVerticalThere() throws Exception {
+    void editorCopyingTheScenarioIntoAChildVersionBecomesItsAdminAndSavesEveryVerticalThere() throws Exception {
         User editor = fixture.versionEditorOf(VerticalEnum.EXTRACTION);
         ChildCopy copy = copyScenarioIntoAChild(editor);
 
-        expectDenied(copy.save(), VERTICAL_DENIED);
+        copy.save().andExpect(status().isOk()).andExpect(jsonPath("$.data.errors").isEmpty());
 
-        assertFalse(configurations.findByVersionId(copy.child()).isPresent());
+        assertTrue(configurations.findByVersionId(copy.child()).isPresent());
         assertEquals(configurationJson, storedConfiguration());
     }
 

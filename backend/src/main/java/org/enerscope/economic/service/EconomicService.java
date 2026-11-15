@@ -14,6 +14,7 @@ import org.enerscope.economic.repository.*;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.repository.ProjectRepository;
+import org.enerscope.project.service.ProjectAccessGuard;
 import org.enerscope.scenario.dto.EconomicDraftDTO;
 import org.enerscope.scenario.model.EconomicDraftEntity;
 import org.enerscope.scenario.repository.EconomicDraftRepository;
@@ -193,9 +194,8 @@ public class EconomicService {
         if (session == null || session.getUser() == null) throw new UnauthorizedException("Authentication required");
         var project = projects.findById(projectId).orElseThrow(() -> new EntityNotFoundException("Project not found"));
         if (session.getUser().getPlatformRole() != PlatformRole.ADMIN) {
-            boolean allowed = project.getMembers().stream().filter(m -> m.isActive() && m.getUser().getId().equals(session.getUser().getId()))
-                    .flatMap(m -> m.getRoles().stream()).filter(BaseEntity::isActive)
-                    .anyMatch(r -> r.getPermissions().contains(permission));
+            boolean allowed = project.getMembers().stream().filter(m -> m.getUser().getId().equals(session.getUser().getId()))
+                    .anyMatch(m -> ProjectAccessGuard.grants(m, permission));
             if (!allowed) throw new ForbiddenException("Project permission required: " + permission);
         }
         return project;

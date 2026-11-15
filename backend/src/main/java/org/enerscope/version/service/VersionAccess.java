@@ -38,16 +38,21 @@ public final class VersionAccess {
         return new VersionAccess(VersionAccessSource.VERSION_ROLES, List.copyOf(roles), Set.of(), false);
     }
 
+    public static VersionAccess projectAdmin(Collection<VersionMemberRole> roles) {
+        return new VersionAccess(VersionAccessSource.PROJECT_ADMIN, List.copyOf(roles), Set.of(), true);
+    }
+
     public static VersionAccess fromProjectMembership(Optional<ProjectMember> member) {
+        Optional<ProjectMember> active = member.filter(ProjectAccessGuard::isActive);
         Set<ProjectMemberPermission> permissions = EnumSet.noneOf(ProjectMemberPermission.class);
-        member.ifPresent(m -> {
+        active.ifPresent(m -> {
             for (ProjectMemberPermission permission : ProjectMemberPermission.values()) {
                 if (ProjectAccessGuard.grants(m, permission)) {
                     permissions.add(permission);
                 }
             }
         });
-        return new VersionAccess(VersionAccessSource.PROJECT_FALLBACK, List.of(), permissions, member.isPresent());
+        return new VersionAccess(VersionAccessSource.PROJECT_FALLBACK, List.of(), permissions, active.isPresent());
     }
 
     public VersionAccessSource source() {
@@ -60,7 +65,7 @@ public final class VersionAccess {
 
     public boolean can(VersionCapability capability) {
         return switch (source) {
-            case PLATFORM_ADMIN -> true;
+            case PLATFORM_ADMIN, PROJECT_ADMIN -> true;
             case VERSION_ROLES -> grantedByRoles(capability);
             case PROJECT_FALLBACK -> grantedByProject(capability);
         };
@@ -68,7 +73,7 @@ public final class VersionAccess {
 
     public boolean canEditVertical(VerticalEnum vertical) {
         return switch (source) {
-            case PLATFORM_ADMIN -> true;
+            case PLATFORM_ADMIN, PROJECT_ADMIN -> true;
             case VERSION_ROLES -> roles.stream().anyMatch(role -> VersionAccessGuard.canEditVertical(role, vertical));
             case PROJECT_FALLBACK -> grantedByProject(VersionCapability.EDIT);
         };

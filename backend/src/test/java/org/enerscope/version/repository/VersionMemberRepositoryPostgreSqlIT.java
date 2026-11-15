@@ -1,6 +1,7 @@
 package org.enerscope.version.repository;
 
 import jakarta.persistence.EntityManager;
+import org.enerscope.common.ForbiddenException;
 import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.project.model.Project;
@@ -38,6 +39,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(properties = {"spring.flyway.enabled=true", "spring.jpa.hibernate.ddl-auto=validate", "economic.worker.enabled=false"})
@@ -127,6 +129,68 @@ class VersionMemberRepositoryPostgreSqlIT {
     }
 
     @Test
+    void effectiveLookupReturnsTheRowWhileTheProjectMembershipIsActive() {
+        assertTrue(projectMemberOf(caller).isActive());
+
+        VersionMember effective = repository.findEffectiveByVersionIdAndUserId(first.getId(), caller.getId()).orElseThrow();
+
+        assertEquals(first.getId(), effective.getVersion().getId());
+        assertEquals(caller.getId(), effective.getUser().getId());
+        assertEquals(Set.of(VersionMemberType.EDITOR, VersionMemberType.SIMULATOR),
+                effective.getRoles().stream().map(VersionMemberRole::getMemberType).collect(Collectors.toSet()));
+    }
+
+    @Test
+    void effectiveLookupIgnoresTheRowOnceTheProjectMembershipIsDeactivated() {
+        projectMemberOf(caller).deactivate();
+        em.flush();
+        em.clear();
+
+        assertTrue(repository.findByVersionIdAndUserId(first.getId(), caller.getId()).isPresent());
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(first.getId(), caller.getId()).isEmpty());
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(second.getId(), caller.getId()).isEmpty());
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(first.getId(), colleague.getId()).isPresent());
+    }
+
+    @Test
+    void effectiveLookupFindsTheRowAgainOnceTheProjectMembershipIsReactivated() {
+        ProjectMember membership = projectMemberOf(caller);
+        membership.deactivate();
+        em.flush();
+        em.clear();
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(first.getId(), caller.getId()).isEmpty());
+
+        em.find(ProjectMember.class, membership.getId()).activate();
+        em.flush();
+        em.clear();
+
+        assertTrue(repository.findEffectiveByVersionIdAndUserId(first.getId(), caller.getId()).isPresent());
+    }
+
+    @Test
+    void memberListingKeepsTheRowOfADeactivatedProjectMember() {
+        projectMemberOf(caller).deactivate();
+        em.flush();
+        em.clear();
+
+        Set<UUID> listed = repository.findByVersionIdWithUser(first.getId()).stream()
+                .map(member -> member.getUser().getId())
+                .collect(Collectors.toSet());
+
+        assertEquals(Set.of(caller.getId(), colleague.getId()), listed);
+    }
+
+    @Test
+    void accessResolutionTreatsADeactivatedProjectMemberAsHavingNoAccess() {
+        projectMemberOf(caller).deactivate();
+        em.flush();
+        em.clear();
+        authenticate(caller);
+
+        assertThrows(ForbiddenException.class, () -> accessService.resolveForProject(project.getId()));
+    }
+
+    @Test
     void effectiveLookupIgnoresTheRowOfSomeoneOutsideTheProject() {
         User orphan = user();
         grant(orphan, first, role(VersionMemberType.ADMIN, null));
@@ -176,6 +240,14 @@ class VersionMemberRepositoryPostgreSqlIT {
         assertEquals("SIMULATOR", byId.get(third.getId()).effectiveRole());
         assertTrue(byId.get(third.getId()).canSimulate());
         assertTrue(byId.get(third.getId()).editableVerticals().isEmpty());
+    }
+
+    private ProjectMember projectMemberOf(User user) {
+        return em.createQuery("select m from ProjectMember m where m.user.id = :user and m.project.id = :project",
+                        ProjectMember.class)
+                .setParameter("user", user.getId())
+                .setParameter("project", project.getId())
+                .getSingleResult();
     }
 
     private Version version(String name) {

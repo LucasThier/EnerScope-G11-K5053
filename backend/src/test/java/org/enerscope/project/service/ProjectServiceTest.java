@@ -569,7 +569,7 @@ class ProjectServiceTest {
 
                 assertEquals(1, result.size());
                 assertEquals("jane@enerscope.org", result.get(0).getUser().getMail());
-                verify(projectMemberRepository, never()).existsByProjectIdAndUserId(any(), any());
+                verify(projectMemberRepository, never()).findByProjectIdAndUserId(any(), any());
         }
 
         @Test
@@ -578,7 +578,8 @@ class ProjectServiceTest {
                 User caller = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
                 authenticateAs(caller);
                 when(projectRepository.existsByIdAndActiveTrue(projectId)).thenReturn(true);
-                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(true);
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
                 when(projectMemberRepository.findByProjectIdWithUser(projectId))
                                 .thenReturn(List.of(sampleMember(ProjectMemberType.EDITOR)));
 
@@ -591,7 +592,7 @@ class ProjectServiceTest {
                 User caller = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
                 authenticateAs(caller);
                 when(projectRepository.existsByIdAndActiveTrue(projectId)).thenReturn(true);
-                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(false);
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.empty());
 
                 assertThrows(ForbiddenException.class, () -> projectService.listMembers(projectId));
                 verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
@@ -825,6 +826,136 @@ class ProjectServiceTest {
                 when(versionService.saveVersion(data)).thenReturn(child);
 
                 assertSame(child, projectService.saveVersion(projectId, data));
+        }
+
+        @Test
+        void saveVersionMakesAProjectEditorWithoutRolesTheAdminOfTheChild() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                User caller = regularUser();
+                authenticateAs(caller);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                ProjectMember callerMembership = sampleMember(ProjectMemberType.EDITOR);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectRepository.findIdByVersionId(parent.getId())).thenReturn(Optional.of(projectId));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(callerMembership));
+                Version child = new Version();
+                when(versionService.saveVersion(data)).thenReturn(child);
+
+                projectService.saveVersion(projectId, data);
+
+                ArgumentCaptor<List<VersionMember>> saved = ArgumentCaptor.captor();
+                verify(versionMemberRepository).saveAll(saved.capture());
+                assertEquals(1, saved.getValue().size());
+                VersionMember creator = saved.getValue().get(0);
+                assertSame(callerMembership.getUser(), creator.getUser());
+                assertSame(child, creator.getVersion());
+                assertEquals(1, creator.getRoles().size());
+                VersionMemberRole role = creator.getRoles().iterator().next();
+                assertEquals(VersionMemberType.ADMIN, role.getMemberType());
+                assertEquals(null, role.getVertical());
+                assertEquals(VersionMember.defaultPermissionsFor(VersionMemberType.ADMIN), role.getPermissions());
+                assertNotSame(VersionMember.defaultPermissionsFor(VersionMemberType.ADMIN), role.getPermissions());
+                assertSame(creator, role.getMember());
+        }
+
+        @Test
+        void saveVersionAddsAdminToTheCreatorsCopiedRowInsteadOfCreatingASecondOne() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                User caller = regularUser();
+                authenticateAs(caller);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+                VersionMember parentRow = new VersionMember(caller, parent);
+                parentRow.addRole(versionRole(VersionMemberType.EDITOR, VerticalEnum.EXPORT));
+                when(versionMemberRepository.findEffectiveByVersionIdAndUserId(parent.getId(), caller.getId()))
+                                .thenReturn(Optional.of(parentRow));
+                when(versionMemberRepository.findByVersionIdWithUser(parent.getId())).thenReturn(List.of(parentRow));
+                Version child = new Version();
+                when(versionService.saveVersion(data)).thenReturn(child);
+
+                projectService.saveVersion(projectId, data);
+
+                ArgumentCaptor<List<VersionMember>> saved = ArgumentCaptor.captor();
+                verify(versionMemberRepository).saveAll(saved.capture());
+                assertEquals(1, saved.getValue().size());
+                VersionMember creator = saved.getValue().get(0);
+                assertEquals(2, creator.getRoles().size());
+                assertTrue(creator.getRoles().stream().anyMatch(role -> role.getMemberType() == VersionMemberType.EDITOR
+                                && role.getVertical() == VerticalEnum.EXPORT));
+                assertTrue(creator.getRoles().stream().anyMatch(role -> role.getMemberType() == VersionMemberType.ADMIN));
+                assertEquals(1, parentRow.getRoles().size());
+        }
+
+        @Test
+        void saveVersionDoesNotGiveTheCreatorASecondAdminRoleWhenTheParentAlreadyMadeThemAdmin() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                User caller = regularUser();
+                authenticateAs(caller);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+                VersionMember parentRow = new VersionMember(caller, parent);
+                parentRow.addRole(versionRole(VersionMemberType.ADMIN, null));
+                when(versionMemberRepository.findEffectiveByVersionIdAndUserId(parent.getId(), caller.getId()))
+                                .thenReturn(Optional.of(parentRow));
+                when(versionMemberRepository.findByVersionIdWithUser(parent.getId())).thenReturn(List.of(parentRow));
+                when(versionService.saveVersion(data)).thenReturn(new Version());
+
+                projectService.saveVersion(projectId, data);
+
+                ArgumentCaptor<List<VersionMember>> saved = ArgumentCaptor.captor();
+                verify(versionMemberRepository).saveAll(saved.capture());
+                assertEquals(1, saved.getValue().get(0).getRoles().size());
+        }
+
+        @Test
+        void saveVersionGivesNoRoleToAProjectAdminCreator() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                User caller = regularUser();
+                authenticateAs(caller);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectRepository.findIdByVersionId(parent.getId())).thenReturn(Optional.of(projectId));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.ADMIN)));
+                when(versionService.saveVersion(data)).thenReturn(new Version());
+
+                projectService.saveVersion(projectId, data);
+
+                verify(versionMemberRepository, never()).saveAll(any());
+        }
+
+        @Test
+        void saveVersionGivesNoRoleToAPlatformAdminCreator() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(data)).thenReturn(new Version());
+
+                projectService.saveVersion(projectId, data);
+
+                verify(versionMemberRepository, never()).saveAll(any());
+                verify(projectMemberRepository, never()).findByProjectIdAndUserId(any(), any());
         }
 
         @Test

@@ -38,10 +38,10 @@ import java.util.UUID;
  * permission whenever the version role came up short would make that
  * narrowing pointless: every project member already holds at least
  * {@code EDIT_PROJECT}, so the fallback would silently hand back everything
- * the version role was supposed to withhold. A project {@code ADMIN} is
- * still automatically a version {@code ADMIN} too — but only as long as
- * they hold no version role of their own; the fallback is what grants that,
- * and it only ever runs for someone with no row in {@code version_member}.
+ * the version role was supposed to withhold. The one exception is a project
+ * {@code ADMIN}, who is always a version {@code ADMIN} too, whatever version
+ * roles they hold: that is checked just before a version-role holder would
+ * be refused.
  * </p>
  *
  * <p>Every method follows the same shape as {@link ProjectAccessGuard}'s: no
@@ -148,7 +148,7 @@ public class VersionAccessGuard {
         Optional<VersionMember> member = findVersionMember(versionId, caller.getId());
         if (member.isPresent()) {
             boolean allowed = member.get().getRoles().stream().anyMatch(role -> canEditVertical(role, vertical));
-            if (!allowed) {
+            if (!allowed && !isProjectAdmin(versionId)) {
                 deny(caller, versionId, "edit this vertical's nodes in");
             }
             return;
@@ -212,7 +212,8 @@ public class VersionAccessGuard {
         }
         Optional<VersionMember> member = findVersionMember(versionId, caller.getId());
         if (member.isPresent()) {
-            if (!VersionAccess.fromVersionRoles(member.get().getRoles()).can(VersionCapability.SIMULATE)) {
+            if (!VersionAccess.fromVersionRoles(member.get().getRoles()).can(VersionCapability.SIMULATE)
+                    && !isProjectAdmin(versionId)) {
                 deny(caller, versionId, "simulate");
             }
             return;
@@ -266,9 +267,15 @@ public class VersionAccessGuard {
     /** Throws {@link ForbiddenException} unless one of the member's roles carries {@code permission}. */
     private void requirePermission(VersionMember member, VersionMemberPermission permission, User caller,
                                     UUID versionId, String action) {
-        if (!carries(member.getRoles(), permission)) {
+        if (!carries(member.getRoles(), permission) && !isProjectAdmin(versionId)) {
             deny(caller, versionId, action);
         }
+    }
+
+    private boolean isProjectAdmin(UUID versionId) {
+        return projectRepository.findIdByVersionId(versionId)
+                .map(projectAccessGuard::canManageProject)
+                .orElse(false);
     }
 
     /**

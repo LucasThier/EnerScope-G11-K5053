@@ -7,6 +7,7 @@ import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.project.repository.ProjectRepository;
+import org.enerscope.project.service.ProjectAccessGuard;
 import org.enerscope.user.model.User;
 import org.enerscope.user.repository.UserRepository;
 import org.enerscope.version.dto.AddVersionMemberRoleRequestDTO;
@@ -64,7 +65,10 @@ public class VersionMemberService {
 
         UUID projectId = projectRepository.findIdByVersionId(versionId)
                 .orElseThrow(() -> new IllegalArgumentException("Version is not attached to any project"));
-        if (!projectMemberRepository.existsByProjectIdAndUserId(projectId, data.userId())) {
+        boolean projectMember = projectMemberRepository.findByProjectIdAndUserId(projectId, data.userId())
+                .filter(ProjectAccessGuard::isActive)
+                .isPresent();
+        if (!projectMember) {
             throw new IllegalArgumentException("User is not a member of the version's project");
         }
 
@@ -160,6 +164,7 @@ public class VersionMemberService {
 
         String needle = q == null ? null : q.trim().toLowerCase();
         return projectMemberRepository.findByProjectIdWithUser(projectId).stream()
+                .filter(ProjectAccessGuard::isActive)
                 .map(ProjectMember::getUser)
                 .filter(User::isActive)
                 .filter(user -> matches(user, needle))
