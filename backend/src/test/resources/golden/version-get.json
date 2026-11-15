@@ -1,0 +1,254 @@
+{
+  "success" : true,
+  "message" : "Version retrieved successfully",
+  "data" : {
+    "id" : "<uuid-1>",
+    "active" : true,
+    "createdAt" : "<instant>",
+    "lastModified" : "<instant>",
+    "name" : "Golden child",
+    "parentVersion" : {
+      "id" : "<uuid-2>",
+      "active" : true,
+      "createdAt" : "<instant>",
+      "lastModified" : "<instant>",
+      "name" : "Access fixture",
+      "parentVersion" : null,
+      "nodeSnapshot" : [ {
+        "id" : "<uuid-3>",
+        "active" : true,
+        "createdAt" : "<instant>",
+        "lastModified" : "<instant>",
+        "name" : "Example <uuid-4>",
+        "state" : "RUNNING",
+        "startupDate" : "<instant>",
+        "lifespanInMonths" : 120,
+        "upkeepCosts" : { },
+        "maintenanceIntervalInDays" : 0,
+        "maintenanceDuration" : 0,
+        "operatingCosts" : { },
+        "wastePercentage" : 0.0,
+        "type" : {
+          "id" : "<uuid-5>",
+          "active" : true,
+          "createdAt" : "<instant>",
+          "lastModified" : "<instant>",
+          "vertical" : "EXTRACTION",
+          "role" : "GENERATOR",
+          "nodeType" : "WELL"
+        },
+        "investmentCost" : {
+          "id" : "<uuid-6>",
+          "active" : true,
+          "createdAt" : "<instant>",
+          "lastModified" : "<instant>",
+          "components" : [ ]
+        },
+        "graphData" : {
+          "id" : "<uuid-7>",
+          "active" : true,
+          "createdAt" : "<instant>",
+          "lastModified" : "<instant>",
+          "graphPosition" : {
+            "x" : 0.0,
+            "y" : 0.0
+          },
+          "geographicalPosition" : null
+        },
+        "identityId" : "<uuid-8>",
+        "maxCollectionCapacity" : 100.0,
+        "declineCurve" : {
+          "id" : "<uuid-9>",
+          "value" : 0.0
+        },
+        "gasRichness" : 0.0,
+        "surface" : 0.0,
+        "dtmtime" : 0,
+        "dtmcost" : { },
+        "operational" : true
+      }, {
+        "id" : "<uuid-10>",
+        "active" : true,
+        "createdAt" : "<instant>",
+        "lastModified" : "<instant>",
+        "name" : "Example <uuid-11>",
+        "state" : "RUNNING",
+        "startupDate" : "<instant>",
+        "lifespanInMonths" : 120,
+        "upkeepCosts" : { },
+        "maintenanceIntervalInDays" : 0,
+        "maintenanceDuration" : 0,
+        "operatingCosts" : { },
+        "wastePercentage" : 0.0,
+        "type" : {
+          "id" : "<uuid-12>",
+          "active" : true,
+          "createdAt" : "<instant>",
+          "lastModified" : "<instant>",
+          "vertical" : "EXTRACTION",
+          "role" : "GENERATOR",
+          "nodeType" : "WELL"
+        },
+        "investmentCost" : {
+          "id" : "<uuid-13>",
+          "active" : true,
+          "createdAt" : "<instant>",
+          "lastModified" : "<instant>",
+          "components" : [ ]
+        },
+        "graphData" : {
+          "id" : "<uuid-14>",
+          "active" : true,
+          "createdAt" : "<instant>",
+          "lastModified" : "<instant>",
+          "graphPosition" : {
+            "x" : 0.0,
+            "y" : 0.0
+          },
+          "geographicalPosition" : null
+        },
+        "identityId" : "<uuid-15>",
+        "maxCollectionCapacity" : 500.0,
+        "declineCurve" : {
+          "id" : "<uuid-16>",
+          "value" : 0.0
+        },
+        "gasRichness" : 0.0,
+        "surface" : 0.0,
+        "dtmtime" : 0,
+        "dtmcost" : { },
+        "operational" : true
+      } ],
+      "connectionSnapshot" : [ ],
+      "connectionChanges" : [ ],
+      "nodeChanges" : [ ],
+      "finalResults" : [ ]
+    },
+    "nodeSnapshot" : [ {
+      "id" : "<uuid-17>",
+      "active" : true,
+      "createdAt" : "<instant>",
+      "lastModified" : "<instant>",
+      "name" : "Access WELL",
+      "state" : "RUNNING",
+      "startupDate" : "<instant>",
+      "lifespanInMonths" : 120,
+      "upkeepCosts" : { },
+      "maintenanceIntervalInDays" : 0,
+      "maintenanceDuration" : 0,
+      "operatingCosts" : { },
+      "wastePercentage" : 0.0,
+      "type" : {
+        "id" : "<uuid-18>",
+        "active" : true,
+        "createdAt" : "<instant>",
+        "lastModified" : "<instant>",
+        "vertical" : "EXTRACTION",
+        "role" : "GENERATOR",
+        "nodeType" : "WELL"
+      },
+      "investmentCost" : {
+        "id" : "<uuid-19>",
+        "active" : true,
+        "createdAt" : "<instant>",
+        "lastModified" : "<instant>",
+        "components" : [ ]
+      },
+      "graphData" : {
+        "id" : "<uuid-20>",
+        "active" : true,
+        "createdAt" : "<instant>",
+        "lastModified" : "<instant>",
+        "graphPosition" : {
+          "x" : 0.0,
+          "y" : 0.0
+        },
+        "geographicalPosition" : null
+      },
+      "identityId" : "<uuid-21>",
+      "maxCollectionCapacity" : 100.0,
+      "declineCurve" : {
+        "id" : "<uuid-22>",
+        "value" : 0.0
+      },
+      "gasRichness" : 0.0,
+      "surface" : 0.0,
+      "dtmtime" : 0,
+      "dtmcost" : { },
+      "operational" : true
+    } ],
+    "connectionSnapshot" : [ {
+      "id" : "<uuid-23>",
+      "active" : true,
+      "createdAt" : "<instant>",
+      "lastModified" : "<instant>",
+      "identityId" : "<uuid-24>",
+      "fromNodeId" : "<uuid-25>",
+      "toNodeId" : "<uuid-26>"
+    } ],
+    "connectionChanges" : [ ],
+    "nodeChanges" : [ {
+      "id" : "<uuid-27>",
+      "active" : true,
+      "createdAt" : "<instant>",
+      "lastModified" : "<instant>",
+      "changeType" : "ADD",
+      "changedNode" : null,
+      "resultNode" : {
+        "id" : "<uuid-17>",
+        "active" : true,
+        "createdAt" : "<instant>",
+        "lastModified" : "<instant>",
+        "name" : "Access WELL",
+        "state" : "RUNNING",
+        "startupDate" : "<instant>",
+        "lifespanInMonths" : 120,
+        "upkeepCosts" : { },
+        "maintenanceIntervalInDays" : 0,
+        "maintenanceDuration" : 0,
+        "operatingCosts" : { },
+        "wastePercentage" : 0.0,
+        "type" : {
+          "id" : "<uuid-18>",
+          "active" : true,
+          "createdAt" : "<instant>",
+          "lastModified" : "<instant>",
+          "vertical" : "EXTRACTION",
+          "role" : "GENERATOR",
+          "nodeType" : "WELL"
+        },
+        "investmentCost" : {
+          "id" : "<uuid-19>",
+          "active" : true,
+          "createdAt" : "<instant>",
+          "lastModified" : "<instant>",
+          "components" : [ ]
+        },
+        "graphData" : {
+          "id" : "<uuid-20>",
+          "active" : true,
+          "createdAt" : "<instant>",
+          "lastModified" : "<instant>",
+          "graphPosition" : {
+            "x" : 0.0,
+            "y" : 0.0
+          },
+          "geographicalPosition" : null
+        },
+        "identityId" : "<uuid-21>",
+        "maxCollectionCapacity" : 100.0,
+        "declineCurve" : {
+          "id" : "<uuid-22>",
+          "value" : 0.0
+        },
+        "gasRichness" : 0.0,
+        "surface" : 0.0,
+        "dtmtime" : 0,
+        "dtmcost" : { },
+        "operational" : true
+      }
+    } ],
+    "finalResults" : [ ]
+  },
+  "timestamp" : "<instant>"
+}

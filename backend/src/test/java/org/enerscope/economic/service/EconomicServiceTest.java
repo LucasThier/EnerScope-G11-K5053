@@ -388,4 +388,27 @@ class EconomicServiceTest {
         assertThrows(EntityNotFoundException.class,()->service.evaluate(projectId,UUID.randomUUID()));
         verifyNoInteractions(versionMembers);
     }
+
+    @Test void unknownProjectIs403ForANonAdminOnEveryEconomicEntryPoint() {
+        UUID missing=UUID.randomUUID(); UUID versionId=holder.version.getId();
+        for (org.junit.jupiter.api.function.Executable call : List.<org.junit.jupiter.api.function.Executable>of(
+                ()->service.get(missing,versionId), ()->service.getDraft(missing,versionId),
+                ()->service.list(missing,versionId), ()->service.evaluate(missing,versionId),
+                ()->service.save(missing,versionId,configuration()))) {
+            assertThrows(ForbiddenException.class,call);
+        }
+        verifyNoInteractions(configs,evaluations,drafts,versionMembers);
+    }
+
+    @Test void unknownProjectMessageMatchesTheOneForANonMemberOfARealProject() {
+        var unknown=assertThrows(ForbiddenException.class,()->service.get(UUID.randomUUID(),holder.version.getId()));
+        var realOutsider=assertThrows(ForbiddenException.class,()->service.get(projectId,holder.version.getId()));
+        assertEquals(realOutsider.getMessage(),unknown.getMessage());
+    }
+
+    @Test void unknownProjectIs404ForAPlatformAdmin() {
+        user.updatePlatformRole(PlatformRole.ADMIN);
+        assertThrows(EntityNotFoundException.class,()->service.get(UUID.randomUUID(),holder.version.getId()));
+        assertThrows(EntityNotFoundException.class,()->service.evaluate(UUID.randomUUID(),holder.version.getId()));
+    }
 }

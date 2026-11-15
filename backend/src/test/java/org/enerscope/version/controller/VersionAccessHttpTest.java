@@ -169,6 +169,23 @@ class VersionAccessHttpTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void anUnknownProjectAnswers403ForANonAdminWithTheSameMessageAsARealOutsider() throws Exception {
+        User outsider = fixture.organizationMember(OrganizationMemberType.MEMBER);
+        access(outsider).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You are not allowed to view this project"));
+        mvc.perform(get(path(UUID.randomUUID())).header("Authorization", fixture.bearer(outsider)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You are not allowed to view this project"));
+    }
+
+    @Test
+    void anUnknownProjectAnswers403ForAProjectMemberOfAnotherProject() throws Exception {
+        mvc.perform(get(path(UUID.randomUUID())).header("Authorization",
+                        fixture.bearer(fixture.projectMember(ProjectMemberType.ADMIN))))
+                .andExpect(status().isForbidden());
+    }
+
     private ResultActions access(User user) throws Exception {
         return mvc.perform(get(path(fixture.project().getId())).header("Authorization", fixture.bearer(user)));
     }

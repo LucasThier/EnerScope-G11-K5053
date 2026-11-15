@@ -46,9 +46,9 @@ public class VersionAccessService {
 
     @Transactional(readOnly = true)
     public ProjectAccessDTO resolveForProject(UUID projectId) {
+        projectAccessGuard.assertCanViewProject(projectId);
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found"));
-        projectAccessGuard.assertCanViewProject(projectId);
 
         User caller = AuthUtil.requireSession().getUser();
         boolean platformAdmin = AuthUtil.isPlatformAdmin(caller);

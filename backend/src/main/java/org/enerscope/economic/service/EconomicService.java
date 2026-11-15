@@ -192,8 +192,11 @@ public class EconomicService {
     public org.enerscope.project.model.Project authorizeProject(UUID projectId, ProjectMemberPermission permission) {
         var session = AuthUtil.currentSession();
         if (session == null || session.getUser() == null) throw new UnauthorizedException("Authentication required");
-        var project = projects.findById(projectId).orElseThrow(() -> new EntityNotFoundException("Project not found"));
-        if (session.getUser().getPlatformRole() != PlatformRole.ADMIN) {
+        boolean platformAdmin = session.getUser().getPlatformRole() == PlatformRole.ADMIN;
+        var project = projects.findById(projectId).orElseThrow(() -> platformAdmin
+                ? new EntityNotFoundException("Project not found")
+                : new ForbiddenException("Project permission required: " + permission));
+        if (!platformAdmin) {
             boolean allowed = project.getMembers().stream().filter(m -> m.getUser().getId().equals(session.getUser().getId()))
                     .anyMatch(m -> ProjectAccessGuard.grants(m, permission));
             if (!allowed) throw new ForbiddenException("Project permission required: " + permission);

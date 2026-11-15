@@ -74,6 +74,8 @@ class NodeCreateAccessHttpTest {
                                 + "\"treatmentCost\":5"),
                 node("/nodes/pipeline", VerticalEnum.TRANSPORTATION, "INTERMEDIATE", "PIPELINE",
                         "\"maxFlowCapacity\":100,\"length\":10,\"lossPerKm\":0.1"),
+                node("/nodes/pipeline-connection", VerticalEnum.TRANSPORTATION, "INTERMEDIATE", "PIPELINE_CONECTION",
+                        "\"transferCapacity\":100,\"outputPriority\":1"),
                 node("/nodes/compressing-plant", VerticalEnum.TRANSPORTATION, "INTERMEDIATE", "COMPRESSING_PLANT",
                         "\"maxCompressionCapacity\":100,\"processWaste\":1,\"gasConsumption\":2"),
                 node("/nodes/ground-liquefaction-plant", VerticalEnum.LIQUEFACTION, "INTERMEDIATE",

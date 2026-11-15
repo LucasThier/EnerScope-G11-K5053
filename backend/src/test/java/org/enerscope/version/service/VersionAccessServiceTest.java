@@ -286,7 +286,16 @@ class VersionAccessServiceTest {
     }
 
     @Test
-    void unknownProjectIsRejectedWith404() {
+    void unknownProjectIsRejectedWith403ForANonAdmin() {
+        authenticate(caller);
+
+        assertThrows(ForbiddenException.class, () -> service.resolveForProject(UUID.randomUUID()));
+        verifyNoInteractions(versionMemberRepository);
+    }
+
+    @Test
+    void unknownProjectIsRejectedWith404ForAPlatformAdmin() {
+        caller = User.fromJwtClaims(UUID.randomUUID(), "admin@enerscope.org", "Admin", "User", PlatformRole.ADMIN);
         authenticate(caller);
 
         assertThrows(EntityNotFoundException.class, () -> service.resolveForProject(UUID.randomUUID()));

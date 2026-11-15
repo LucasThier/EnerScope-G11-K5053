@@ -1,5 +1,6 @@
 package org.enerscope.version.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
@@ -30,6 +31,7 @@ import org.enerscope.version.model.VersionMember;
 import org.enerscope.version.model.VersionMemberRole;
 import org.enerscope.version.service.VersionConflictService;
 import org.enerscope.version.service.VersionMemberService;
+import org.enerscope.version.service.VersionReadService;
 import org.enerscope.version.service.VersionService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -51,6 +53,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class VersionController {
 
     private final VersionService versionService;
+    private final VersionReadService versionReadService;
     private final VersionConflictService versionConflictService;
     private final VersionMemberService versionMemberService;
     /*
@@ -101,11 +104,9 @@ public class VersionController {
 
     @GetMapping(value = "/{id}")
     @Operation(summary = "Get a version", description = "Retrieve an existing Version by its ID.")
-    public ResponseEntity<ApiResponse<Version>> getVersion(
+    public ResponseEntity<ApiResponse<JsonNode>> getVersion(
             @PathVariable UUID id) {
-        Version version = versionService.getVersion(id);
-
-        return Responses.ok("Version retrieved successfully", version);
+        return Responses.ok("Version retrieved successfully", versionReadService.getVersionJson(id));
     }
 
     @PatchMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
