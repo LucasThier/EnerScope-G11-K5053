@@ -2800,10 +2800,13 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     now binds. `PIPELINE_CONECTION` was added to `NodeRequestDeserializer` (commit
     `fe54ddf`) and `NodeRequestDeserializerTest` covers it
     (`pipelineConnectionBodyKeepsItsOwnFields`, and the type is in
-    `everySupportedNodeTypeSelectsItsDeclaredClass`). **Still not verified:** the
-    endpoint over HTTP — `NodeCreateAccessHttpTest` covers 12 of the 13
-    `POST /nodes/*`, not this one — and whether existing databases hold node rows
-    whose stored vertical does not match their type.
+    `everySupportedNodeTypeSelectsItsDeclaredClass`). The endpoint
+    itself is covered over HTTP too: `NodeCreateAccessHttpTest.everyEndpoint()`
+    includes it (`200` for the platform admin, `403`/`401` for everyone else), and
+    `platformAdminCreatingAPipelineConnectionStoresTransferCapacityAndOutputPriority`
+    checks that `transferCapacity` and `outputPriority` are stored. **Still not
+    verified:** whether existing databases hold node rows whose stored vertical
+    does not match their type.
 
 - 2026-11-14 — Branches, merge and conflicts no longer cross projects
   (`update-frontend`, commit `5d5ccc3`). Tests in [`testing.md`](testing.md) →
@@ -3283,5 +3286,6 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     - **The node DTOs have no `@Valid` / `@NotNull`.** Only the organization DTOs
       are validated, so nothing rejects a missing or out-of-range value before the
       service. Fixing the two points above properly means adding validation here.
-  - **Test counts.** `mvn test`: 1492 executions in 88 classes, 0 failures/errors/
-    skipped (1314 cases in the sources); +4 over the previous entry (1488).
+  - **Test counts.** `mvn test`: 1493 executions in 88 classes, 0 failures/errors/
+    skipped (1316 cases in the sources); +5 over the previous entry (1488): the
+    FLNG tests (+4) and the pipeline-connection storage test (+1).

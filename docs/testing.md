@@ -85,7 +85,7 @@ executions differ; for every other class they are the same number. No class uses
 | `logging.ConsoleAppLoggerTest` | Unit | 1 | 1 |
 | `money.MoneyAmountTest` | Unit | 7 | 7 |
 | `node.controller.NodeControllerTest` | Unit | 1 | 1 |
-| `node.controller.NodeCreateAccessHttpTest` | Integration | 8 | 45 |
+| `node.controller.NodeCreateAccessHttpTest` | Integration | 10 | 46 |
 | `node.dto.NodeRequestDeserializerTest` | Unit | 4 | 4 |
 | `node.migration.ExportVerticalMigrationTest` | Data (JDBC/H2) | 2 | 2 |
 | `node.migration.MigrationCatalogTest` | Unit | 3 | 3 |
@@ -149,7 +149,7 @@ executions differ; for every other class they are the same number. No class uses
 | `version.service.VersionMemberServiceTest` | Unit | 39 | 39 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 | 10 |
 | `version.service.VersionServiceTest` | Unit | 63 | 63 |
-| **Total (88 classes)** | | **1314** | **1492** |
+| **Total (88 classes)** | | **1316** | **1493** |
 
 > **`mvn test` on 2026-11-15 (13:35, run for this update): 1362 executions,
 > 0 failures, 0 errors, 0 skipped**, in 80 classes (`1238` methods). Executions
@@ -203,9 +203,13 @@ executions differ; for every other class they are the same number. No class uses
 > The new `ProjectRepositoryPostgreSqlIT` case is **not** in that 1488.
 
 > **Update — FLNG ship capacity and gas consumption.** `mvn test` after it:
-> **1492 executions, 0 failures, 0 errors, 0 skipped, in 88 classes (1314
-> cases)**; the table above already reflects it. +4 cases: `NodeServiceTest` 5→7
-> and the new `FlngUnitShipAndGasHttpTest` (2). Details in
+> **1493 executions, 0 failures, 0 errors, 0 skipped, in 88 classes (1316
+> cases)** — the last line of a clean `mvn clean test` (`Tests run: 1493`); the
+> table above already reflects it. +5 executions over the 1488 above: `NodeServiceTest`
+> 5→7, the new `FlngUnitShipAndGasHttpTest` (2) and one
+> `NodeCreateAccessHttpTest` case (pipeline connection). The 1316 cases also
+> correct `NodeCreateAccessHttpTest`, which the table listed as 8 although it had 9
+> before that case. Details in
 > [*FLNG unit: ship capacity and gas consumption*](#flng-unit-ship-capacity-and-gas-consumption--2026-11-15).
 
 ### PostgreSQL classes (`*IT`, by hand)
@@ -2256,16 +2260,16 @@ real `version_member` rows:
 
 ### 2. `POST /nodes/*` and `GET /version/conflicts` are platform-admin only
 
-`node.controller.NodeCreateAccessHttpTest` — Integration, 9 cases / 43
-executions (12 of the 13 `POST /nodes/*` endpoints; `/nodes/pipeline-connection`
-is still not covered over HTTP — only its body deserialization is, by
-`NodeRequestDeserializerTest.pipelineConnectionBodyKeepsItsOwnFields`):
+`node.controller.NodeCreateAccessHttpTest` — Integration, 10 cases / 46
+executions (all 13 `POST /nodes/*` endpoints, `/nodes/pipeline-connection`
+included, through `everyEndpoint()`):
 
 | Case | Verifies |
 | --- | --- |
-| `platformAdminCreatesTheNode` (×12) | Platform admin → `200` and one more row. |
+| `platformAdminCreatesTheNode` (×13) | Platform admin → `200` and one more row. |
+| `platformAdminCreatingAPipelineConnectionStoresTransferCapacityAndOutputPriority` | `POST /nodes/pipeline-connection` with `transferCapacity` 250.5 and `outputPriority` 7 stores both on the `PipelineConnection` row (read back through the `EntityManager`). |
 | `platformAdminDeclaringAVerticalThatDoesNotMatchTheTypeGets400AndNothingIsCreated` | An `LNG_CAMER` declared as `EXTRACTION` → `400 Node vertical does not match its type: …`, no row. |
-| `projectAdminGets403AndNothingIsCreated` (×12) | Project `ADMIN` → `403 Only platform admins can create nodes outside a version`, no row. |
+| `projectAdminGets403AndNothingIsCreated` (×13) | Project `ADMIN` → `403 Only platform admins can create nodes outside a version`, no row. |
 | `projectEditorGets403AndNothingIsCreated` (×3) | Same for a project `EDITOR`. |
 | `versionEditorOfAnotherVerticalGets403AndNothingIsCreated` (×3) | Same for a version `EDITOR`. |
 | `versionSimulatorGets403AndNothingIsCreated` (×3) | Same for a `SIMULATOR`. |
@@ -3290,7 +3294,7 @@ database (see [*PostgreSQL classes*](#postgresql-classes-it-by-hand)).
 
 ## FLNG unit: ship capacity and gas consumption — 2026-11-15
 
-Backend only. Counts are in the Summary (+4 cases, 1492 executions). Behaviour and
+Backend only. Counts are in the Summary (+5 executions, 1493 in total). Behaviour and
 the data caveat: [`considerations.md`](considerations.md).
 
 - **`node.service.NodeServiceTest`** (+2, Unit):
