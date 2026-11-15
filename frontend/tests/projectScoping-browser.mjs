@@ -36,7 +36,7 @@ await page.getByRole('option',{name:'Demo version',exact:true}).waitFor({state:'
 await project.selectOption('p2');
 await page.getByRole('button',{name:'Prueba1',exact:true}).waitFor({state:'attached'});
 assert.equal(await version.locator('option[value="v1"]').count(),0);
-assert.equal(await page.getByRole('button',{name:'+ Add node',exact:true}).isDisabled(),true);
+assert.equal(await page.getByRole('button',{name:'+ Agregar nodo',exact:true}).isDisabled(),true);
 delay=500;oldRequested=false;
 await page.getByRole('button',{name:'Prueba1',exact:true}).click();
 await page.getByRole('listbox').getByRole('button',{name:/Demo/}).click();

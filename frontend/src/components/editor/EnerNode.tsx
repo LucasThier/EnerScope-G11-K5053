@@ -1,7 +1,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useTheme, type ResolvedTheme } from '../../hooks/useTheme';
 import type { NodeState, NodeType, Vertical } from '../../types/diagram';
-import { verticalColor } from './nodeCatalog';
+import { NODE_STATE_LABELS, nodeTypeLabel, verticalColor } from './nodeCatalog';
 import { NodeIcon } from './nodeIcons';
 
 export interface EnerNodeData {
@@ -13,7 +13,6 @@ export interface EnerNodeData {
 }
 
 interface StateStyle {
-  label: string;
   bg: string;
   text: string;
   border: 'solid' | 'dashed';
@@ -21,16 +20,16 @@ interface StateStyle {
 
 const STATE_STYLES: Record<ResolvedTheme, Record<NodeState, StateStyle>> = {
   light: {
-    RUNNING: { label: 'Running', bg: '#d6efc6', text: '#326626', border: 'solid' },
-    PROPOSED: { label: 'Proposed', bg: '#eaf6de', text: '#3a752a', border: 'dashed' },
-    PENDING: { label: 'Pending', bg: '#fbf0d6', text: '#805812', border: 'dashed' },
-    REMOVED: { label: 'Removed', bg: '#f3dede', text: '#993939', border: 'solid' },
+    RUNNING: { bg: '#d6efc6', text: '#326626', border: 'solid' },
+    PROPOSED: { bg: '#eaf6de', text: '#3a752a', border: 'dashed' },
+    PENDING: { bg: '#fbf0d6', text: '#805812', border: 'dashed' },
+    REMOVED: { bg: '#f3dede', text: '#993939', border: 'solid' },
   },
   dark: {
-    RUNNING: { label: 'Running', bg: '#23401c', text: '#a8dd8e', border: 'solid' },
-    PROPOSED: { label: 'Proposed', bg: '#1e3a2a', text: '#9ad4a6', border: 'dashed' },
-    PENDING: { label: 'Pending', bg: '#3d2f10', text: '#e8c781', border: 'dashed' },
-    REMOVED: { label: 'Removed', bg: '#3f2022', text: '#e59a9a', border: 'solid' },
+    RUNNING: { bg: '#23401c', text: '#a8dd8e', border: 'solid' },
+    PROPOSED: { bg: '#1e3a2a', text: '#9ad4a6', border: 'dashed' },
+    PENDING: { bg: '#3d2f10', text: '#e8c781', border: 'dashed' },
+    REMOVED: { bg: '#3f2022', text: '#e59a9a', border: 'solid' },
   },
 };
 
@@ -88,16 +87,16 @@ export function EnerNode({ data, selected }: NodeProps) {
       </span>
       <div className="pointer-events-none z-[2] min-w-0 flex-1">
         <div className="truncate text-sm font-semibold text-ink-700" title={d.name}>
-          {d.name || '(unnamed)'}
+          {d.name || '(sin nombre)'}
         </div>
         <div className="flex items-center gap-1 text-[10px]">
           <span
             className="shrink-0 rounded px-1 py-px font-semibold uppercase tracking-wide"
             style={{ background: st.bg, color: st.text }}
           >
-            {st.label}
+            {NODE_STATE_LABELS[d.state]}
           </span>
-          <span className="truncate text-ink-500">{d.nodeType.replace(/_/g, ' ').toLowerCase()}</span>
+          <span className="truncate text-ink-500">{nodeTypeLabel(d.nodeType)}</span>
         </div>
       </div>
       <Handle

@@ -13,6 +13,7 @@ import {
   type NodeMouseHandler,
   type EdgeMouseHandler,
   type ReactFlowInstance,
+  type AriaLabelConfig,
 } from '@xyflow/react';
 import { useTheme } from '../../hooks/useTheme';
 import type { Diagram, DiagramNode, NodeType } from '../../types/diagram';
@@ -49,6 +50,31 @@ interface DiagramCanvasProps {
 }
 
 const nodeTypes = { ener: EnerNode };
+
+const MOVE_DIRECTIONS: Record<string, string> = {
+  up: 'arriba',
+  down: 'abajo',
+  left: 'la izquierda',
+  right: 'la derecha',
+};
+
+const FLOW_ARIA_LABELS: Partial<AriaLabelConfig> = {
+  'node.a11yDescription.default':
+    'Presioná Enter o la barra espaciadora para seleccionar un nodo. Presioná Suprimir para eliminarlo y Escape para cancelar.',
+  'node.a11yDescription.keyboardDisabled':
+    'Presioná Enter o la barra espaciadora para seleccionar un nodo. Después podés moverlo con las flechas. Presioná Suprimir para eliminarlo y Escape para cancelar.',
+  'node.a11yDescription.ariaLiveMessage': ({ direction, x, y }) =>
+    `Se movió el nodo seleccionado hacia ${MOVE_DIRECTIONS[direction] ?? direction}. Nueva posición: x ${x}, y ${y}.`,
+  'edge.a11yDescription.default':
+    'Presioná Enter o la barra espaciadora para seleccionar una conexión. Después podés presionar Suprimir para eliminarla o Escape para cancelar.',
+  'controls.ariaLabel': 'Panel de controles',
+  'controls.zoomIn.ariaLabel': 'Acercar',
+  'controls.zoomOut.ariaLabel': 'Alejar',
+  'controls.fitView.ariaLabel': 'Ajustar la vista',
+  'controls.interactive.ariaLabel': 'Activar o desactivar la edición',
+  'minimap.ariaLabel': 'Minimapa',
+  'handle.ariaLabel': 'Punto de conexión',
+};
 
 function fallbackPosition(index: number): { x: number; y: number } {
   const perRow = 4;
@@ -229,6 +255,7 @@ export function DiagramCanvas({
         colorMode={resolved}
         fitView
         proOptions={{ hideAttribution: true }}
+        ariaLabelConfig={FLOW_ARIA_LABELS}
       >
         <Background />
         <Controls />

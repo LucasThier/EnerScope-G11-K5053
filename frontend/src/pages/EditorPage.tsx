@@ -13,7 +13,7 @@ import { NodePalette } from '../components/editor/NodePalette';
 import { NewVersionModal } from '../components/versions/NewVersionModal';
 import {
   canConnect,
-  specForType,
+  nodeTypeLabel,
   type GraphDataInput,
   type NodeBaseValues,
 } from '../components/editor/nodeCatalog';
@@ -26,6 +26,8 @@ import type { NodeDetail, NodeType, VersionSummary } from '../types/diagram';
 type Mode = 'diagram' | 'map';
 type Projection = 'mercator' | 'globe';
 type PanelMode = 'data' | 'create' | 'edit';
+
+const MODE_LABELS: Record<Mode, string> = { diagram: 'Diagrama', map: 'Mapa' };
 
 interface EditState {
   nodeId: string;
@@ -143,9 +145,9 @@ function EditorWorkspace() {
       const to = diagram?.nodes.find((n) => n.id === toNodeId);
       if (!from || !to) return;
       if (!canConnect(from.type.nodeType, to.type.nodeType)) {
-        const fromLabel = specForType(from.type.nodeType)?.label ?? from.type.nodeType;
-        const toLabel = specForType(to.type.nodeType)?.label ?? to.type.nodeType;
-        setConnectError(`A ${fromLabel} cannot connect to a ${toLabel}.`);
+        const fromLabel = nodeTypeLabel(from.type.nodeType);
+        const toLabel = nodeTypeLabel(to.type.nodeType);
+        setConnectError(`Esta conexión no está permitida: ${fromLabel} → ${toLabel}.`);
         return;
       }
       setConnectError(null);
@@ -314,7 +316,7 @@ function EditorWorkspace() {
       const preferred = selectId ?? preferredVersion;
       setVersionState({ project: projectId, list, selected: list.find(v => v.id === preferred)?.id ?? list[0]?.id ?? '' });
     } catch (err) {
-      if (request === versionRequest.current) setSelectorError(getErrorMessage(err, 'Could not load versions'));
+      if (request === versionRequest.current) setSelectorError(getErrorMessage(err, 'No se pudieron cargar las versiones'));
     }
   }, [projectId, preferredVersion, clearNodeSelection]);
   const invalidateRequest = useCallback(() => { versionRequest.current++; }, []);
@@ -324,24 +326,24 @@ function EditorWorkspace() {
   }, [loadVersions, invalidateRequest]);
 
   async function handleCreateOrganization() {
-    const name = window.prompt('New organization name');
+    const name = window.prompt('Nombre de la nueva organización');
     if (!name || !name.trim()) return;
     try {
       const created = await createOrganization(name.trim());
       setOrgId(created.id);
     } catch (err) {
-      setSelectorError(getErrorMessage(err, 'Could not create the organization'));
+      setSelectorError(getErrorMessage(err, 'No se pudo crear la organización'));
     }
   }
 
   async function handleCreateProject() {
     if (!orgId) {
-      setSelectorError('Create or pick an organization first.');
+      setSelectorError('Primero creá o elegí una organización.');
       return;
     }
-    const name = window.prompt('New project name');
+    const name = window.prompt('Nombre del nuevo proyecto');
     if (!name || !name.trim()) return;
-    const description = window.prompt('Project description', '') ?? '';
+    const description = window.prompt('Descripción del proyecto', '') ?? '';
     try {
       const res = await projectsApi.create({
         name: name.trim(),
@@ -351,7 +353,7 @@ function EditorWorkspace() {
       await reloadProjects();
       if (res.data.data?.id) selectProject(res.data.data.id);
     } catch (err) {
-      setSelectorError(getErrorMessage(err, 'Could not create the project'));
+      setSelectorError(getErrorMessage(err, 'No se pudo crear el proyecto'));
     }
   }
 
@@ -402,7 +404,7 @@ function EditorWorkspace() {
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Toolbar */}
       <div className="flex flex-wrap items-end gap-3 border-b border-ink-100 bg-surface px-4 py-2.5">
-        <Field label="Organization">
+        <Field label="Organización">
           <div className="flex items-center gap-1">
             <select
                 className={selectClass}
@@ -413,20 +415,20 @@ function EditorWorkspace() {
                   if (first) selectProject(first.id);
                 }}
             >
-              {organizations.length === 0 && <option value="">No organizations</option>}
+              {organizations.length === 0 && <option value="">Sin organizaciones</option>}
               {organizations.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.name}
                 </option>
               ))}
             </select>
-            <Button variant="ghost" size="compact" onClick={handleCreateOrganization} className="px-3">
+            <Button variant="ghost" size="compact" onClick={handleCreateOrganization} className="px-3" aria-label="Nueva organización" title="Nueva organización">
               +
             </Button>
           </div>
         </Field>
 
-        <Field label="Project">
+        <Field label="Proyecto">
           <div className="flex items-center gap-1">
             <select
               className={selectClass}
@@ -437,7 +439,7 @@ function EditorWorkspace() {
               }}
               disabled={projects.length === 0}
             >
-              {projects.length === 0 && <option value="">No projects</option>}
+              {projects.length === 0 && <option value="">Sin proyectos</option>}
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -450,13 +452,15 @@ function EditorWorkspace() {
               disabled={!orgId}
               size="compact"
               className="px-3"
+              aria-label="Nuevo proyecto"
+              title="Nuevo proyecto"
             >
               +
             </Button>
           </div>
         </Field>
 
-        <Field label="Version">
+        <Field label="Versión">
           <div className="flex items-center gap-1">
             <select
               className={selectClass}
@@ -467,7 +471,7 @@ function EditorWorkspace() {
               }}
               disabled={versions.length === 0}
             >
-              {versions.length === 0 && <option value="">No versions</option>}
+              {versions.length === 0 && <option value="">Sin versiones</option>}
               {versions.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}
@@ -480,6 +484,8 @@ function EditorWorkspace() {
               disabled={!projectId}
               size="compact"
               className="px-3"
+              aria-label="Nueva versión"
+              title="Nueva versión"
             >
               +
             </Button>
@@ -488,7 +494,7 @@ function EditorWorkspace() {
 
         <div className="mx-1 h-8 w-px self-center bg-ink-100" />
 
-        <Field label="View">
+        <Field label="Vista">
           <div className="inline-flex h-control-compact overflow-hidden rounded-control border border-control-border">
             {(['diagram', 'map'] as Mode[]).map((m) => (
               <button
@@ -502,14 +508,14 @@ function EditorWorkspace() {
                     : 'bg-surface text-ink-600 hover:bg-ink-50 focus-visible:ring-focus')
                 }
               >
-                {m}
+                {MODE_LABELS[m]}
               </button>
             ))}
           </div>
         </Field>
 
         {mode === 'map' && (
-          <Field label="Projection">
+          <Field label="Proyección">
             <div className="inline-flex h-control-compact overflow-hidden rounded-control border border-control-border">
               {(['mercator', 'globe'] as Projection[]).map((p) => (
                 <button
@@ -523,7 +529,7 @@ function EditorWorkspace() {
                       : 'bg-surface text-ink-600 hover:bg-ink-50 focus-visible:ring-focus')
                   }
                 >
-                  {p === 'mercator' ? '2D' : 'Globe'}
+                  {p === 'mercator' ? '2D' : 'Globo'}
                 </button>
               ))}
             </div>
@@ -546,7 +552,7 @@ function EditorWorkspace() {
             disabled={!versionId}
             className="text-sm"
           >
-            {panelMode === 'create' ? 'Cancel' : '+ Add node'}
+            {panelMode === 'create' ? 'Cancelar' : '+ Agregar nodo'}
           </Button>
         </div>
       </div>
@@ -561,8 +567,8 @@ function EditorWorkspace() {
       <div className="relative flex min-h-0 flex-1">
         {!versionId ? (
           <div className="flex h-full w-full items-center justify-center p-8 text-center text-sm text-ink-500">
-            Pick an organization, project and version to start — or create a version to begin a new
-            diagram.
+            Elegí una organización, un proyecto y una versión para empezar, o creá una versión para armar un
+            diagrama nuevo.
           </div>
         ) : !diagram ? (
           <div className="flex h-full w-full items-center justify-center">
@@ -611,7 +617,7 @@ function EditorWorkspace() {
                     onClick={() => setConnectError(null)}
                     className="rounded-full px-2 py-0.5 text-xs font-semibold text-warn-700 hover:bg-warn-100"
                   >
-                    Dismiss
+                    Cerrar
                   </button>
                 </div>
               </div>
@@ -622,14 +628,14 @@ function EditorWorkspace() {
               <div className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2">
                 <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-brand-200 bg-brand-50 px-4 py-2 text-sm text-brand-800 shadow-float">
                   <span>
-                    Connecting from <strong>{connectingNode?.name ?? 'node'}</strong> — click a target
-                    node
+                    Conectando desde <strong>{connectingNode?.name ?? 'nodo'}</strong>: hacé clic en el nodo de
+                    destino
                   </span>
                   <button
                     onClick={() => setConnectingFrom(null)}
                     className="rounded-full px-2 py-0.5 text-xs font-semibold text-brand-900 hover:bg-brand-100"
                   >
-                    Cancel (Esc)
+                    Cancelar (Esc)
                   </button>
                 </div>
               </div>
@@ -690,7 +696,7 @@ function EditorWorkspace() {
                   />
                 ) : (
                   <div className="p-4 text-sm text-ink-500">
-                    Double-click empty canvas to add a node, or click a node to see its data.
+                    Hacé doble clic en un espacio vacío del lienzo para agregar un nodo, o hacé clic en un nodo para ver sus datos.
                   </div>
                 )}
               </FloatingPanel>

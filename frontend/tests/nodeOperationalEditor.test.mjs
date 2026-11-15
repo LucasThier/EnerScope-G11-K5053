@@ -32,7 +32,7 @@ const { NodeFormPanel } = load(path.join(directory, 'NodeFormPanel.tsx'));
 const { NodeDataPanel } = load(path.join(directory, 'NodeDataPanel.tsx'));
 const { ThemeContext } = load(path.resolve(directory, '../../hooks/useTheme.ts'));
 const renderToStaticMarkup = element => renderMarkup(React.createElement(ThemeContext.Provider, { value: { resolved: 'light', preference: 'light', system: 'light', setPreference: () => {} } }, element));
-const costs = /Upkeep cost|Operating cost|DTM cost|Treatment cost|Hiring cost/;
+const costs = /Upkeep cost|Operating cost|DTM cost|Treatment cost|Hiring cost|Costo de mantenimiento|Costo operativo|Costo DTM|Costo de tratamiento|Costo de contratación/;
 const noop = () => {};
 
 test('node create and edit forms expose operational fields only for every node type', () => {
@@ -44,7 +44,7 @@ test('node create and edit forms expose operational fields only for every node t
         onSubmit: noop, onClose: noop,
       }));
       assert.doesNotMatch(markup, costs);
-      assert.match(markup, /Lifespan \(months\)/);
+      assert.match(markup, /Vida útil \(meses\)/);
       assert.match(markup, /Configuración del Escenario/);
       for (const field of spec.fields.filter(f => !f.economic)) assert.ok(markup.includes(field.label));
     }
@@ -58,7 +58,7 @@ test('node detail panels omit legacy monetary fields while retaining physical da
       node, detail, busy: false, onUpdateBasics: noop, onEditData: noop, onStartConnect: noop, onRestore: noop, onDelete: noop,
     }));
     assert.doesNotMatch(markup, costs);
-    assert.match(markup, /Lifespan \(mo\)/);
+    assert.match(markup, /Vida útil \(meses\)/);
   }
 });
 test('operational saves retain hidden legacy costs and complete subtype payloads', () => {
@@ -130,4 +130,40 @@ test('scenario consumer fields use Spanish labels and retain zero demand', () =>
   for(const f of spec.fields) assert.ok(markup.includes(labels[f.key]));
   assert.ok(markup.includes('value="0"'));
  }
+});
+
+test('editor display labels cover every backend value and show no English copy', () => {
+ const { NODE_STATE_LABELS, VERTICAL_LABELS, ROLE_LABELS, DECLINE_LABELS, nodeTypeLabel } = load(path.join(directory, 'nodeCatalog.ts'));
+ const english = /\b(Well|Pipeline|Plant|Network|Unit|Terminal carrier|Consumption|Running|Proposed|Pending|Removed|Capacity|Length|Loss|Storage|Cost|Time|Depth|Frequency)\b/;
+ const maps = [
+  [NODE_STATE_LABELS, ['RUNNING', 'PROPOSED', 'PENDING', 'REMOVED']],
+  [VERTICAL_LABELS, ['EXTRACTION', 'TRANSPORTATION', 'LIQUEFACTION', 'EXPORT', 'INTERNAL_CONSUMPTION']],
+  [ROLE_LABELS, ['GENERATOR', 'INTERMEDIATE', 'SINK']],
+  [DECLINE_LABELS, ['CONSTANT', 'NORMAL', 'UNIFORM']],
+ ];
+ for (const [labels, values] of maps) {
+  assert.deepEqual(Object.keys(labels).sort(), [...values].sort());
+  for (const value of values) { assert.ok(labels[value]); assert.notEqual(labels[value], value); assert.doesNotMatch(labels[value], english); }
+ }
+ for (const spec of NODE_TYPE_SPECS) {
+  assert.equal(nodeTypeLabel(spec.type), spec.label);
+  assert.doesNotMatch(spec.label, english);
+  for (const field of spec.fields) assert.doesNotMatch(field.label, english);
+ }
+ assert.equal(nodeTypeLabel('PIPELINE_CONECTION'), 'PIPELINE_CONECTION');
+});
+test('node panels render Spanish state, type, vertical and role labels while keeping stored values', () => {
+ const spec = NODE_TYPE_SPECS.find(s => s.type === 'LNG_CAMER');
+ const node = { id: 'n1', name: 'Carrier', state: 'RUNNING', type: { nodeType: spec.type, vertical: spec.vertical, role: spec.role } };
+ const panel = renderToStaticMarkup(React.createElement(NodeDataPanel, {
+  node, detail: null, busy: false, onUpdateBasics: noop, onEditData: noop, onStartConnect: noop, onRestore: noop, onDelete: noop,
+ }));
+ for (const text of ['Buque metanero', 'Exportación', 'Destino', 'En operación', 'Datos del nodo', 'Eliminar nodo']) assert.ok(panel.includes(text), text);
+ assert.match(panel, /value="RUNNING"/);
+ assert.doesNotMatch(panel, />(LNG_CAMER|EXPORT|SINK|RUNNING)</);
+ assert.doesNotMatch(panel, /â€/);
+ const form = renderToStaticMarkup(React.createElement(NodeFormPanel, { mode: 'create', busy: false, initialType: 'WELL', onSubmit: noop, onClose: noop }));
+ for (const text of ['Agregar nodo', 'Crear nodo', 'Propuesto', 'Parámetros de Pozo', 'Curva de declinación']) assert.ok(form.includes(text), text);
+ assert.match(form, /value="WELL"/);
+ assert.match(form, /value="PROPOSED"/);
 });

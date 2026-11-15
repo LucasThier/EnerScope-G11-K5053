@@ -20,6 +20,16 @@ const CONNECTIONS_SOURCE = 'diagram-connections';
  * canvas filter (applied on load) mutes it into a clean, simplified look while
  * leaving the coloured node markers untouched.
  */
+const MAP_LOCALE: Record<string, string> = {
+  'Map.Title': 'Mapa',
+  'Marker.Title': 'Marcador del mapa',
+  'NavigationControl.ResetBearing': 'Arrastrá para rotar el mapa; hacé clic para volver al norte',
+  'NavigationControl.ZoomIn': 'Acercar',
+  'NavigationControl.ZoomOut': 'Alejar',
+  'AttributionControl.ToggleAttribution': 'Mostrar u ocultar la atribución',
+  'AttributionControl.MapFeedback': 'Comentarios sobre el mapa',
+};
+
 const MAP_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
@@ -87,6 +97,7 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
       style: MAP_STYLE,
       center: INITIAL_CENTER,
       zoom: INITIAL_ZOOM,
+      locale: MAP_LOCALE,
     });
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
