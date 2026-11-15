@@ -8,12 +8,19 @@ import { PageLoader } from '../components/ui/PageLoader';
 import { PlusIcon } from '../components/ui/icons';
 import { DeleteVersionDialog } from '../components/versions/DeleteVersionDialog';
 import { MergeVersionDialog } from '../components/versions/MergeVersionDialog';
-import { NewVersionModal } from '../components/versions/NewVersionModal';
+import {
+  FIRST_VERSION_ADMIN_MESSAGE,
+  NewVersionModal,
+} from '../components/versions/NewVersionModal';
 import { ResolveConflictsDialog } from '../components/versions/ResolveConflictsDialog';
 import { VersionTree } from '../components/versions/VersionTree';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useAuth } from '../hooks/useAuth';
-import { canEditProjectByRole, isPlatformAdmin as resolveIsPlatformAdmin } from '../permissions/access';
+import {
+  canEditProjectByRole,
+  canManageProject as resolveCanManageProject,
+  isPlatformAdmin as resolveIsPlatformAdmin,
+} from '../permissions/access';
 import { useVersionConflicts } from '../hooks/useVersionConflicts';
 import { useVersions } from '../hooks/useVersions';
 import { buildVersionTree, getDescendants } from '../utils/versionTree';
@@ -45,6 +52,8 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
   const project = projects.find((candidate) => candidate.id === projectId);
   const isPlatformAdmin = resolveIsPlatformAdmin(user);
   const canEdit = canEditProjectByRole(project?.myRole, isPlatformAdmin);
+  const canManage = resolveCanManageProject(project?.myRole, isPlatformAdmin);
+  const canCreateVersion = versions.length > 0 ? canEdit : canManage;
 
   const tree = useMemo(() => buildVersionTree(versions), [versions]);
   const descendants = useMemo(
@@ -120,7 +129,7 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
           <h1 className="mt-2 text-2xl font-semibold text-ink-800">Versionado</h1>
           <p className="mt-1 text-sm text-ink-500">{project?.name ?? 'el proyecto'}</p>
         </div>
-        {!error && canEdit && (
+        {!error && canCreateVersion && (
           <Button onClick={() => setIsModalOpen(true)}>
             <PlusIcon className="h-4 w-4" />
             Nueva versión
@@ -136,11 +145,14 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
         ) : versions.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <p className="text-sm text-ink-500">Este proyecto todavía no tiene versiones.</p>
-            {canEdit && (
+            {canManage && (
               <Button className="mt-4" onClick={() => setIsModalOpen(true)}>
                 <PlusIcon className="h-4 w-4" />
                 Nueva versión
               </Button>
+            )}
+            {canEdit && !canManage && (
+              <p className="mt-2 text-sm text-ink-500">{FIRST_VERSION_ADMIN_MESSAGE}</p>
             )}
           </div>
         ) : (
@@ -168,6 +180,7 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
         <>
           <NewVersionModal
             projectId={projectId}
+            canCreateRoot={canManage}
             open={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             onCreated={reload}

@@ -277,6 +277,15 @@ class EconomicServiceTest {
         verifyNoInteractions(configs, simulator, evaluations);
     }
 
+    @Test void viewerGets403BeforeValidationOnSaveAndSaveDraft() {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        assertThrows(ForbiddenException.class, () -> service.save(projectId, holder.version.getId(), null));
+        assertThrows(ForbiddenException.class, () -> service.saveDraft(projectId, holder.version.getId(),
+                new EconomicDraftDTO(1, MAPPER.createObjectNode())));
+        verify(configs, never()).save(any());
+        verify(drafts, never()).save(any());
+    }
+
     @Test void viewerReadsDraftButCannotSaveIt() throws Exception {
         grant(ProjectMemberPermission.VIEW_PROJECT);
         var draft = incompleteDraft();

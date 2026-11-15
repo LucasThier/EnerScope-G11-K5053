@@ -204,12 +204,12 @@ public class OrganizationService {
     @Transactional
     public OrganizationMember changeMemberRole(UUID organizationId, UUID memberId,
                                                UpdateOrganizationMemberRoleRequestDTO data) {
-        if (data == null || data.memberType() == null) {
-            throw new IllegalArgumentException("memberType cannot be null");
-        }
         organizationRepository.findByIdAndActiveTrue(organizationId)
                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
         assertCanManageUsers(organizationId);
+        if (data == null || data.memberType() == null) {
+            throw new IllegalArgumentException("memberType cannot be null");
+        }
 
         OrganizationMember member = organizationMemberRepository
                 .findByIdAndOrganizationId(memberId, organizationId)

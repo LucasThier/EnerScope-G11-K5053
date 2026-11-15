@@ -101,10 +101,19 @@ class VersionReadAccessHttpTest {
     }
 
     @Test
-    void missingVersionGets404BeforeTheAccessCheck() throws Exception {
+    void missingVersionGets403ForANonAdminBeforeAnyLookup() throws Exception {
         User outsider = fixture.user(PlatformRole.USER);
 
         mvc.perform(get("/version/" + UUID.randomUUID() + "/diagram").header("Authorization", fixture.bearer(outsider)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You are not allowed to access this version"));
+    }
+
+    @Test
+    void missingVersionGets404ForAPlatformAdmin() throws Exception {
+        User admin = fixture.user(PlatformRole.ADMIN);
+
+        mvc.perform(get("/version/" + UUID.randomUUID() + "/diagram").header("Authorization", fixture.bearer(admin)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.message", startsWith("Version not found with id:")));
     }

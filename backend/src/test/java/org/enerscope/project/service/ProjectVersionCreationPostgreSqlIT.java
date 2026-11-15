@@ -61,6 +61,8 @@ class ProjectVersionCreationPostgreSqlIT {
     EntityManager em;
     @Autowired
     ProjectService projectService;
+    @Autowired
+    org.enerscope.version.service.VersionService versionService;
 
     private Project project;
     private Version parent;
@@ -201,6 +203,52 @@ class ProjectVersionCreationPostgreSqlIT {
         assertThrows(ForbiddenException.class, () -> createChildAs(creator));
 
         assertEquals(before, versionCount());
+    }
+
+    @Test
+    void aProjectEditorCannotCreateARootVersionButAProjectAdminCan() {
+        User projectAdmin = user();
+        joinProject(projectAdmin, ProjectMemberType.ADMIN);
+        flushAndClear();
+        long before = versionCount();
+
+        authenticate(creator);
+        assertThrows(ForbiddenException.class,
+                () -> projectService.saveVersion(project.getId(), new VersionDTO("Root " + UUID.randomUUID(), null)));
+        assertEquals(before, versionCount());
+
+        authenticate(projectAdmin);
+        UUID root = projectService.saveVersion(project.getId(), new VersionDTO("Root " + UUID.randomUUID(), null)).getId();
+        flushAndClear();
+        assertTrue(rowsOf(root).isEmpty());
+        assertEquals(before + 1, versionCount());
+    }
+
+    @Test
+    void deletingAVersionWithADescendantInAnotherProjectIsRefusedForAProjectAdminAndAllowedForAPlatformAdmin() {
+        User projectAdmin = user();
+        joinProject(projectAdmin, ProjectMemberType.ADMIN);
+        Organization otherOrganization = new Organization("Other IT " + UUID.randomUUID());
+        em.persist(otherOrganization);
+        Version foreignChild = new Version("Foreign child", parent, new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>(), new ArrayList<>());
+        em.persist(foreignChild);
+        Project other = new Project("Other IT", "Disposable fixture", otherOrganization);
+        other.addVersion(foreignChild);
+        em.persist(other);
+        flushAndClear();
+        long before = versionCount();
+
+        authenticate(projectAdmin);
+        ForbiddenException refused = assertThrows(ForbiddenException.class, () -> versionService.deleteVersion(parent.getId()));
+        assertEquals("You are not allowed to delete one or more versions below this one", refused.getMessage());
+        flushAndClear();
+        assertEquals(before, versionCount());
+
+        authenticate(user(PlatformRole.ADMIN));
+        versionService.deleteVersion(parent.getId());
+        flushAndClear();
+        assertEquals(before - 2, versionCount());
     }
 
     private UUID createChildAs(User user) {

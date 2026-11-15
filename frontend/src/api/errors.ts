@@ -24,6 +24,8 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
     'No tenés permiso para editar las versiones de este proyecto.',
   'You are not allowed to access this version': 'No tenés acceso a esta versión.',
   'You are not allowed to manage this version': 'No tenés permiso para administrar esta versión.',
+  'You are not allowed to delete one or more versions below this one':
+    'No podés eliminar esta versión porque tiene versiones derivadas que no tenés permiso para eliminar.',
   'You are not allowed to manage the roles of this version':
     'Solo los Administradores del proyecto pueden asignar, cambiar o quitar roles de versión.',
   'User already has this role': 'Esa persona ya tiene ese rol en la versión.',

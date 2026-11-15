@@ -78,3 +78,20 @@ test('unknown messages pass through and transport failures use the fallback', ()
   assert.equal(errors.getVersionRoleErrorMessage('nope', 'fallback'), 'fallback');
   assert.equal(errors.getErrorStatus(failure(403, 'x')), 403);
 });
+
+test('the 403 of a cascading delete is translated without naming versions', () => {
+  assert.equal(
+    errors.getVersionRoleErrorMessage(
+      failure(403, 'You are not allowed to delete one or more versions below this one'),
+      'x',
+    ),
+    'No podés eliminar esta versión porque tiene versiones derivadas que no tenés permiso para eliminar.',
+  );
+  assert.equal(
+    errors.getErrorMessage(
+      failure(403, 'You are not allowed to delete one or more versions below this one'),
+      'x',
+    ),
+    'No podés eliminar esta versión porque tiene versiones derivadas que no tenés permiso para eliminar.',
+  );
+});

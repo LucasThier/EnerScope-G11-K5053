@@ -10,7 +10,16 @@ import { MapView } from '../components/editor/MapView';
 import { NodeDataPanel } from '../components/editor/NodeDataPanel';
 import { NodeFormPanel, type NodeFormInitial } from '../components/editor/NodeFormPanel';
 import { NodePalette } from '../components/editor/NodePalette';
-import { NewVersionModal } from '../components/versions/NewVersionModal';
+import {
+  FIRST_VERSION_ADMIN_MESSAGE,
+  NewVersionModal,
+} from '../components/versions/NewVersionModal';
+import { useAuth } from '../hooks/useAuth';
+import {
+  canEditProjectByRole,
+  canManageProject as resolveCanManageProject,
+  isPlatformAdmin as resolveIsPlatformAdmin,
+} from '../permissions/access';
 import {
   canConnect,
   nodeTypeLabel,
@@ -98,6 +107,10 @@ function EditorWorkspace() {
   const projects = allProjects.filter(p => p.organizationId === orgId);
   const projectId = activeProject?.organizationId === orgId ? activeProject.id : '';
   const setProjectId = selectProject;
+  const { user: authUser } = useAuth();
+  const platformAdmin = resolveIsPlatformAdmin(authUser);
+  const canManageActiveProject = resolveCanManageProject(activeProject?.myRole, platformAdmin);
+  const canEditActiveProject = canEditProjectByRole(activeProject?.myRole, platformAdmin);
   const [versionState, setVersionState] = useState<{ project: string; list: VersionSummary[]; selected: string }>({ project: '', list: [], selected: '' });
   const versions = versionState.project === projectId ? versionState.list : [];
   const versionId = versions.some(v => v.id === versionState.selected) ? versionState.selected : '';
@@ -478,17 +491,22 @@ function EditorWorkspace() {
                 </option>
               ))}
             </select>
-            <Button
-              variant="ghost"
-              onClick={() => setIsNewVersionModalOpen(true)}
-              disabled={!projectId}
-              size="compact"
-              className="px-3"
-              aria-label="Nueva versión"
-              title="Nueva versión"
-            >
-              +
-            </Button>
+            {(versions.length > 0 || canManageActiveProject) && (
+              <Button
+                variant="ghost"
+                onClick={() => setIsNewVersionModalOpen(true)}
+                disabled={!projectId}
+                size="compact"
+                className="px-3"
+                aria-label="Nueva versión"
+                title="Nueva versión"
+              >
+                +
+              </Button>
+            )}
+            {versions.length === 0 && !canManageActiveProject && canEditActiveProject && projectId && (
+              <span className="text-xs text-ink-500">{FIRST_VERSION_ADMIN_MESSAGE}</span>
+            )}
           </div>
         </Field>
 
@@ -709,6 +727,7 @@ function EditorWorkspace() {
       {projectId && (
         <NewVersionModal
           projectId={projectId}
+          canCreateRoot={canManageActiveProject}
           open={isNewVersionModalOpen}
           onClose={() => setIsNewVersionModalOpen(false)}
           onCreated={(createdId) => {

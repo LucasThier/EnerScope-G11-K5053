@@ -1158,11 +1158,28 @@ class OrganizationServiceTest {
 
     @Test
     void changeMemberRoleRejectsAMissingRole() {
+        UUID organizationId = UUID.randomUUID();
         authenticateAs(admin());
+        stubActiveOrganization(organizationId);
 
         assertThrows(IllegalArgumentException.class, () -> organizationService.changeMemberRole(
-                UUID.randomUUID(), UUID.randomUUID(), new UpdateOrganizationMemberRoleRequestDTO(null)));
+                organizationId, UUID.randomUUID(), new UpdateOrganizationMemberRoleRequestDTO(null)));
         verify(organizationMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void changeMemberRoleAnswers403BeforeValidatingTheBodyForAPlainMember() {
+        UUID organizationId = UUID.randomUUID();
+        User caller = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+        authenticateAs(caller);
+        Organization organization = stubActiveOrganization(organizationId);
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, caller.getId()))
+                .thenReturn(Optional.of(viewOnlyMembership(caller, organization)));
+
+        assertThrows(ForbiddenException.class, () -> organizationService.changeMemberRole(
+                organizationId, UUID.randomUUID(), new UpdateOrganizationMemberRoleRequestDTO(null)));
+        assertThrows(ForbiddenException.class, () -> organizationService.changeMemberRole(
+                organizationId, UUID.randomUUID(), null));
     }
 
     @Test

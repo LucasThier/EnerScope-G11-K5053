@@ -912,15 +912,76 @@ class VersionServiceTest {
                 }
         }
 
+    private Version versionWithId(UUID id) {
+        Version version = new Version("V", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        org.springframework.test.util.ReflectionTestUtils.setField(version, "id", id);
+        return version;
+    }
+
+    @Test
+    void deleteVersionAuthorizesEveryDescendantAndThenDeletesTheWholeSubtree() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        UUID grandchildId = UUID.randomUUID();
+        when(versionRepository.findById(rootId)).thenReturn(Optional.of(versionWithId(rootId)));
+        when(versionRepository.findByParentVersionId(rootId)).thenReturn(List.of(versionWithId(childId)));
+        when(versionRepository.findByParentVersionId(childId)).thenReturn(List.of(versionWithId(grandchildId)));
+        when(versionRepository.findByParentVersionId(grandchildId)).thenReturn(List.of());
+
+        versionService.deleteVersion(rootId);
+
+        verify(accessGuard).assertCanManageVersion(rootId);
+        verify(accessGuard).assertCanManageDescendant(rootId, childId);
+        verify(accessGuard).assertCanManageDescendant(rootId, grandchildId);
+        verify(versionRepository).deleteAllById(List.of(grandchildId, childId, rootId));
+    }
+
+    @Test
+    void deleteVersionDeletesNothingWhenAnyDescendantIsForbidden() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        UUID grandchildId = UUID.randomUUID();
+        when(versionRepository.findById(rootId)).thenReturn(Optional.of(versionWithId(rootId)));
+        when(versionRepository.findByParentVersionId(rootId)).thenReturn(List.of(versionWithId(childId)));
+        when(versionRepository.findByParentVersionId(childId)).thenReturn(List.of(versionWithId(grandchildId)));
+        when(versionRepository.findByParentVersionId(grandchildId)).thenReturn(List.of());
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException(
+                "You are not allowed to delete one or more versions below this one"))
+                .when(accessGuard).assertCanManageDescendant(rootId, childId);
+
+        org.enerscope.common.ForbiddenException ex = assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.deleteVersion(rootId));
+
+        assertEquals("You are not allowed to delete one or more versions below this one", ex.getMessage());
+        verify(versionRepository, org.mockito.Mockito.never()).deleteAllById(any());
+    }
+
+    @Test
+    void deleteVersionRefusesWithoutLookingAtTheTreeWhenTheRootIsForbidden() {
+        UUID rootId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("You are not allowed to manage this version"))
+                .when(accessGuard).assertCanManageVersion(rootId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.deleteVersion(rootId));
+
+        verify(versionRepository, org.mockito.Mockito.never()).findByParentVersionId(any());
+        verify(versionRepository, org.mockito.Mockito.never()).deleteAllById(any());
+    }
+
+    @Test
+    void deleteVersionIsTransactional() throws NoSuchMethodException {
+        assertTrue(VersionService.class.getMethod("deleteVersion", UUID.class)
+                .isAnnotationPresent(org.springframework.transaction.annotation.Transactional.class));
+    }
+
     @Test
     void getDiagramIsRefusedWhenTheCallerCannotViewTheVersion() {
         UUID versionId = UUID.randomUUID();
-        Version version = new Version("Private", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
         org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("You are not allowed to view this project"))
                 .when(accessGuard).assertCanViewVersion(versionId);
 
         assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.getDiagram(versionId));
+        verifyNoInteractions(versionRepository);
     }
 
     @Test
@@ -934,24 +995,33 @@ class VersionServiceTest {
     }
 
     @Test
-    void getDiagramOfAMissingVersionIsStill404WithoutCheckingAccess() {
+    void getDiagramOfAMissingVersionChecksAccessAndThen404sForAnAuthorizedCaller() {
         UUID versionId = UUID.randomUUID();
         when(versionRepository.findById(versionId)).thenReturn(Optional.empty());
 
         assertThrows(VersionNotFoundException.class, () -> versionService.getDiagram(versionId));
-        verifyNoInteractions(accessGuard);
+        verify(accessGuard).assertCanViewVersion(versionId);
+    }
+
+    @Test
+    void getDiagramOfAMissingVersionAnswers403WithoutLookingItUpForAnUnauthorizedCaller() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("You are not allowed to access this version"))
+                .when(accessGuard).assertCanViewVersion(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.getDiagram(versionId));
+        verify(versionRepository, org.mockito.Mockito.never()).findById(any());
     }
 
     @Test
     void getNodeDetailIsRefusedBeforeLoadingTheNodeWhenTheCallerCannotViewTheVersion() {
         UUID versionId = UUID.randomUUID();
         UUID nodeId = UUID.randomUUID();
-        Version version = new Version("Private", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
         org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("You are not allowed to view this project"))
                 .when(accessGuard).assertCanViewVersion(versionId);
 
         assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.getNodeDetail(versionId, nodeId));
+        verifyNoInteractions(versionRepository);
         verifyNoInteractions(nodeRepository);
     }
 

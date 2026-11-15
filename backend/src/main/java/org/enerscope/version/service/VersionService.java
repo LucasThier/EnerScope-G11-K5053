@@ -193,49 +193,40 @@ public class VersionService {
         return saved;
     }
 
+    @Transactional
     public void deleteVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
         accessGuard.assertCanManageVersion(id);
-        Version version = versionRepository.findById(id)
+        versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
-        // WE DELETE ALL OF THE SUB-VERSIONS, MAYBE CHANGE LATER
 
-        deleteSubVersions(id);
-        logger.info("Deleted version with id: {}", id);
+        List<UUID> versionsToDelete = collectSubtree(id);
+        for (UUID versionId : versionsToDelete) {
+            if (!versionId.equals(id)) {
+                accessGuard.assertCanManageDescendant(id, versionId);
+            }
+        }
+
+        Collections.reverse(versionsToDelete);
+        versionRepository.deleteAllById(versionsToDelete);
+        logger.info("Deleted {} versions in tree starting from root version ID: {}",
+                versionsToDelete.size(), id);
     }
 
-    /**
-     * Deletes a version and everything below it. Private on purpose: it is only
-     * reached through {@link #deleteVersion}, which runs the permission check —
-     * a public entry point here would be an unguarded way to delete a tree.
-     *
-     * <p>Known limitation: the permission check covers the root version's
-     * project. A child version attached to a different project would be deleted
-     * without that project being checked; see {@code docs/considerations.md}.</p>
-     */
-    private void deleteSubVersions(UUID parentVersion) {
-
-        List<UUID> versionsToDelete = new ArrayList<>();
+    private List<UUID> collectSubtree(UUID rootId) {
+        List<UUID> collected = new ArrayList<>();
         Queue<UUID> queue = new LinkedList<>();
-        queue.add(parentVersion);
-        versionsToDelete.add(parentVersion);
+        queue.add(rootId);
+        collected.add(rootId);
         while (!queue.isEmpty()) {
             UUID currentId = queue.poll();
-            List<Version> children = versionRepository.findByParentVersionId(currentId);
-
-            for (Version child : children) {
-                if (versionsToDelete.add(child.getId())) { // add returns true if not already present
+            for (Version child : versionRepository.findByParentVersionId(currentId)) {
+                if (collected.add(child.getId())) {
                     queue.add(child.getId());
                 }
             }
         }
-
-        if (!versionsToDelete.isEmpty()) {
-            Collections.reverse(versionsToDelete);
-            versionRepository.deleteAllById(versionsToDelete);
-            logger.info("Deleted {} versions in tree starting from root version ID: {}",
-                    versionsToDelete.size(), parentVersion);
-        }
+        return collected;
     }
 
     public Version getVersion(UUID id) {
@@ -253,9 +244,9 @@ public class VersionService {
     @Transactional(readOnly = true)
     public DiagramDTO getDiagram(UUID versionId) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
-        accessGuard.assertCanViewVersion(versionId);
 
         List<DiagramNodeDTO> nodes = (version.getNodeSnapshot() == null
                 ? List.<BaseNode>of()
@@ -282,6 +273,7 @@ public class VersionService {
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
         Objects.requireNonNull(positionDTO, "Position DTO cannot be null");
 
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         lockScenario(version);
@@ -325,6 +317,7 @@ public class VersionService {
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
         Objects.requireNonNull(basics, "Basics DTO cannot be null");
 
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         lockScenario(version);
@@ -359,9 +352,9 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
 
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
-        accessGuard.assertCanViewVersion(versionId);
         BaseNode node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
         if (!version.getNodeSnapshot().contains(node)) {
@@ -674,6 +667,7 @@ public class VersionService {
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
 
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         lockScenario(version);
@@ -914,6 +908,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
 
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         lockScenario(version);

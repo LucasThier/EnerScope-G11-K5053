@@ -129,6 +129,35 @@ public class VersionAccessGuard {
     }
 
     /**
+     * Ensures the caller may delete a version below {@code rootId} as part of a
+     * cascading delete. A descendant that belongs to a different project than
+     * the root (legacy data) can only be deleted by a platform ADMIN; any
+     * refusal carries a generic message that names no version.
+     */
+    public void assertCanManageDescendant(UUID rootId, UUID descendantId) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
+            return;
+        }
+        Optional<UUID> rootProject = projectRepository.findIdByVersionId(rootId);
+        Optional<UUID> descendantProject = projectRepository.findIdByVersionId(descendantId);
+        if (rootProject.isEmpty() || !rootProject.equals(descendantProject)) {
+            denyDescendantDelete(caller, rootId, descendantId);
+        }
+        try {
+            assertCanManageVersion(descendantId);
+        } catch (ForbiddenException e) {
+            denyDescendantDelete(caller, rootId, descendantId);
+        }
+    }
+
+    private void denyDescendantDelete(User caller, UUID rootId, UUID descendantId) {
+        logger.warn("User {} is not allowed to delete version {} below version {}",
+                caller.getMail(), descendantId, rootId);
+        throw new ForbiddenException("You are not allowed to delete one or more versions below this one");
+    }
+
+    /**
      * Ensures the caller may assign, change, revoke or list the roles of a
      * version. Unlike {@link #assertCanManageVersion}, holding an {@code ADMIN}
      * version role is not enough: only a platform ADMIN or an ADMIN of the

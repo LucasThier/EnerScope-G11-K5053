@@ -178,6 +178,81 @@ class VersionAccessGuardTest {
         assertThrows(UnauthorizedException.class, () -> guard.assertIsPlatformAdmin("create detached versions"));
     }
 
+    // ---- assertCanManageDescendant ---------------------------------------------
+
+    private static final String GENERIC_DELETE_MESSAGE =
+            "You are not allowed to delete one or more versions below this one";
+
+    @Test
+    void assertCanManageDescendantAllowsAProjectAdminOfTheSameProject() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("admin@enerscope.org");
+        authenticateAs(caller);
+        when(projectRepository.findIdByVersionId(rootId)).thenReturn(Optional.of(projectId));
+        when(projectRepository.findIdByVersionId(childId)).thenReturn(Optional.of(projectId));
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(childId, caller.getId())).thenReturn(Optional.empty());
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(memberWith(ProjectMemberType.ADMIN)));
+
+        assertDoesNotThrow(() -> guard.assertCanManageDescendant(rootId, childId));
+    }
+
+    @Test
+    void assertCanManageDescendantRefusesWithAGenericMessageWhenTheCallerCannotManageIt() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("editor@enerscope.org");
+        authenticateAs(caller);
+        when(projectRepository.findIdByVersionId(rootId)).thenReturn(Optional.of(projectId));
+        when(projectRepository.findIdByVersionId(childId)).thenReturn(Optional.of(projectId));
+        when(versionMemberRepository.findEffectiveByVersionIdAndUserId(childId, caller.getId())).thenReturn(Optional.empty());
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(memberWith(ProjectMemberType.EDITOR)));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class,
+                () -> guard.assertCanManageDescendant(rootId, childId));
+
+        assertEquals(GENERIC_DELETE_MESSAGE, ex.getMessage());
+    }
+
+    @Test
+    void assertCanManageDescendantRefusesADescendantOfAnotherProjectEvenForItsAdmin() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        authenticateAs(regularUser("admin@enerscope.org"));
+        when(projectRepository.findIdByVersionId(rootId)).thenReturn(Optional.of(UUID.randomUUID()));
+        when(projectRepository.findIdByVersionId(childId)).thenReturn(Optional.of(UUID.randomUUID()));
+
+        ForbiddenException ex = assertThrows(ForbiddenException.class,
+                () -> guard.assertCanManageDescendant(rootId, childId));
+
+        assertEquals(GENERIC_DELETE_MESSAGE, ex.getMessage());
+        verifyNoInteractions(projectMemberRepository);
+    }
+
+    @Test
+    void assertCanManageDescendantRefusesADescendantWithoutProject() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        authenticateAs(regularUser("admin@enerscope.org"));
+        when(projectRepository.findIdByVersionId(rootId)).thenReturn(Optional.of(UUID.randomUUID()));
+        when(projectRepository.findIdByVersionId(childId)).thenReturn(Optional.empty());
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanManageDescendant(rootId, childId));
+    }
+
+    @Test
+    void assertCanManageDescendantAllowsAPlatformAdminAcrossProjects() {
+        authenticateAs(platformAdmin());
+
+        assertDoesNotThrow(() -> guard.assertCanManageDescendant(UUID.randomUUID(), UUID.randomUUID()));
+
+        verifyNoInteractions(projectRepository);
+    }
+
     // ---- assertCanManageVersion ------------------------------------------------
 
     @Test

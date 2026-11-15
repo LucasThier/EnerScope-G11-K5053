@@ -130,6 +130,10 @@ public class ProjectService {
 
         @Transactional
         public Project updateProject(UUID projectId, UpdateProjectRequestDTO data) {
+                Project project = projectRepository.findById(projectId)
+                                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
+                accessGuard.assertCanManageProject(projectId);
+
                 if (data == null) {
                         throw new IllegalArgumentException("data cannot be null");
                 }
@@ -140,10 +144,6 @@ public class ProjectService {
                 if (data.name() != null && data.name().isBlank()) {
                         throw new IllegalArgumentException("Project name cannot be blank");
                 }
-
-                Project project = projectRepository.findById(projectId)
-                                .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-                accessGuard.assertCanManageProject(projectId);
 
                 project.updateDetails(data.name(), data.description() == null ? null : data.description().trim());
                 Project saved = projectRepository.save(project);
@@ -243,12 +243,12 @@ public class ProjectService {
         @Transactional
         public ProjectMember changeMemberRole(UUID projectId, UUID memberId,
                         UpdateProjectMemberRoleRequestDTO data) {
-                if (data == null || data.memberType() == null) {
-                        throw new IllegalArgumentException("memberType cannot be null");
-                }
                 projectRepository.findByIdAndActiveTrue(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
                 accessGuard.assertCanManageProject(projectId);
+                if (data == null || data.memberType() == null) {
+                        throw new IllegalArgumentException("memberType cannot be null");
+                }
 
                 ProjectMember member = projectMemberRepository.findByIdAndProjectId(memberId, projectId)
                                 .orElseThrow(() -> new EntityNotFoundException("Member not found"));
@@ -344,10 +344,11 @@ public class ProjectService {
                 }
                 Project project = projectRepository.findById(projectId)
                                 .orElseThrow(() -> new IllegalArgumentException("Project not found"));
-                accessGuard.assertCanEditProject(projectId);
-
                 UUID parentId = versionDTO.getParentVersion();
-                if (parentId != null) {
+                if (parentId == null) {
+                        accessGuard.assertCanManageProject(projectId);
+                } else {
+                        accessGuard.assertCanEditProject(projectId);
                         versionAccessGuard.assertCanEditVersion(parentId);
                         if (project.getVersions().stream().noneMatch(v -> v.isActive() && parentId.equals(v.getId()))) {
                                 throw new IllegalArgumentException("Parent version must belong to the selected project");

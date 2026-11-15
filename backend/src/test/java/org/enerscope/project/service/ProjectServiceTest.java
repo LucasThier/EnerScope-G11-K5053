@@ -458,19 +458,42 @@ class ProjectServiceTest {
         @Test
         void updateProjectRejectsAPatchWithEveryFieldNull() {
                 UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(
+                                new Project("Grid", "", new Organization("Acme"))));
 
                 assertThrows(IllegalArgumentException.class, () -> projectService.updateProject(
                                 projectId, new UpdateProjectRequestDTO(null, null)));
-                verify(projectRepository, never()).findById(any());
                 verify(projectRepository, never()).save(any());
         }
 
         @Test
         void updateProjectRejectsANullBody() {
                 UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(
+                                new Project("Grid", "", new Organization("Acme"))));
 
                 assertThrows(IllegalArgumentException.class, () -> projectService.updateProject(projectId, null));
-                verify(projectRepository, never()).findById(any());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void updateProjectAnswers403BeforeValidatingTheBodyForAnEditor() {
+                UUID projectId = UUID.randomUUID();
+                User caller = userNamed("editor@enerscope.org");
+                authenticateAs(caller);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(
+                                new Project("Grid", "", new Organization("Acme"))));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                assertThrows(ForbiddenException.class, () -> projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO("   ", null)));
+                assertThrows(ForbiddenException.class, () -> projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO(null, null)));
+                assertThrows(ForbiddenException.class, () -> projectService.updateProject(projectId, null));
+                verify(projectRepository, never()).save(any());
         }
 
         @Test
@@ -1021,6 +1044,38 @@ class ProjectServiceTest {
         }
 
         @Test
+        void saveVersionWithoutParentRefusesAProjectEditorWith403() {
+                UUID projectId = UUID.randomUUID();
+                User caller = userNamed("editor@enerscope.org");
+                authenticateAs(caller);
+                Project project = new Project("Grid Expansion", "", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                assertThrows(ForbiddenException.class,
+                                () -> projectService.saveVersion(projectId, new VersionDTO("Root", null)));
+                verify(versionService, never()).saveVersion(any());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void saveVersionWithoutParentAllowsAProjectAdmin() {
+                UUID projectId = UUID.randomUUID();
+                User caller = userNamed("admin@enerscope.org");
+                authenticateAs(caller);
+                Project project = new Project("Grid Expansion", "", new Organization("Acme"));
+                VersionDTO data = new VersionDTO("Root", null);
+                Version version = new Version();
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.ADMIN)));
+                when(versionService.saveVersion(data)).thenReturn(version);
+
+                assertSame(version, projectService.saveVersion(projectId, data));
+        }
+
+        @Test
         void saveVersionRejectsUnauthenticated() {
                 UUID projectId = UUID.randomUUID();
                 Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
@@ -1349,10 +1404,29 @@ class ProjectServiceTest {
 
         @Test
         void changeMemberRoleRejectsAMissingMemberType() {
+                UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                activeProject(projectId);
+
                 assertThrows(IllegalArgumentException.class, () -> projectService.changeMemberRole(
-                                UUID.randomUUID(), UUID.randomUUID(), new UpdateProjectMemberRoleRequestDTO(null)));
+                                projectId, UUID.randomUUID(), new UpdateProjectMemberRoleRequestDTO(null)));
                 assertThrows(IllegalArgumentException.class, () -> projectService.changeMemberRole(
-                                UUID.randomUUID(), UUID.randomUUID(), null));
+                                projectId, UUID.randomUUID(), null));
+        }
+
+        @Test
+        void changeMemberRoleAnswers403BeforeValidatingTheBodyForAnEditor() {
+                UUID projectId = UUID.randomUUID();
+                User caller = userNamed("editor@enerscope.org");
+                authenticateAs(caller);
+                activeProject(projectId);
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                assertThrows(ForbiddenException.class, () -> projectService.changeMemberRole(
+                                projectId, UUID.randomUUID(), new UpdateProjectMemberRoleRequestDTO(null)));
+                assertThrows(ForbiddenException.class, () -> projectService.changeMemberRole(
+                                projectId, UUID.randomUUID(), null));
         }
 
         @Test

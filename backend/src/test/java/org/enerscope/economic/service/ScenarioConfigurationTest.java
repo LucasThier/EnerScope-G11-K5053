@@ -89,6 +89,19 @@ class ScenarioConfigurationTest {
   assertThrows(IllegalArgumentException.class,()->economics.validateConfiguration(economics.get(projectId,versionId),em.find(Version.class,versionId)));
  }
 
+ @Test void viewerGets403BeforeTheRequestIsValidatedOnSave() {
+  var viewer=User.fromJwtClaims(UUID.randomUUID(),"viewer@example.com","View","Er");
+  var member=new org.enerscope.project.model.ProjectMember(viewer,em.find(Project.class,projectId));
+  member.addRole(new org.enerscope.project.model.ProjectMemberRole("Viewer",org.enerscope.project.model.enums.ProjectMemberType.EDITOR,
+      Set.of(org.enerscope.project.model.enums.ProjectMemberPermission.VIEW_PROJECT)));
+  em.find(Project.class,projectId).addMember(member);
+  var authentication=new UsernamePasswordAuthenticationToken(viewer.getId(),null,List.of());
+  authentication.setDetails(new Session("test",viewer,Instant.now().plusSeconds(3600)));SecurityContextHolder.getContext().setAuthentication(authentication);
+  assertThrows(org.enerscope.common.ForbiddenException.class,()->scenarios.save(projectId,versionId,null));
+  assertThrows(org.enerscope.common.ForbiddenException.class,()->scenarios.save(projectId,versionId,
+      new SaveRequest("stale","stale",mapper.createObjectNode(),null,null)));
+ }
+
  @AfterEach
  void clear(){SecurityContextHolder.clearContext();}
  SaveRequest request(ScenarioConfigurationDTO state) {

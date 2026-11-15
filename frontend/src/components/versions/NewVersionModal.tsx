@@ -13,9 +13,13 @@ interface NewVersionModalProps {
   onClose: () => void;
   onCreated: (versionId: string) => Promise<void> | void;
   defaultParentId?: string;
+  canCreateRoot: boolean;
 }
 
 const NAME_MAX = 320;
+
+export const FIRST_VERSION_ADMIN_MESSAGE =
+  'Pedile al administrador del proyecto que cree la primera versión.';
 
 export function NewVersionModal({
   projectId,
@@ -23,6 +27,7 @@ export function NewVersionModal({
   onClose,
   onCreated,
   defaultParentId,
+  canCreateRoot,
 }: NewVersionModalProps) {
   const { versions, loading: loadingVersions, createVersion } = useVersions(open ? projectId : null);
   const [name, setName] = useState('');
@@ -78,6 +83,16 @@ export function NewVersionModal({
 
   return (
     <Modal open={open} onClose={onClose} title="Nueva versión">
+      {!loadingVersions && versions.length === 0 && !canCreateRoot ? (
+        <div className="flex flex-col gap-4">
+          <Alert tone="info">{FIRST_VERSION_ADMIN_MESSAGE}</Alert>
+          <ModalFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cerrar
+            </Button>
+          </ModalFooter>
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
         {submitError && <Alert tone="error">{submitError}</Alert>}
 
@@ -112,6 +127,7 @@ export function NewVersionModal({
           </Button>
         </ModalFooter>
       </form>
+      )}
     </Modal>
   );
 }
