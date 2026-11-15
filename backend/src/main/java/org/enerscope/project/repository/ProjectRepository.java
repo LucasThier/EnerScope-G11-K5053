@@ -35,6 +35,10 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
                                      WHERE pe.project = p AND pe.user.id = :userId AND pe.active = true
                                        AND re.memberType = org.enerscope.project.model.enums.ProjectMemberType.EDITOR)
                             THEN org.enerscope.project.model.enums.ProjectMemberType.EDITOR
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember px JOIN px.roles rx
+                                     WHERE px.project = p AND px.user.id = :userId AND px.active = true
+                                       AND rx.memberType = org.enerscope.project.model.enums.ProjectMemberType.EXECUTIVE)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.EXECUTIVE
                         ELSE NULL
                     END)
             FROM Project p
@@ -62,6 +66,10 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
                                      WHERE pe.project = p AND pe.user.id = :userId AND pe.active = true
                                        AND re.memberType = org.enerscope.project.model.enums.ProjectMemberType.EDITOR)
                             THEN org.enerscope.project.model.enums.ProjectMemberType.EDITOR
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember px JOIN px.roles rx
+                                     WHERE px.project = p AND px.user.id = :userId AND px.active = true
+                                       AND rx.memberType = org.enerscope.project.model.enums.ProjectMemberType.EXECUTIVE)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.EXECUTIVE
                         ELSE NULL
                     END)
             FROM Project p

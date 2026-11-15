@@ -19,6 +19,7 @@ import org.enerscope.version.dto.VersionMemberDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.model.VersionMember;
 import org.enerscope.version.model.VersionMemberRole;
+import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.version.model.enums.VersionMemberType;
 import org.enerscope.version.repository.VersionMemberRepository;
 import org.enerscope.version.repository.VersionRepository;
@@ -77,6 +78,7 @@ public class VersionMemberService {
         if (!projectMember) {
             throw new IllegalArgumentException("User is not a member of the version's project");
         }
+        assertNotExecutive(projectId, data.userId());
 
         VersionMember member = versionMemberRepository.findByVersionIdAndUserId(versionId, data.userId())
                 .orElseGet(() -> new VersionMember(user, version));
@@ -93,6 +95,17 @@ public class VersionMemberService {
         logger.info("Granted {} ({}) on version {} to {}",
                 data.memberType(), data.vertical(), version.getName(), user.getMail());
         return saved;
+    }
+
+    /** An EXECUTIVE of the project is read-only everywhere, so it cannot hold version roles. */
+    private void assertNotExecutive(UUID projectId, UUID userId) {
+        boolean executive = projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+                .filter(ProjectAccessGuard::isActive)
+                .map(m -> m.getRoles().stream().anyMatch(r -> r.getMemberType() == ProjectMemberType.EXECUTIVE))
+                .orElse(false);
+        if (executive) {
+            throw new IllegalArgumentException("An EXECUTIVE of the project cannot hold version roles");
+        }
     }
 
     private void validateRoleShape(AddVersionMemberRoleRequestDTO data) {
@@ -138,6 +151,8 @@ public class VersionMemberService {
                 .findFirst()
                 .orElseThrow(() -> new EntityNotFoundException("Role not found"));
         validateRoleShape(data == null ? null : data.memberType(), data == null ? null : data.vertical());
+        projectRepository.findIdByVersionId(versionId)
+                .ifPresent(projectId -> assertNotExecutive(projectId, member.getUser().getId()));
 
         boolean unchanged = role.getMemberType() == data.memberType()
                 && Objects.equals(role.getVertical(), data.vertical());

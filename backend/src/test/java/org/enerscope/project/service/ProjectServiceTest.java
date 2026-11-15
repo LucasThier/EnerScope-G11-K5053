@@ -291,6 +291,84 @@ class ProjectServiceTest {
         }
 
         @Test
+        void addMemberGrantsExecutiveOnlyViewPermission() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User user = new User("john@enerscope.org", "John", "Roe", "hashed");
+                authenticateAs(admin());
+                when(projectRepository.findByIdAndActiveTrue(projectId)).thenReturn(Optional.of(project));
+                when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+                stubUserInOrganization(user);
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(false);
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                ProjectMember saved = projectService.addMember(
+                                projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EXECUTIVE));
+
+                ProjectMemberRole role = saved.getRoles().iterator().next();
+                assertEquals(ProjectMemberType.EXECUTIVE, role.getMemberType());
+                assertEquals(Set.of(ProjectMemberPermission.VIEW_PROJECT), role.getPermissions());
+        }
+
+        @Test
+        void changeMemberRoleToExecutiveDeletesTheMembersVersionRoles() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                User john = userNamed("john@enerscope.org");
+                ProjectMember member = memberOf(john, project, ProjectMemberType.EDITOR);
+                VersionMember versionMembership = new VersionMember(john, null);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+                when(versionMemberRepository.findByUserIdAndProjectIdIn(john.getId(), List.of(projectId)))
+                                .thenReturn(List.of(versionMembership));
+
+                ProjectMember saved = projectService.changeMemberRole(
+                                projectId, memberId, new UpdateProjectMemberRoleRequestDTO(ProjectMemberType.EXECUTIVE));
+
+                verify(versionMemberRepository).deleteAll(List.of(versionMembership));
+                ProjectMemberRole role = saved.getRoles().iterator().next();
+                assertEquals(ProjectMemberType.EXECUTIVE, role.getMemberType());
+                assertEquals(Set.of(ProjectMemberPermission.VIEW_PROJECT), role.getPermissions());
+        }
+
+        @Test
+        void changeMemberRoleBetweenAdminAndEditorLeavesVersionRolesAlone() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                ProjectMember member = memberOf(userNamed("john@enerscope.org"), project, ProjectMemberType.EDITOR);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                projectService.changeMemberRole(
+                                projectId, memberId, new UpdateProjectMemberRoleRequestDTO(ProjectMemberType.ADMIN));
+
+                verifyNoInteractions(versionMemberRepository);
+        }
+
+        @Test
+        void changeMemberRoleRefusesToTurnTheLastAdminIntoAnExecutive() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                ProjectMember member = memberOf(userNamed("jane@enerscope.org"), project, ProjectMemberType.ADMIN);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+                when(projectMemberRepository.countAdminsByProject(projectId)).thenReturn(1L);
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.changeMemberRole(
+                                projectId, memberId, new UpdateProjectMemberRoleRequestDTO(ProjectMemberType.EXECUTIVE)));
+
+                verify(projectMemberRepository, never()).save(any());
+                verify(versionMemberRepository, never()).deleteAll(any());
+                assertEquals(ProjectMemberType.ADMIN, member.getRoles().iterator().next().getMemberType());
+        }
+
+        @Test
         void addMemberRejectsUnknownProject() {
                 UUID projectId = UUID.randomUUID();
                 UUID userId = UUID.randomUUID();

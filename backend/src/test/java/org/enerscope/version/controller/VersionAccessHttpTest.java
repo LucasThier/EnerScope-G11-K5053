@@ -88,6 +88,22 @@ class VersionAccessHttpTest {
     }
 
     @Test
+    void projectExecutiveOnlyViews() throws Exception {
+        access(fixture.projectMember(ProjectMemberType.EXECUTIVE)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.projectRole").value("EXECUTIVE"))
+                .andExpect(jsonPath("$.data.canManageProject").value(false))
+                .andExpect(jsonPath("$.data.canCreateRootVersions").value(false))
+                .andExpect(jsonPath("$.data.versions[0].source").value("PROJECT_FALLBACK"))
+                .andExpect(jsonPath("$.data.versions[0].effectiveRole").value("EXECUTIVE"))
+                .andExpect(jsonPath("$.data.versions[0].canView").value(true))
+                .andExpect(jsonPath("$.data.versions[0].canEdit").value(false))
+                .andExpect(jsonPath("$.data.versions[0].canEditConnections").value(false))
+                .andExpect(jsonPath("$.data.versions[0].canSimulate").value(false))
+                .andExpect(jsonPath("$.data.versions[0].canManage").value(false))
+                .andExpect(jsonPath("$.data.versions[0].canManageRoles").value(false));
+    }
+
+    @Test
     void versionSimulatorCanOnlyViewAndSimulate() throws Exception {
         access(fixture.projectEditorWithVersionRoles(VersionMemberType.SIMULATOR)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.canCreateRootVersions").value(false))

@@ -76,6 +76,36 @@ class VersionAccessServiceTest {
         caller = User.fromJwtClaims(UUID.randomUUID(), "jane@enerscope.org", "Jane", "Doe", PlatformRole.USER);
     }
 
+    @Test
+    void executiveSeesEveryVersionButCanDoNothingOnAny() {
+        authenticate(caller);
+        joinProject(ProjectMemberType.EXECUTIVE);
+        when(versionMemberRepository.findByUserIdAndVersionIdIn(eq(caller.getId()), any())).thenReturn(List.of());
+
+        ProjectAccessDTO access = service.resolveForProject(projectId);
+
+        assertEquals(ProjectMemberType.EXECUTIVE, access.projectRole());
+        assertEquals(List.of(ProjectMemberPermission.VIEW_PROJECT), access.projectPermissions());
+        assertFalse(access.canManageProject());
+        assertFalse(access.canCreateRootVersions());
+        assertEquals(2, access.versions().size());
+        for (VersionAccessDTO v : access.versions()) {
+            assertEquals(VersionAccessSource.PROJECT_FALLBACK, v.source());
+            assertEquals("EXECUTIVE", v.effectiveRole());
+            assertTrue(v.roles().isEmpty());
+            assertTrue(v.editableVerticals().isEmpty());
+            assertTrue(v.canView());
+            assertFalse(v.canEdit());
+            assertFalse(v.canEditConnections());
+            assertFalse(v.canSimulate());
+            assertFalse(v.canManage());
+            assertFalse(v.canManageRoles());
+            assertTrue(v.canViewEconomicResults());
+            assertTrue(v.canViewEconomicConfiguration());
+            assertFalse(v.canEditEconomicConfiguration());
+        }
+    }
+
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();

@@ -38,6 +38,8 @@ public class ProjectMember extends BaseEntity {
                     ProjectMemberPermission.VIEW_PROJECT),
             ProjectMemberType.EDITOR, EnumSet.of(
                     ProjectMemberPermission.EDIT_PROJECT,
+                    ProjectMemberPermission.VIEW_PROJECT),
+            ProjectMemberType.EXECUTIVE, EnumSet.of(
                     ProjectMemberPermission.VIEW_PROJECT));
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

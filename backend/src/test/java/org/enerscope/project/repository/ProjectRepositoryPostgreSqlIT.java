@@ -3,6 +3,11 @@ package org.enerscope.project.repository;
 import jakarta.persistence.EntityManager;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.project.model.Project;
+import org.enerscope.project.model.ProjectMember;
+import org.enerscope.project.model.ProjectMemberRole;
+import org.enerscope.project.model.enums.ProjectMemberType;
+import org.enerscope.user.model.User;
+import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.version.model.Version;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +18,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -100,6 +106,25 @@ class ProjectRepositoryPostgreSqlIT {
         assertTrue(repository.findIdByVersionId(retired.getId()).isEmpty());
         assertTrue(repository.findIdByVersionId(inRetiredProject.getId()).isEmpty());
         assertTrue(repository.findIdByVersionId(detached.getId()).isEmpty());
+    }
+
+    @Test
+    void summariesReportExecutiveAsMyRoleOnPostgreSql() {
+        User executive = new User("exec-" + UUID.randomUUID() + "@example.com", "Exe", "Cutive", "hashed", PlatformRole.USER);
+        em.persist(executive);
+        Project managed = em.find(Project.class, project.getId());
+        ProjectMember member = new ProjectMember(executive, managed);
+        member.addRole(new ProjectMemberRole("EXECUTIVE", ProjectMemberType.EXECUTIVE,
+                ProjectMember.defaultPermissionsFor(ProjectMemberType.EXECUTIVE)));
+        managed.addMember(member);
+        em.persist(member);
+        em.flush();
+        em.clear();
+
+        List<org.enerscope.project.dto.ProjectSummaryDTO> mine = repository.findSummariesForMember(executive.getId(), null);
+
+        assertEquals(1, mine.size());
+        assertEquals(ProjectMemberType.EXECUTIVE, mine.get(0).myRole());
     }
 
     private Version version(String name) {

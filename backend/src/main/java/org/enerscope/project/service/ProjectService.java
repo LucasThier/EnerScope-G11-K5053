@@ -264,6 +264,16 @@ public class ProjectService {
                 if (newType != ProjectMemberType.ADMIN) {
                         assertNotLastAdmin(projectId, member);
                 }
+                if (newType == ProjectMemberType.EXECUTIVE) {
+                        // An EXECUTIVE is read-only project-wide and holds no version roles.
+                        List<VersionMember> versionMemberships = versionMemberRepository
+                                        .findByUserIdAndProjectIdIn(member.getUser().getId(), List.of(projectId));
+                        if (!versionMemberships.isEmpty()) {
+                                versionMemberRepository.deleteAll(versionMemberships);
+                                logger.info("Dropped {} version memberships of user {} in project {} (now EXECUTIVE)",
+                                                versionMemberships.size(), member.getUser().getMail(), projectId);
+                        }
+                }
                 member.changeRole(newType, ProjectMember.defaultPermissionsFor(newType));
                 ProjectMember saved = projectMemberRepository.save(member);
                 logger.info("Changed the role of user {} in project {} to {}",

@@ -8,6 +8,7 @@ import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
+import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.project.repository.ProjectRepository;
 import org.enerscope.project.service.ProjectAccessGuard;
@@ -550,6 +551,68 @@ class VersionMemberServiceTest {
         List<VersionMemberCandidateDTO> candidates = service.listMemberCandidates(versionId, null);
 
         assertEquals(List.of("jane@enerscope.org"), candidates.stream().map(VersionMemberCandidateDTO::mail).toList());
+    }
+
+    @Test
+    void addRoleAnswers400ForAnExecutiveOfTheProjectForEveryRoleType() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Version version = new Version("v1", null, null, null, null, null);
+        User user = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+        ProjectMember executive = activeProjectMember(user);
+        executive.addRole(new org.enerscope.project.model.ProjectMemberRole("EXECUTIVE",
+                ProjectMemberType.EXECUTIVE, ProjectMember.defaultPermissionsFor(ProjectMemberType.EXECUTIVE)));
+        authenticateAs(admin());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, userId)).thenReturn(Optional.of(executive));
+
+        for (AddVersionMemberRoleRequestDTO request : List.of(
+                new AddVersionMemberRoleRequestDTO(userId, VersionMemberType.SIMULATOR, null),
+                new AddVersionMemberRoleRequestDTO(userId, VersionMemberType.ADMIN, null),
+                new AddVersionMemberRoleRequestDTO(userId, VersionMemberType.EDITOR, VerticalEnum.EXTRACTION))) {
+            IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                    () -> service.addRole(versionId, request));
+            assertEquals("An EXECUTIVE of the project cannot hold version roles", error.getMessage());
+        }
+        verify(versionMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void changeRoleAnswers400ForAnExecutiveOfTheProject() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        VersionMember member = memberWithRole(VersionMemberType.SIMULATOR, null, roleId);
+        ProjectMember executive = activeProjectMember(member.getUser());
+        executive.addRole(new org.enerscope.project.model.ProjectMemberRole("EXECUTIVE",
+                ProjectMemberType.EXECUTIVE, ProjectMember.defaultPermissionsFor(ProjectMemberType.EXECUTIVE)));
+        authenticateAs(admin());
+        when(versionRepository.existsById(versionId)).thenReturn(true);
+        when(versionMemberRepository.findByIdAndVersionId(memberId, versionId)).thenReturn(Optional.of(member));
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, member.getUser().getId()))
+                .thenReturn(Optional.of(executive));
+
+        assertThrows(IllegalArgumentException.class, () -> service.changeRole(
+                versionId, memberId, roleId, new ChangeVersionMemberRoleRequestDTO(VersionMemberType.ADMIN, null)));
+        assertEquals(VersionMemberType.SIMULATOR, onlyRole(member).getMemberType());
+        verify(versionMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void changeRoleKeepsAnUnknownMemberAt404BeforeTheExecutiveCheck() {
+        UUID versionId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        authenticateAs(admin());
+        when(versionRepository.existsById(versionId)).thenReturn(true);
+        when(versionMemberRepository.findByIdAndVersionId(memberId, versionId)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> service.changeRole(versionId, memberId, UUID.randomUUID(),
+                new ChangeVersionMemberRoleRequestDTO(VersionMemberType.ADMIN, null)));
     }
 
     @Test
