@@ -11,6 +11,8 @@ interface MapViewProps {
   onSelectNode: (nodeId: string | null) => void;
   /** Persist a node's real-world position (marker drag or placing an unplaced node). */
   onMoveGeo: (nodeId: string, longitude: number, latitude: number) => void;
+  /** Markers can be dragged only with edit permission. Deny by default. */
+  canEdit?: boolean;
 }
 
 const CONNECTIONS_SOURCE = 'diagram-connections';
@@ -68,7 +70,14 @@ const INITIAL_ZOOM = 4;
  * reposition a node; clicking the map places the currently selected node when it
  * has no position yet; connections are drawn as lines between placed endpoints.
  */
-export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onMoveGeo }: MapViewProps) {
+export function MapView({
+  diagram,
+  projection,
+  selectedNodeId,
+  onSelectNode,
+  onMoveGeo,
+  canEdit = false,
+}: MapViewProps) {
   const { resolved } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -82,11 +91,13 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
   const onMoveGeoRef = useRef(onMoveGeo);
   const onSelectRef = useRef(onSelectNode);
   const diagramRef = useRef(diagram);
+  const canEditRef = useRef(canEdit);
   themeRef.current = resolved;
   selectedRef.current = selectedNodeId;
   onMoveGeoRef.current = onMoveGeo;
   onSelectRef.current = onSelectNode;
   diagramRef.current = diagram;
+  canEditRef.current = canEdit;
 
   // Initialise the map once.
   useEffect(() => {
@@ -122,6 +133,7 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
 
     // Click on empty map: place the selected node if it has no position yet.
     map.on('click', (e: maplibregl.MapMouseEvent) => {
+      if (!canEditRef.current) return;
       const selectedId = selectedRef.current;
       if (!selectedId) return;
       const node = diagramRef.current.nodes.find((n) => n.id === selectedId);
@@ -157,7 +169,7 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
     if (!loadedRef.current) return;
     syncMarkers();
     syncConnections();
-  }, [diagram, selectedNodeId]);
+  }, [diagram, selectedNodeId, canEdit]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -183,7 +195,7 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
       let marker = markers.get(node.id);
       const color = verticalColor(themeRef.current, node.type.vertical);
       if (!marker) {
-        marker = new maplibregl.Marker({ draggable: true, color });
+        marker = new maplibregl.Marker({ draggable: canEditRef.current, color });
         marker.setLngLat([geo.longitude, geo.latitude]).addTo(map);
         marker.getElement().style.cursor = 'pointer';
         marker.getElement().addEventListener('click', (ev: MouseEvent) => {
@@ -191,6 +203,7 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
           onSelectRef.current(node.id);
         });
         marker.on('dragend', () => {
+          if (!canEditRef.current) return;
           const ll = marker!.getLngLat();
           onMoveGeoRef.current(node.id, ll.lng, ll.lat);
         });
@@ -199,6 +212,7 @@ export function MapView({ diagram, projection, selectedNodeId, onSelectNode, onM
         marker.setLngLat([geo.longitude, geo.latitude]);
         marker.getElement().style.color = color;
       }
+      marker.setDraggable(canEditRef.current);
       const el = marker.getElement();
       el.style.outline =
         node.id === selectedRef.current

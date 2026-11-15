@@ -23,10 +23,3 @@ export function canManageProject(
 ): boolean {
   return platformAdmin || role === 'ADMIN';
 }
-
-export function canEditProjectByRole(
-  role: ProjectMemberType | null | undefined,
-  platformAdmin: boolean,
-): boolean {
-  return platformAdmin || role === 'ADMIN' || role === 'EDITOR';
-}

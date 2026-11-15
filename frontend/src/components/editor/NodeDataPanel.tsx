@@ -16,6 +16,10 @@ interface NodeDataPanelProps {
   onStartConnect: (nodeId: string) => void;
   onRestore: (nodeId: string) => void;
   onDelete: (nodeId: string) => void;
+  /** Rename, edit data, delete and restore. Deny by default. */
+  canEdit?: boolean;
+  /** Start a connection from this node. Deny by default. */
+  canEditConnections?: boolean;
 }
 
 function fmt(n: number | null | undefined): string {
@@ -32,6 +36,8 @@ export function NodeDataPanel({
   onStartConnect,
   onRestore,
   onDelete,
+  canEdit = false,
+  canEditConnections = false,
 }: NodeDataPanelProps) {
   const [name, setName] = useState('');
   const [state, setState] = useState<NodeState>('PROPOSED');
@@ -50,7 +56,7 @@ export function NodeDataPanel({
     );
   }
 
-  const dirty = name !== node.name || state !== node.state;
+  const dirty = canEdit && name !== node.name || state !== node.state;
   const removed = node.state === 'REMOVED';
   // REMOVED is not a manual choice, so it only appears while the node is removed
   // (so the current value renders) and never as a fresh option to pick.
@@ -70,12 +76,13 @@ export function NodeDataPanel({
         <h3 className="text-sm font-semibold text-ink-700">Datos del nodo</h3>
       </div>
 
-      <TextField label="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
+      <TextField label="Nombre" value={name} disabled={!canEdit} onChange={(e) => setName(e.target.value)} />
 
       <SelectField
         id="node-state"
         label="Estado"
         value={state}
+        disabled={!canEdit}
         onChange={(e) => setState(e.target.value as NodeState)}
       >
         {stateOptions.map((s) => (
@@ -90,12 +97,21 @@ export function NodeDataPanel({
           variant="primary"
           loading={busy}
           disabled={!dirty || !name.trim()}
-          onClick={() => onUpdateBasics(node.id, { name: name.trim(), state })}
+          onClick={() => {
+            if (canEdit) onUpdateBasics(node.id, { name: name.trim(), state });
+          }}
           className="flex-1"
         >
           Guardar
         </Button>
-        <Button variant="secondary" onClick={() => onEditData(node.id)} className="flex-1">
+        <Button
+          variant="secondary"
+          disabled={!canEdit}
+          onClick={() => {
+            if (canEdit) onEditData(node.id);
+          }}
+          className="flex-1"
+        >
           Editar
         </Button>
       </div>
@@ -141,14 +157,23 @@ export function NodeDataPanel({
         </div>
       )}
 
-      <Button variant="secondary" onClick={() => onStartConnect(node.id)}>
+      <Button
+        variant="secondary"
+        disabled={!canEditConnections}
+        onClick={() => {
+          if (canEditConnections) onStartConnect(node.id);
+        }}
+      >
         Conectar con otro nodo…
       </Button>
 
       {removed ? (
         <Button
           variant="secondary"
-          onClick={() => onRestore(node.id)}
+          disabled={!canEdit}
+          onClick={() => {
+            if (canEdit) onRestore(node.id);
+          }}
           className="border-brand-300 text-brand-700 hover:bg-brand-50"
         >
           Restaurar nodo
@@ -157,7 +182,10 @@ export function NodeDataPanel({
         <Button
           variant="ghost"
           className="text-danger-600! hover:bg-danger-50"
-          onClick={() => onDelete(node.id)}
+          disabled={!canEdit}
+          onClick={() => {
+            if (canEdit) onDelete(node.id);
+          }}
         >
           Eliminar nodo
         </Button>
