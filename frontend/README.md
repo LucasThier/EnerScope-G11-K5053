@@ -42,7 +42,7 @@ npm run preview  # preview the production build
 npm run lint     # eslint
 ```
 
-`npm test` runs on the built-in `node:test` runner (157 tests in 24 files on
+`npm test` runs on the built-in `node:test` runner (220 tests in 32 files on
 2026-11-15, all passing). The per-file catalog is in
 [docs/testing.md](../docs/testing.md) → *Frontend unit tests*.
 
@@ -160,6 +160,36 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   can delete or merge the version but sees a notice instead of the assignment
   form. The backend enforces the same rule; the frontend only hides what would
   be refused.
+- **Editor gates (`utils/editorPermissions.ts`).** `editorGates(access, versionId,
+  failed, loading)` turns `/access` into what the editor may do: `canEdit` (create,
+  move, rename, edit and delete **nodes**), `canEditConnections` (create and delete
+  **connections**), `canCreateRoot`, `canBranchFrom(parentId)` and `readOnly`.
+  **Deny by default:** no access data, a failed load or a load in flight give
+  `false` everywhere. `EditorPage` also checks `canEdit` / `canEditConnections`
+  **inside each handler** (`if (!canEdit) return;`), not only by hiding buttons, so
+  a shortcut, a drag or a stale panel cannot reach the API. The role-based check
+  `canEditProjectByRole` was **removed** (a test fails if it comes back): the
+  backend flags are the only source.
+- **`ProjectAccessProvider`** (mounted in `AppLayout`) keeps the
+  `/projects/{id}/access` answer of the project being viewed so navigating between
+  screens does not refetch it. It never fetches on its own: screens ask through
+  `useGuardedProjectAccess(projectId)` (`ensure` loads unless the answer is
+  cached, fresh or in flight; `retry` always refetches). Shared by **Editor,
+  Versionado, Configuración del escenario, Escenarios and Economía**. The state
+  machine is in `utils/projectAccessState.ts`.
+  - **Where it invalidates:** at the API layer, not in the screens.
+    `api/projects.ts`, `api/versionAccess.ts` and `api/organizations.ts` wrap the
+    calls that change who can do what (roles, members, versions, deactivations)
+    in `invalidatesAccess(...)`, which emits through `api/accessEvents.ts` once the
+    request succeeds. The provider listens and drops the cache of that project
+    (or of all when no id is given); mounted screens then refetch.
+  - **Equipo del proyecto** does **not** use the cache: `ProjectTeamPage` has its
+    own hook, `useProjectAccess(projectId, { withSummaries })`, which also loads
+    version summaries and reloads after each change made on that screen.
+  - **Limit:** invalidation only follows changes made **in this tab**. A change
+    from another tab, another browser or another person is not seen until the
+    cache is refetched (a retry, a project switch or a reload); the backend still
+    refuses what the user may no longer do.
 - **Characterization tests and the golden.** `tests/permissionsCharacterization.test.mjs`
   pins the sidebar for every combination of platform role, project role,
   organization membership, project present and loading against
@@ -184,6 +214,13 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   selected version, its members and the form that assigns a role (Administrador
   de versión, Editor of one vertical, Simulador). Only the project administrator
   and the platform administrator can assign or revoke roles.
+- **Detalle de usuario** (`/admin/users`, `UserDetailModal`) offers the role
+  change and the deactivation (or reactivation) from inside the detail, reusing
+  `ChangeRoleModal` and `DeactivateUserDialog` — the same ones as the list. Which
+  actions appear is decided by `userDetailActions` (`utils/userDetail.ts`). After
+  an action the page bumps `refreshToken` so the detail is read again; a failed
+  load or a failed reactivation shows the error inside the detail with
+  *Reintentar*.
 - **Versionado** (`/projects/:projectId/versions`). **Nueva versión** from an
   existing version is offered to anyone who can edit the project; the **first
   (root) version** of a project only to the project administrator. An editor on
@@ -199,7 +236,18 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   *Crear copia simple* needs edit permission on every vertical of the scenario
   (`editableVerticals`) and otherwise shows which verticals are missing.
 - A 403 for a user cached as platform administrator re-reads the user (at most
-  once every 5 s); if the session cannot be renewed the app returns to the login.
+  once every 5 s, `api/authEvents.ts`); if the session cannot be renewed the app
+  returns to the login.
+- **Error messages** from the backend are translated in `api/errors.ts`, including
+  those of branching, merging, per-vertical edits and lineage (*No tenés permiso
+  para editar esta versión*, *No se pueden relacionar versiones de proyectos
+  distintos*, *El diagrama tiene un ciclo…*). A message that is not in the table
+  is shown as the backend sent it, in English.
+- Access flags come from `GET /projects/:id/access`. The API field
+  `canCreateVersions` was renamed `canCreateRootVersions` (true only for the
+  project and platform administrators); the `ProjectAccess` type carries it, but
+  no screen reads it — *Nueva versión* decides the root case from
+  `canCreateRoot`, fed by the project-administrator check.
 - **Cadena de valor** (`/editor`) is in Spanish: screen copy and every node,
   field, state and vertical label live in `components/editor/nodeCatalog.ts`
   (Pozo, Red de recolección, Planta de tratamiento, Gasoducto, Planta
@@ -224,8 +272,10 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   - The **credentials** (`mail,password`) of what was created exist only in the
     response: after a cut or a cancel they can still be downloaded, and closing
     the dialog without downloading them asks for confirmation.
-  - The backend refuses a file of more than 500 rows (`400`), so the limit is
-    enforced on both sides.
+  - The backend refuses a file of more than 500 rows (`400`) and one above 1 MB
+    (`413`), so both limits are enforced on both sides. A `413` shows *El archivo
+    supera el tamaño máximo de 1 MB.* (the server answers it before checking
+    permissions).
 
 ## Conventions
 
