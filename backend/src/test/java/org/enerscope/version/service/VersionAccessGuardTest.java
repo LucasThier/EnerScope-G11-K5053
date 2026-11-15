@@ -740,6 +740,91 @@ class VersionAccessGuardTest {
         verifyNoInteractions(projectRepository, projectMemberRepository);
     }
 
+    @Test
+    void assertCanManageVersionRolesAllowsAPlatformAdminWithoutAnyLookup() {
+        authenticateAs(platformAdmin());
+
+        assertDoesNotThrow(() -> guard.assertCanManageVersionRoles(UUID.randomUUID()));
+
+        verifyNoInteractions(projectRepository, projectMemberRepository, versionMemberRepository);
+    }
+
+    @Test
+    void assertCanManageVersionRolesAllowsAProjectAdmin() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("projectadmin@enerscope.org");
+        authenticateAs(caller);
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(memberWith(ProjectMemberType.ADMIN)));
+
+        assertDoesNotThrow(() -> guard.assertCanManageVersionRoles(versionId));
+
+        verifyNoInteractions(versionMemberRepository);
+    }
+
+    @Test
+    void assertCanManageVersionRolesDeniesAVersionAdminWhoIsOnlyAProjectEditor() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("versionadmin@enerscope.org");
+        authenticateAs(caller);
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(memberWith(ProjectMemberType.EDITOR)));
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanManageVersionRoles(versionId));
+
+        verifyNoInteractions(versionMemberRepository);
+    }
+
+    @Test
+    void assertCanManageVersionRolesDeniesAProjectEditor() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("editor@enerscope.org");
+        authenticateAs(caller);
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                .thenReturn(Optional.of(memberWith(ProjectMemberType.EDITOR)));
+
+        ForbiddenException error = assertThrows(ForbiddenException.class,
+                () -> guard.assertCanManageVersionRoles(versionId));
+
+        assertEquals("You are not allowed to manage the roles of this version", error.getMessage());
+    }
+
+    @Test
+    void assertCanManageVersionRolesDeniesAUserOutsideTheProject() {
+        UUID versionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        User caller = regularUser("outsider@enerscope.org");
+        authenticateAs(caller);
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.of(projectId));
+        when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.empty());
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanManageVersionRoles(versionId));
+    }
+
+    @Test
+    void assertCanManageVersionRolesRejectsUnauthenticated() {
+        assertThrows(UnauthorizedException.class, () -> guard.assertCanManageVersionRoles(UUID.randomUUID()));
+
+        verifyNoInteractions(projectRepository, projectMemberRepository, versionMemberRepository);
+    }
+
+    @Test
+    void assertCanManageVersionRolesDeniesAUnknownVersionWithoutLookingUpMemberships() {
+        UUID versionId = UUID.randomUUID();
+        authenticateAs(regularUser("probe@enerscope.org"));
+        when(projectRepository.findIdByVersionId(versionId)).thenReturn(Optional.empty());
+
+        assertThrows(ForbiddenException.class, () -> guard.assertCanManageVersionRoles(versionId));
+
+        verifyNoInteractions(projectMemberRepository, versionMemberRepository);
+    }
+
     private void projectAdminHolding(UUID versionId, VersionMember narrowRole) {
         UUID projectId = UUID.randomUUID();
         User caller = regularUser("projectadmin@enerscope.org");

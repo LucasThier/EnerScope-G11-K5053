@@ -12,6 +12,6 @@ public record ProjectAccessDTO(
         ProjectMemberType projectRole,
         List<ProjectMemberPermission> projectPermissions,
         boolean canManageProject,
-        boolean canCreateVersions,
+        boolean canCreateRootVersions,
         List<VersionAccessDTO> versions
 ) {}

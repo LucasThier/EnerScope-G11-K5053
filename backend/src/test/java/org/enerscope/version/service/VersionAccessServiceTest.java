@@ -93,7 +93,7 @@ class VersionAccessServiceTest {
         assertEquals(ProjectMemberType.EDITOR, access.projectRole());
         assertEquals(List.of(ProjectMemberPermission.EDIT_PROJECT, ProjectMemberPermission.VIEW_PROJECT), access.projectPermissions());
         assertFalse(access.canManageProject());
-        assertTrue(access.canCreateVersions());
+        assertFalse(access.canCreateRootVersions());
         assertFalse(access.platformAdmin());
 
         VersionAccessDTO simulator = access.versions().getFirst();
@@ -155,10 +155,23 @@ class VersionAccessServiceTest {
         ProjectAccessDTO access = service.resolveForProject(projectId);
 
         assertTrue(access.canManageProject());
+        assertTrue(access.canCreateRootVersions());
         assertTrue(access.versions().stream().allMatch(VersionAccessDTO::canManage));
         assertTrue(access.versions().stream().allMatch(VersionAccessDTO::canManageRoles));
         assertTrue(access.versions().stream().allMatch(v -> "ADMIN".equals(v.effectiveRole())));
         assertTrue(access.versions().stream().allMatch(v -> v.source() == VersionAccessSource.PROJECT_ADMIN));
+    }
+
+    @Test
+    void projectEditorWithoutVersionRolesCannotCreateRootVersionsButStillEditsThemAll() {
+        authenticate(caller);
+        joinProject(ProjectMemberType.EDITOR);
+
+        ProjectAccessDTO access = service.resolveForProject(projectId);
+
+        assertFalse(access.canManageProject());
+        assertFalse(access.canCreateRootVersions());
+        assertTrue(access.versions().stream().allMatch(VersionAccessDTO::canEdit));
     }
 
     @Test
@@ -234,7 +247,7 @@ class VersionAccessServiceTest {
         assertTrue(access.platformAdmin());
         assertNull(access.projectRole());
         assertTrue(access.canManageProject());
-        assertTrue(access.canCreateVersions());
+        assertTrue(access.canCreateRootVersions());
         assertTrue(access.versions().stream().allMatch(v -> v.source() == VersionAccessSource.PLATFORM_ADMIN
                 && v.canManage() && v.canManageRoles() && v.canEdit() && v.canSimulate() && "ADMIN".equals(v.effectiveRole())));
         verifyNoInteractions(versionMemberRepository);

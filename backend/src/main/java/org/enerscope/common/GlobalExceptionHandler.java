@@ -13,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.fasterxml.jackson.databind.JsonMappingException;
@@ -124,6 +125,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ScenarioConflictException.class)
     public ResponseEntity<ApiResponse<Void>> handleScenarioConflict(ScenarioConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        logger.warn("Rejected an upload above the configured size limit");
+        return ResponseEntity
+                .status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiResponse.error("The uploaded file exceeds the maximum size of 1 MB"));
     }
 
     @ExceptionHandler(Exception.class)

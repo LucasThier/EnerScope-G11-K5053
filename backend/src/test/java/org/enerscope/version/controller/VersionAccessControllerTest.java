@@ -67,13 +67,13 @@ class VersionAccessControllerTest {
                 true, true, true, true, false, false, true, true, true);
         when(service.resolveForProject(projectId)).thenReturn(new ProjectAccessDTO(projectId, false,
                 ProjectMemberType.EDITOR, List.of(ProjectMemberPermission.EDIT_PROJECT, ProjectMemberPermission.VIEW_PROJECT),
-                false, true, List.of(version)));
+                false, false, List.of(version)));
 
         mvc.perform(get(path).header("Authorization", "Bearer test-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.projectRole").value("EDITOR"))
-                .andExpect(jsonPath("$.data.canCreateVersions").value(true))
+                .andExpect(jsonPath("$.data.canCreateRootVersions").value(false))
                 .andExpect(jsonPath("$.data.versions[0].versionId").value(versionId.toString()))
                 .andExpect(jsonPath("$.data.versions[0].source").value("VERSION_ROLES"))
                 .andExpect(jsonPath("$.data.versions[0].roles[0].type").value("EDITOR"))

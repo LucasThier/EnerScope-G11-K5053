@@ -89,9 +89,10 @@ public class VersionAccessGuard {
      * re-parenting it, moving a node — anything not scoped to one
      * vertical; see {@link #assertCanEditNodeVertical} for that). A caller
      * holding a version role needs {@code EDIT_VERSION} *from that role* —
-     * a {@code SIMULATOR} role is not enough, and nothing falls back to the
-     * project permission for them. Only a caller with no version role at
-     * all falls back to {@code assertCanEditProject} on the owning project.
+     * a {@code SIMULATOR} role is not enough, and the project permission does
+     * not stand in for it, except that an ADMIN of the owning project always
+     * passes. Only a caller with no version role at all falls back to
+     * {@code assertCanEditProject} on the owning project.
      */
     public void assertCanEditVersion(UUID versionId) {
         User caller = AuthUtil.requireSession().getUser();
@@ -110,10 +111,10 @@ public class VersionAccessGuard {
      * Ensures the caller may administer the version itself — deleting it,
      * merging a subversion into it, or resolving its conflicts. A caller
      * holding a version role needs {@code MANAGE_VERSION} from it (an
-     * {@code ADMIN} role on this version specifically); only a caller with
-     * no version role falls back to {@code MANAGE_PROJECT} on the owning
-     * project, which is how a project {@code ADMIN} ends up a version
-     * {@code ADMIN} too by default.
+     * {@code ADMIN} role on this version specifically), unless they are an
+     * ADMIN of the owning project, who passes whatever version roles they
+     * hold; only a caller with no version role falls back to
+     * {@code MANAGE_PROJECT} on the owning project.
      */
     public void assertCanManageVersion(UUID versionId) {
         User caller = AuthUtil.requireSession().getUser();
@@ -181,8 +182,8 @@ public class VersionAccessGuard {
      * nodes regardless of that scope (not tied to one specialty, like
      * connections — see {@link #assertCanEditConnection}); anything else
      * (e.g. a bare {@code SIMULATOR} role, or an {@code EDITOR} for a
-     * different vertical) is refused outright — it does **not** fall back
-     * to the project permission. Only a caller with no version role at all
+     * different vertical) is refused, unless they are an ADMIN of the owning
+     * project, who always passes. Only a caller with no version role at all
      * falls back to {@code assertCanEditProject} on the owning project.
      */
     public void assertCanEditNodeVertical(UUID versionId, VerticalEnum vertical) {
@@ -226,9 +227,9 @@ public class VersionAccessGuard {
      * to one vertical — they link nodes across verticals — so a version
      * role needs {@code EDIT_VERSION} regardless of which vertical its
      * {@code EDITOR} role, if any, is scoped to; a bare {@code SIMULATOR}
-     * role is refused outright, with no fallback. Only a caller with no
-     * version role at all falls back to {@code assertCanEditProject} on the
-     * owning project.
+     * role is refused, unless the caller is an ADMIN of the owning project,
+     * who always passes. Only a caller with no version role at all falls
+     * back to {@code assertCanEditProject} on the owning project.
      */
     public void assertCanEditConnection(UUID versionId) {
         User caller = AuthUtil.requireSession().getUser();
@@ -246,9 +247,10 @@ public class VersionAccessGuard {
     /**
      * Ensures the caller may run the simulation for this version. A caller
      * holding a version role needs {@code SIMULATE_VERSION} from it
-     * ({@code ADMIN} or {@code SIMULATOR}) or the {@code EDITOR} role; only
-     * a caller with no version role falls back to
-     * {@code assertCanEditProject} on the owning project.
+     * ({@code ADMIN} or {@code SIMULATOR}) or the {@code EDITOR} role, unless
+     * they are an ADMIN of the owning project, who always passes; only a
+     * caller with no version role falls back to {@code assertCanEditProject}
+     * on the owning project.
      */
     public void assertCanSimulateVersion(UUID versionId) {
         User caller = AuthUtil.requireSession().getUser();

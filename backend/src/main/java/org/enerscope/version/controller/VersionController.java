@@ -69,7 +69,9 @@ public class VersionController {
     }
 
     @DeleteMapping(value = "/{id}")
-    @Operation(summary = "Delete a version", description = "Delete an existing Version by its ID.")
+    @Operation(summary = "Delete a version",
+            description = "Deletes the version and every version below it. The caller must be able to manage the "
+                    + "version and each descendant; if any is refused, nothing is deleted.")
     public ResponseEntity<ApiResponse<Void>> deleteVersion(
             @PathVariable UUID id) {
         versionService.deleteVersion(id);

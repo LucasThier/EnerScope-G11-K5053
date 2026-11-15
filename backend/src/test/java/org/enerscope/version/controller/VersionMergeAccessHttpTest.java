@@ -345,6 +345,159 @@ class VersionMergeAccessHttpTest {
                 .andExpect(jsonPath("$.data[0].mergedDescription").value("LNG_CAMER \"Merged name\""));
     }
 
+    @ParameterizedTest
+    @EnumSource(VerticalEnum.class)
+    void adminOfTheSiblingRejectsAndKeepsItsOwnDataOfAnyVertical(VerticalEnum vertical) throws Exception {
+        User admin = fixture.projectEditorWithVersionRoles(VersionMemberType.ADMIN);
+        UUID parentNode = fixture.addNode(TYPE_OF.get(vertical));
+        UUID child = createChild();
+        String siblingName = childNodeName(child, identityOf(parentNode));
+        UUID conflict = conflictOnRenamedParentNode(parentNode, child);
+
+        resolve(admin, conflict, "REJECT").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.resolved").value(true));
+
+        assertEquals(siblingName, childNodeName(child, identityOf(parentNode)));
+        assertTrue(em.find(VersionConflict.class, conflict).isResolved());
+        assertTrue(em.find(Version.class, child).getNodeChanges().stream().anyMatch(change ->
+                change.getChangeType() == ChangeTypeEnum.EDIT
+                        && identityOf(parentNode).equals(change.getResultNode().getIdentityId())));
+    }
+
+    @Test
+    void rejectingRecordsNoChangeWhenTheSiblingNeverHadTheNode() throws Exception {
+        User admin = fixture.projectEditorWithVersionRoles(VersionMemberType.ADMIN);
+        UUID parentNode = fixture.addNode(NodeTypeEnum.WELL);
+        UUID child = createChild();
+        BaseNode inChild = em.find(Version.class, child).getNodeSnapshot().stream()
+                .filter(node -> identityOf(parentNode).equals(node.getIdentityId())).findFirst().orElseThrow();
+        em.find(Version.class, child).getNodeSnapshot().remove(inChild);
+        UUID conflict = conflictOnRenamedParentNode(parentNode, child);
+
+        resolve(admin, conflict, "REJECT").andExpect(status().isOk());
+
+        assertTrue(em.find(Version.class, child).getNodeChanges().stream().anyMatch(change ->
+                change.getChangeType() == ChangeTypeEnum.DELETE
+                        && identityOf(parentNode).equals(change.getChangedNode().getIdentityId())));
+    }
+
+    @Test
+    void editorOfTheNodeVerticalCannotRejectAndNothingIsRecorded() throws Exception {
+        User editor = fixture.versionEditorOf(VerticalEnum.EXPORT);
+        UUID parentNode = fixture.addNode(NodeTypeEnum.LNG_CAMER);
+        UUID child = createChild();
+        UUID conflict = conflictOnRenamedParentNode(parentNode, child);
+
+        expectForbidden(resolve(editor, conflict, "REJECT"), MANAGE_DENIED);
+
+        assertTrue(em.find(Version.class, child).getNodeChanges().isEmpty());
+        assertFalse(em.find(VersionConflict.class, conflict).isResolved());
+    }
+
+    @Test
+    void adminOfTheSiblingWithoutEditPermissionCannotRejectANodeConflict() throws Exception {
+        UUID parentNode = fixture.addNode(NodeTypeEnum.PIPELINE);
+        UUID child = createChild();
+        UUID conflict = conflictOnRenamedParentNode(parentNode, child);
+        User narrowAdmin = fixture.projectMember(ProjectMemberType.EDITOR);
+        fixture.grantVersionRole(narrowAdmin, em.find(Version.class, child), VersionMemberType.ADMIN, null,
+                MANAGE_WITHOUT_EDIT);
+
+        expectForbidden(resolve(narrowAdmin, conflict, "REJECT"), VERTICAL_DENIED);
+
+        assertTrue(em.find(Version.class, child).getNodeChanges().isEmpty());
+        assertFalse(em.find(VersionConflict.class, conflict).isResolved());
+    }
+
+    @Test
+    void rejectingAnUnknownConflictAnswers404() throws Exception {
+        resolve(platformAdmin, UUID.randomUUID(), "REJECT").andExpect(status().isNotFound());
+    }
+
+    @Test
+    void anUnknownDecisionAnswers400() throws Exception {
+        UUID parentNode = fixture.addNode(NodeTypeEnum.WELL);
+        UUID conflict = conflictOnRenamedParentNode(parentNode, createChild());
+
+        resolve(platformAdmin, conflict, "MAYBE").andExpect(status().isBadRequest());
+
+        assertFalse(em.find(VersionConflict.class, conflict).isResolved());
+    }
+
+    @Test
+    void aChildHangingFromAVersionOfAnotherProjectCannotRejectAndNothingIsRecorded() throws Exception {
+        Project foreign = fixture.foreignProject();
+        Version foreignParent = foreign.getVersions().getFirst();
+        BaseNode foreignNode = foreignParent.getNodeSnapshot().getFirst();
+        Version child = seededChild(foreignParent, fixture.project(), sameIdentityAs(foreignNode), List.of());
+        VersionConflict conflict = new VersionConflict(foreignParent, foreignParent, child, ConflictEntityType.NODE,
+                foreignNode.getIdentityId());
+        em.persist(conflict);
+        em.flush();
+        User attacker = fixture.projectMember(ProjectMemberType.ADMIN);
+        User both = fixture.projectMember(ProjectMemberType.ADMIN);
+        fixture.joinProject(both, foreign, ProjectMemberType.ADMIN);
+
+        resolve(attacker, conflict.getId(), "REJECT").andExpect(status().isForbidden());
+        expectDifferentProjects(resolve(both, conflict.getId(), "REJECT"));
+        expectDifferentProjects(resolve(platformAdmin, conflict.getId(), "REJECT"));
+
+        assertTrue(em.find(Version.class, child.getId()).getNodeChanges().isEmpty());
+        assertFalse(em.find(VersionConflict.class, conflict.getId()).isResolved());
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"ACCEPT", "REJECT"})
+    void aConnectionConflictOfAChildHangingFromAnotherProjectCannotBeResolvedAndNothingIsCopied(String decision)
+            throws Exception {
+        Project foreign = fixture.foreignProject();
+        Version foreignParent = foreign.getVersions().getFirst();
+        UUID connectionIdentity = UUID.randomUUID();
+        NodeConnection foreignConnection = new NodeConnection(connectionIdentity,
+                foreignParent.getNodeSnapshot().getFirst().getId(), foreignParent.getNodeSnapshot().getFirst().getId());
+        em.persist(foreignConnection);
+        foreignParent.getConnectionSnapshot().add(foreignConnection);
+        Version child = seededChild(foreignParent, fixture.project(), sameIdentityAs(foreignParent.getNodeSnapshot().getFirst()),
+                List.of());
+        VersionConflict conflict = new VersionConflict(foreignParent, foreignParent, child,
+                ConflictEntityType.CONNECTION, connectionIdentity);
+        em.persist(conflict);
+        em.flush();
+        User attacker = fixture.projectMember(ProjectMemberType.ADMIN);
+        User both = fixture.projectMember(ProjectMemberType.ADMIN);
+        fixture.joinProject(both, foreign, ProjectMemberType.ADMIN);
+
+        resolve(attacker, conflict.getId(), decision).andExpect(status().isForbidden());
+        expectDifferentProjects(resolve(both, conflict.getId(), decision));
+        expectDifferentProjects(resolve(platformAdmin, conflict.getId(), decision));
+
+        assertTrue(em.find(Version.class, child.getId()).getConnectionSnapshot().isEmpty());
+        assertTrue(em.find(Version.class, child.getId()).getConnectionChanges().isEmpty());
+        assertEquals(List.of(connectionIdentity), em.find(Version.class, foreignParent.getId())
+                .getConnectionSnapshot().stream().map(NodeConnection::getIdentityId).toList());
+        assertFalse(em.find(VersionConflict.class, conflict.getId()).isResolved());
+    }
+
+    @Test
+    void listingAChildHidesConnectionConflictsRecordedAgainstAnotherProject() throws Exception {
+        Project foreign = fixture.foreignProject();
+        Version foreignParent = foreign.getVersions().getFirst();
+        Version smuggled = seededChild(foreignParent, fixture.project(),
+                sameIdentityAs(foreignParent.getNodeSnapshot().getFirst()), List.of());
+        VersionConflict hidden = new VersionConflict(foreignParent, foreignParent, smuggled,
+                ConflictEntityType.CONNECTION, UUID.randomUUID());
+        VersionConflict kept = new VersionConflict(fixture.version(), fixture.version(), smuggled,
+                ConflictEntityType.CONNECTION, UUID.randomUUID());
+        em.persist(hidden);
+        em.persist(kept);
+        em.flush();
+
+        perform(fixture.projectMember(ProjectMemberType.ADMIN), get("/version/" + smuggled.getId() + "/conflicts"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(kept.getId().toString()));
+    }
+
     private Version seededChild(Version parent, Project owner, BaseNode node, List<NodeChange> changes) {
         Version child = new Version("Seeded " + UUID.randomUUID(), parent, new ArrayList<>(List.of(node)),
                 new ArrayList<>(), new ArrayList<>(), new ArrayList<>(changes));
@@ -404,7 +557,11 @@ class VersionMergeAccessHttpTest {
     }
 
     private ResultActions resolve(User user, UUID conflict) throws Exception {
-        return perform(user, patch("/version/conflicts/" + conflict + "/resolve/ACCEPT"));
+        return resolve(user, conflict, "ACCEPT");
+    }
+
+    private ResultActions resolve(User user, UUID conflict, String decision) throws Exception {
+        return perform(user, patch("/version/conflicts/" + conflict + "/resolve/" + decision));
     }
 
     private UUID identityOf(UUID node) {

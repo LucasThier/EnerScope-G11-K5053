@@ -147,10 +147,10 @@ public class VersionMemberService {
 
     /**
      * Users who can be granted a version role: active members of the
-     * version's owning project. A version role only ever adds capabilities
-     * on top of project membership (see {@code ProjectAccessGuard}), so
-     * granting one to someone outside the project would be a permission with
-     * no project-level access underneath it to narrow.
+     * version's owning project. A version role narrows what a project member
+     * may do on the version rather than granting access to someone outside
+     * the project, so only people who already hold project membership are
+     * candidates.
      */
     @Transactional(readOnly = true)
     public List<VersionMemberCandidateDTO> listMemberCandidates(UUID versionId, String q) {

@@ -89,7 +89,7 @@ public class VersionAccessService {
                 projectRole,
                 projectPermissions,
                 platformAdmin || projectPermissions.contains(ProjectMemberPermission.MANAGE_PROJECT),
-                platformAdmin || projectPermissions.contains(ProjectMemberPermission.EDIT_PROJECT),
+                platformAdmin || projectPermissions.contains(ProjectMemberPermission.MANAGE_PROJECT),
                 versionAccess);
     }
 

@@ -31,6 +31,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -458,6 +459,22 @@ class OrganizationControllerTest {
                 .andExpect(jsonPath("$.data.total").value(2))
                 .andExpect(jsonPath("$.data.created").value(2))
                 .andExpect(jsonPath("$.data.credentialsCsv").exists());
+    }
+
+    @Test
+    void bulkRegisterUsersAnswers413WhenTheFileExceedsTheUploadLimit() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        when(bulkRegistrationService.register(eq(orgId), anyString()))
+                .thenThrow(new MaxUploadSizeExceededException(1024 * 1024));
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "users.csv", "text/csv", new byte[1024 * 1024 + 1]);
+
+        mockMvc.perform(multipart("/organizations/" + orgId + "/users/bulk")
+                        .file(file)
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("The uploaded file exceeds the maximum size of 1 MB"));
     }
 
     @Test

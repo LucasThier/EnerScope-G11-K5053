@@ -38,7 +38,7 @@ export interface ProjectAccess {
   projectRole: ProjectMemberType | null;
   projectPermissions: ProjectMemberPermission[];
   canManageProject: boolean;
-  canCreateVersions: boolean;
+  canCreateRootVersions: boolean;
   versions: VersionAccess[];
 }
 

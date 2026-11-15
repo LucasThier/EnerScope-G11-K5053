@@ -77,9 +77,10 @@ public class ProjectAccessGuard {
     }
 
     /**
-     * Ensures the caller may administer the project itself — today, changing who
-     * is on it. Requires {@link ProjectMemberPermission#MANAGE_PROJECT}, which
-     * only ADMIN members hold.
+     * Ensures the caller may administer the project itself — changing who is on
+     * it, creating its root versions, and governing the roles of its versions.
+     * Requires {@link ProjectMemberPermission#MANAGE_PROJECT}, which only ADMIN
+     * members hold; a platform ADMIN passes without it.
      */
     public void assertCanManageProject(UUID projectId) {
         assertHasPermission(projectId, ProjectMemberPermission.MANAGE_PROJECT, "manage");
