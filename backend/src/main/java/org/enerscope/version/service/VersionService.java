@@ -758,9 +758,10 @@ public class VersionService {
     private void alignDeclaredVertical(UUID versionId, NodeTypeDataDTO declared, NodeTypeEnum nodeType) {
         try {
             declared.setVertical(nodeType.checkedVertical(declared.getVertical()));
+            declared.setRole(nodeType.checkedRole(declared.getRole()));
         } catch (IllegalArgumentException e) {
-            logger.warn("Rejected node of type {} declared as vertical {} in version {}",
-                    nodeType, declared.getVertical(), versionId);
+            logger.warn("Rejected node of type {} declared as vertical {} / role {} in version {}",
+                    nodeType, declared.getVertical(), declared.getRole(), versionId);
             throw e;
         }
     }

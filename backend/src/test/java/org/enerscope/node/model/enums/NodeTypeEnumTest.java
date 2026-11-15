@@ -52,4 +52,35 @@ class NodeTypeEnumTest {
         assertEquals("Node vertical does not match its type: LNG_CAMER belongs to EXPORT, not EXTRACTION",
                 error.getMessage());
     }
+
+    @ParameterizedTest
+    @CsvSource({
+            "WELL, GENERATOR",
+            "GATHERING_NETWORK, INTERMEDIATE",
+            "TREATMENT_PLANT, INTERMEDIATE",
+            "PIPELINE, INTERMEDIATE",
+            "PIPELINE_CONECTION, INTERMEDIATE",
+            "COMPRESSING_PLANT, INTERMEDIATE",
+            "GROUND_LIQUEFACTION_PLANT, INTERMEDIATE",
+            "FLNG_UNIT, INTERMEDIATE",
+            "SEAPORT_TERMINAL, SINK",
+            "LNG_CAMER, SINK",
+            "INTERNAL_CONSUMPTION, SINK",
+            "INDUSTRIAL_CONSUMPTION, SINK"
+    })
+    void everyNodeTypeHasItsStructuralRole(NodeTypeEnum type, StructuralRoleEnum role) {
+        assertEquals(role, type.role());
+        assertEquals(role, type.checkedRole(null));
+        assertEquals(role, type.checkedRole(role));
+    }
+
+    @ParameterizedTest
+    @EnumSource(NodeTypeEnum.class)
+    void checkedRoleRejectsEveryOtherRole(NodeTypeEnum type) {
+        for (StructuralRoleEnum other : StructuralRoleEnum.values()) {
+            if (other != type.role()) {
+                assertThrows(IllegalArgumentException.class, () -> type.checkedRole(other));
+            }
+        }
+    }
 }

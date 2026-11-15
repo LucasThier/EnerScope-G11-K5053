@@ -8,6 +8,7 @@ import org.enerscope.node.model.InvestmentCost;
 import org.enerscope.node.model.InvestmentCostComponent;
 import org.enerscope.node.model.NodeGraphData;
 import org.enerscope.node.model.NodeTypeData;
+import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.node.model.export.IndustrialConsumption;
@@ -86,7 +87,10 @@ public class NodeService {
       VerticalEnum vertical = data.getNodeType() == null
             ? data.getVertical()
             : data.getNodeType().checkedVertical(data.getVertical());
-      NodeTypeData typeData = new NodeTypeData(vertical, data.getRole(), data.getNodeType());
+      StructuralRoleEnum role = data.getNodeType() == null
+            ? data.getRole()
+            : data.getNodeType().checkedRole(data.getRole());
+      NodeTypeData typeData = new NodeTypeData(vertical, role, data.getNodeType());
       return typeData;
    }
 

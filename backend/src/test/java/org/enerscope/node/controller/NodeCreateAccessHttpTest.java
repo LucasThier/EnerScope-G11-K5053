@@ -87,7 +87,7 @@ class NodeCreateAccessHttpTest {
                 node("/nodes/lng-carrier", VerticalEnum.EXPORT, "SINK", "LNG_CAMER",
                         "\"exportFrequency\":4,\"shipCapacity\":100,\"fullLoadTime\":2,\"hiringCost\":1000,"
                                 + "\"timeToDestination\":10"),
-                node("/nodes/seaport-terminal", VerticalEnum.EXPORT, "INTERMEDIATE", "SEAPORT_TERMINAL",
+                node("/nodes/seaport-terminal", VerticalEnum.EXPORT, "SINK", "SEAPORT_TERMINAL",
                         "\"intermediateStorage\":80,\"portDepth\":15,\"shipCapacity\":3"),
                 new Endpoint("/nodes/connections", null,
                         "{\"fromNodeId\":\"" + UUID.randomUUID() + "\",\"toNodeId\":\"" + UUID.randomUUID()

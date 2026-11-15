@@ -16,6 +16,7 @@ import org.enerscope.node.model.InvestmentCostComponent;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.NodeGraphData;
 import org.enerscope.node.model.NodeTypeData;
+import org.enerscope.node.model.enums.NodeTypeEnum;
 
 /**
  * Clones nodes/connections into fresh rows that keep the same
@@ -94,8 +95,12 @@ public final class NodeCloner {
         if (source == null) {
             return null;
         }
-        return new NodeTypeData(source.getNodeType() == null ? source.getVertical() : source.getNodeType().vertical(),
-                source.getRole(), source.getNodeType());
+        NodeTypeEnum type = source.getNodeType();
+        // A stored row without a nodeType (legacy data) has nothing to derive the
+        // role from, so its stored role is copied unchanged; with a type the role
+        // is recomputed so an inconsistent stored role never propagates to branches.
+        return new NodeTypeData(type == null ? source.getVertical() : type.vertical(),
+                type == null ? source.getRole() : type.role(), type);
     }
 
     private static NodeGraphData cloneGraphData(NodeGraphData source) {

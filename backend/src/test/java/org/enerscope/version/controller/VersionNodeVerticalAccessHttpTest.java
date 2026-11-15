@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager;
 import org.enerscope.jwt.JwtService;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.enums.NodeTypeEnum;
+import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.user.model.User;
@@ -44,6 +45,7 @@ class VersionNodeVerticalAccessHttpTest {
 
     private static final String VERTICAL_DENIED = "You are not allowed to edit this vertical's nodes in this version";
     private static final String MISMATCH_PREFIX = "Node vertical does not match its type";
+    private static final String ROLE_MISMATCH_PREFIX = "Node role does not match its type";
 
     @Autowired
     MockMvc mvc;
@@ -84,7 +86,7 @@ class VersionNodeVerticalAccessHttpTest {
                         "\"maxProcessingCapacity\":140,\"mtpaRatio\":1,\"intermediateStorage\":80,\"vesselDepth\":20,"
                                 + "\"hiringCost\":1000,\"shipCapacity\":3,\"gasConsumption\":30"),
                 LNG_CARRIER,
-                new NodeKind(NodeTypeEnum.SEAPORT_TERMINAL, "INTERMEDIATE",
+                new NodeKind(NodeTypeEnum.SEAPORT_TERMINAL, "SINK",
                         "\"intermediateStorage\":80,\"portDepth\":15,\"shipCapacity\":3"),
                 new NodeKind(NodeTypeEnum.INTERNAL_CONSUMPTION, "SINK",
                         "\"consumptionSummer\":1,\"consumptionAutumn\":2,\"consumptionWinter\":3,\"consumptionSpring\":4"),
@@ -258,6 +260,90 @@ class VersionNodeVerticalAccessHttpTest {
         assertEquals(VerticalEnum.EXTRACTION, storedVertical(name));
     }
 
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("everyCreatableType")
+    void createWithoutARoleStoresTheRoleOfTheType(NodeKind kind) throws Exception {
+        String name = uniqueName();
+        perform(fixture.versionEditorOf(kind.type().vertical()), post("/version/" + fixture.version().getId() + "/node")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(kind, null, null, name, true)))
+                .andExpect(status().isOk());
+
+        assertEquals(kind.type().role(), storedRole(name));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("everyCreatableType")
+    void createDeclaringTheRoleOfTheTypeStoresIt(NodeKind kind) throws Exception {
+        String name = uniqueName();
+        create(fixture.versionEditorOf(kind.type().vertical()), kind, kind.type().vertical(), name)
+                .andExpect(status().isOk());
+
+        assertEquals(kind.type().role(), storedRole(name));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("everyCreatableType")
+    void createDeclaringAnotherRoleGets400AndNothingIsCreated(NodeKind kind) throws Exception {
+        StructuralRoleEnum wrong = kind.type().role() == StructuralRoleEnum.SINK
+                ? StructuralRoleEnum.GENERATOR : StructuralRoleEnum.SINK;
+        long before = nodeCount();
+
+        perform(fixture.versionEditorOf(kind.type().vertical()), post("/version/" + fixture.version().getId() + "/node")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(kind, null, wrong.name(), uniqueName(), true)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message", startsWith(ROLE_MISMATCH_PREFIX)));
+
+        assertEquals(before, nodeCount());
+    }
+
+    @Test
+    void editDeclaringAnotherRoleGets400AndTheStoredNodeIsUntouched() throws Exception {
+        UUID nodeId = fixture.nodeId();
+        String name = uniqueName();
+
+        perform(extractionEditor(), patch(nodePath(nodeId)).contentType(MediaType.APPLICATION_JSON)
+                .content(body(WELL, null, "INTERMEDIATE", name, false)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        "Node role does not match its type: WELL is GENERATOR, not INTERMEDIATE"));
+
+        assertEquals(StructuralRoleEnum.GENERATOR, em.find(BaseNode.class, nodeId).getType().getRole());
+    }
+
+    @Test
+    void editWithoutARoleKeepsTheRoleOfTheType() throws Exception {
+        UUID nodeId = fixture.nodeId();
+        String name = uniqueName();
+
+        perform(extractionEditor(), patch(nodePath(nodeId)).contentType(MediaType.APPLICATION_JSON)
+                .content(body(WELL, null, null, name, false)))
+                .andExpect(status().isOk());
+
+        assertEquals(StructuralRoleEnum.GENERATOR, storedRole(name));
+    }
+
+    @Test
+    void platformAdminDeclaringAnotherRoleOnTheDiagramEndpointGets400() throws Exception {
+        perform(fixture.user(PlatformRole.ADMIN), post("/version/" + fixture.version().getId() + "/node")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(LNG_CARRIER, null, "GENERATOR", uniqueName(), true)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        "Node role does not match its type: LNG_CAMER is SINK, not GENERATOR"));
+    }
+
+    private StructuralRoleEnum storedRole(String name) {
+        em.flush();
+        return em.createQuery("select n from BaseNode n where n.name = :name", BaseNode.class)
+                .setParameter("name", name)
+                .getSingleResult()
+                .getType()
+                .getRole();
+    }
+
     private void assertAllowedButMustDeclareCorrectly(User user) throws Exception {
         String name = uniqueName();
         create(user, LNG_CARRIER, VerticalEnum.EXPORT, name).andExpect(status().isOk());
@@ -338,13 +424,19 @@ class VersionNodeVerticalAccessHttpTest {
     }
 
     private static String body(NodeKind kind, VerticalEnum declared, String name, boolean withIdentity) {
+        return body(kind, declared, kind.role(), name, withIdentity);
+    }
+
+    /** {@code role == null} omits the role from the request, so the server must derive it. */
+    private static String body(NodeKind kind, VerticalEnum declared, String role, String name, boolean withIdentity) {
         String vertical = declared == null ? "" : "\"vertical\":\"" + declared + "\",";
+        String roleJson = role == null ? "" : "\"role\":\"" + role + "\",";
         return "{\"name\":\"" + name + "\",\"state\":\"PROPOSED\","
                 + "\"startupDate\":\"2025-01-01T00:00:00Z\",\"lifespanInMonths\":120,\"upkeepCosts\":100,"
                 + "\"maintenanceIntervalInDays\":30,\"operatingCosts\":50,\"wastePercentage\":0.1,"
                 + "\"investmentCost\":{\"components\":[{\"name\":\"Build\",\"amount\":1000,\"costBasis\":\"FLAT\"}]},"
                 + "\"graphData\":{\"graphPosition\":{\"x\":1,\"y\":2}},"
-                + "\"type\":{" + vertical + "\"role\":\"" + kind.role() + "\",\"nodeType\":\"" + kind.type() + "\"},"
+                + "\"type\":{" + vertical + roleJson + "\"nodeType\":\"" + kind.type() + "\"},"
                 + (withIdentity ? "\"identity\":\"" + UUID.randomUUID() + "\"," : "")
                 + kind.fields() + "}";
     }
