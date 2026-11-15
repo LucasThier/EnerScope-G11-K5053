@@ -42,7 +42,7 @@ npm run preview  # preview the production build
 npm run lint     # eslint
 ```
 
-`npm test` runs on the built-in `node:test` runner (220 tests in 32 files on
+`npm test` runs on the built-in `node:test` runner (223 tests in 32 files on
 2026-11-15, all passing). The per-file catalog is in
 [docs/testing.md](../docs/testing.md) → *Frontend unit tests*.
 
@@ -229,8 +229,15 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   caller can edit, and **Mergear** appears only when the caller can manage the
   parent (both read from `/projects/:id/access`). Deleting a version deletes the
   whole subtree and needs permission on every version in it.
-- **Roles del proyecto** are labelled *Administrador del proyecto* and *Editor del
-  proyecto*. In the projects table, members who cannot administer see **Ver
+- **Roles del proyecto** are labelled *Administrador del proyecto*, *Editor del
+  proyecto* and *Ejecutivo* (`PROJECT_MEMBER_TYPE_LABELS`). An **Ejecutivo**
+  (`EXECUTIVE`) only reads the whole project; `EXECUTIVE_LIMITS` (in
+  `projectMemberTypeLabels.ts`) is the copy shown when adding one or confirming a
+  role change, next to `EDITOR_LIMITS`. `assignableMembers` leaves Ejecutivos (and
+  administrators and inactive accounts) out of the version-role form, because an
+  Ejecutivo cannot hold version roles. The **Cadena de valor** editor stays
+  **read-only** for them: `/access` grants no edit, so `editorGates` returns
+  `readOnly`. In the projects table, members who cannot administer see **Ver
   equipo** instead of the manage button.
 - **Configuración del escenario**: *Guardar* follows `canEditEconomicConfiguration`;
   *Crear copia simple* needs edit permission on every vertical of the scenario
