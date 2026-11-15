@@ -99,7 +99,9 @@ export function VersionRolesPanel({
           ) : (
             <p className="text-sm text-ink-500">
               No tenés roles propios en esta versión: valen los permisos de tu rol en el proyecto
-              {version.effectiveRole === 'ADMIN' || version.effectiveRole === 'EDITOR'
+              {version.effectiveRole === 'ADMIN' ||
+              version.effectiveRole === 'EDITOR' ||
+              version.effectiveRole === 'EXECUTIVE'
                 ? ` (${PROJECT_ROLE_ACCESS_LABELS[version.effectiveRole]})`
                 : ''}
               .

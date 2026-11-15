@@ -73,6 +73,12 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
     'Sólo un administrador de plataforma puede ver el listado de cuentas.',
   'Internal error': 'El servidor tuvo un problema y no pudo completar la operación.',
   'Malformed request body': 'No se pudo interpretar el pedido.',
+  'A supported type.nodeType is required': 'Elegí un tipo de nodo válido.',
+  'Version has no parent version to merge into':
+    'Esa versión no tiene una versión padre con la que combinarse.',
+  'Subversion does not have the specified parent version':
+    'La subversión no deriva de la versión padre indicada.',
+  'Invalid job title (120 characters max)': 'El cargo puede tener hasta 120 caracteres.',
 };
 
 const KNOWN_BACKEND_PREFIXES: [string, string][] = [
@@ -80,6 +86,10 @@ const KNOWN_BACKEND_PREFIXES: [string, string][] = [
   ['Version not found with id:', 'La versión no existe o ya fue eliminada.'],
   ['Version conflict not found with id:', 'El conflicto no existe o ya fue resuelto.'],
   ['Node with id', 'El nodo ya no existe en esta versión.'],
+  ['Node not found with id:', 'El nodo no existe o ya fue eliminado.'],
+  ['Connection not found with id:', 'La conexión no existe o ya fue eliminada.'],
+  ['Connection with id', 'La conexión ya no existe en esta versión.'],
+  ['Node type mismatch: expected', 'El tipo de nodo no coincide con el esperado.'],
   ['ADMIN roles apply to the whole version', 'Ese rol aplica a toda la versión, no a una vertical.'],
   [
     'SIMULATOR roles apply to the whole version',

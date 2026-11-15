@@ -166,6 +166,20 @@ test('assignable people exclude project admins and inactive accounts, sorted by 
   assert.deepEqual(roles.assignableMembers(list).map((member) => member.userId), ['u4', 'u1']);
 });
 
+test('assignable people exclude executives, who cannot hold version roles', () => {
+  const list = [
+    person('u1', 'Zoe'),
+    person('u2', 'Ana', { memberType: 'EXECUTIVE' }),
+    person('u3', 'Carla', { memberType: 'EDITOR' }),
+  ];
+  assert.deepEqual(roles.assignableMembers(list).map((member) => member.userId), ['u3', 'u1']);
+});
+
+test('executive has its labels in every project-role map', () => {
+  assert.equal(labels.PROJECT_ROLE_ACCESS_LABELS.EXECUTIVE, 'Ejecutivo');
+  assert.equal(roles.callerProjectRoleLabel('EXECUTIVE', false), 'Ejecutivo');
+});
+
 test('role choices subtract what the person already holds', () => {
   const none = roles.availableChoices([]);
   assert.deepEqual(none, { admin: true, simulator: true, editorVerticals: ALL_VERTICALS });

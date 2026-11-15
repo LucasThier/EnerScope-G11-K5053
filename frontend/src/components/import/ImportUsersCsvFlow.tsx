@@ -89,6 +89,9 @@ export function ImportUsersCsvFlow({ flow, organizationName }: ImportUsersCsvFlo
             Se procesaron {flow.result.total} de{' '}
             {flow.result.total + flow.outcome.uncertainRows.length + flow.outcome.notSentRows.length}{' '}
             filas válidas.
+            {flow.outcome.cause && (
+              <span className="mt-1 block">Motivo: {flow.outcome.cause}</span>
+            )}
             {flow.outcome.uncertainRows.length > 0 && (
               <span className="mt-1 block">
                 {flow.outcome.uncertainRows.length === 1

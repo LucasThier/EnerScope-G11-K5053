@@ -50,3 +50,29 @@ test('the backend row-limit message is translated', () => {
     'El archivo supera el máximo de 500 filas por importación.',
   );
 });
+
+test('node, connection, merge and job-title backend messages are translated', () => {
+  const errors = createLoader()(resolve(root, 'api/errors.ts'));
+  const t = errors.translateBackendMessage;
+  assert.equal(t('Node not found with id: 12'), 'El nodo no existe o ya fue eliminado.');
+  assert.equal(t('Node not found with id: 99'), 'El nodo no existe o ya fue eliminado.');
+  assert.equal(t('Connection not found with id: 7'), 'La conexión no existe o ya fue eliminada.');
+  assert.equal(
+    t('Connection with id 7 does not exist in version 3'),
+    'La conexión ya no existe en esta versión.',
+  );
+  assert.equal(
+    t('Node type mismatch: expected SOLAR but was WIND'),
+    'El tipo de nodo no coincide con el esperado.',
+  );
+  assert.equal(t('A supported type.nodeType is required'), 'Elegí un tipo de nodo válido.');
+  assert.equal(
+    t('Version has no parent version to merge into'),
+    'Esa versión no tiene una versión padre con la que combinarse.',
+  );
+  assert.equal(
+    t('Subversion does not have the specified parent version'),
+    'La subversión no deriva de la versión padre indicada.',
+  );
+  assert.equal(t('Invalid job title (120 characters max)'), 'El cargo puede tener hasta 120 caracteres.');
+});

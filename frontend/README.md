@@ -274,7 +274,7 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
     inside a batch.
   - **A cut can leave partial writes.** After a network error or a `5xx` the
     client cannot know whether that batch was written; it reports the rows that
-    may exist and the rows never sent. Cancelling stops after the request in
+    may exist and the rows never sent. Cancelling aborts the request in
     flight.
   - The **credentials** (`mail,password`) of what was created exist only in the
     response: after a cut or a cancel they can still be downloaded, and closing

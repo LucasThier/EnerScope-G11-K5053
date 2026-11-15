@@ -44,6 +44,11 @@ test('canManageProject: platform admin or project ADMIN only', () => {
   }
 });
 
+test('canManageProject: an EXECUTIVE never manages, only a platform admin does', () => {
+  assert.equal(canManageProject('EXECUTIVE', false), false);
+  assert.equal(canManageProject('EXECUTIVE', true), true);
+});
+
 test('canManageOrganizationUsers: platform admin or MANAGE_ORGANIZATION on an active own membership', () => {
   const me = { id: 'u1', platformRole: 'USER' };
   const admin = { id: 'u9', platformRole: 'ADMIN' };

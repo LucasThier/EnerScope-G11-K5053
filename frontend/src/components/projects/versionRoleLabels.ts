@@ -12,6 +12,7 @@ export const VERSION_ROLE_LABELS: Record<VersionRoleType, string> = {
 export const PROJECT_ROLE_ACCESS_LABELS: Record<ProjectMemberType, string> = {
   ADMIN: 'Administrador del proyecto',
   EDITOR: 'Editor del proyecto',
+  EXECUTIVE: 'Ejecutivo',
 };
 
 export const VERSION_ROLE_SUMMARIES: Record<VersionRoleType, string> = {

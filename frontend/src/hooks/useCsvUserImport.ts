@@ -22,6 +22,14 @@ interface UseCsvUserImportOptions {
   onClose: () => void;
 }
 
+function rejectionCause(status: BatchRunStatus, error: unknown): string | null {
+  const http = getErrorStatus(error);
+  if (status !== 'failed' || http === null || http < 400 || http >= 500) {
+    return null;
+  }
+  return getErrorMessage(error, '');
+}
+
 export interface ImportProgress {
   done: number;
   total: number;
@@ -31,6 +39,8 @@ export interface ImportOutcome {
   status: BatchRunStatus;
   uncertainRows: ImportRow[];
   notSentRows: ImportRow[];
+  /** Translated backend cause when a batch was rejected with a 4xx. */
+  cause: string | null;
 }
 
 export interface CsvUserImport {
@@ -195,6 +205,7 @@ export function useCsvUserImport({
         status: run.status,
         uncertainRows: run.uncertainRows,
         notSentRows: run.notSentRows,
+        cause: rejectionCause(run.status, run.error),
       });
       setStage('result');
       return;

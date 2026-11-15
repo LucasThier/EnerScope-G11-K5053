@@ -138,7 +138,7 @@ export function versionBadge(entry: VersionAccess): string | null {
 
 export function assignableMembers(members: ProjectMember[]): ProjectMember[] {
   return members
-    .filter((member) => member.active && member.memberType !== 'ADMIN')
+    .filter((member) => member.active && member.memberType !== 'ADMIN' && member.memberType !== 'EXECUTIVE')
     .sort((a, b) => fullName(a).localeCompare(fullName(b), 'es'));
 }
 

@@ -9,6 +9,7 @@ const ORGANIZATION_ROLE_LABELS: Record<OrganizationMemberType, string> = {
 const PROJECT_ROLE_LABELS: Record<ProjectMemberType, string> = {
   ADMIN: 'Administrador',
   EDITOR: 'Editor',
+  EXECUTIVE: 'Ejecutivo',
 };
 
 /** Spanish label of a role in an organization; an unknown value is shown as the backend sent it. */

@@ -18,6 +18,7 @@ test('organization roles have a Spanish label', () => {
 test('project roles have a Spanish label', () => {
   assert.equal(projectRoleLabel('ADMIN'), 'Administrador');
   assert.equal(projectRoleLabel('EDITOR'), 'Editor');
+  assert.equal(projectRoleLabel('EXECUTIVE'), 'Ejecutivo');
 });
 
 test('a role the screen does not know is shown as the backend sent it', () => {

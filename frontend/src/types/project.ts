@@ -17,7 +17,7 @@ export interface Project {
   organizationId: string;
 }
 
-export type ProjectMemberType = 'ADMIN' | 'EDITOR';
+export type ProjectMemberType = 'ADMIN' | 'EDITOR' | 'EXECUTIVE';
 
 export type ProjectMemberPermission = 'MANAGE_PROJECT' | 'EDIT_PROJECT' | 'VIEW_PROJECT';
 

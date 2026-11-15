@@ -78,4 +78,6 @@ test('"Ver equipo" reports its own project', () => {
 test('project member types are labelled as project roles', () => {
   assert.equal(labels.PROJECT_MEMBER_TYPE_LABELS.ADMIN, 'Administrador del proyecto');
   assert.equal(labels.PROJECT_MEMBER_TYPE_LABELS.EDITOR, 'Editor del proyecto');
+  assert.equal(labels.PROJECT_MEMBER_TYPE_LABELS.EXECUTIVE, 'Ejecutivo');
+  assert.match(labels.EXECUTIVE_LIMITS, /solo lee/);
 });
