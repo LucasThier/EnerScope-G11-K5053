@@ -42,7 +42,7 @@ npm run preview  # preview the production build
 npm run lint     # eslint
 ```
 
-`npm test` runs on the built-in `node:test` runner (223 tests in 32 files on
+`npm test` runs on the built-in `node:test` runner (229 tests in 32 files on
 2026-11-15, all passing). The per-file catalog is in
 [docs/testing.md](../docs/testing.md) → *Frontend unit tests*.
 
@@ -261,7 +261,21 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   compresora, Planta de licuefacción en tierra, Unidad FLNG, Terminal portuaria,
   Buque metanero, Consumo interno/industrial; Extracción, Transporte,
   Licuefacción, Exportación). Stored values and API enums stay in English; add a
-  Spanish label there whenever you add a node type or field.
+  Spanish label there whenever you add a node type or field. The catalog also
+  holds the connection rules (`ALLOWED_CONNECTIONS`) and `buildNodePayload`.
+  - **Conexión de gasoducto** is the node type `PIPELINE_CONECTION` (spelled
+    that way in the API; vertical Transporte). Connection rule, confirmed by the
+    team: it **only receives from a `PIPELINE`** and sends to the **same
+    destinations as a `PIPELINE`** (`PIPELINE_TARGETS`). Its fields are
+    *Capacidad de transferencia* and *Prioridad de salida*.
+  - **Unidad FLNG** has two more fields, *Capacidad del buque* (`shipCapacity`)
+    and *Consumo de gas* (`gasConsumption`).
+  - `buildNodePayload` sends **`0`** for any numeric type field the form left
+    empty, so every field of the type always travels in the payload.
+  - **Known debt:** the catalog's `integer` flag is **not applied** anywhere —
+    nothing reads it. A decimal typed in an integer field (e.g. *Capacidad del
+    buque*) travels as a decimal, and how the backend treats it (reject,
+    truncate or accept) has **not been verified**.
 - **Importación de usuarios por CSV** (`components/import`, `hooks/useCsvUserImport`,
   `utils/csvImport*.ts`). Opened with **Agregar integrantes** on an organization
   (*Administración → Organizaciones*) or from the organization's team screen.
