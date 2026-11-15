@@ -65,16 +65,17 @@ executions differ; for every other class they are the same number. No class uses
 | `auth.controller.AuthControllerTest` | Web | 16 | 16 |
 | `auth.filter.SessionRevocationHttpTest` | Integration | 9 | 9 |
 | `common.CsvUtilTest` | Unit | 5 | 5 |
+| `common.GlobalExceptionHandlerTest` | Unit | 1 | 1 |
 | `economic.controller.EconomicControllerTest` | Web | 12 | 12 |
 | `economic.controller.EconomicJobControllerTest` | Web | 4 | 4 |
 | `economic.controller.EconomicWriteAccessHttpTest` | Integration | 9 | 9 |
 | `economic.controller.ScenarioConfigurationControllerTest` | Web | 4 | 4 |
-| `economic.controller.ScenarioVerticalAccessHttpTest` | Integration | 19 | 25 |
+| `economic.controller.ScenarioVerticalAccessHttpTest` | Integration | 22 | 28 |
 | `economic.service.EconomicEngineTest` | Unit | 21 | 21 |
 | `economic.service.EconomicIndicatorsCalculatorTest` | Unit | 17 | 17 |
 | `economic.service.EconomicJobServiceTest` | Unit | 10 | 10 |
 | `economic.service.EconomicJobWorkerTest` | Unit | 4 | 4 |
-| `economic.service.EconomicServiceTest` | Unit | 28 | 28 |
+| `economic.service.EconomicServiceTest` | Unit | 33 | 33 |
 | `economic.service.EconomicSimulationAdapterTest` | Unit | 2 | 2 |
 | `economic.service.EconomicStatisticsCalculatorTest` | Unit | 5 | 5 |
 | `economic.service.ProbabilisticSimulationTest` | Unit | 8 | 8 |
@@ -84,14 +85,16 @@ executions differ; for every other class they are the same number. No class uses
 | `logging.ConsoleAppLoggerTest` | Unit | 1 | 1 |
 | `money.MoneyAmountTest` | Unit | 7 | 7 |
 | `node.controller.NodeControllerTest` | Unit | 1 | 1 |
-| `node.controller.NodeCreateAccessHttpTest` | Integration | 8 | 43 |
-| `node.dto.NodeRequestDeserializerTest` | Unit | 3 | 3 |
+| `node.controller.NodeCreateAccessHttpTest` | Integration | 8 | 45 |
+| `node.dto.NodeRequestDeserializerTest` | Unit | 4 | 4 |
 | `node.migration.ExportVerticalMigrationTest` | Data (JDBC/H2) | 2 | 2 |
 | `node.migration.MigrationCatalogTest` | Unit | 3 | 3 |
-| `node.model.enums.NodeTypeEnumTest` | Unit | 4 | 26 |
+| `node.model.enums.NodeTypeEnumTest` | Unit | 6 | 50 |
 | `node.repository.ConsumptionPersistenceTest` | Data | 1 | 1 |
+| `node.service.NodeClonerRoleTest` | Unit | 2 | 2 |
 | `node.service.NodeServiceTest` | Unit | 5 | 5 |
-| `organization.controller.OrganizationControllerTest` | Web | 46 | 46 |
+| `organization.controller.BulkUploadSizeLimitHttpTest` | Integration | 2 | 2 |
+| `organization.controller.OrganizationControllerTest` | Web | 47 | 47 |
 | `organization.repository.OrganizationMemberRepositoryTest` | Data | 17 | 17 |
 | `organization.repository.OrganizationRepositoryTest` | Data | 24 | 24 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 18 | 18 |
@@ -104,6 +107,7 @@ executions differ; for every other class they are the same number. No class uses
 | `scenario.service.ScenarioChangeScopeTest` | Unit | 16 | 16 |
 | `session.service.SessionServiceTest` | Unit | 9 | 9 |
 | `simulator.EconomicMetricsTest` | Unit | 7 | 7 |
+| `simulator.ResultMappingTest` | Data | 8 | 8 |
 | `simulator.ResultPerRoundTest` | Unit | 12 | 12 |
 | `simulator.SimulatorTest` | Unit | 15 | 15 |
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 | 10 |
@@ -114,46 +118,89 @@ executions differ; for every other class they are the same number. No class uses
 | `user.service.PasswordGeneratorTest` | Unit | 4 | 4 |
 | `user.service.UserServiceTest` | Unit | 58 | 58 |
 | `util.AuthUtilTest` | Unit | 7 | 7 |
+| `version.controller.ProjectVersionMembersHttpTest` | Integration | 5 | 5 |
 | `version.controller.VersionAccessControllerTest` | Web | 3 | 3 |
+| `version.controller.VersionAccessHttpTest` | Integration | 14 | 14 |
 | `version.controller.VersionBranchAccessHttpTest` | Integration | 25 | 29 |
 | `version.controller.VersionConflictsListAccessHttpTest` | Integration | 8 | 8 |
 | `version.controller.VersionControllerTest` | Web | 20 | 20 |
-| `version.controller.VersionMergeAccessHttpTest` | Integration | 15 | 27 |
-| `version.controller.VersionNodeVerticalAccessHttpTest` | Integration | 18 | 58 |
+| `version.controller.VersionGetJsonOpenInViewHttpTest` | Integration | 1 | 1 |
+| `version.controller.VersionGetJsonWithoutOpenInViewHttpTest` | Integration | 3 | 3 |
+| `version.controller.VersionInactiveAccessHttpTest` | Integration | 5 | 5 |
+| `version.controller.VersionMergeAccessHttpTest` | Integration | 24 | 41 |
+| `version.controller.VersionNodeVerticalAccessHttpTest` | Integration | 24 | 94 |
 | `version.controller.VersionQueryControllerTest` | Web | 4 | 4 |
 | `version.controller.VersionReadAccessHttpTest` | Integration | 11 | 11 |
+| `version.controller.VersionReadWithoutOpenInViewHttpTest` | Integration | 4 | 4 |
 | `version.controller.VersionRoleAfterProjectRemovalHttpTest` | Integration | 7 | 7 |
+| `version.controller.VersionRoleChangeHttpTest` | Integration | 10 | 10 |
+| `version.controller.VersionRoleCopyDeactivatedUsersHttpTest` | Integration | 3 | 3 |
 | `version.dto.VersionConflictDTOTest` | Unit | 1 | 1 |
 | `version.repository.VersionConflictRepositoryTest` | Data | 6 | 6 |
-| `version.service.VersionAccessGuardTest` | Unit | 49 | 49 |
-| `version.service.VersionAccessServiceTest` | Unit | 13 | 13 |
-| `version.service.VersionAccessTest` | Unit | 10 | 10 |
+| `version.service.VersionAccessGuardTest` | Unit | 56 | 56 |
+| `version.service.VersionAccessServiceTest` | Unit | 15 | 15 |
+| `version.service.VersionAccessTest` | Unit | 11 | 11 |
 | `version.service.VersionConflictIntegrationTest` | Integration | 11 | 11 |
 | `version.service.VersionConflictServiceTest` | Unit | 30 | 30 |
 | `version.service.VersionLineageTest` | Unit | 10 | 10 |
-| `version.service.VersionMemberServiceTest` | Unit | 19 | 19 |
+| `version.service.VersionMemberServiceTest` | Unit | 36 | 36 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 | 10 |
-| `version.service.VersionServiceTest` | Unit | 43 | 43 |
-| **Total (73 classes)** | | **1153** | **1272** |
+| `version.service.VersionServiceTest` | Unit | 63 | 63 |
+| **Total (85 classes)** | | **1285** | **1463** |
 
-> **`mvn test` on 2026-11-15: 1272 executions, 0 failures, 0 errors, 0 skipped**,
-> in 73 classes (`1153` methods). Read from the 73 Surefire reports that run
-> produced (13:02) and from the sources; the table rows were re-checked against
-> both. The five PostgreSQL classes — the `*IT` — are **not** part of that run and
-> not in the table; they are run by hand against a disposable PostgreSQL (see
-> below). `simulator.ResultTest` and `simulator.ResultMappingTest` no longer
-> exist on this branch. The per-class sections below keep their historical case
-> catalogs; where one disagrees with this table, this table wins. The cases
-> added since the 2026-11-14 catalogs are in
-> [*Version roles, cascade delete, root versions and CSV limit — 2026-11-15*](#version-roles-cascade-delete-root-versions-and-csv-limit--2026-11-15).
+> **`mvn test` on 2026-11-15 (13:35, run for this update): 1362 executions,
+> 0 failures, 0 errors, 0 skipped**, in 80 classes (`1238` methods). Executions
+> are the `tests` attribute of the 80 Surefire reports that run wrote
+> (`backend/target/surefire-reports`, 0 failures / 0 errors / 0 skipped in
+> each); cases are the `@Test` / `@ParameterizedTest` methods counted in the
+> sources, and the table was regenerated from both. The previous pass of this
+> catalog recorded 73 classes, 1153 cases and 1272 executions; the difference
+> is the seven new classes below plus the cases added to existing ones
+> (`VersionServiceTest` +20, `VersionAccessGuardTest` +7,
+> `VersionMemberServiceTest` +7, `VersionMergeAccessHttpTest` +9 cases / +14
+> executions, `ScenarioVerticalAccessHttpTest` +3 / +3, `EconomicServiceTest`
+> +2, `VersionAccessServiceTest` +1, `OrganizationControllerTest` +1). New
+> classes: `common.GlobalExceptionHandlerTest`,
+> `organization.controller.BulkUploadSizeLimitHttpTest`,
+> `simulator.ResultMappingTest` (rewritten, see below),
+> `version.controller.VersionAccessHttpTest`,
+> `version.controller.VersionInactiveAccessHttpTest`,
+> `version.controller.VersionReadWithoutOpenInViewHttpTest` and
+> `version.controller.VersionRoleCopyDeactivatedUsersHttpTest`. The five
+> PostgreSQL classes — the `*IT` — are **not** part of that run and not in the
+> table; they are run by hand against a disposable PostgreSQL (see below). The
+> per-class sections below keep their historical case catalogs; where one
+> disagrees with this table, this table wins. The cases added since the
+> 2026-11-14 catalogs are in
+> [*Version roles, cascade delete, root versions and CSV limit — 2026-11-15*](#version-roles-cascade-delete-root-versions-and-csv-limit--2026-11-15)
+> and, for the later commits, in
+> [*Active-only guards, 413, 403 before 400 and the rewritten `ResultMappingTest` — 2026-11-15*](#active-only-guards-413-403-before-400-and-the-rewritten-resultmappingtest--2026-11-15).
+
+> **Update — structural role, V24, role change and project matrix.** `mvn test`
+> after those four changes: **1463 executions, 0 failures, 0 errors, 0 skipped,
+> in 85 classes (1285 cases)**; the table above was regenerated from the sources
+> and the Surefire reports, which also refreshed rows other changes had left
+> stale (`VersionAccessHttpTest`, `EconomicServiceTest`, `NodeCreateAccessHttpTest`,
+> `NodeRequestDeserializerTest` and the two `VersionGetJson…` classes, now listed).
+> Added or changed by these four changes — details in
+> [*Structural role, editor simulate permission, role change and project matrix*](#structural-role-editor-simulate-permission-role-change-and-project-matrix--2026-11-15):
+> `NodeTypeEnumTest` 4→6 cases (26→50 executions), `VersionNodeVerticalAccessHttpTest`
+> 18→24 (58→94), `VersionMemberServiceTest` 26→36, `VersionAccessTest` 10→11, new
+> `NodeClonerRoleTest` (2), `VersionRoleChangeHttpTest` (10) and
+> `ProjectVersionMembersHttpTest` (5); `MigrationCatalogTest` now expects 24
+> migrations. The two new `*IT` cases are **not** in that 1463.
 
 ### PostgreSQL classes (`*IT`, by hand)
 
 Not run by `mvn test`; they need a PostgreSQL the test connects to (see each
-class). 47 executions in total, taken from the Surefire reports a manual run
-left in `backend/target/surefire-reports` (12:52 on 2026-11-15; 0 failures,
-0 errors, 0 skipped in each). They were **not** re-run when this catalog was
-updated.
+class). **49 executions in total**, read from the `tests` attribute of the five
+`TEST-*IT.xml` Surefire reports left in `backend/target/surefire-reports`
+(written at 13:31 on 2026-11-15, 0 failures, 0 errors, 0 skipped in each). That
+is the report of **a manual run somebody made before this update, not of one
+made for it**: it was **not** re-run here (no PostgreSQL was started), so the
+numbers are only as current as that run. It does include
+`VersionMemberRepositoryPostgreSqlIT` at 14 cases, i.e. after the two cases
+added in `b4dfa71`.
 
 | Test class | Cases | Executions |
 | --- | --- | --- |
@@ -161,11 +208,12 @@ updated.
 | `economic.service.ScenarioConfigurationPostgreSqlIT` | 1 own + 14 inherited from `ScenarioConfigurationTest` | 15 |
 | `project.repository.ProjectRepositoryPostgreSqlIT` | 6 | 6 |
 | `project.service.ProjectVersionCreationPostgreSqlIT` | 10 | 10 |
-| `version.repository.VersionMemberRepositoryPostgreSqlIT` | 12 | 12 |
-| **Total (5 classes)** | | **47** |
+| `version.repository.VersionMemberRepositoryPostgreSqlIT` | 16 | 16 |
+| **Total (5 classes)** | | **51** |
 
-`ProjectRepositoryPostgreSqlIT` and `ProjectVersionCreationPostgreSqlIT` are new;
-their cases are in the 2026-11-15 section.
+`ProjectRepositoryPostgreSqlIT` and `ProjectVersionCreationPostgreSqlIT` are new
+in the 2026-11-15 section; the two new `VersionMemberRepositoryPostgreSqlIT`
+cases are in the section after it.
 
 ## `ApplicationContextTest` — Integration
 
@@ -1212,17 +1260,15 @@ capacity, docking slots) is actually pinned. The rest drive the whole
 | `testSimWellProductionAndDecline` | A well's `maxPossibleProduced` after one year and after two: the second year adds less than the first, which is the decline applied cumulatively. |
 | `testPipelineConnectionPriorityOrdering` | A pipeline's two outgoing connections are placed in the execution order by ascending `outputPriority`, so the lower value runs first and gets served first. |
 
-> **`simulator.ResultMappingTest` is not on this branch.** The catalog carried a
-> seven-case section for it (it pinned the JPA mapping of the results to the
-> columns `V8__create_results.sql` creates, and opted into `NON_KEYWORDS=YEAR`
-> because `year` is reserved in H2 2.x — see `considerations.md`, 2026-10-05).
-> The file does not exist under `backend/src/test/java/org/enerscope/simulator/`
-> here; it was last present in commit `f66a681` and was lost in a merge. The
-> rows were removed from this catalog so it matches the code, **but the mapping
-> it protected is still only protected by Hibernate's `validate` on a real
-> PostgreSQL**, which no test in this suite runs. Restoring the class (or
-> replacing it with the Testcontainers test that 2026-10-05 called for) is an
-> open card.
+> **`simulator.ResultMappingTest` is back (rewritten, 8 cases).** The older
+> seven-case section was removed when the class was lost in a merge; the class
+> now exists again under `backend/src/test/java/org/enerscope/simulator/` as a
+> `@DataJpaTest`, and its cases are in
+> the last 2026-11-15 section below (*the rewritten `simulator.ResultMappingTest`*).
+> It runs on **H2** with the schema Hibernate generates (`ddl-auto=create-drop`,
+> Flyway off), so it pins the entity mapping to the column and table names the
+> migrations use, but it does **not** replace Hibernate's `validate` against a
+> real PostgreSQL schema — see `considerations.md`, 2026-11-15.
 
 ## `strategyCost.CostTest` — Unit
 
@@ -2519,14 +2565,19 @@ a different number, trust the run and reconcile again.
 `node:test` runner, no extra dependency. Files that need TypeScript or React
 transpile the source on the fly with the `typescript` package and stub `react`
 and the router (see `tests/loadModule.mjs` and the loader at the top of
-`tests/permissionsCharacterization.test.mjs`). Run on 2026-11-15:
-**157 tests in 24 files, 157 pass, 0 fail, 0 skipped** (`ℹ tests 157` from the
-runner; per-file counts from running each file on its own).
+`tests/permissionsCharacterization.test.mjs`). Run on 2026-11-15 (for this
+update, `npm test`): **173 tests in 27 files, 173 pass, 0 fail, 0 skipped**
+(`ℹ tests 173`, `ℹ pass 173`, `ℹ fail 0`, `ℹ skipped 0` from the runner;
+per-file counts from running each file on its own with `node --test <file>`,
+which add up to the same 173). The previous pass recorded 157 in 24 files; the
+16 new tests are in `authEvents` (5), `projectsTableTeam` (4) and
+`versionAccessRules` (5), plus 2 more in `versionRoleErrors`.
 
 | File | Tests | Covers |
 | --- | --- | --- |
 | `activeProjectResolution.test.mjs` | 8 | `resolveActiveProject` (route → stored → first, a foreign route id resolves to none), `projectRouteRedirect`, `ProjectRouteGuard` (page / loader / redirect), no redirect loops, `versionsIndexRedirect`, and when a lost-access response reloads the project list. |
 | `advancedEconomicDraft.test.mjs` | 3 | Advanced economic editor draft. |
+| `authEvents.test.mjs` | 5 | `api/authEvents.ts` and the response interceptor of `api/client.ts`: a `403` for a user cached as platform administrator refreshes the user data, a `403` for a regular user refreshes nothing, refreshes are at least `MIN_USER_REFRESH_INTERVAL_MS` (5 s) apart, a burst of `403`s triggers a single refresh, and a failed refresh-token exchange (after a `401`) clears the stored token and notifies that the session was lost. |
 | `csvImport.test.mjs` | 6 | CSV parsing: the `puesto`/`jobTitle` column under its header aliases, a file without it, the job-title length limit, the normalized CSV sent to the server, the template, and the translated backend row-limit message. |
 | `csvImportBatches.test.mjs` | 10 | Limits (500 rows, batches of 50), merging batch results with a single credentials header, failure lines mapped back to the real file line, progress, a failing batch keeping earlier credentials and flagging the uncertain rows, a rejected batch reported as not sent, and cancellation (mid-request, between batches, before the first). |
 | `economicChart.test.mjs` | 2 | Economic chart helpers. |
@@ -2538,22 +2589,29 @@ runner; per-file counts from running each file on its own).
 | `pagesApiProxy.test.mjs` | 6 | The Cloudflare Pages Function (catalogued above). |
 | `permissionsCharacterization.test.mjs` | 8 | `canManageProject`, `canManageOrganizationUsers`, `RoleRoute`, the `src/permissions/access.ts` module against the checks it replaced, and the navigation tree for every role / project-role / membership / loading combination against the golden file `permissionsNav.golden.json`. |
 | `probabilisticResults.test.mjs` | 4 | Probabilistic results (catalogued above). |
+| `projectsTableTeam.test.mjs` | 4 | `ProjectsTable`: a member who does not administer sees *Ver equipo* instead of the manage button, a project administrator keeps *Administrar integrantes* and gets no *Ver equipo*, *Ver equipo* reports its own project, and the project member types are labelled *Administrador del proyecto* / *Editor del proyecto*. |
 | `projectTeamNav.test.mjs` | 4 | The *Equipo del proyecto* entry: visible to every member with an active project, a group for an editor, absent without a project or while projects load. |
 | `resultsCsv.test.mjs` | 4 | Results CSV export. |
 | `scenarioConfiguration.test.mjs` | 8 | Scenario configuration adapter. |
 | `sidebarActive.test.mjs` | 6 | At most one current sidebar leaf on every route, with and without a project; *Proyectos* current on `/projects`; the route → current item matrix; *Versionado* as a single entry; analysis items without a project; the short and full label of *Configuración*. |
 | `summaryVisuals.test.mjs` | 9 | Summary charts. |
 | `versionAccessApi.test.mjs` | 4 | `versionAccessApi`: `GET /projects/{id}/access`, list members, grant a role (with the vertical when there is one), revoke by member and role id. |
-| `versionRoleErrors.test.mjs` | 7 | The Spanish translation of the version endpoints' `403`/`400`/`404` messages, including "ask a project administrator" for managing roles and the cascading-delete `403` that names no version. |
+| `versionAccessRules.test.mjs` | 5 | `utils/versionAccessRules.ts`: merging needs to manage the parent (`canMergeIntoParent`), branching needs to edit the chosen parent (`canBranchFromParent`), `uneditableVerticals` lists the scenario verticals the caller cannot edit, a node of an unknown type blocks that check, and `VersionTree` shows *Mergear* only where the parent can be managed. |
+| `versionRoleErrors.test.mjs` | 9 | The Spanish translation of the version endpoints' `403`/`400`/`404` messages, including "ask a project administrator" for managing roles and the cascading-delete `403` that names no version; and, new, the branch / merge / vertical `403`s (*edit this version*, *this vertical's nodes*, *simulate*, *manage this project*) and the `400`/`404` ones (*Resource not found*, *Node vertical does not match its type*, versions of different projects, parent of another project, a version as its own ancestor, a cycle in the simulation graph). |
 | `versionRoles.test.mjs` | 18 | `utils/versionRoles.ts`: role labels, grant ordering, "project administrator administers every version", explicit versus inherited access, `canManageRoles` (not `canManage`) deciding who manages roles, assignable people, role choices, one request per vertical, last-role detection, the version tree and its filters, default version, sorting. |
 | `versionRolesPanel.test.mjs` | 2 | `VersionRolesPanel`: a version administrator who cannot manage roles sees only their own access and a notice; someone who can loads the members and gets the assignment form. |
 | `visibleDiagram.test.mjs` | 2 | Removed nodes and touching edges disappear without changing saved history; empty and restored diagrams. |
 | `workspaceRoutes.test.mjs` | 2 | Configuration and results routes never activate version management; switching projects keeps the module and drops foreign ids. |
-| **Total (24 files)** | **157** | |
+| **Total (27 files)** | **173** | |
 
 Per-file counts of the older files (economic, results, node editor) come from
 running each file; their case-by-case catalogs are in the dated sections above.
 `tests/loadModule.mjs` is a helper, not a test file.
+
+**Not covered by a unit test:** the new `413` branch of `useCsvUserImport`
+(*El archivo supera el tamaño máximo de 1 MB.*) — `csvImport*.test.mjs` were not
+changed in that commit and exercise no `413` — and the `NewVersionModal`
+filtering of parents by `canBranchFrom` (only the pure rule it calls is tested).
 
 **The navigation golden.** `permissionsNav.golden.json` records what
 `useNavigationTree` returns for every combination; the test fails on any
@@ -2572,38 +2630,40 @@ exercises the pin and the `80rem` threshold.
 
 Backend changes on `update-frontend` since the 2026-11-14 catalogs (commits
 `22c4504`, `158532e`, `e651e24`, `81f93ac`, and the `mine=true` listing and
-per-vertical save checks that were never catalogued). Case counts are the
-current ones from the sources and the 2026-11-15 `mvn test`; one-line
+per-vertical save checks that were never catalogued). Case counts were
+refreshed in the later 2026-11-15 pass from the sources and a new `mvn test`
+(the table below shows the current ones); one-line
 descriptions were written from the method names and a read of their
 assertions, **not** by running each case on its own.
 
 | Test class | Type | Cases now | Catalogued here |
 | --- | --- | --- | --- |
-| `version.service.VersionAccessGuardTest` | Unit | 49 | 26 |
-| `version.service.VersionAccessServiceTest` | Unit | 13 | 4 |
-| `version.service.VersionMemberServiceTest` | Unit | 19 | 19 (all) |
-| `version.service.VersionServiceTest` | Unit | 43 | 7 |
+| `version.service.VersionAccessGuardTest` | Unit | 56 | 26 |
+| `version.service.VersionAccessServiceTest` | Unit | 14 | 4 |
+| `version.service.VersionMemberServiceTest` | Unit | 26 | 19 (the 7 new ones are in the later section) |
+| `version.service.VersionServiceTest` | Unit | 63 | 7 (the 20 new ones are in the later section) |
 | `version.controller.VersionControllerTest` | Web | 20 | 7 |
 | `version.controller.VersionBranchAccessHttpTest` | Integration | 25 (29 executions) | 10 |
 | `version.controller.VersionReadAccessHttpTest` | Integration | 11 | 2 |
 | `project.service.ProjectAccessGuardTest` | Unit | 26 | 10 |
 | `project.service.ProjectServiceTest` | Unit | 104 | 11 |
 | `organization.service.OrganizationServiceTest` | Unit | 88 | 8 |
-| `organization.controller.OrganizationControllerTest` | Web | 46 | 5 |
+| `organization.controller.OrganizationControllerTest` | Web | 47 | 5 |
 | `organization.repository.OrganizationRepositoryTest` | Data | 24 | 8 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 18 | 5 |
 | `scenario.service.ScenarioChangeScopeTest` | Unit | 16 | 16 (all) |
-| `economic.controller.ScenarioVerticalAccessHttpTest` | Integration | 19 (25 executions) | 18 |
+| `economic.controller.ScenarioVerticalAccessHttpTest` | Integration | 22 (28 executions) | 18 |
 | `project.service.ProjectVersionCreationPostgreSqlIT` | PostgreSQL (by hand) | 10 | 10 (all) |
 | `project.repository.ProjectRepositoryPostgreSqlIT` | PostgreSQL (by hand) | 6 | 6 (all) |
-| `version.repository.VersionMemberRepositoryPostgreSqlIT` | PostgreSQL (by hand) | 12 | 5 |
+| `version.repository.VersionMemberRepositoryPostgreSqlIT` | PostgreSQL (by hand) | 14 | 5 (+2 in the later section) |
 
 ### 1. Who manages version roles
 
 `version.service.VersionAccessGuardTest` — Unit. `assertCanManageVersionRoles`
-has **no case of its own in this class**: it is exercised through
-`VersionMemberServiceTest` (mocked guard) and the `*HttpTest` classes below
-(real guard). Cases on the other guard methods:
+had **no case of its own in this class** when this section was written; it has
+seven now (see the later section) besides the coverage through
+`VersionMemberServiceTest` (mocked guard) and the `*HttpTest` classes (real
+guard). Cases on the other guard methods:
 
 | Case | Verifies |
 | --- | --- |
@@ -2816,7 +2876,8 @@ changes, and whether the caller may edit each one's vertical.
 | `untypedNodeWithChangedEconomicsFallsBackToVersionEdit` | A node with no type falls back to the version-edit check. |
 
 `economic.controller.ScenarioVerticalAccessHttpTest` — Integration, 18 cases
-not catalogued before (19 in the class, 25 executions):
+not catalogued before (22 in the class now, 28 executions; the 3 newest are in
+the later section):
 
 | Case | Verifies |
 | --- | --- |
@@ -2861,7 +2922,7 @@ unknown id; it still answers for an inactive version or project; and the
 active-only lookup leaves those out.
 
 `version.repository.VersionMemberRepositoryPostgreSqlIT` — 5 cases not
-catalogued before (12 in the class):
+catalogued before (14 in the class now; the 2 newest are in the later section):
 
 | Case | Verifies |
 | --- | --- |
@@ -2879,3 +2940,280 @@ Seven cases of earlier work remain without a line in this file:
 `ScenarioOperationsTest` (`consumptionFieldsRoundTripAndCloneWithoutChangingOriginal`),
 `MigrationCatalogTest` (3 cases) and `ConsumptionPersistenceTest` (1 case). The
 per-class sections above also still carry older cases that were renamed.
+
+## Active-only guards, 413, 403 before 400 and the rewritten `ResultMappingTest` — 2026-11-15
+
+Backend and frontend changes on `update-frontend` after the section above
+(commits `9a4a27f`, `b4dfa71` and `ff35593`). Counts are the ones in the
+[*Summary*](#summary) (a `mvn test` run on 2026-11-15, 13:35, plus the sources).
+The one-line descriptions come from the method names and a read of the code of
+the classes catalogued below; they were **not** produced by running each case on
+its own.
+
+| Test class | Type | New cases | Where |
+| --- | --- | --- | --- |
+| `version.controller.VersionInactiveAccessHttpTest` | Integration | 5 (new class) | 1 |
+| `version.controller.VersionReadWithoutOpenInViewHttpTest` | Integration | 4 (new class) | 2 |
+| `version.controller.VersionRoleCopyDeactivatedUsersHttpTest` | Integration | 3 (new class) | 3 |
+| `version.controller.VersionAccessHttpTest` | Integration | 12 (new class) | 4 |
+| `simulator.ResultMappingTest` | Data | 8 (rewritten class) | 5 |
+| `organization.controller.BulkUploadSizeLimitHttpTest` | Integration | 2 (new class) | 6 |
+| `common.GlobalExceptionHandlerTest` | Unit | 1 (new class) | 6 |
+| `organization.controller.OrganizationControllerTest` | Web | 1 | 6 |
+| `version.service.VersionAccessGuardTest` | Unit | 7 | 7 |
+| `version.service.VersionMemberServiceTest` | Unit | 7 | 7 |
+| `version.service.VersionServiceTest` | Unit | 20 | 8 |
+| `version.service.VersionAccessServiceTest` | Unit | 1 (+2 assertions renamed) | 4 |
+| `economic.service.EconomicServiceTest` | Unit | 2 (+2 assertions changed) | 9 |
+| `economic.controller.ScenarioVerticalAccessHttpTest` | Integration | 3 | 9 |
+| `version.controller.VersionMergeAccessHttpTest` | Integration | 9 (2 parameterized: +14 executions) | 10 |
+| `version.repository.VersionMemberRepositoryPostgreSqlIT` | PostgreSQL (by hand) | 2 | 11 |
+
+### 1. `version.controller.VersionInactiveAccessHttpTest` — Integration, 5 cases
+
+A version role holder is refused once the version or its project is deactivated.
+Each check hits `GET /version/{id}`, `/diagram` and `/conflicts`. These pin the
+`v.active = true AND p.active = true` added to
+`VersionMemberRepository.findEffectiveByVersionIdAndUserId`.
+
+| Case | Verifies |
+| --- | --- |
+| `aVersionRoleHolderReadsWhileTheProjectAndTheVersionAreActive` | A project `EDITOR` holding a version `ADMIN` role reads all three endpoints (`200`). |
+| `aVersionRoleHolderIsRefusedOnceTheVersionIsDeactivated` | After the version is deactivated, the same three reads answer `403`. |
+| `aVersionRoleHolderIsRefusedOnceTheProjectIsDeactivated` | After the project is deactivated, the same three reads answer `403`. |
+| `aVersionSimulatorIsRefusedOnceTheVersionIsDeactivated` | A `SIMULATOR` role is cut off the same way (`403`). |
+| `aPlatformAdminStillReadsADeactivatedVersion` | A platform admin still gets `200` on the version and its diagram. |
+
+### 2. `version.controller.VersionReadWithoutOpenInViewHttpTest` — Integration, 4 cases
+
+Runs with `spring.jpa.open-in-view=false` (its own H2 database) and no
+surrounding transaction, to show the reads authorize without a persistence
+session left open by the web layer. These pin the `@Transactional(readOnly =
+true)` on `VersionService.getVersion` and
+`VersionConflictService.getConflictsForVersion`.
+
+| Case | Verifies |
+| --- | --- |
+| `getVersionAuthorizesAVersionRoleHolderWithoutAnOpenSession` | `getVersion` called straight on the service by a version role holder returns the version. |
+| `getVersionAuthorizesAProjectMemberWithoutAVersionRoleAndWithoutAnOpenSession` | The same for a project member with no version role (fallback to project membership). |
+| `getConflictsForVersionAuthorizesAProjectMemberWithoutAVersionRoleAndWithoutAnOpenSession` | `getConflictsForVersion` for a project member with no role answers an empty list. |
+| `theConflictsEndpointRespondsToAVersionRoleHolderWithoutOpenInView` | `GET /version/{id}/conflicts` over MockMvc answers `200` for a version role holder. |
+
+> This class deliberately does **not** call `GET /version/{id}` over HTTP: that
+> endpoint returns the `Version` entity and fails with `open-in-view=false` (a
+> known debt, see `considerations.md`, 2026-11-15). `getVersion` is exercised on
+> the service only.
+
+### 3. `version.controller.VersionRoleCopyDeactivatedUsersHttpTest` — Integration, 3 cases
+
+What branching a version does with the roles of people who are no longer active
+(`ProjectService.copyVersionRoles`). It pins today's behavior, including the
+inert rows (see the debt in `considerations.md`).
+
+| Case | Verifies |
+| --- | --- |
+| `aBranchCopiesTheRolesOfActiveMembersAndTheyKeepWorkingThere` | The child copies the active holder's role and that person reads the child's diagram (`200`). |
+| `aBranchCopiesTheRolesOfADeactivatedProjectMemberButTheyGrantNoAccessThere` | The row of a deactivated project member **is** copied to the child, but `findEffectiveByVersionIdAndUserId` finds nothing for them and they get `403` on the child; the active holder still has an effective role. |
+| `aBranchCopiesTheRolesOfADeactivatedUserAccountButTheyAreNeverEffectiveOnceTheMembershipIsDeactivated` | The row of a deactivated account with a deactivated membership is copied and is never effective. |
+
+### 4. `GET /projects/{id}/access` and `canCreateRootVersions`
+
+`version.controller.VersionAccessHttpTest` — Integration, 12 cases over the real
+guard and database (`canCreateVersions` became `canCreateRootVersions`, true
+only with `MANAGE_PROJECT`):
+
+| Case | Verifies |
+| --- | --- |
+| `platformAdminGetsFullAccessWithoutBeingAMember` | A platform admin: `platformAdmin`, `canManageProject`, `canCreateRootVersions`, source `PLATFORM_ADMIN`, `canManage` and `canManageRoles`. |
+| `projectAdminManagesTheProjectAndEveryVersion` | A project `ADMIN`: `canCreateRootVersions` and `canManageProject` true, source `PROJECT_ADMIN`, effective role `ADMIN`, `canManageRoles`. |
+| `projectEditorEditsVersionsButCannotCreateRootsOrManage` | A project `EDITOR`: `canCreateRootVersions` **false**, source `PROJECT_FALLBACK`, can view and edit, cannot manage or manage roles, no roles. |
+| `versionSimulatorCanOnlyViewAndSimulate` | A `SIMULATOR` role: source `VERSION_ROLES`, view and simulate only, no editable verticals, `canCreateRootVersions` false. |
+| `versionEditorOfOneVerticalEditsThatVerticalAndInternalConsumptionOnly` | An `EDITOR` of `EXTRACTION`: editable verticals are that one plus internal consumption; cannot manage. |
+| `versionAdminWhoIsOnlyAProjectEditorManagesTheVersionButNotItsRoles` | A version `ADMIN` who is a project `EDITOR`: `canManage` true, `canManageRoles` false, `canManageProject` false. |
+| `deactivatedVersionsAreLeftOutOfTheList` | A deactivated version is not in `versions`. |
+| `aUserOutsideTheProjectGets403` | An organization member outside the project: `403`. |
+| `anOrganizationOwnerOutsideTheProjectGets403` | An organization owner outside the project: `403`. |
+| `aDeactivatedProjectMemberGets403` | A deactivated project member: `403`. |
+| `anAnonymousCallerGets401` | No token: `401`. |
+| `anUnknownProjectAnswers404ForAPlatformAdmin` | An unknown project id: `404` for a platform admin (a non-admin would also get `404`, before the `403` — see the debt in `considerations.md`). |
+
+`version.service.VersionAccessServiceTest` — one new case,
+`projectEditorWithoutVersionRolesCannotCreateRootVersionsButStillEditsThemAll`
+(a project editor with no roles: `canManageProject` and `canCreateRootVersions`
+false, every version `canEdit`); two existing assertions changed from
+`canCreateVersions` to `canCreateRootVersions` (an editor: false; an admin: true).
+`VersionAccessControllerTest` follows the rename in its JSON assertions
+(`$.data.canCreateRootVersions`); its case count is unchanged.
+
+### 5. The rewritten `simulator.ResultMappingTest` — Data, 8 cases
+
+`@DataJpaTest` on H2 (`MODE=PostgreSQL`, Hibernate-generated schema, Flyway off)
+pinning the mapping of `FinalResult` / `ResultPerNode` to the table and column
+names `V8__create_results.sql` uses. It does **not** run against PostgreSQL and
+does not execute the migration; see `considerations.md`, 2026-11-15.
+
+| Case | Verifies |
+| --- | --- |
+| `aFinalResultIsStoredAndLoadedBackWithItsPercentilesAndValues` | A saved result reloads with its `time`, `mediaOutput`, the sizes of the three percentile lists and a node's figures. |
+| `thePercentileListsAreStoredInTheirOwnJoinTables` | Rows land in `final_result_p90` (2), `final_result_p50` (1), `final_result_p10` (0) and `result_per_node` (3), owned by the result. |
+| `resultPerNodeRowsUseTheColumnsOfTheMigration` | A `result_per_node` row has `NODE_CLASS`, `TOTAL_PRODUCED`, `TOTAL_DEFERRED` and `MAX_POSSIBLE_PRODUCED`. |
+| `resultPerNodeRowsStoreTheNodeIdInTheNodeIdColumn` | The node id is stored in `NODE_ID`. |
+| `theFinalResultRowKeepsItsTimeMediaOutputAndVersionColumns` | `final_result` has `TIME`, `MEDIA_OUTPUT` and `VERSION_ID`. |
+| `noJoinTableOutsideTheMigrationsIsCreated` | Hibernate creates no join table the migrations do not define. |
+| `removingARowFromAPercentileListDeletesItsPerNodeRow` | Removing an element from a percentile list deletes its `result_per_node` row (orphan removal). |
+| `deletingAVersionDeletesItsFinalResultsAndTheirRows` | Deleting the version deletes its results, the join rows and the per-node rows. |
+
+### 6. `413` for a CSV above 1 MB
+
+The limits are explicit now: `spring.servlet.multipart.max-file-size=1MB`,
+`max-request-size=2MB`; `GlobalExceptionHandler.handleUploadTooLarge` answers
+`413 The uploaded file exceeds the maximum size of 1 MB`.
+
+| Class | Case | Verifies |
+| --- | --- | --- |
+| `common.GlobalExceptionHandlerTest` (Unit) | `uploadAboveTheLimitAnswers413WithAClearMessage` | The handler returns `413`, `success=false` and the message. |
+| `organization.controller.OrganizationControllerTest` (Web) | `bulkRegisterUsersAnswers413WhenTheFileExceedsTheUploadLimit` | `POST /organizations/{id}/users/bulk` answers `413` with that body when the service throws `MaxUploadSizeExceededException` (mocked). |
+| `organization.controller.BulkUploadSizeLimitHttpTest` (Integration, real server on a random port) | `aCsvAboveOneMegabyteAnswers413InsteadOf500` | A real multipart upload of 1 MB + 1 byte, sent by a platform admin, answers `413` with the message. |
+| | `aCsvOfExactlyOneMegabyteIsNotRejectedForItsSize` | Exactly 1 MB is not answered `413` (the test only asserts the status is not `413`; it does not check what the endpoint answers instead). |
+
+> **Not tested: `413` before `403`.** The `413` is raised while the multipart
+> request is parsed, before the request reaches the controller, so a caller who
+> may not use the endpoint still sees `413` for an oversized file. That order
+> follows from where Spring parses the body; **no test** sends an oversized file
+> as a caller without permission (`BulkUploadSizeLimitHttpTest` uses a platform
+> admin). The frontend's *El archivo supera el tamaño máximo de 1 MB.* branch has
+> no unit test either.
+
+### 7. `403` before `404` on the role endpoints
+
+`assertCanManageVersionRoles` now runs **before** the version lookup, so an
+unknown version id is `403` for everybody but a platform admin (`404`).
+
+`version.service.VersionAccessGuardTest` — 7 cases of `assertCanManageVersionRoles`:
+
+| Case | Verifies |
+| --- | --- |
+| `assertCanManageVersionRolesAllowsAPlatformAdminWithoutAnyLookup` | A platform admin passes with no repository access. |
+| `assertCanManageVersionRolesAllowsAProjectAdmin` | A project `ADMIN` passes; version memberships are never read. |
+| `assertCanManageVersionRolesDeniesAVersionAdminWhoIsOnlyAProjectEditor` | A version `ADMIN` who is a project `EDITOR` is refused (`403`). |
+| `assertCanManageVersionRolesDeniesAProjectEditor` | A project `EDITOR` is refused with `You are not allowed to manage the roles of this version`. |
+| `assertCanManageVersionRolesDeniesAUserOutsideTheProject` | A non-member is refused. |
+| `assertCanManageVersionRolesRejectsUnauthenticated` | No session → `UnauthorizedException`, no lookups. |
+| `assertCanManageVersionRolesDeniesAUnknownVersionWithoutLookingUpMemberships` | A version attached to no project → `403`, no membership lookups. |
+
+`version.service.VersionMemberServiceTest` — 7 cases:
+
+| Case | Verifies |
+| --- | --- |
+| `addRoleAnswers403ForAnUnknownVersionToARegularUser` | An unknown version → `403` and `versionRepository.findById` is never called. |
+| `listMembersAnswers403ForAnUnknownVersionToARegularUser` | The same for listing members (`existsById` never called). |
+| `listMembersAnswers404ForAnUnknownVersionToAPlatformAdmin` | A platform admin gets `VersionNotFoundException` (`404`). |
+| `removeRoleAnswers403ForAnUnknownVersionToARegularUser` | The same `403` for revoking a role. |
+| `removeRoleAnswers404ForAnUnknownVersionToAPlatformAdmin` | …and `404` for a platform admin. |
+| `listMemberCandidatesAnswers403ForAnUnknownVersionToARegularUser` | The same `403` for the candidates listing. |
+| `listMemberCandidatesAnswers404ForAnUnknownVersionToAPlatformAdmin` | …and `404` for a platform admin. |
+
+### 8. `version.service.VersionServiceTest` — Unit, 20 new cases (43 → 63)
+
+Access is checked before anything is loaded, and nothing is saved when it is
+refused.
+
+| Case | Verifies |
+| --- | --- |
+| `saveOrphanVersionIsRefusedForANonPlatformAdminAndSavesNothing` / `saveOrphanVersionCreatesTheVersionForAPlatformAdmin` | A detached version needs a platform admin (`assertIsPlatformAdmin("create detached versions")`); a non-admin saves nothing. |
+| `getVersionIsRefusedWithoutLookingItUpWhenTheCallerCannotViewIt` / `getVersionChecksViewAccessAndReturnsTheVersion` / `getVersionOfAMissingVersionChecksAccessAndThen404sForAnAuthorizedCaller` | `getVersion` checks view access first (`403` without a lookup), returns the version, and `404`s a missing one only for an authorized caller. |
+| `updateNodePositionIsRefusedBeforeLoadingAnythingWhenTheCallerCannotViewTheVersion` / `updateNodeBasicsIsRefusedBeforeLoadingAnythingWhenTheCallerCannotViewTheVersion` | A caller who cannot view the version is refused before any repository is touched. |
+| `updateNodePositionIsRefusedWhenTheCallerCannotEditTheVerticalOfTheNodeAndSavesNothing` / `updateNodeBasicsIsRefusedWhenTheCallerCannotEditTheVerticalOfTheNodeAndSavesNothing` | A refusal on the node's vertical saves nothing (the node keeps its name). |
+| `updateNodePositionOfAnUntypedNodeFallsBackToTheVersionEditCheck` | A node with no vertical falls back to `assertCanEditVersion`. |
+| `addConnectionToVersion…` / `editConnectionInVersion…` / `deleteConnectionFromVersion…` — `IsRefusedBeforeTouchingAnythingWhenTheCallerCannotEditConnections` | Each is refused before any repository is touched (3 cases). |
+| `addConnectionToVersion…` / `editConnectionInVersion…` / `deleteConnectionFromVersion…` — `ChecksConnectionEditAccessAndThen404sForAMissingVersion` | Each checks connection-edit access and then `404`s a missing version (3 cases). |
+| `modifyVersionIsRefusedBeforeLoadingTheVersionWhenTheCallerCannotEditIt` | `modifyVersion` is refused before loading the version. |
+| `saveVersionRejectsABlankName` / `…AWhitespaceOnlyName` / `…ANullName` | Blank and whitespace-only names are `IllegalArgumentException("Version name cannot be blank or whitespace only")`; a null one `Version name cannot be null`; nothing is saved. |
+
+### 9. `403` before `400` in the economic configuration and draft
+
+`EconomicService.save` and `saveDraft` now run the per-vertical check
+(`ScenarioChangeScope`) **before** the validation.
+
+`economic.controller.ScenarioVerticalAccessHttpTest` — 3 new cases (22 in the
+class, 28 executions):
+
+| Case | Verifies |
+| --- | --- |
+| `economicConfigurationWithAnotherVerticalsCostAndAnInvalidValueGets403Not400` | An `EXTRACTION` editor who raises an `EXPORT` cost **and** sends `wacc = -1` gets `403`; the stored configuration is unchanged. |
+| `economicConfigurationWithOnlyAnInvalidValueStillGets400` | The same editor sending only the invalid value still gets `400`. |
+| `economicDraftOnAnotherVerticalsNodeWithAMalformedStructureGets403Not400` | A draft with a malformed structure on another vertical's node: `403` for the `EXTRACTION` editor, `400` for the `EXPORT` editor; no draft is stored. |
+
+`economic.service.EconomicServiceTest` — 2 new cases and 2 changed assertions:
+
+| Case | Verifies |
+| --- | --- |
+| `saveWithANullConfigurationAnswersIllegalArgumentNotNullPointer` | A null configuration → `IllegalArgumentException`, nothing saved. |
+| `saveDraftWithANullBodyAnswersIllegalArgumentNotNullPointer` | A draft whose body is null → `IllegalArgumentException`, no draft saved. |
+| (changed) two existing cases | `verifyNoInteractions(configs, …)` / `verifyNoInteractions(drafts)` became `verify(configs, never()).save(any())` / `verify(drafts, never()).save(any())`, because `save` now reads the stored configuration (for the vertical check) before the validation that refuses the request. |
+
+### 10. `version.controller.VersionMergeAccessHttpTest` — 9 new cases (24 in the class, 41 executions)
+
+`REJECT` on a conflict, and conflicts between projects. The two parameterized
+cases account for the +14 executions: 5 verticals (`@EnumSource(VerticalEnum)`)
+plus 2 decisions (`ACCEPT`, `REJECT`) = 7 executions from the two parameterized
+cases, on top of the 7 plain cases: 14 in all.
+
+| Case | Verifies |
+| --- | --- |
+| `adminOfTheSiblingRejectsAndKeepsItsOwnDataOfAnyVertical` (parameterized over the verticals) | The admin of the sibling can `REJECT` a node conflict of any vertical: `200`, the sibling keeps its own data, the conflict is resolved and an `EDIT` change is recorded. |
+| `rejectingRecordsNoChangeWhenTheSiblingNeverHadTheNode` | When the sibling no longer has the node, `REJECT` answers `200` and records a `DELETE` change for that node (despite the method name, a change **is** recorded: the deletion). |
+| `editorOfTheNodeVerticalCannotRejectAndNothingIsRecorded` | An editor of the node's vertical cannot reject: no change recorded, conflict still open. |
+| `adminOfTheSiblingWithoutEditPermissionCannotRejectANodeConflict` | A sibling admin without edit permission cannot reject a node conflict: nothing recorded, conflict still open. |
+| `rejectingAnUnknownConflictAnswers404` | An unknown conflict id → `404`. |
+| `anUnknownDecisionAnswers400` | A decision other than the known ones → `400`, conflict unresolved. |
+| `aChildHangingFromAVersionOfAnotherProjectCannotRejectAndNothingIsRecorded` | A caller attacking through a child whose parent is in another project gets `403`; nothing recorded, conflict still open. |
+| `aConnectionConflictOfAChildHangingFromAnotherProjectCannotBeResolvedAndNothingIsCopied` (parameterized over the decisions) | A connection conflict across projects → `403` for each decision (`ACCEPT` and `REJECT`); the child's connections and changes stay empty, the foreign parent keeps its connection, conflict unresolved. |
+| `listingAChildHidesConnectionConflictsRecordedAgainstAnotherProject` | The conflicts listing of a child does not show connection conflicts recorded against another project. |
+
+### 11. `version.repository.VersionMemberRepositoryPostgreSqlIT` — 2 new cases (14 in the class)
+
+By hand, on PostgreSQL (see the *PostgreSQL classes* table above; not run for
+this update).
+
+| Case | Verifies |
+| --- | --- |
+| `effectiveLookupIgnoresTheRowsOfADeactivatedVersionOnly` | After one version is deactivated, `findEffectiveByVersionIdAndUserId` returns nothing for its rows (caller and colleague) and still returns the row of the other version. |
+| `effectiveLookupIgnoresEveryRowOfADeactivatedProject` | After the project is deactivated, no row of any of its versions is effective. |
+
+## Structural role, editor simulate permission, role change and project matrix — 2026-11-15
+
+Backend only. Counts are in the Summary; this lists what each test pins.
+
+- **`node.model.enums.NodeTypeEnumTest`** (+2 cases): `everyNodeTypeHasItsStructuralRole`
+  (12 executions: `role()`, `checkedRole(null)` and `checkedRole(role)` for each type, with
+  `PIPELINE_CONECTION` = `INTERMEDIATE`) and `checkedRoleRejectsEveryOtherRole` (12 executions).
+- **`node.service.NodeClonerRoleTest`** (new, 2): a clone recomputes the role from the type when
+  the stored role is inconsistent; with a `null` type it copies the stored role.
+- **`version.controller.VersionNodeVerticalAccessHttpTest`** (+6 cases): per type, create without a
+  role stores the type's role, create with the right role stores it, create with another role is
+  `400` and nothing is created; edit with another role is `400` and the stored node is untouched;
+  edit without a role keeps it; a platform admin gets the same `400` on `POST /version/{id}/node`.
+  Two fixtures were corrected (`SEAPORT_TERMINAL` is `SINK`, in this class and in
+  `NodeCreateAccessHttpTest`); the validation was not relaxed. `golden/version-get.json` did not change
+  (only `WELL`/`GENERATOR`).
+- **`version.service.VersionAccessTest`** (+1): the editor simulates through its stored
+  `SIMULATE_VERSION`; an `EDITOR` row without it (not yet backfilled) does not.
+  **`node.migration.MigrationCatalogTest`** expects 24 migrations.
+- **`version.repository.VersionMemberRepositoryPostgreSqlIT`** (+2, by hand, not run):
+  `v24BackfillsEditorSimulatePermissionAndIsIdempotent` runs `V24` twice (second run inserts 0, total
+  unchanged, every `EDITOR` has the permission, `ADMIN`/`SIMULATOR` untouched) and
+  `projectMatrixQueryCountDoesNotGrowWithMembersAndRoles` (statement count ≤ 3 and equal with 6 more
+  members and 12 more roles; Hibernate statistics).
+- **`version.service.VersionMemberServiceTest`** (+10, `changeRole…`): editor→simulator keeps the id and
+  replaces permissions; admin→editor leaves no `MANAGE_VERSION`; the shared defaults are not mutated;
+  a single-role member is not deleted; duplicate is `400 User already has this role`; same shape is a
+  no-op (no save); vertical change; shape errors; `403` before any lookup; the three `404`s.
+- **`version.controller.VersionRoleChangeHttpTest`** (new, 10): project admin and platform admin change a
+  role (id kept, permissions replaced, member kept); duplicate is `400` like `POST`; `403` for version
+  admin/editor/simulator, project editor and unrelated user; `403` before `404`; `404` for unknown or
+  other-version member/role; unknown version is `404` for a platform admin and `403` otherwise; invalid body `400`.
+- **`version.controller.ProjectVersionMembersHttpTest`** (new, 5): admins read the matrix; everyone else
+  `403`; unknown project `403`/`404`; inactive versions left out and empty versions listed with `[]`; each
+  version equals `GET /version/{id}/members`. `ProjectControllerTest` gained a `VersionMemberService` mock.
+

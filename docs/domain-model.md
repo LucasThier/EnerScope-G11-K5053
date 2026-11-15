@@ -177,7 +177,8 @@ Four role scopes exist and they are independent of each other:
   project role (`VersionCapability` names the project permission each
   capability falls back to); a platform `ADMIN` can do everything. A version
   `EDITOR` edits its own vertical plus `INTERNAL_CONSUMPTION` and may simulate
-  (a rule in code, not a stored permission). **A project `ADMIN` (an active
+  through a **stored** `SIMULATE_VERSION` permission (migration `V24`; the rule
+  in code was removed). **A project `ADMIN` (an active
   member holding `MANAGE_PROJECT`) administers every version of the project
   whatever version roles they hold**; their explicit roles are kept and shown
   but never narrow them. `GET /projects/{id}/access` returns the result per
@@ -189,16 +190,28 @@ Four role scopes exist and they are independent of each other:
   listing). A version `ADMIN` who is not a project admin cannot. `MANAGE_VERSION`
   still covers deleting the version, being the destination of a merge,
   resolving conflicts and re-parenting. A version member holds any number of
-  roles at once; roles are granted and revoked one by one (there is no "change
-  role").
-- **A version role needs an active project membership.** Granting one requires
-  being an active project member, and the guard only counts a role while the
-  `project_member` row exists **and is active** (`findEffectiveByVersionIdAndUserId`).
+  roles at once; roles are granted and revoked one by one, and `PUT
+  /version/{id}/members/{memberId}/roles/{roleId}` changes one in place (same id,
+  membership kept, permissions replaced by the new type's defaults).
+  `GET /projects/{id}/version-members` lists every active version with its
+  members and roles in one call.
+- **A version role needs an active project membership, project and version.**
+  Granting one requires being an active project member, and the guard only
+  counts a role while the `project_member` row exists **and is active**, the
+  project is active and the version is active (`findEffectiveByVersionIdAndUserId`):
+  deactivating the version or the project cuts off its role holders, while a
+  platform `ADMIN` still reads it. The rows stay in the table. `ProjectService`
+  still copies every row of the parent, including those of deactivated users
+  (tested) or of people outside the project (by reading the code), when a child
+  is created; they are inert (never effective) but are not cleaned up.
 - **Creating a child version.** The child receives a copy of the parent's
   version roles (vertical and permissions included; later changes do not
   propagate), and **its creator becomes `ADMIN` of the child** unless they are a
   project or platform admin (who already administer it). Root versions (no
-  parent) can be created only by a project `ADMIN` or a platform `ADMIN`.
+  parent) can be created only by a project `ADMIN` or a platform `ADMIN`;
+  `GET /projects/{id}/access` reports it as `canCreateRootVersions` (true for
+  `MANAGE_PROJECT` and the platform admin, false for a project `EDITOR`; it was
+  `canCreateVersions` and followed `EDIT_PROJECT`).
 - **Deleting a version deletes its subtree**, in one transaction, and needs
   permission to administer every version in it; a descendant of another
   project, or of none, can only be deleted by a platform `ADMIN`. Nothing is
@@ -208,6 +221,12 @@ Four role scopes exist and they are independent of each other:
   the person's `version_member` rows in the affected projects, in the same
   transaction and only after the last-admin guards pass. `addMember` deletes
   any leftover rows, so a re-added member starts from the project role.
+- **Role endpoints check the permission before the version exists.**
+  `assertCanManageVersionRoles` runs before the lookup, so for anyone but a
+  platform `ADMIN` an unknown version id answers `403`; only a platform `ADMIN`
+  gets `404`. (A non-existent *project* still answers `404` before `403` on
+  `GET /projects/{id}/access` and the economic endpoints — known debt in
+  `considerations.md`.)
 
 ### The last owner and the last administrator are protected
 
@@ -297,7 +316,7 @@ concrete node type (`Well`, `GatheringNetwork`, `TreatmentPlant`, `Pipeline`,
 | `identityId` | UUID | Cross-version identity: the same real node keeps this id across versions (used by the diff/merge logic). |
 | `name` | String | |
 | `state` | NodeStateEnum | `RUNNING` \| `PROPOSED` \| `PENDING` \| `REMOVED` |
-| `type` | NodeTypeData | `@OneToOne` — `vertical` / `role` / `nodeType` enums |
+| `type` | NodeTypeData | `@OneToOne` — `vertical` / `role` / `nodeType` enums; `vertical` and `role` are derived from `nodeType` (`NodeTypeEnum`) and rejected with `400` if they disagree |
 | `graphData` | NodeGraphData | `@OneToOne` — see below |
 | `investmentCost` | InvestmentCost | `@OneToOne` |
 | plus per-type fields | | capacities, costs, etc. |

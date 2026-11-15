@@ -2141,6 +2141,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     default H2 URL (it logs a WARN and carries on), so nothing could ever
     persist a result in the H2 tests. `ResultMappingTest` opts into
     `NON_KEYWORDS=YEAR`; do the same for any new test that touches `result`.
+    (That class was lost in a merge and rewritten on 2026-11-15; the rewritten
+    one uses the plain H2 URL of the `test` profile with `MODE=PostgreSQL` —
+    see the last entry.)
   - **To check when the `Probabilistica` work is merged:** `FinalResult` there
     declares three `@OneToMany List<ResultPerNode>` (`percentile90/50/10`) with
     no `@JoinColumn` or `@JoinTable`, while `V9` creates the join tables
@@ -2562,7 +2565,7 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     the browser only.** 100 because each account costs seconds of password
     hashing; 1 MB because that is exactly Spring's default multipart
     `max-file-size`, so the browser refuses the file the server would have
-    refused badly (see below). Over either limit the preview still renders, the
+    refused badly (see below; *since 2026-11-15 the server answers `413`*). Over either limit the preview still renders, the
     import button stays disabled, and the message says to split the file.
   - **The generated passwords are shown once.** The response's `credentialsCsv`
     (`mail,password`) is never persisted and cannot be re-fetched. The screen
@@ -2601,6 +2604,7 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
       the operator to check the member list before retrying, because a retry of
       the same file will report those rows as already existing.
     - **A file over the multipart limit answers `500`, not `400`.**
+      *(Superseded on 2026-11-15, see the last entry: it answers `413` now.)*
       `MaxUploadSizeExceededException` has no handler, so it falls through to
       `GlobalExceptionHandler`'s catch-all and comes back as
       `Internal error`. The 1 MB guard in the browser is a workaround, not a
@@ -2842,7 +2846,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     `PROJECT_ADMIN`). The project-level `canManageProject` and `canCreateVersions`
     flags are `MANAGE_PROJECT` and `EDIT_PROJECT`: **`canCreateVersions` is true
     for an editor, but a root version needs `canManageProject`** — the frontend
-    does not read `canCreateVersions`.
+    does not read `canCreateVersions`. *(Superseded on 2026-11-15: the flag was
+    renamed `canCreateRootVersions` and now follows `MANAGE_PROJECT`; see the
+    last entry.)*
   - **Whoever creates a child version becomes its `ADMIN`.** After the parent's
     roles are copied, a creator who is an active project member but not a
     project admin gets `ADMIN` on the child — on the same membership row if
@@ -2883,7 +2889,8 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     check (`assertCanEditVersion`, `403`) runs first; the **per-vertical**
     check (`ScenarioChangeScope`) runs after the structural validation in
     `EconomicService.save` / `saveDraft` (so an editor sending a malformed body
-    still sees `400` first) and before the business validation in
+    still sees `400` first — *superseded on 2026-11-15: the vertical check now
+    runs first in `EconomicService`, see the last entry*) and before the business validation in
     `ScenarioConfigurationService.save` (whose validation errors come back in a
     `200` body, so an editor changing another vertical's node gets `403`, not
     the list of errors). Do not assume "403 first" there without reading the
@@ -2896,7 +2903,8 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     skips the check) gets `404`. The role endpoints (`addRole`, `listMembers`,
     `removeRole`, `member-candidates`) still look the version up first, so any
     authenticated caller can tell whether a version id exists from their `404`.
-    Left as is; make them consistent if probing matters.
+    Left as is; make them consistent if probing matters. *(Superseded on
+    2026-11-15: they now check the permission first; see the last entry.)*
   - **Bulk CSV** (`POST /organizations/{id}/users/bulk`). New optional column
     `jobTitle` (aliases `job_title`, `job title`, `puesto`, `cargo`; ≤120
     characters, stored trimmed, blank = none; a longer one fails that row). A
@@ -2992,3 +3000,191 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     platform admin can now delete) or roles whose holder is an inactive project
     member; and the behaviour of the screens in a real browser beyond what the
     unit tests cover.
+
+- 2026-11-15 (later) — Active-only guards, `413`, `403` before `404`/`400`,
+  `canCreateRootVersions` and the frontend that goes with them (`update-frontend`,
+  commits `9a4a27f`, `b4dfa71`, `ff35593`). Tests in [`testing.md`](testing.md) →
+  *Active-only guards, 413, 403 before 400 and the rewritten `ResultMappingTest`*
+  and *Frontend unit tests*. Each rule below was checked against the code on the
+  date of this entry. It supersedes the passages of the entry above that say
+  otherwise (they carry a pointer to this one).
+  - **A version role counts only while the project and the version are active.**
+    `VersionMemberRepository.findEffectiveByVersionIdAndUserId` now also requires
+    `v.active = true AND p.active = true`, on top of the active project
+    membership. Deactivating a version or its project cuts off every holder of a
+    version role (`403` on view/diagram/conflicts) while a platform admin still
+    reads it. This is the single lookup the guards use, so the rule applies to
+    all of them.
+  - **`getVersion` and `getConflictsForVersion` are `@Transactional(readOnly =
+    true)`** so the guard and the reads work with `spring.jpa.open-in-view=false`
+    (the property is still unset in `application.properties`, i.e. `true`).
+    `VersionReadWithoutOpenInViewHttpTest` pins that for the services and for
+    `GET /version/{id}/conflicts`.
+  - **`403` before `404` on the role endpoints.** `addRole`, `listMembers`,
+    `removeRole` and `listMemberCandidates` call `assertCanManageVersionRoles`
+    **before** looking the version up. The guard answers `403` for a version that
+    does not exist or is attached to no project, so only a platform admin (who
+    skips it) gets `404`; a project admin or anybody else can no longer probe
+    whether a version id exists. This replaces the "left as is" note of the
+    previous entry for those four endpoints.
+  - **`403` before `400` in the economic configuration and draft.**
+    `EconomicService.save` and `saveDraft` now call the per-vertical check
+    (`ScenarioChangeScope.assertCanSave` / `assertCanSaveDraft`) **before**
+    `validateConfiguration` / `draft.validateStructure()`. An editor who changes
+    another vertical's node gets `403` even when the body is also invalid or
+    malformed; with only an invalid value they still get `400`. A `null`
+    configuration or draft body answers `IllegalArgumentException` (`400`), not a
+    `NullPointerException`. This replaces the earlier note that structural
+    validation came first in those two methods.
+  - **`413` for a CSV above 1 MB.** `spring.servlet.multipart.max-file-size=1MB`
+    and `max-request-size=2MB` are now set explicitly and
+    `GlobalExceptionHandler.handleUploadTooLarge` answers `413 The uploaded file
+    exceeds the maximum size of 1 MB` (it was `500 Internal error`).
+    **The `413` is answered before any `403`:** the multipart is cut while the
+    request is parsed, before it reaches the controller, so a caller who may not
+    use `POST /organizations/{id}/users/bulk` still sees `413` for an oversized
+    file, and a file under the limit gets the `403`. That order is a consequence of
+    where Spring parses the body; it is **not covered by a test**
+    (`BulkUploadSizeLimitHttpTest` sends the oversized file as a platform admin),
+    and the 500-row `400` and the `403` of the previous entry only apply to files
+    that fit under the limit. The frontend shows *El archivo supera el tamaño máximo de 1 MB.* for a
+    `413` (`useCsvUserImport`), with no unit test.
+  - **`canCreateVersions` is now `canCreateRootVersions`**
+    (`ProjectAccessDTO`, the frontend `ProjectAccess` type): true for a platform
+    admin or `MANAGE_PROJECT`, false for a project `EDITOR`, because only an admin
+    can create a root version (it was `EDIT_PROJECT`, which was true for an
+    editor). A client that still reads `canCreateVersions` gets `undefined`.
+    `canCreateRootVersions` and the existing `canManageProject` carry the same
+    condition today; keep them as separate flags in case the rules diverge.
+  - **Javadoc fixed to match the guard.** The Javadoc of
+    `VersionAccessGuard` (`assertCanEditVersion`, `assertCanManageVersion`,
+    `assertCanEditNodeVertical`, `assertCanEditConnection`,
+    `assertCanSimulateVersion`) said a version role is never topped up by the
+    project permission; it now says an **ADMIN of the owning project always
+    passes** (as the previous entry already described). The `DELETE
+    /version/{id}` summary now says it deletes the subtree. Comments only.
+  - **Frontend, this pass.**
+    - `api/errors.ts` translates the branch, merge, vertical and lineage
+      messages (*edit this version*, *this vertical's nodes*, *simulate this
+      version*, *Node vertical does not match its type: …*, *The versions belong
+      to different projects*, *Parent version must belong to the same project*,
+      *A version cannot be its own ancestor*, *Simulation graph contains a cycle*,
+      *Resource not found*, *Project permission required: VIEW_PROJECT*) and
+      shortens *You are not allowed to manage this project* to *No tenés permiso
+      para administrar este proyecto.* Messages not in the table still pass
+      through in English.
+    - **Session refresh on a `403` for a platform administrator.** The response
+      interceptor (`api/client.ts`) calls `requestUserRefresh()`
+      (`api/authEvents.ts`) once per request when the cached user is a platform
+      admin, so a role change on the server is picked up without a reload. Refreshes
+      are at least **5 s** apart (`MIN_USER_REFRESH_INTERVAL_MS`), so a burst of
+      `403`s triggers one. `AuthProvider` registers the handlers; when the
+      refresh-token exchange fails after a `401`, `notifySessionLost()` clears the
+      user and the app returns to the login. A regular user's `403` refreshes
+      nothing.
+    - **Labels.** Project member types read *Administrador del proyecto* and
+      *Editor del proyecto*. In the projects table, someone who cannot administer
+      the project sees **Ver equipo** (the same `/projects/:id/team` screen)
+      instead of the manage button.
+    - **Permissions read from `/projects/:id/access`.** *Nueva versión* lists as
+      parents only the versions the caller can edit (`canBranchFromParent`) and
+      says so when there are none; *Mergear* appears only when the caller can
+      manage the parent (`canMergeIntoParent`); in the scenario configuration,
+      *Guardar* follows `canEditEconomicConfiguration` and *Crear copia simple*
+      needs edit permission on **every** vertical of the scenario
+      (`uneditableVerticals`, any node of an unknown type blocks it). If the
+      access call fails, the screens fall back to the older project-level flags.
+  - **Known debt found in this pass (left as is):**
+    - **`GET /version/{id}` returns the `Version` entity and answers `500` with
+      `spring.jpa.open-in-view=false`.** The lazy associations
+      (`parentVersion`, the snapshots and change logs) are serialized by Jackson
+      outside any session. It works today only because `open-in-view` is left at
+      its default (`true`). `VersionReadWithoutOpenInViewHttpTest` therefore
+      calls `getVersion` on the service, not over HTTP. Fix by returning a DTO
+      (`VersionResponseDTO`, as already noted on 2026-11-14) before turning
+      `open-in-view` off.
+    - **`404` before `403` for a project that does not exist** in
+      `EconomicService.authorizeProject` (so `authorize()` and every economic
+      endpoint behind it) and in `VersionAccessService.resolveForProject`
+      (`GET /projects/{id}/access`): both load the project first, so a
+      non-admin learns whether a project id exists. Unlike the version
+      endpoints, not changed.
+    - **`ProjectService.copyVersionRoles` copies inert rows.** When a child is
+      created, every role row of the parent is copied with no check on its
+      holder (the code reads `findByVersionIdWithUser(parentId)` and copies all
+      of it). For deactivated accounts and deactivated project memberships this
+      is pinned by `VersionRoleCopyDeactivatedUsersHttpTest`: the rows are
+      copied, grant nothing (`findEffectiveByVersionIdAndUserId` ignores them)
+      and would reappear if the membership were reactivated. For a holder who is
+      **not in the project at all** it is by reading the code only — no test
+      builds a parent row for a non-member, and the PostgreSQL case
+      `theChildDoesNotCopyTheRowOfSomeoneWhoIsNotInTheProject…` covers someone
+      who has no row in the parent. Not filtered, not cleaned.
+    - **`ResultMappingTest` does not cover `ddl-auto=validate` against a real
+      PostgreSQL.** It is a `@DataJpaTest` on H2 with a Hibernate-generated
+      schema (Flyway off), so it checks that the entities map to the table and
+      column names the migrations use, not that `V8`/`V9` produce a schema
+      Hibernate accepts. The Testcontainers-style check named on 2026-10-05 is
+      still open (and `*IT` classes need a PostgreSQL started by hand). The
+      rewritten class runs without `NON_KEYWORDS=YEAR` in its URL and passes; why
+      `year` no longer needs it there was not investigated.
+  - **Test counts and their source.** `mvn test` (run on 2026-11-15 for this
+    entry): 1362 executions in 80 classes, 0 failures/errors/skipped, from the
+    Surefire reports; 1238 cases counted in the sources. `npm test`: 173 tests in
+    27 files, 0 failures. The five `*IT` classes: 49 executions, read from the
+    reports a manual run left in `backend/target/surefire-reports` at 13:31 the
+    same day.
+  - **Not verified (this entry):** the five `*IT` classes were **not** re-run
+    for this update (no PostgreSQL was started), so their 49 is only as current
+    as that earlier manual run; the Flyway migrations and `ddl-auto=validate` on
+    a real PostgreSQL; `npm run build` / `npm run lint` and the Playwright
+    scripts (`tests/*-browser.mjs`), which were not run; the screens in a real
+    browser; the `413`-before-`403` order and the frontend `413` message (no
+    test); and whether any existing database holds role rows of deactivated
+    users or versions that now stop counting.
+
+- 2026-11-15 — Structural role, editor simulate permission, role change and project
+  matrix (`update-frontend`, backend; tests in [`testing.md`](testing.md) → *Structural
+  role, editor simulate permission, role change and project matrix*).
+  - **Structural role is derived from the node type.** `NodeTypeEnum.role()` /
+    `checkedRole()` next to `vertical()`; `role` is optional in the request and a
+    different one is `400` (create and edit, `/nodes/*` and `/version/{id}/node`).
+    `PIPELINE_CONECTION` is `INTERMEDIATE` (the frontend catalog does not create it).
+    Cloning recomputes the role from a non-null type; with a null type it copies the
+    stored one (commented in `NodeCloner`). Fixtures that sent `SEAPORT_TERMINAL` as
+    `INTERMEDIATE` were corrected, not the validation.
+    **Pending, read-only, to run on the real database:**
+    `SELECT type, role, count(*) FROM node_type_data GROUP BY type, role ORDER BY type, role;`
+    — rows whose role disagrees with the type are repaired by a later `V25` only
+    after being seen; until then they are shown as stored and repaired when cloned.
+  - **`V24` stores the editor's simulate permission.** It inserts `SIMULATE_VERSION`
+    for every `EDITOR` role (active or not; `ON CONFLICT DO NOTHING`, so re-running
+    is a no-op); `VersionMember.DEFAULT_PERMISSIONS` and `VersionAccess` no longer
+    carry the rule in code. **Migration and code must be deployed together.**
+    Validate with `VersionMemberRepositoryPostgreSqlIT` (by hand). This closes the
+    2026-11-14 note that moving it to data needed a migration.
+  - **`PUT /version/{id}/members/{memberId}/roles/{roleId}`** (project and platform
+    admin only): order `403` → `404` → `400`; duplicate is the `400` of `POST`; same
+    shape is a no-op. `VersionMemberRole` used to keep the caller's `Set`, which for
+    the defaults is the shared static one, so changing permissions in place would
+    have corrupted every later grant; the constructor now copies it.
+  - **`GET /projects/{id}/version-members`** returns the active versions with the
+    same member shape as the per-version listing (shared `VersionMemberDTO.from`);
+    `403` before `404`. The N+1 on role permissions is resolved with `@BatchSize`,
+    the permissions stay in the DTO. A `ProjectController` now depends on
+    `VersionMemberService`.
+  - **Frontend, cross-cutting (not re-documented in its README here):** `npm test`
+    runs 220 tests, 0 failures (run for this entry). The editor denies by default
+    from `/access`; project access is shared per project and invalidated at the API
+    layer; the user detail screen has actions.
+  - **Debts still open.** Other endpoints that return entities fail with
+    `open-in-view=false` (see 2026-11-15, `GET /version/{id}`; this change adds none:
+    the new endpoints return DTOs). The shared project-access cache is per browser
+    tab: another tab is not told about an invalidation. The `backend-it` job in
+    `.github/workflows/ci.yml` still runs with `continue-on-error: true`, so a
+    failing `*IT` does not fail the build.
+  - **Test counts.** `mvn test`: 1463 executions in 85 classes, 0 failures/errors/
+    skipped (1285 cases in the sources). The `*IT` classes were **not** run: the 49
+    from the earlier manual run plus the 2 new cases (not run) make 51. Flyway on a
+    real PostgreSQL and the `V24` run are unverified here.
+
