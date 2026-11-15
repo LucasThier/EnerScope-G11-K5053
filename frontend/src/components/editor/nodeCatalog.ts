@@ -74,6 +74,16 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
     ],
   },
   {
+    type: 'PIPELINE_CONECTION',
+    label: 'Conexión de gasoducto',
+    vertical: 'TRANSPORTATION',
+    role: 'INTERMEDIATE',
+    fields: [
+      { key: 'transferCapacity', label: 'Capacidad de transferencia' },
+      { key: 'outputPriority', label: 'Prioridad de salida' },
+    ],
+  },
+  {
     type: 'COMPRESSING_PLANT',
     label: 'Planta compresora',
     vertical: 'TRANSPORTATION',
@@ -106,6 +116,8 @@ export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
       { key: 'mtpaRatio', label: 'Relación MTPA' },
       { key: 'intermediateStorage', label: 'Almacenamiento intermedio' },
       { key: 'vesselDepth', label: 'Calado' },
+      { key: 'shipCapacity', label: 'Capacidad del buque', integer: true },
+      { key: 'gasConsumption', label: 'Consumo de gas' },
       { key: 'hiringCost', label: 'Costo de contratación', economic: true },
     ],
   },
@@ -233,11 +245,22 @@ export const NODE_STATES: NodeState[] = ['PROPOSED', 'PENDING', 'RUNNING'];
  * well → gathering → treatment → pipeline/compression → liquefaction (ground or
  * FLNG) → export (seaport terminal → carrier, or FLNG straight to carrier).
  */
+const PIPELINE_TARGETS: NodeType[] = [
+  'PIPELINE',
+  'COMPRESSING_PLANT',
+  'GROUND_LIQUEFACTION_PLANT',
+  'FLNG_UNIT',
+  'INTERNAL_CONSUMPTION',
+  'INDUSTRIAL_CONSUMPTION',
+];
+
 export const ALLOWED_CONNECTIONS: Partial<Record<NodeType, NodeType[]>> = {
   WELL: ['GATHERING_NETWORK'],
   GATHERING_NETWORK: ['TREATMENT_PLANT'],
   TREATMENT_PLANT: ['PIPELINE', 'COMPRESSING_PLANT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
-  PIPELINE: ['PIPELINE', 'COMPRESSING_PLANT', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
+  PIPELINE: [...PIPELINE_TARGETS, 'PIPELINE_CONECTION'],
+  // regla confirmada por el equipo: va siempre después de un PIPELINE y sale igual que un PIPELINE
+  PIPELINE_CONECTION: [...PIPELINE_TARGETS],
   COMPRESSING_PLANT: ['PIPELINE', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
   GROUND_LIQUEFACTION_PLANT: ['SEAPORT_TERMINAL'],
   FLNG_UNIT: ['LNG_CAMER'],

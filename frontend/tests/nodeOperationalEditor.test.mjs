@@ -110,12 +110,65 @@ test('consumers accept treated gas only and remain terminal nodes', () => {
     const payload = buildNodePayload(spec, defaultBaseValues(), values, {});
     for (const [key, value] of Object.entries(values)) assert.equal(payload[key], value);
     for (const candidate of NODE_TYPE_SPECS) {
-      assert.equal(canConnect(candidate.type, type), ['TREATMENT_PLANT', 'PIPELINE', 'COMPRESSING_PLANT'].includes(candidate.type));
+      assert.equal(canConnect(candidate.type, type), ['TREATMENT_PLANT', 'PIPELINE', 'PIPELINE_CONECTION', 'COMPRESSING_PLANT'].includes(candidate.type));
       assert.equal(canConnect(type, candidate.type), false);
     }
   }
 });
 
+
+test('PIPELINE_CONECTION is in the catalog with backend vertical, role and fields', () => {
+  const spec = NODE_TYPE_SPECS.find(s => s.type === 'PIPELINE_CONECTION');
+  assert.equal(spec.vertical, 'TRANSPORTATION');
+  assert.equal(spec.role, 'INTERMEDIATE');
+  assert.deepEqual(spec.fields.map(f => [f.key, f.label]), [['transferCapacity', 'Capacidad de transferencia'], ['outputPriority', 'Prioridad de salida']]);
+  const payload = buildNodePayload(spec, defaultBaseValues(), { transferCapacity: 5, outputPriority: 2 }, {});
+  assert.equal(payload.transferCapacity, 5);
+  assert.equal(payload.outputPriority, 2);
+  assert.deepEqual(payload.type, { vertical: 'TRANSPORTATION', role: 'INTERMEDIATE', nodeType: 'PIPELINE_CONECTION' });
+});
+
+test('PIPELINE_CONECTION only receives from PIPELINE and leaves like a PIPELINE', () => {
+  const { canConnect, allowedTargetTypes } = load(path.join(directory, 'nodeCatalog.ts'));
+  for (const candidate of NODE_TYPE_SPECS) {
+    assert.equal(canConnect(candidate.type, 'PIPELINE_CONECTION'), candidate.type === 'PIPELINE', candidate.type);
+  }
+  const pipelineTargets = allowedTargetTypes('PIPELINE').filter(t => t !== 'PIPELINE_CONECTION');
+  assert.deepEqual([...allowedTargetTypes('PIPELINE_CONECTION')].sort(), [...pipelineTargets].sort());
+  for (const candidate of NODE_TYPE_SPECS) {
+    assert.equal(canConnect('PIPELINE_CONECTION', candidate.type), pipelineTargets.includes(candidate.type), candidate.type);
+  }
+});
+
+test('FLNG_UNIT exposes shipCapacity (integer) and gasConsumption in the payload', () => {
+  const spec = NODE_TYPE_SPECS.find(s => s.type === 'FLNG_UNIT');
+  assert.equal(spec.fields.find(f => f.key === 'shipCapacity').integer, true);
+  assert.equal(spec.fields.find(f => f.key === 'gasConsumption').label, 'Consumo de gas');
+  const payload = buildNodePayload(spec, defaultBaseValues(), { shipCapacity: 170000, gasConsumption: 1.5 }, {});
+  assert.equal(payload.shipCapacity, 170000);
+  assert.equal(payload.gasConsumption, 1.5);
+});
+
+test('FLNG_UNIT and PIPELINE_CONECTION payloads always carry numeric 0 for untouched fields', () => {
+  const cases = { FLNG_UNIT: ['shipCapacity', 'gasConsumption'], PIPELINE_CONECTION: ['transferCapacity', 'outputPriority'] };
+  for (const [type, keys] of Object.entries(cases)) {
+    const spec = NODE_TYPE_SPECS.find(s => s.type === type);
+    for (const typeFields of [{}, { [keys[0]]: 4 }]) {
+      const payload = buildNodePayload(spec, defaultBaseValues(), typeFields, {});
+      for (const key of keys) assert.equal(typeof payload[key], 'number', type + '.' + key);
+      assert.equal(payload[keys[1]], typeFields[keys[1]] ?? 0);
+    }
+  }
+});
+
+test('consumer nodes mirror the backend DTOs, type and labels', () => {
+  const internal = NODE_TYPE_SPECS.find(s => s.type === 'INTERNAL_CONSUMPTION');
+  const industrial = NODE_TYPE_SPECS.find(s => s.type === 'INDUSTRIAL_CONSUMPTION');
+  assert.deepEqual(internal.fields.map(f => f.key), ['consumptionSummer', 'consumptionAutumn', 'consumptionWinter', 'consumptionSpring']);
+  assert.deepEqual(industrial.fields.map(f => f.key), ['consumption']);
+  assert.deepEqual([internal.label, industrial.label], ['Consumo interno', 'Consumo industrial']);
+  assert.ok([...internal.fields, ...industrial.fields].every(f => !f.integer && !f.economic));
+});
 
 test('scenario consumer fields use Spanish labels and retain zero demand', () => {
  const { ScenarioOperationsEditor } = load(path.resolve(directory, '../economics/ScenarioOperationsEditor.tsx'));
@@ -150,7 +203,7 @@ test('editor display labels cover every backend value and show no English copy',
   assert.doesNotMatch(spec.label, english);
   for (const field of spec.fields) assert.doesNotMatch(field.label, english);
  }
- assert.equal(nodeTypeLabel('PIPELINE_CONECTION'), 'PIPELINE_CONECTION');
+ assert.equal(nodeTypeLabel('PIPELINE_CONECTION'), 'Conexión de gasoducto');
 });
 test('node panels render Spanish state, type, vertical and role labels while keeping stored values', () => {
  const spec = NODE_TYPE_SPECS.find(s => s.type === 'LNG_CAMER');
