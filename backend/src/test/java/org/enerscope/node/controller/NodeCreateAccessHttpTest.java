@@ -5,6 +5,7 @@ import org.enerscope.jwt.JwtService;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.NodeConnection;
 import org.enerscope.node.model.enums.VerticalEnum;
+import org.enerscope.node.model.transportation.PipelineConnection;
 import org.enerscope.organization.model.enums.OrganizationMemberType;
 import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.user.model.User;
@@ -117,6 +118,24 @@ class NodeCreateAccessHttpTest {
                 .andExpect(jsonPath("$.success").value(true));
 
         assertEquals(before + 1, count(endpoint));
+    }
+
+    @org.junit.jupiter.api.Test
+    void platformAdminCreatingAPipelineConnectionStoresTransferCapacityAndOutputPriority() throws Exception {
+        Endpoint endpoint = node("/nodes/pipeline-connection", VerticalEnum.TRANSPORTATION, "INTERMEDIATE",
+                "PIPELINE_CONECTION", "\"transferCapacity\":250.5,\"outputPriority\":7");
+
+        mvc.perform(post(endpoint.path()).header("Authorization", fixture.bearer(fixture.user(PlatformRole.ADMIN)))
+                        .contentType(MediaType.APPLICATION_JSON).content(endpoint.body()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        em.flush();
+        PipelineConnection stored = em.createQuery("select p from PipelineConnection p where p.name = :name",
+                        PipelineConnection.class)
+                .setParameter("name", "Access PIPELINE_CONECTION").getSingleResult();
+        assertEquals(250.5f, stored.getTransferCapacity());
+        assertEquals(7f, stored.getOutputPriority());
     }
 
     @org.junit.jupiter.api.Test
