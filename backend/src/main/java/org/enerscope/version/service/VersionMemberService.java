@@ -10,7 +10,9 @@ import org.enerscope.project.repository.ProjectRepository;
 import org.enerscope.project.service.ProjectAccessGuard;
 import org.enerscope.user.model.User;
 import org.enerscope.user.repository.UserRepository;
+import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.version.dto.AddVersionMemberRoleRequestDTO;
+import org.enerscope.version.dto.ChangeVersionMemberRoleRequestDTO;
 import org.enerscope.version.dto.VersionMemberCandidateDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.model.VersionMember;
@@ -89,16 +91,69 @@ public class VersionMemberService {
     }
 
     private void validateRoleShape(AddVersionMemberRoleRequestDTO data) {
-        if (data == null || data.memberType() == null) {
+        validateRoleShape(data == null ? null : data.memberType(), data == null ? null : data.vertical());
+    }
+
+    private void validateRoleShape(VersionMemberType memberType, VerticalEnum vertical) {
+        if (memberType == null) {
             throw new IllegalArgumentException("memberType cannot be null");
         }
-        if (data.memberType() == VersionMemberType.EDITOR && data.vertical() == null) {
+        if (memberType == VersionMemberType.EDITOR && vertical == null) {
             throw new IllegalArgumentException("EDITOR roles require a vertical");
         }
-        if (data.memberType() != VersionMemberType.EDITOR && data.vertical() != null) {
+        if (memberType != VersionMemberType.EDITOR && vertical != null) {
             throw new IllegalArgumentException(
-                    data.memberType() + " roles apply to the whole version, not one vertical");
+                    memberType + " roles apply to the whole version, not one vertical");
         }
+    }
+
+    /**
+     * Changes one role of a member to another type/vertical in a single
+     * transaction, keeping the role's id and the membership (unlike revoking
+     * and granting, which deletes the member when it was their last role). The
+     * permissions are replaced by those of the new type. Same callers as
+     * {@link #addRole}: the owning project's ADMIN or a platform ADMIN; a
+     * version ADMIN, EDITOR or SIMULATOR gets 403. The guard runs first, then
+     * 404 for an unknown version, member or role (a member or role of another
+     * version is also 404). Turning the role into one the member already holds
+     * is 400, like {@code addRole}; asking for the role's current shape is a
+     * no-op.
+     */
+    @Transactional
+    public VersionMember changeRole(UUID versionId, UUID memberId, UUID roleId,
+                                    ChangeVersionMemberRoleRequestDTO data) {
+        accessGuard.assertCanManageVersionRoles(versionId);
+        if (!versionRepository.existsById(versionId)) {
+            throw new VersionNotFoundException(versionId);
+        }
+        VersionMember member = versionMemberRepository.findByIdAndVersionId(memberId, versionId)
+                .orElseThrow(() -> new EntityNotFoundException("Member not found"));
+        VersionMemberRole role = member.getRoles().stream()
+                .filter(r -> r.getId().equals(roleId))
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException("Role not found"));
+        validateRoleShape(data == null ? null : data.memberType(), data == null ? null : data.vertical());
+
+        boolean unchanged = role.getMemberType() == data.memberType()
+                && Objects.equals(role.getVertical(), data.vertical());
+        if (unchanged) {
+            logger.debug("Role {} of user {} on version {} already has that shape; nothing to change",
+                    roleId, member.getUser().getMail(), versionId);
+            return member;
+        }
+        boolean duplicate = member.getRoles().stream().anyMatch(other -> other != role
+                && other.getMemberType() == data.memberType()
+                && Objects.equals(other.getVertical(), data.vertical()));
+        if (duplicate) {
+            throw new IllegalArgumentException("User already has this role");
+        }
+
+        VersionMemberType before = role.getMemberType();
+        role.changeTo(data.memberType(), data.vertical(), VersionMember.defaultPermissionsFor(data.memberType()));
+        VersionMember saved = versionMemberRepository.save(member);
+        logger.info("Changed role {} of user {} on version {} from {} to {} ({})",
+                roleId, member.getUser().getMail(), versionId, before, data.memberType(), data.vertical());
+        return saved;
     }
 
     /**

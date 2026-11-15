@@ -20,6 +20,7 @@ import org.enerscope.user.model.User;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.enerscope.version.dto.AddVersionMemberRoleRequestDTO;
+import org.enerscope.version.dto.ChangeVersionMemberRoleRequestDTO;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.dto.ConflictResolutionType;
 import org.enerscope.version.dto.VersionConflictDTO;
@@ -42,6 +43,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -242,6 +244,22 @@ public class VersionController {
                 .map(this::toDTO)
                 .toList();
         return Responses.ok("Version members", members);
+    }
+
+    @PutMapping(value = "/{versionId}/members/{memberId}/roles/{roleId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Change a version role",
+            description = "Turns one role of a member into another type (and vertical, for EDITOR) in place, "
+                    + "atomically: the role keeps its id, the membership is never removed, and the permissions "
+                    + "become those of the new type. 400 if the member already holds the resulting role; 404 if "
+                    + "the member or role is not on this version. Only a project ADMIN or a platform ADMIN may "
+                    + "call it (a version ADMIN, EDITOR or SIMULATOR gets 403).")
+    public ResponseEntity<ApiResponse<VersionMemberDTO>> changeVersionMemberRole(
+            @PathVariable UUID versionId,
+            @PathVariable UUID memberId,
+            @PathVariable UUID roleId,
+            @Valid @RequestBody ChangeVersionMemberRoleRequestDTO data) {
+        VersionMember member = versionMemberService.changeRole(versionId, memberId, roleId, data);
+        return Responses.ok("Member role changed", toDTO(member));
     }
 
     @DeleteMapping(value = "/{versionId}/members/{memberId}/roles/{roleId}")
