@@ -72,6 +72,8 @@ class ProjectControllerTest {
     @MockitoBean
     private ProjectService projectService;
     @MockitoBean
+    private org.enerscope.version.service.VersionMemberService versionMemberService;
+    @MockitoBean
     private SessionService sessionService;
     // GlobalExceptionHandler (@ControllerAdvice) needs an AppLogger bean to load.
     @MockitoBean

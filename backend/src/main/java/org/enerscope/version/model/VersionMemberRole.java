@@ -12,6 +12,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.enerscope.common.BaseEntity;
 import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.version.model.enums.VersionMemberPermission;
@@ -44,6 +45,8 @@ public class VersionMemberRole extends BaseEntity {
     @Column(name = "vertical", length = 30)
     private VerticalEnum vertical;
 
+    // Batched so a listing of many roles loads their permissions in a few queries, not one per role.
+    @BatchSize(size = 100)
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
             name = "version_member_role_permission",

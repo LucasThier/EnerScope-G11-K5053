@@ -286,23 +286,6 @@ public class VersionController {
     }
 
     private VersionMemberDTO toDTO(VersionMember member) {
-        User user = member.getUser();
-        List<VersionMemberRoleDTO> roles = member.getRoles().stream()
-                .map(this::toDTO)
-                .toList();
-        return new VersionMemberDTO(
-                member.getId(),
-                user.getId(),
-                user.getMail(),
-                user.getFirstName(),
-                user.getLastName(),
-                user.getJobTitle(),
-                user.isActive(),
-                roles);
-    }
-
-    private VersionMemberRoleDTO toDTO(VersionMemberRole role) {
-        return new VersionMemberRoleDTO(
-                role.getId(), role.getMemberType(), role.getVertical(), role.getPermissions());
+        return VersionMemberDTO.from(member);
     }
 }

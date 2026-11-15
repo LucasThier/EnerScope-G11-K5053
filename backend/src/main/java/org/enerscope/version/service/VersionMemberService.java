@@ -13,7 +13,9 @@ import org.enerscope.user.repository.UserRepository;
 import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.version.dto.AddVersionMemberRoleRequestDTO;
 import org.enerscope.version.dto.ChangeVersionMemberRoleRequestDTO;
+import org.enerscope.version.dto.ProjectVersionMembersDTO;
 import org.enerscope.version.dto.VersionMemberCandidateDTO;
+import org.enerscope.version.dto.VersionMemberDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.model.VersionMember;
 import org.enerscope.version.model.VersionMemberRole;
@@ -23,7 +25,10 @@ import org.enerscope.version.repository.VersionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -167,6 +172,32 @@ public class VersionMemberService {
             throw new VersionNotFoundException(versionId);
         }
         return versionMemberRepository.findByVersionIdWithUser(versionId);
+    }
+
+    /**
+     * Who holds which role on each active version of a project, in one call:
+     * the project-wide version of {@link #listMembers}, with the same access
+     * rule (the project's ADMIN or a platform ADMIN). The guard runs first, so
+     * a caller without access gets 403 whether or not the project exists; only
+     * a platform ADMIN reaches the 404.
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectVersionMembersDTO> listProjectMatrix(UUID projectId) {
+        accessGuard.assertCanManageVersionRolesOfProject(projectId);
+        if (!projectRepository.existsByIdAndActiveTrue(projectId)) {
+            throw new EntityNotFoundException("Project not found");
+        }
+        Map<UUID, List<VersionMemberDTO>> membersByVersion = new HashMap<>();
+        for (VersionMember member : versionMemberRepository.findByProjectIdWithUser(projectId)) {
+            membersByVersion.computeIfAbsent(member.getVersion().getId(), id -> new ArrayList<>())
+                    .add(VersionMemberDTO.from(member));
+        }
+        List<ProjectVersionMembersDTO> matrix = projectRepository.findActiveVersionRefs(projectId).stream()
+                .map(ref -> new ProjectVersionMembersDTO(ref.id(), ref.name(),
+                        membersByVersion.getOrDefault(ref.id(), List.of())))
+                .toList();
+        logger.debug("Built the version role matrix of project {}: {} versions", projectId, matrix.size());
+        return matrix;
     }
 
     /**

@@ -3,6 +3,7 @@ package org.enerscope.project.repository;
 import org.enerscope.project.dto.ProjectSummaryDTO;
 import org.enerscope.project.model.Project;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.enerscope.project.dto.ProjectVersionRef;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -96,6 +97,15 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
             WHERE v.id = :versionId
             """)
     Optional<UUID> findOwnerIdByVersionId(@Param("versionId") UUID versionId);
+
+    /** The project's active versions, oldest first, without loading their node snapshots. */
+    @Query("""
+            SELECT new org.enerscope.project.dto.ProjectVersionRef(v.id, v.name)
+            FROM Project p JOIN p.versions v
+            WHERE p.id = :projectId AND v.active = true
+            ORDER BY v.createdAt, v.id
+            """)
+    List<ProjectVersionRef> findActiveVersionRefs(@Param("projectId") UUID projectId);
 
     boolean existsByIdAndActiveTrue(UUID id);
 

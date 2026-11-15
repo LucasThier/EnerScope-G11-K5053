@@ -58,6 +58,25 @@ public interface VersionMemberRepository extends JpaRepository<VersionMember, UU
             """)
     List<VersionMember> findByVersionIdWithUser(@Param("versionId") UUID versionId);
 
+    /**
+     * Same members as {@link #findByVersionIdWithUser} (including the
+     * project-membership filter), for every active version of a project in one
+     * query, user and roles fetched.
+     */
+    @Query("""
+            SELECT DISTINCT m FROM VersionMember m
+            JOIN FETCH m.user
+            LEFT JOIN FETCH m.roles
+            WHERE m.version.id IN (
+                  SELECT v.id FROM Project p JOIN p.versions v
+                  WHERE p.id = :projectId AND v.active = true)
+              AND EXISTS (
+                  SELECT 1 FROM Project p JOIN p.versions v JOIN p.members pm
+                  WHERE v = m.version AND pm.user = m.user)
+            ORDER BY m.createdAt
+            """)
+    List<VersionMember> findByProjectIdWithUser(@Param("projectId") UUID projectId);
+
     @Query("""
             SELECT DISTINCT m FROM VersionMember m
             LEFT JOIN FETCH m.roles

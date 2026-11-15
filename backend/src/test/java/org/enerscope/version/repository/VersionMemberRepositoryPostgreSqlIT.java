@@ -43,7 +43,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest(properties = {"spring.flyway.enabled=true", "spring.jpa.hibernate.ddl-auto=validate", "economic.worker.enabled=false"})
+@SpringBootTest(properties = {"spring.flyway.enabled=true", "spring.jpa.hibernate.ddl-auto=validate", "economic.worker.enabled=false",
+        "spring.jpa.properties.hibernate.generate_statistics=true"})
 @Transactional
 class VersionMemberRepositoryPostgreSqlIT {
 
@@ -330,6 +331,40 @@ class VersionMemberRepositoryPostgreSqlIT {
     private long countEditorRoles() {
         return ((Number) em.createNativeQuery("SELECT count(*) FROM version_member_role WHERE member_type = 'EDITOR'")
                 .getSingleResult()).longValue();
+    }
+
+    /**
+     * The project matrix loads members, users, roles and permissions in a
+     * constant number of statements: adding members and roles must not add
+     * queries (no N+1 on roles or on their permissions).
+     */
+    @Test
+    void projectMatrixQueryCountDoesNotGrowWithMembersAndRoles() {
+        org.hibernate.stat.Statistics stats = em.getEntityManagerFactory()
+                .unwrap(org.hibernate.SessionFactory.class).getStatistics();
+
+        long small = statementsToLoadMatrix(stats);
+        for (int i = 0; i < 6; i++) {
+            User extra = user();
+            joinProject(extra);
+            grant(extra, i % 2 == 0 ? first : second,
+                    role(VersionMemberType.EDITOR, VerticalEnum.EXPORT), role(VersionMemberType.SIMULATOR, null));
+        }
+        em.flush();
+        long large = statementsToLoadMatrix(stats);
+
+        assertTrue(small <= 3, "expected at most 3 statements, got " + small);
+        assertEquals(small, large, "the statement count must not depend on how many members or roles exist");
+    }
+
+    private long statementsToLoadMatrix(org.hibernate.stat.Statistics stats) {
+        em.flush();
+        em.clear();
+        stats.clear();
+        List<VersionMember> members = repository.findByProjectIdWithUser(project.getId());
+        members.forEach(member -> member.getRoles().forEach(role -> role.getPermissions().size()));
+        assertTrue(!members.isEmpty());
+        return stats.getPrepareStatementCount();
     }
 
     private User user() {

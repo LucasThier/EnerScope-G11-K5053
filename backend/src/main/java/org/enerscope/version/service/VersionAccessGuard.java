@@ -175,6 +175,15 @@ public class VersionAccessGuard {
     }
 
     /**
+     * The project-level twin of {@link #assertCanManageVersionRoles}: the same
+     * callers (the project's ADMIN or a platform ADMIN), asked once for the
+     * whole project instead of per version.
+     */
+    public void assertCanManageVersionRolesOfProject(UUID projectId) {
+        projectAccessGuard.assertCanManageProject(projectId);
+    }
+
+    /**
      * Ensures the caller may edit a node of the given vertical. A caller
      * holding a version role is judged solely by it: an {@code ADMIN} role
      * covers every vertical; an {@code EDITOR} role covers only the one
