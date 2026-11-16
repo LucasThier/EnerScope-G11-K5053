@@ -18,6 +18,8 @@ import org.enerscope.version.model.VersionMember;
 import org.enerscope.version.model.VersionMemberRole;
 import org.enerscope.version.model.enums.VersionMemberType;
 import org.enerscope.version.service.VersionConflictService;
+import org.enerscope.version.service.VersionMemberService;
+import org.enerscope.version.service.VersionNodeCsvImportService;
 import org.enerscope.version.service.VersionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -270,7 +272,7 @@ class VersionControllerTest {
     }
 
     @Test
-    void importNodesFromCsvRejectsFilesOverFiveMegabytes() throws Exception {
+    void importNodesFromCsvRejectsFilesOverTenMegabytes() throws Exception {
         UUID versionId = UUID.randomUUID();
         MockMultipartFile file = new MockMultipartFile(
                 "file", "nodes.csv", "text/csv",
@@ -280,7 +282,7 @@ class VersionControllerTest {
                         .file(file)
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("CSV file must be 5 MB or smaller"));
+                .andExpect(jsonPath("$.message").value("CSV file must be 10 MB or smaller"));
 
         verify(versionNodeCsvImportService, never()).importNodes(any(), any());
     }

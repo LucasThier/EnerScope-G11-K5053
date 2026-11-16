@@ -119,7 +119,7 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `PATCH` | `/version/{id}` | admin / project editor | Rename a version or re-parent it |
 | `DELETE` | `/version/{id}` | admin / project editor | Delete a version and every version below it |
 | `POST` `PATCH` `DELETE` | `/version/{id}/node[/{nodeId}]` | admin / project editor | Add, edit or remove a node in a version |
-| `POST` | `/version/{versionId}/nodes/import` | admin / project editor | Import up to 10,000 typed nodes from a CSV file (max 5 MB) |
+| `POST` | `/version/{versionId}/nodes/import` | admin / project editor | Import up to 10,000 typed nodes, connections and optional economic data from a CSV file (max 10 MB) |
 | `POST` `PATCH` `DELETE` | `/version/{id}/connection[/{connectionId}]` | admin / project editor | Add, edit or remove a connection in a version |
 | `PATCH` | `/version/merge/{subId}` | admin / project editor or version admin | Merge a subversion into its parent |
 | `POST` | `/version/{id}/members` | admin / project admin or version admin | Grant a user a version role (`ADMIN`/`EDITOR`+vertical/`SIMULATOR`) |
@@ -139,9 +139,26 @@ supported node kinds (`WELL`, `GATHERING_NETWORK`, `TREATMENT_PLANT`,
 `SEAPORT_TERMINAL`, `INTERNAL_CONSUMPTION`, `INDUSTRIAL_CONSUMPTION`); other
 columns use node DTO property names. Nested `type`, `investmentCost`,
 `graphData` and `declineCurve` values are JSON objects inside quoted CSV cells.
-The upload is limited to 5 MB and 10,000 data rows, and any invalid row rolls
-back the entire import. Invalid input returns `400`; a request over the server
-multipart limit returns `413`.
+To import graph connections, add `id`, `recordType`, `fromNodeId` and
+`toNodeId` columns. A node's optional `id` is a unique file-local reference key;
+the backend still generates its persisted UUID. Add one `CONNECTION` row per
+edge, with `fromNodeId` and `toNodeId` set to the external node keys. The
+importer saves nodes first, resolves those references to generated IDs, then
+saves the connections. The endpoints must refer to nodes in the same file.
+For economic data, `recordType` also supports `NODE` rows with an
+`economicProfile` JSON object with that node's `ownership` and `rules`, while
+one `SCENARIO` row carries an `economicScenario` JSON object containing the
+scenario-wide configuration (excluding `nodeProfiles`). Profiles are linked to
+the node created from their own row; node UUIDs are generated during import.
+The `SCENARIO` row must leave all other columns blank. When profiles are
+provided, the scenario row is required. Existing CSV files without `recordType`
+continue to import nodes only, and legacy node cost fields are never converted
+automatically into economic rules.
+
+The upload is limited to 10 MB and 10,000 data rows, and any invalid node or
+economic data rolls back the entire import. The response count includes only
+nodes, not connection or scenario rows. Invalid input returns `400`; a request
+over the server multipart limit returns `413`.
 
 ### Bulk user registration (`POST /organizations/{id}/users/bulk`)
 

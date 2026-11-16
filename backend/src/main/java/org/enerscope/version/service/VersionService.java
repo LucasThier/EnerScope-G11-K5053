@@ -597,8 +597,6 @@ public class VersionService {
             case IndustrialConsumptionDTO dto -> nodeService.saveIndustrialConsumption(dto);
             case LNGCarrierDTO dto -> nodeService.saveLNGCarrier(dto);
             case SeaportTerminalDTO dto -> nodeService.saveSeaportTerminal(dto);
-            case InternalConsumptionDTO dto -> nodeService.saveInternalConsumption(dto);
-            case IndustrialConsumptionDTO dto -> nodeService.saveIndustrialConsumption(dto);
             default ->
                 throw new IllegalArgumentException("Unsupported node type: " + nodeDTO.getClass().getSimpleName());
         };

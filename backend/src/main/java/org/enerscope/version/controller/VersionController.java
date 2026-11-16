@@ -45,6 +45,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -129,9 +130,10 @@ public class VersionController {
     }
 
     @PostMapping(value = "/{versionId}/nodes/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Import nodes from CSV",
-            description = "Imports a CSV with a nodeKind column and rows for any supported node type. "
-                    + "Nested DTO fields (type, graphData, investmentCost, declineCurve) use JSON objects.")
+    @Operation(summary = "Import nodes and economics from CSV",
+            description = "Imports node rows identified by nodeKind. Optionally add an economicProfile JSON object "
+                    + "to each NODE row and one SCENARIO row with an economicScenario JSON object. "
+                    + "Nested DTO fields (type, graphData, investmentCost, declineCurve) also use JSON objects.")
     public ResponseEntity<ApiResponse<Integer>> importNodesFromCsv(
             @PathVariable UUID versionId,
             @RequestPart("file") MultipartFile file) throws IOException {
@@ -139,7 +141,7 @@ public class VersionController {
             throw new IllegalArgumentException("CSV file cannot be empty");
         }
         if (file.getSize() > VersionNodeCsvImportService.MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException("CSV file must be 5 MB or smaller");
+            throw new IllegalArgumentException("CSV file must be 10 MB or smaller");
         }
         int importedCount = versionNodeCsvImportService.importNodes(
                 versionId, file.getBytes());

@@ -69,6 +69,14 @@ public class EconomicService {
         return configuration;
     }
 
+    public EconomicConfiguration saveImportedConfiguration(
+            UUID versionId,
+            EconomicConfiguration configuration) {
+        UUID projectId = projects.findIdByVersionId(versionId)
+                .orElseThrow(() -> new EntityNotFoundException("Project version not found"));
+        return save(projectId, versionId, configuration);
+    }
+
     @Transactional(noRollbackFor = IllegalArgumentException.class)
     public void validateConfiguration(EconomicConfiguration configuration, Version version) {
         validator.validate(configuration, nodeIds(version));

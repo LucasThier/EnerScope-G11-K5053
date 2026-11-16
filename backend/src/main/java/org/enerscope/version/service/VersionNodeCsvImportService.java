@@ -8,7 +8,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.introspect.BeanPropertyDefinition;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.enerscope.common.CsvUtil;
+import org.enerscope.economic.model.configuration.EconomicConfiguration;
+import org.enerscope.economic.model.configuration.NodeEconomicProfile;
+import org.enerscope.economic.service.EconomicService;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.node.dto.ConnectionDTO;
+import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.enums.NodeTypeEnum;
 import org.enerscope.node.model.enums.StructuralRoleEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
@@ -27,7 +32,6 @@ import org.enerscope.node.dto.SeaportTerminalDTO;
 import org.enerscope.node.dto.TreatmentPlantDTO;
 import org.enerscope.node.dto.WellDTO;
 import org.enerscope.node.model.enums.CostBasisEnum;
-import org.enerscope.project.service.ProjectAccessGuard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,24 +53,36 @@ import java.util.stream.Collectors;
 @Service
 public class VersionNodeCsvImportService {
 
-    public static final long MAX_FILE_SIZE_BYTES = 5L * 1024 * 1024;
+    public static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024;
     public static final int MAX_DATA_ROWS = 10_000;
     private static final String NODE_KIND_HEADER = "nodeKind";
+    private static final String RECORD_TYPE_HEADER = "recordType";
+    private static final String NODE_ID_HEADER = "id";
+    private static final String FROM_NODE_ID_HEADER = "fromNodeId";
+    private static final String TO_NODE_ID_HEADER = "toNodeId";
+    private static final String NODE_ECONOMIC_PROFILE_HEADER = "economicProfile";
+    private static final String SCENARIO_ECONOMICS_HEADER = "economicScenario";
+    private static final Set<String> SCENARIO_ECONOMIC_FIELDS = Set.of(
+            "startYear", "years", "currency", "wacc", "taxEntities", "boundary", "adjustments",
+            "contracts", "assets", "taxTreatments", "conversions");
     private static final Set<String> JSON_HEADERS = Set.of(
             "declineCurve", "graphData", "investmentCost", "type");
 
     private final VersionService versionService;
-    private final ProjectAccessGuard accessGuard;
+    private final EconomicService economicService;
+    private final VersionAccessGuard accessGuard;
     private final ObjectMapper objectMapper;
     private final AppLogger logger;
     private final Set<String> knownHeaders;
 
     public VersionNodeCsvImportService(
             VersionService versionService,
-            ProjectAccessGuard accessGuard,
+            EconomicService economicService,
+            VersionAccessGuard accessGuard,
             ObjectMapper objectMapper,
             AppLogger logger) {
         this.versionService = versionService;
+        this.economicService = economicService;
         this.accessGuard = accessGuard;
         this.objectMapper = objectMapper;
         this.logger = logger;
@@ -83,7 +99,7 @@ public class VersionNodeCsvImportService {
         }
         accessGuard.assertCanEditVersion(versionId);
         if (csvBytes.length > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException("CSV file must be 5 MB or smaller");
+            throw new IllegalArgumentException("CSV file must be 10 MB or smaller");
         }
 
         String csvContent;
@@ -105,6 +121,11 @@ public class VersionNodeCsvImportService {
         List<String> headers = normalizeHeaders(rows.get(0));
         validateHeaders(headers);
 
+        List<PendingNode> pendingNodes = new ArrayList<>();
+        List<PendingConnection> pendingConnections = new ArrayList<>();
+        Set<String> externalNodeIds = new HashSet<>();
+        PendingScenario scenarioConfiguration = null;
+        boolean hasRecordType = headers.contains(RECORD_TYPE_HEADER);
         for (int rowIndex = 1; rowIndex < rows.size(); rowIndex++) {
             List<String> row = rows.get(rowIndex);
             int recordNumber = rowIndex + 1;
@@ -118,20 +139,110 @@ public class VersionNodeCsvImportService {
                 values.put(headers.get(column), row.get(column));
             }
 
+            RecordType recordType = resolveRecordType(values.get(RECORD_TYPE_HEADER), hasRecordType, recordNumber);
+            if (recordType == RecordType.SCENARIO) {
+                if (scenarioConfiguration != null) {
+                    throw new IllegalArgumentException("CSV can contain only one SCENARIO record");
+                }
+                validateScenarioRow(headers, values, recordNumber);
+                scenarioConfiguration = new PendingScenario(
+                        parseScenarioConfiguration(values.get(SCENARIO_ECONOMICS_HEADER), recordNumber),
+                        recordNumber);
+                continue;
+            }
+            if (recordType == RecordType.CONNECTION) {
+                pendingConnections.add(parseConnection(values, headers, recordNumber));
+                continue;
+            }
+
             NodeKind nodeKind = resolveNodeKind(values.get(NODE_KIND_HEADER), recordNumber);
+            if (values.get(SCENARIO_ECONOMICS_HEADER) != null
+                    && !values.get(SCENARIO_ECONOMICS_HEADER).isBlank()) {
+                throw new IllegalArgumentException(
+                        "CSV record %d (NODE) must leave '%s' blank"
+                                .formatted(recordNumber, SCENARIO_ECONOMICS_HEADER));
+            }
             validateRequiredColumns(nodeKind, values, recordNumber);
             BaseNodeDTO node = toNodeDto(nodeKind, headers, values, recordNumber);
             validateNode(node, nodeKind, recordNumber);
+            NodeEconomicProfile profile = parseNodeEconomicProfile(
+                    values.get(NODE_ECONOMIC_PROFILE_HEADER), recordNumber);
+            String externalId = values.get(NODE_ID_HEADER);
+            if (externalId != null && !externalId.isBlank() && !externalNodeIds.add(externalId)) {
+                throw new IllegalArgumentException(
+                        "CSV record %d has duplicate node id '%s'".formatted(recordNumber, externalId));
+            }
+            pendingNodes.add(new PendingNode(nodeKind, node, profile, externalId, recordNumber));
+        }
+
+        if (pendingNodes.isEmpty()) {
+            throw new IllegalArgumentException("CSV must contain at least one NODE record");
+        }
+        if (scenarioConfiguration == null
+                && pendingNodes.stream().anyMatch(node -> node.economicProfile() != null)) {
+            throw new IllegalArgumentException(
+                    "CSV records with economicProfile require one SCENARIO record with economicScenario");
+        }
+        for (PendingConnection connection : pendingConnections) {
+            if (!externalNodeIds.contains(connection.fromNodeId())) {
+                throw invalidConnectionReference(connection.recordNumber(), FROM_NODE_ID_HEADER,
+                        connection.fromNodeId());
+            }
+            if (!externalNodeIds.contains(connection.toNodeId())) {
+                throw invalidConnectionReference(connection.recordNumber(), TO_NODE_ID_HEADER,
+                        connection.toNodeId());
+            }
+        }
+        if (scenarioConfiguration != null) {
+            validateScenarioNodeReferences(
+                    scenarioConfiguration.configuration(), externalNodeIds, scenarioConfiguration.recordNumber());
+        }
+
+        List<NodeEconomicProfile> profiles = new ArrayList<>();
+        Map<String, UUID> importedNodeIds = new LinkedHashMap<>();
+        for (PendingNode pendingNode : pendingNodes) {
             try {
-                versionService.addNodeToVersion(versionId, node);
+                BaseNode savedNode = versionService.addNodeToVersion(versionId, pendingNode.dto());
+                if (pendingNode.externalId() != null && !pendingNode.externalId().isBlank()) {
+                    importedNodeIds.put(pendingNode.externalId(), savedNode.getId());
+                }
+                if (pendingNode.economicProfile() != null) {
+                    NodeEconomicProfile profile = pendingNode.economicProfile();
+                    profiles.add(new NodeEconomicProfile(savedNode.getId(), profile.ownership(), profile.rules()));
+                }
             } catch (IllegalArgumentException exception) {
                 throw new IllegalArgumentException(
-                        "Invalid CSV record %d (%s): %s".formatted(recordNumber, nodeKind, exception.getMessage()),
+                        "Invalid CSV record %d (%s): %s".formatted(
+                                pendingNode.recordNumber(), pendingNode.nodeKind(), exception.getMessage()),
                         exception);
             }
         }
 
-        int importedCount = rows.size() - 1;
+        for (PendingConnection pendingConnection : pendingConnections) {
+            ConnectionDTO connection = new ConnectionDTO();
+            connection.setFromNodeId(importedNodeIds.get(pendingConnection.fromNodeId()));
+            connection.setToNodeId(importedNodeIds.get(pendingConnection.toNodeId()));
+            connection.setIdentity(pendingConnection.identity());
+            try {
+                versionService.addConnectionToVersion(versionId, connection);
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalArgumentException(
+                        "Invalid CSV record %d (CONNECTION): %s"
+                                .formatted(pendingConnection.recordNumber(), exception.getMessage()),
+                        exception);
+            }
+        }
+
+        if (scenarioConfiguration != null) {
+            EconomicConfiguration configuration = parseScenarioConfiguration(
+                    scenarioConfiguration.configuration(),
+                    importedNodeIds,
+                    scenarioConfiguration.recordNumber());
+            configuration = withNodeProfiles(configuration, profiles);
+            economicService.saveImportedConfiguration(versionId, configuration);
+        }
+
+        int importedCount = pendingNodes.size();
         logger.info("Imported {} nodes into version {}", importedCount, versionId);
         return importedCount;
     }
@@ -139,6 +250,12 @@ public class VersionNodeCsvImportService {
     private Set<String> discoverKnownHeaders() {
         Set<String> headers = new LinkedHashSet<>();
         headers.add(NODE_KIND_HEADER);
+        headers.add(RECORD_TYPE_HEADER);
+        headers.add(NODE_ECONOMIC_PROFILE_HEADER);
+        headers.add(SCENARIO_ECONOMICS_HEADER);
+        headers.add(NODE_ID_HEADER);
+        headers.add(FROM_NODE_ID_HEADER);
+        headers.add(TO_NODE_ID_HEADER);
         for (NodeKind nodeKind : NodeKind.values()) {
             BeanDescription description = objectMapper.getDeserializationConfig()
                     .introspect(objectMapper.constructType(nodeKind.dtoClass));
@@ -147,6 +264,56 @@ public class VersionNodeCsvImportService {
             }
         }
         return Set.copyOf(headers);
+    }
+
+    private PendingConnection parseConnection(
+            Map<String, String> values,
+            List<String> headers,
+            int recordNumber) {
+        String fromNodeId = values.get(FROM_NODE_ID_HEADER);
+        String toNodeId = values.get(TO_NODE_ID_HEADER);
+        if (fromNodeId == null || fromNodeId.isBlank()) {
+            throw invalidConnectionField(recordNumber, FROM_NODE_ID_HEADER);
+        }
+        if (toNodeId == null || toNodeId.isBlank()) {
+            throw invalidConnectionField(recordNumber, TO_NODE_ID_HEADER);
+        }
+        for (String header : headers) {
+            if (RECORD_TYPE_HEADER.equals(header)
+                    || FROM_NODE_ID_HEADER.equals(header)
+                    || TO_NODE_ID_HEADER.equals(header)
+                    || "identity".equals(header)) {
+                continue;
+            }
+            String value = values.get(header);
+            if (value != null && !value.isBlank()) {
+                throw new IllegalArgumentException(
+                        "CSV record %d (CONNECTION) must leave '%s' blank".formatted(recordNumber, header));
+            }
+        }
+        UUID identity = null;
+        String identityValue = values.get("identity");
+        if (identityValue != null && !identityValue.isBlank()) {
+            try {
+                identity = UUID.fromString(identityValue);
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalArgumentException(
+                        "CSV record %d column 'identity' must contain a UUID".formatted(recordNumber),
+                        exception);
+            }
+        }
+        return new PendingConnection(fromNodeId, toNodeId, identity, recordNumber);
+    }
+
+    private IllegalArgumentException invalidConnectionField(int recordNumber, String field) {
+        return new IllegalArgumentException(
+                "CSV record %d (CONNECTION) is missing required field '%s'".formatted(recordNumber, field));
+    }
+
+    private IllegalArgumentException invalidConnectionReference(int recordNumber, String field, String id) {
+        return new IllegalArgumentException(
+                "CSV record %d (CONNECTION) references unknown node id '%s' in '%s'"
+                        .formatted(recordNumber, id, field));
     }
 
     private List<String> normalizeHeaders(List<String> rawHeaders) {
@@ -206,6 +373,12 @@ public class VersionNodeCsvImportService {
             if (NODE_KIND_HEADER.equals(header)) {
                 continue;
             }
+            if (RECORD_TYPE_HEADER.equals(header)
+                    || NODE_ID_HEADER.equals(header)
+                    || NODE_ECONOMIC_PROFILE_HEADER.equals(header)
+                    || SCENARIO_ECONOMICS_HEADER.equals(header)) {
+                continue;
+            }
             String value = values.get(header);
             if (!supportedHeaders.contains(header)) {
                 if (!value.isBlank()) {
@@ -251,6 +424,195 @@ public class VersionNodeCsvImportService {
                             .formatted(recordNumber, nodeKind, exception.getOriginalMessage()),
                     exception);
         }
+    }
+
+    private RecordType resolveRecordType(String value, boolean hasRecordType, int recordNumber) {
+        if (!hasRecordType) {
+            return RecordType.NODE;
+        }
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("CSV record %d is missing recordType".formatted(recordNumber));
+        }
+        try {
+            return RecordType.valueOf(value.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException(
+                    "Unsupported recordType '%s' in CSV record %d. Supported values: NODE, CONNECTION, SCENARIO"
+                            .formatted(value, recordNumber));
+        }
+    }
+
+    private void validateScenarioRow(List<String> headers, Map<String, String> values, int recordNumber) {
+        if (values.get(SCENARIO_ECONOMICS_HEADER) == null
+                || values.get(SCENARIO_ECONOMICS_HEADER).isBlank()) {
+            throw new IllegalArgumentException(
+                    "CSV record %d (SCENARIO) is missing required field '%s'"
+                            .formatted(recordNumber, SCENARIO_ECONOMICS_HEADER));
+        }
+        for (String header : headers) {
+            if (RECORD_TYPE_HEADER.equals(header) || SCENARIO_ECONOMICS_HEADER.equals(header)) {
+                continue;
+            }
+            String value = values.get(header);
+            if (value != null && !value.isBlank()) {
+                throw new IllegalArgumentException(
+                        "CSV record %d (SCENARIO) must leave '%s' blank".formatted(recordNumber, header));
+            }
+        }
+    }
+
+    private NodeEconomicProfile parseNodeEconomicProfile(String value, int recordNumber) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        JsonNode profile = parseJsonObject(value, NODE_ECONOMIC_PROFILE_HEADER, recordNumber);
+        rejectUnknownFields(profile, Set.of("ownership", "rules"), NODE_ECONOMIC_PROFILE_HEADER, recordNumber);
+        try {
+            return objectMapper.treeToValue(profile, NodeEconomicProfile.class);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException(
+                    "CSV record %d has invalid JSON in column '%s'"
+                            .formatted(recordNumber, NODE_ECONOMIC_PROFILE_HEADER),
+                    exception);
+        }
+    }
+
+    private JsonNode parseScenarioConfiguration(String value, int recordNumber) {
+        JsonNode scenario = parseJsonObject(value, SCENARIO_ECONOMICS_HEADER, recordNumber);
+        rejectUnknownFields(scenario, SCENARIO_ECONOMIC_FIELDS, SCENARIO_ECONOMICS_HEADER, recordNumber);
+        return scenario;
+    }
+
+    private EconomicConfiguration parseScenarioConfiguration(
+            JsonNode scenario,
+            Map<String, UUID> importedNodeIds,
+            int recordNumber) {
+        JsonNode resolvedScenario = scenario.deepCopy();
+        resolveScenarioNodeReferences(resolvedScenario, importedNodeIds, recordNumber);
+        try {
+            EconomicConfiguration parsed = objectMapper.treeToValue(resolvedScenario, EconomicConfiguration.class);
+            return withNodeProfiles(parsed, List.of());
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException(
+                    "CSV record %d has invalid JSON in column '%s'"
+                            .formatted(recordNumber, SCENARIO_ECONOMICS_HEADER),
+                    exception);
+        }
+    }
+
+    private void validateScenarioNodeReferences(
+            JsonNode scenario,
+            Set<String> externalNodeIds,
+            int recordNumber) {
+        for (var reference : scenarioNodeReferenceFields().entrySet()) {
+            JsonNode entries = scenario.get(reference.getKey());
+            if (entries == null || entries.isNull()) {
+                continue;
+            }
+            if (!entries.isArray()) {
+                throw invalidScenarioNodeReference(recordNumber, reference.getKey(),
+                        "must be an array of objects");
+            }
+            for (int index = 0; index < entries.size(); index++) {
+                JsonNode entry = entries.get(index);
+                if (!entry.isObject()) {
+                    throw invalidScenarioNodeReference(recordNumber,
+                            "%s[%d]".formatted(reference.getKey(), index), "must be an object");
+                }
+                JsonNode nodeId = entry.get(reference.getValue());
+                if (nodeId == null || nodeId.isNull() || !nodeId.isTextual() || nodeId.asText().isBlank()) {
+                    throw invalidScenarioNodeReference(recordNumber,
+                            "%s[%d].%s".formatted(reference.getKey(), index, reference.getValue()),
+                            "must contain a non-empty external node id");
+                }
+                String externalId = nodeId.asText();
+                if (!externalNodeIds.contains(externalId)) {
+                    throw new IllegalArgumentException(
+                            "CSV record %d column '%s' references unknown imported node id '%s' at %s[%d].%s"
+                                    .formatted(recordNumber, SCENARIO_ECONOMICS_HEADER, externalId,
+                                            reference.getKey(), index, reference.getValue()));
+                }
+            }
+        }
+    }
+
+    private void resolveScenarioNodeReferences(
+            JsonNode scenario,
+            Map<String, UUID> importedNodeIds,
+            int recordNumber) {
+        for (var reference : scenarioNodeReferenceFields().entrySet()) {
+            JsonNode entries = scenario.get(reference.getKey());
+            if (entries == null || entries.isNull() || !entries.isArray()) {
+                continue;
+            }
+            for (int index = 0; index < entries.size(); index++) {
+                JsonNode entry = entries.get(index);
+                if (!entry.isObject()) {
+                    continue;
+                }
+                JsonNode nodeId = entry.get(reference.getValue());
+                if (nodeId == null || nodeId.isNull() || !nodeId.isTextual()) {
+                    continue;
+                }
+                UUID importedNodeId = importedNodeIds.get(nodeId.asText());
+                if (importedNodeId == null) {
+                    throw new IllegalArgumentException(
+                            "CSV record %d column '%s' references unknown imported node id '%s' at %s[%d].%s"
+                                    .formatted(recordNumber, SCENARIO_ECONOMICS_HEADER, nodeId.asText(),
+                                            reference.getKey(), index, reference.getValue()));
+                }
+                ((ObjectNode) entry).put(reference.getValue(), importedNodeId.toString());
+            }
+        }
+    }
+
+    private Map<String, String> scenarioNodeReferenceFields() {
+        return Map.of(
+                "conversions", "nodeId",
+                "contracts", "deliveryNodeId",
+                "assets", "nodeId");
+    }
+
+    private IllegalArgumentException invalidScenarioNodeReference(
+            int recordNumber,
+            String field,
+            String reason) {
+        return new IllegalArgumentException(
+                "CSV record %d column '%s' field '%s' %s"
+                        .formatted(recordNumber, SCENARIO_ECONOMICS_HEADER, field, reason));
+    }
+
+    private JsonNode parseJsonObject(String value, String column, int recordNumber) {
+        try {
+            JsonNode json = objectMapper.readTree(value);
+            if (json == null || !json.isObject()) {
+                throw new IllegalArgumentException(
+                        "CSV record %d column '%s' must contain a JSON object".formatted(recordNumber, column));
+            }
+            return json;
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException(
+                    "CSV record %d has invalid JSON in column '%s'".formatted(recordNumber, column),
+                    exception);
+        }
+    }
+
+    private EconomicConfiguration withNodeProfiles(
+            EconomicConfiguration configuration,
+            List<NodeEconomicProfile> profiles) {
+        return new EconomicConfiguration(
+                configuration.startYear(),
+                configuration.years(),
+                configuration.currency(),
+                configuration.wacc(),
+                configuration.taxEntities(),
+                configuration.boundary(),
+                profiles,
+                configuration.adjustments(),
+                configuration.contracts(),
+                configuration.assets(),
+                configuration.taxTreatments(),
+                configuration.conversions());
     }
 
     private Set<String> propertiesFor(NodeKind nodeKind) {
@@ -638,6 +1000,30 @@ public class VersionNodeCsvImportService {
         }
     }
 
+    private enum RecordType {
+        NODE,
+        CONNECTION,
+        SCENARIO
+    }
+
+    private record PendingNode(
+            NodeKind nodeKind,
+            BaseNodeDTO dto,
+            NodeEconomicProfile economicProfile,
+            String externalId,
+            int recordNumber) {
+    }
+
+    private record PendingConnection(
+            String fromNodeId,
+            String toNodeId,
+            UUID identity,
+            int recordNumber) {
+    }
+
+    private record PendingScenario(JsonNode configuration, int recordNumber) {
+    }
+
     private enum NodeKind {
         WELL(WellDTO.class, NodeTypeEnum.WELL, VerticalEnum.EXTRACTION,
                 List.of("maxCollectionCapacity", "declineCurve", "gasRichness", "dtmTime", "dtmCost", "surface")),
@@ -685,6 +1071,8 @@ public class VersionNodeCsvImportService {
     }
 
     @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
+    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(
+            using = com.fasterxml.jackson.databind.JsonDeserializer.None.class)
     private abstract static class ConcreteNodeDtoMixin {
     }
 }

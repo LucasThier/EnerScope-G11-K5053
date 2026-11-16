@@ -31,9 +31,8 @@ sync too when a screen changes.
 
 ## Summary
 
-Counts below are the number of `@Test` methods in each class, taken from the
-source on this branch. No class uses `@ParameterizedTest`, `@RepeatedTest` or
-`@Disabled` any more, so **cases and executions are the same number**.
+Counts below treat each JUnit test method as one case; parameterized methods
+are counted once in the table, with their extra executions explained below.
 
 | Test class | Type | Cases |
 | --- | --- | --- |
@@ -65,6 +64,7 @@ source on this branch. No class uses `@ParameterizedTest`, `@RepeatedTest` or
 | `project.repository.ProjectRepositoryTest` | Data | 13 |
 | `project.repository.ProjectMemberRepositoryTest` | Data | 5 |
 | `version.service.VersionServiceTest` | Unit | 22 [^p] |
+| `version.service.VersionNodeCsvImportServiceTest` | Unit | 27 [^p] |
 | `version.controller.VersionControllerTest` | Web | 10 |
 | `node.service.NodeServiceTest` | Unit | 1 |
 | `node.controller.NodeControllerTest` | Unit | 1 |
@@ -84,12 +84,12 @@ source on this branch. No class uses `@ParameterizedTest`, `@RepeatedTest` or
 | `strategyCost.CostTest` | Unit | 8 |
 | `strategyCost.InvestmentCostTest` | Unit | 2 |
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
-| **Total** | | **433 [^p]** |
+| **Total** | | **460 [^p]** |
 
-[^p]: Two cases in `version.service.VersionServiceTest` are
-`@ParameterizedTest`s running over the eight mutating version entry points,
-so they count as 16 executions rather than 2. The 433 cases catalogued here
-therefore make 447 executions.
+[^p]: Two methods in `version.service.VersionServiceTest` are
+`@ParameterizedTest`s running over the eight mutating version entry points;
+`VersionNodeCsvImportServiceTest` has one parameterized method for the 12 node
+kinds. The 460 catalogued cases therefore make 485 executions.
 
 > **This catalog has drifted from the code.** On 2026-10-05 `mvn test` ran
 > **587** executions, against the 447 above. The gap is not a mistake in the
@@ -1100,7 +1100,7 @@ version UUID, which is what made guarding them necessary.
 | `importNodesFromCsvPropagatesEditPermissionFailureWith403` | A caller without edit permission receives `403` and the importer’s authorization message. |
 | `importNodesFromCsvReturnsBadRequestForInvalidRows` | A malformed node row reported by the importer becomes a `400` API error. |
 | `importNodesFromCsvRejectsEmptyFiles` | An empty upload returns `400` without invoking the importer. |
-| `importNodesFromCsvRejectsFilesOverFiveMegabytes` | An upload over 5 MB returns `400` without invoking the importer. |
+| `importNodesFromCsvRejectsFilesOverTenMegabytes` | An upload over 10 MB returns `400` without invoking the importer. |
 | `importNodesFromCsvRejectsMissingMultipartFile` | A request without the required `file` part returns `400` with its name. |
 | `createDetachedVersionReturnsTheVersionForAPlatformAdmin` | `POST /version/createtest` → `200` with the created version. |
 | `createDetachedVersionPropagatesForbiddenWith403` | The same call for a non-admin → `403` with `Only platform admins can create detached versions`. |
@@ -1109,15 +1109,27 @@ version UUID, which is what made guarding them necessary.
 
 ## `version.service.VersionNodeCsvImportServiceTest` — Unit
 
-CSV parsing and DTO dispatch for authenticated, version-scoped node imports.
-The single CSV uses `nodeKind` to distinguish node classes; nested DTO fields
-are JSON objects in their cells.
+CSV parsing and DTO dispatch for authenticated, version-scoped imports. Legacy
+files use `nodeKind` and import nodes only. The optional `recordType` column
+supports node-bound `economicProfile` JSON on `NODE` rows, graph edges on
+`CONNECTION` rows, and one scenario-wide `economicScenario` JSON object on a
+separate `SCENARIO` row.
 
 | Case | Verifies |
 | --- | --- |
 | `importsEveryNodeKindIntoVersion` | Each of the 12 supported `nodeKind` values is converted to its matching DTO and added to the target version. |
 | `importsMixedKindsAndIgnoresEmptyColumnsForOtherKinds` | A mixed CSV creates multiple node DTO types, while blank columns belonging to other types are ignored. |
 | `mapsNestedJsonDtoFields` | Nested graph, type, investment-cost and probability-distribution JSON cells map to the Well DTO. |
+| `importsConnectionsByResolvingProvidedNodeIdsAfterNodeCreation` | Creates nodes with file-local external IDs, then imports a connection whose endpoints resolve to the backend-generated node IDs. |
+| `rejectsConnectionReferencesToUnknownNodeIdsBeforePersisting` | A connection that references a missing external node ID rejects the file before any node or connection is saved. |
+| `rejectsDuplicateExternalNodeIdsBeforePersisting` | Duplicate file-local node IDs are rejected before persistence. |
+| `importsNodeAndScenarioEconomicsAndResolvesNodeReferences` | Imports operational and economic data together, binds the profile and resolves conversion, contract and asset references to the newly created node ID. |
+| `rejectsEconomicReferencesToUnknownExternalNodeIdsBeforePersisting` | Rejects an economic configuration that references a missing file-local node ID before any node is persisted. |
+| `rejectsNodeEconomicProfileWithoutScenarioConfigurationBeforePersisting` | A node economic profile without a scenario configuration is rejected before any node is persisted. |
+| `rejectsUnknownRecordTypeBeforePersisting` | An unsupported record discriminator is rejected before any node is persisted. |
+| `rejectsMalformedEconomicProfileJsonBeforePersisting` | Malformed node economic JSON is rejected before node persistence. |
+| `rejectsScenarioRowsContainingNodeDataBeforePersisting` | Scenario-level rows cannot contain node columns. |
+| `rejectsDuplicateScenarioRowsBeforePersisting` | More than one scenario-wide economic row is rejected before node persistence. |
 | `rejectsUnknownNodeKindWithSupportedKinds` | An unsupported discriminator is rejected with the accepted values and no node is added. |
 | `rejectsUnknownHeaders` | A misspelled header is rejected instead of silently dropping data. |
 | `rejectsRowsWithDifferentColumnCounts` | A row with the wrong number of fields is rejected with its record number. |
@@ -1131,7 +1143,7 @@ are JSON objects in their cells.
 | `rejectsInvalidDistributionParameters` | Unsupported or invalid uniform/normal distribution parameters are rejected. |
 | `rejectsInvalidUtf8` | Invalid UTF-8 input bytes are rejected rather than silently replaced. |
 | `rejectsImportsOverMaximumRowCount` | More than 10,000 data rows are rejected before node persistence. |
-| `rejectsFilesOverMaximumSize` | The service rejects CSV byte arrays larger than 5 MB. |
+| `rejectsFilesOverMaximumSize` | The service rejects CSV byte arrays larger than 10 MB. |
 
 ## `node.service.NodeServiceTest` — Unit
 

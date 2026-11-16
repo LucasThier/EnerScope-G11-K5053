@@ -2678,3 +2678,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   - **The frontend reaches the API through a Pages Function** (`frontend/functions/api/[[path]].js`), not a build-time URL. Keep `src/api/client.ts` on the relative `/api/v1` base; the function strips `Origin`, so CORS never applies to the SPA's own calls. Preview deployments work for the same reason.
   - **Keep the health check public.** Lightsail rolls out only when `GET /api/v1/health` answers 2xx; if that endpoint ever requires auth or moves, update `HEALTH_CHECK_PATH` in the deployment script, or every deploy will fail.
   - **No persistent disk on Lightsail containers**: PostgreSQL must stay outside the container service.
+
+- 2026-11-10 — Node CSV imports may include an `economicProfile` JSON object on each `NODE` row and one separate `SCENARIO` row with `economicScenario` JSON. Profiles are bound to newly created node IDs; scenario fields are validated and saved atomically with the nodes. Existing CSVs remain node-only, and legacy node cost fields are not inferred as economic rules.
+
+- 2026-11-12 — The complete node CSV format, required fields per `nodeKind`, nested JSON and economic-row rules are documented in [`importador-csv-nodos.md`](importador-csv-nodos.md). Keep the guide aligned with `VersionNodeCsvImportService` when the importer contract changes.
+- 2026-11-12 — Node CSV imports accept an optional external `id` as a file-local reference key; the backend still generates persisted node IDs. `CONNECTION` rows use `fromNodeId`/`toNodeId` to refer to those keys and are saved after their nodes. Keep connection endpoints confined to nodes in the same import.
+- 2026-11-15 — Economic CSV node references in conversions, contracts and assets must use the imported rows' external `id`; resolve them to generated node UUIDs and reject unknown references before persistence. Do not require UUIDs that are unavailable until node creation.

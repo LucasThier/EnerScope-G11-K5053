@@ -3,8 +3,11 @@ package org.enerscope.version.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.enerscope.common.CsvUtil;
 import org.enerscope.common.ForbiddenException;
+import org.enerscope.economic.model.configuration.EconomicConfiguration;
+import org.enerscope.economic.service.EconomicService;
 import org.enerscope.node.dto.BaseNodeDTO;
 import org.enerscope.node.dto.CompressingPlantDTO;
+import org.enerscope.node.dto.ConnectionDTO;
 import org.enerscope.node.dto.FLNGUnitDTO;
 import org.enerscope.node.dto.GatheringNetworkDTO;
 import org.enerscope.node.dto.GroundBasedLiquefactionPlantDTO;
@@ -16,8 +19,8 @@ import org.enerscope.node.dto.PipelineDTO;
 import org.enerscope.node.dto.SeaportTerminalDTO;
 import org.enerscope.node.dto.TreatmentPlantDTO;
 import org.enerscope.node.dto.WellDTO;
+import org.enerscope.node.model.BaseNode;
 import org.enerscope.logging.AppLogger;
-import org.enerscope.project.service.ProjectAccessGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,12 +37,16 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,7 +56,10 @@ class VersionNodeCsvImportServiceTest {
     private VersionService versionService;
 
     @Mock
-    private ProjectAccessGuard accessGuard;
+    private EconomicService economicService;
+
+    @Mock
+    private VersionAccessGuard accessGuard;
 
     @Mock
     private AppLogger logger;
@@ -58,7 +68,8 @@ class VersionNodeCsvImportServiceTest {
 
     @BeforeEach
     void setUp() {
-        csvImportService = new VersionNodeCsvImportService(versionService, accessGuard, new ObjectMapper(), logger);
+        csvImportService = new VersionNodeCsvImportService(
+                versionService, economicService, accessGuard, new ObjectMapper().findAndRegisterModules(), logger);
     }
 
     @ParameterizedTest
@@ -207,6 +218,218 @@ class VersionNodeCsvImportServiceTest {
     }
 
     @Test
+    void importsNodeAndScenarioEconomicsAndResolvesNodeReferences() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        BaseNode savedNode = mock(BaseNode.class);
+        when(savedNode.getId()).thenReturn(nodeId);
+        when(versionService.addNodeToVersion(eq(versionId), any(WellDTO.class))).thenReturn(savedNode);
+
+        List<List<String>> rows = CsvUtil.parseStrict(validRow("WELL"), 3);
+        rows.get(0).addAll(List.of("id", "recordType", "economicProfile", "economicScenario"));
+        rows.get(1).addAll(List.of(
+                "well-north",
+                "NODE",
+                "{\"ownership\":[{\"taxEntityId\":\"entity-1\",\"share\":1}],\"rules\":[]}",
+                ""));
+        List<String> scenarioRow = new java.util.ArrayList<>(
+                java.util.Collections.nCopies(rows.get(0).size(), ""));
+        scenarioRow.set(rows.get(0).indexOf("recordType"), "SCENARIO");
+        scenarioRow.set(rows.get(0).indexOf("economicScenario"), """
+                {"startYear":2025,"years":1,"currency":"USD","wacc":0.1,
+                 "taxEntities":[],"boundary":[],"adjustments":[],"contracts":[],
+                 "assets":[{"id":"asset-1","nodeId":"well-north","taxEntityId":"entity-1",
+                   "concept":"equipment","currency":"USD","cost":100,"residualValue":0,
+                   "purchaseDate":"2025-01-01","paymentDate":"2025-01-01",
+                   "serviceDate":"2025-01-01","usefulLifeMonths":12}],
+                 "taxTreatments":[],
+                 "conversions":[{"nodeId":"well-north","metric":"INPUT_VOLUME",
+                   "rawUnit":"SIMULATOR_UNIT","unit":"Mcf","factor":1}],
+                 "contracts":[{"id":"contract-1","deliveryNodeId":"well-north","revenueRule":{}}]}
+                """.replace("\n", ""));
+        rows.add(scenarioRow);
+
+        int importedCount = importCsv(versionId, CsvUtil.write(rows));
+
+        assertEquals(1, importedCount);
+        ArgumentCaptor<EconomicConfiguration> configurationCaptor =
+                ArgumentCaptor.forClass(EconomicConfiguration.class);
+        verify(economicService).saveImportedConfiguration(eq(versionId), configurationCaptor.capture());
+        EconomicConfiguration configuration = configurationCaptor.getValue();
+        assertEquals(2025, configuration.startYear());
+        assertEquals(nodeId, configuration.nodeProfiles().getFirst().nodeId());
+        assertEquals("entity-1", configuration.nodeProfiles().getFirst().ownership().getFirst().taxEntityId());
+        assertEquals(nodeId, configuration.conversions().getFirst().nodeId());
+        assertEquals(nodeId, configuration.assets().getFirst().nodeId());
+        assertEquals(nodeId, configuration.contracts().getFirst().deliveryNodeId());
+    }
+
+    @Test
+    void rejectsEconomicReferencesToUnknownExternalNodeIdsBeforePersisting() {
+        List<List<String>> rows = CsvUtil.parseStrict(validRow("WELL"), 3);
+        rows.get(0).addAll(List.of("id", "recordType", "economicScenario"));
+        rows.get(1).addAll(List.of("well-north", "NODE", ""));
+        List<String> scenarioRow = new java.util.ArrayList<>(
+                java.util.Collections.nCopies(rows.get(0).size(), ""));
+        scenarioRow.set(rows.get(0).indexOf("recordType"), "SCENARIO");
+        scenarioRow.set(rows.get(0).indexOf("economicScenario"), """
+                {"startYear":2025,"years":1,"currency":"USD","wacc":0.1,
+                 "taxEntities":[],"boundary":[],"adjustments":[],"contracts":[],
+                 "assets":[],"taxTreatments":[],
+                 "conversions":[{"nodeId":"missing-well","metric":"INPUT_VOLUME",
+                   "rawUnit":"SIMULATOR_UNIT","unit":"Mcf","factor":1}]}
+                """.replace("\n", ""));
+        rows.add(scenarioRow);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(UUID.randomUUID(), CsvUtil.write(rows)));
+
+        assertTrue(exception.getMessage().contains("references unknown imported node id 'missing-well'"));
+        verify(versionService, never()).addNodeToVersion(any(), any());
+        verify(economicService, never()).saveImportedConfiguration(any(), any());
+    }
+
+    @Test
+    void rejectsNodeEconomicProfileWithoutScenarioConfigurationBeforePersisting() {
+        String csv = withCell(validRow("WELL"), "economicProfile",
+                "{\"ownership\":[],\"rules\":[]}");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(UUID.randomUUID(), csv));
+
+        assertTrue(exception.getMessage().contains("require one SCENARIO record"));
+        verify(versionService, never()).addNodeToVersion(any(), any());
+        verify(economicService, never()).saveImportedConfiguration(any(), any());
+    }
+
+    @Test
+    void rejectsUnknownRecordTypeBeforePersisting() {
+        String csv = withCell(validRow("WELL"), "recordType", "UNKNOWN");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(UUID.randomUUID(), csv));
+
+        assertTrue(exception.getMessage().contains("Supported values: NODE, CONNECTION, SCENARIO"));
+        verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @Test
+    void importsConnectionsByResolvingProvidedNodeIdsAfterNodeCreation() {
+        UUID versionId = UUID.randomUUID();
+        UUID fromNodeId = UUID.randomUUID();
+        UUID toNodeId = UUID.randomUUID();
+        BaseNode fromNode = mock(BaseNode.class);
+        BaseNode toNode = mock(BaseNode.class);
+        when(fromNode.getId()).thenReturn(fromNodeId);
+        when(toNode.getId()).thenReturn(toNodeId);
+        when(versionService.addNodeToVersion(eq(versionId), any(BaseNodeDTO.class)))
+                .thenReturn(fromNode, toNode);
+
+        List<List<String>> rows = CsvUtil.parseStrict(validRow("WELL"), 3);
+        rows.get(0).addAll(List.of("id", "recordType", "fromNodeId", "toNodeId"));
+        rows.get(1).addAll(List.of("source-well", "NODE", "", ""));
+        List<String> secondNodeRow = new java.util.ArrayList<>(rows.get(1));
+        secondNodeRow.set(rows.get(0).indexOf("id"), "target-well");
+        rows.add(secondNodeRow);
+        List<String> connectionRow = new java.util.ArrayList<>(
+                java.util.Collections.nCopies(rows.get(0).size(), ""));
+        connectionRow.set(rows.get(0).indexOf("recordType"), "CONNECTION");
+        connectionRow.set(rows.get(0).indexOf("fromNodeId"), "source-well");
+        connectionRow.set(rows.get(0).indexOf("toNodeId"), "target-well");
+        rows.add(connectionRow);
+
+        assertEquals(2, importCsv(versionId, CsvUtil.write(rows)));
+
+        ArgumentCaptor<ConnectionDTO> connectionCaptor = ArgumentCaptor.forClass(ConnectionDTO.class);
+        verify(versionService).addConnectionToVersion(eq(versionId), connectionCaptor.capture());
+        assertEquals(fromNodeId, connectionCaptor.getValue().getFromNodeId());
+        assertEquals(toNodeId, connectionCaptor.getValue().getToNodeId());
+        assertNull(connectionCaptor.getValue().getIdentity());
+        ArgumentCaptor<BaseNodeDTO> nodeCaptor = ArgumentCaptor.forClass(BaseNodeDTO.class);
+        verify(versionService, times(2)).addNodeToVersion(eq(versionId), nodeCaptor.capture());
+        assertNull(nodeCaptor.getAllValues().getFirst().getIdentity());
+    }
+
+    @Test
+    void rejectsConnectionReferencesToUnknownNodeIdsBeforePersisting() {
+        List<List<String>> rows = CsvUtil.parseStrict(validRow("WELL"), 3);
+        rows.get(0).addAll(List.of("id", "recordType", "fromNodeId", "toNodeId"));
+        rows.get(1).addAll(List.of("source-well", "NODE", "", ""));
+        List<String> connectionRow = new java.util.ArrayList<>(
+                java.util.Collections.nCopies(rows.get(0).size(), ""));
+        connectionRow.set(rows.get(0).indexOf("recordType"), "CONNECTION");
+        connectionRow.set(rows.get(0).indexOf("fromNodeId"), "source-well");
+        connectionRow.set(rows.get(0).indexOf("toNodeId"), "missing-well");
+        rows.add(connectionRow);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(UUID.randomUUID(), CsvUtil.write(rows)));
+
+        assertTrue(exception.getMessage().contains("references unknown node id 'missing-well'"));
+        verify(versionService, never()).addNodeToVersion(any(), any());
+        verify(versionService, never()).addConnectionToVersion(any(), any());
+    }
+
+    @Test
+    void rejectsDuplicateExternalNodeIdsBeforePersisting() {
+        List<List<String>> rows = CsvUtil.parseStrict(validRow("WELL"), 3);
+        rows.get(0).addAll(List.of("id", "recordType"));
+        rows.get(1).addAll(List.of("well-1", "NODE"));
+        List<String> duplicateNodeRow = new java.util.ArrayList<>(rows.get(1));
+        rows.add(duplicateNodeRow);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(UUID.randomUUID(), CsvUtil.write(rows)));
+
+        assertTrue(exception.getMessage().contains("duplicate node id 'well-1'"));
+        verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @Test
+    void rejectsMalformedEconomicProfileJsonBeforePersisting() {
+        String csv = withCell(validRow("WELL"), "economicProfile", "{invalid}");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(UUID.randomUUID(), csv));
+
+        assertTrue(exception.getMessage().contains("invalid JSON in column 'economicProfile'"));
+        verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @Test
+    void rejectsScenarioRowsContainingNodeDataBeforePersisting() {
+        List<List<String>> rows = CsvUtil.parseStrict(validRow("WELL"), 3);
+        rows.get(0).addAll(List.of("recordType", "economicScenario"));
+        rows.get(1).addAll(List.of("SCENARIO", "{}"));
+        String csv = CsvUtil.write(rows);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(UUID.randomUUID(), csv));
+
+        assertTrue(exception.getMessage().contains("must leave 'nodeKind' blank"));
+        verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @Test
+    void rejectsDuplicateScenarioRowsBeforePersisting() {
+        List<List<String>> rows = CsvUtil.parseStrict(validRow("WELL"), 3);
+        rows.get(0).addAll(List.of("recordType", "economicScenario"));
+        rows.get(1).addAll(List.of("NODE", ""));
+        List<String> scenarioRow = new java.util.ArrayList<>(
+                java.util.Collections.nCopies(rows.get(0).size(), ""));
+        scenarioRow.set(rows.get(0).indexOf("recordType"), "SCENARIO");
+        scenarioRow.set(rows.get(0).indexOf("economicScenario"), "{}");
+        rows.add(scenarioRow);
+        rows.add(new java.util.ArrayList<>(scenarioRow));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(UUID.randomUUID(), CsvUtil.write(rows)));
+
+        assertTrue(exception.getMessage().contains("only one SCENARIO record"));
+        verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @Test
     void rejectsUnknownNodeKindWithSupportedKinds() {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> importCsv(UUID.randomUUID(), "nodeKind,name\nUNKNOWN,Sample"));
@@ -345,7 +568,7 @@ class VersionNodeCsvImportServiceTest {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> csvImportService.importNodes(UUID.randomUUID(), oversizedCsv));
 
-        assertTrue(exception.getMessage().contains("5 MB or smaller"));
+        assertTrue(exception.getMessage().contains("10 MB or smaller"));
     }
 
     private int importCsv(UUID versionId, String csv) {
