@@ -13,7 +13,7 @@ import { getErrorMessage } from '../../api/errors';
 import { useAuth } from '../../hooks/useAuth';
 import { useCsvUserImport } from '../../hooks/useCsvUserImport';
 import { useMemberRoleChange } from '../../hooks/useMemberRoleChange';
-import { canManageOrganizationUsers, lastOwnerReason } from '../../utils/membershipGuards';
+import { canAddOrganizationMembers, lastOwnerReason } from '../../utils/membershipGuards';
 import type {
   OrganizationMemberSummary,
   OrganizationMemberType,
@@ -22,12 +22,14 @@ import type {
 
 interface OrganizationMembersModalProps {
   organization: OrganizationSummary | null;
+  initialStep?: 'list' | 'choose';
   onClose: () => void;
   onChanged: () => Promise<void>;
 }
 
 export function OrganizationMembersModal({
   organization,
+  initialStep = 'list',
   onClose,
   onChanged,
 }: OrganizationMembersModalProps) {
@@ -39,6 +41,7 @@ export function OrganizationMembersModal({
   const [removing, setRemoving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [choosing, setChoosing] = useState(false);
 
   const organizationId = organization?.id ?? null;
 
@@ -100,6 +103,7 @@ export function OrganizationMembersModal({
   useEffect(() => {
     setImporting(false);
     setAdding(false);
+    setChoosing(initialStep === 'choose' && organization?.active === true);
     if (!organizationId) {
       setMembers([]);
       setError(null);
@@ -133,7 +137,7 @@ export function OrganizationMembersModal({
     return () => {
       cancelled = true;
     };
-  }, [organizationId]);
+  }, [organizationId, initialStep, organization?.active]);
 
   async function handleRemove() {
     if (!organizationId || !confirming) {
@@ -153,24 +157,31 @@ export function OrganizationMembersModal({
     }
   }
 
+  function leaveAdding() {
+    setAdding(false);
+    setChoosing(initialStep === 'choose' && organization?.active === true);
+  }
+
   const isSelf = confirming !== null && caller !== null && confirming.userId === caller.id;
 
   return (
     <Modal
       open={organization !== null}
-      onClose={importing ? importFlow.requestClose : adding ? () => setAdding(false) : onClose}
+      onClose={importing ? importFlow.requestClose : adding ? leaveAdding : onClose}
       title={
         importing
           ? 'Importar usuarios por CSV'
           : adding
             ? 'Agregar integrante'
-            : roleChange.pending
+            : choosing
+              ? 'Agregar integrantes'
+              : roleChange.pending
               ? 'Cambiar el rol'
               : confirming
                 ? 'Quitar de la organización'
                 : (organization?.name ?? '')
       }
-      subtitle={importing || adding ? (organization?.name ?? undefined) : undefined}
+      subtitle={importing || adding || choosing ? (organization?.name ?? undefined) : undefined}
       size="lg"
     >
       {importing ? (
@@ -189,10 +200,35 @@ export function OrganizationMembersModal({
             creala desde «Gestión de usuarios» o sumá varias de una vez con «Importar CSV».
           </p>
           <div className="flex justify-end border-t border-ink-100 pt-4">
-            <Button variant="ghost" onClick={() => setAdding(false)}>
-              Volver a los integrantes
+            <Button variant="ghost" onClick={leaveAdding}>
+              {initialStep === 'choose' ? 'Volver' : 'Volver a los integrantes'}
             </Button>
           </div>
+        </div>
+      ) : choosing ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-ink-500">¿Cómo querés sumar personas a esta organización?</p>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setChoosing(false);
+              setAdding(true);
+            }}
+          >
+            <PlusIcon className="h-4 w-4" />
+            Agregar integrante
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              importFlow.reset();
+              setChoosing(false);
+              setImporting(true);
+            }}
+          >
+            <UploadIcon className="h-4 w-4" />
+            Importar CSV
+          </Button>
         </div>
       ) : roleChange.pending ? (
         <OrganizationRoleChangeConfirmation
@@ -250,7 +286,13 @@ export function OrganizationMembersModal({
         <div>
           {error && <Alert tone="error">{error}</Alert>}
 
-          {canManageOrganizationUsers(caller, members) && (
+          {organization && !organization.active && (
+            <Alert tone="info">
+              La organización está inactiva: no se pueden agregar integrantes ni importar un CSV.
+            </Alert>
+          )}
+
+          {canAddOrganizationMembers(caller, members, organization) && (
             <div className="mb-4 flex flex-wrap justify-end gap-2">
               <Button variant="secondary" onClick={() => setAdding(true)}>
                 <PlusIcon className="h-4 w-4" />

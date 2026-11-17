@@ -9,8 +9,8 @@ class NodeRequestDeserializerTest {
 
     @Test
     void everySupportedNodeTypeSelectsItsDeclaredClass() throws Exception {
-        String[] types = {"WELL", "GATHERING_NETWORK", "TREATMENT_PLANT", "PIPELINE", "COMPRESSING_PLANT", "GROUND_LIQUEFACTION_PLANT", "FLNG_UNIT", "SEAPORT_TERMINAL", "LNG_CAMER", "INTERNAL_CONSUMPTION", "INDUSTRIAL_CONSUMPTION"};
-        Class<?>[] classes = {WellDTO.class, GatheringNetworkDTO.class, TreatmentPlantDTO.class, PipelineDTO.class, CompressingPlantDTO.class, GroundBasedLiquefactionPlantDTO.class, FLNGUnitDTO.class, SeaportTerminalDTO.class, LNGCarrierDTO.class, InternalConsumptionDTO.class, IndustrialConsumptionDTO.class};
+        String[] types = {"WELL", "GATHERING_NETWORK", "TREATMENT_PLANT", "PIPELINE", "PIPELINE_CONECTION", "COMPRESSING_PLANT", "GROUND_LIQUEFACTION_PLANT", "FLNG_UNIT", "SEAPORT_TERMINAL", "LNG_CAMER", "INTERNAL_CONSUMPTION", "INDUSTRIAL_CONSUMPTION"};
+        Class<?>[] classes = {WellDTO.class, GatheringNetworkDTO.class, TreatmentPlantDTO.class, PipelineDTO.class, PipelineConnectionDTO.class, CompressingPlantDTO.class, GroundBasedLiquefactionPlantDTO.class, FLNGUnitDTO.class, SeaportTerminalDTO.class, LNGCarrierDTO.class, InternalConsumptionDTO.class, IndustrialConsumptionDTO.class};
         for (int i = 0; i < types.length; i++) {
             var body = mapper.createObjectNode(); body.putObject("type").put("nodeType", types[i]);
             assertEquals(classes[i], mapper.treeToValue(body, BaseNodeDTO.class).getClass());
@@ -32,7 +32,15 @@ class NodeRequestDeserializerTest {
 
     @Test
     void missingMalformedUnknownAndUnsupportedTypesAreRejected() {
-        for (String json : new String[]{"{}", "{\"type\":null}", "{\"type\":{\"nodeType\":12}}", "{\"type\":{\"nodeType\":\"UNKNOWN\"}}", "{\"type\":{\"nodeType\":\"PIPELINE_CONECTION\"}}"})
+        for (String json : new String[]{"{}", "{\"type\":null}", "{\"type\":{\"nodeType\":12}}", "{\"type\":{\"nodeType\":\"UNKNOWN\"}}", "{\"type\":{\"nodeType\":\"PIPELINE_CONNECTION\"}}"})
             assertThrows(com.fasterxml.jackson.databind.JsonMappingException.class, () -> mapper.readValue(json, BaseNodeDTO.class));
+    }
+
+    @Test
+    void pipelineConnectionBodyKeepsItsOwnFields() throws Exception {
+        var dto = mapper.readValue("{\"type\":{\"nodeType\":\"PIPELINE_CONECTION\"},\"transferCapacity\":7.5,\"outputPriority\":2}", BaseNodeDTO.class);
+        var connection = assertInstanceOf(PipelineConnectionDTO.class, dto);
+        assertEquals(7.5f, connection.getTransferCapacity());
+        assertEquals(2f, connection.getOutputPriority());
     }
 }

@@ -8,6 +8,7 @@ import type { VersionTreeNode } from '../../utils/versionTree';
 interface VersionTreeProps {
   nodes: VersionTreeNode[];
   canEdit: boolean;
+  canMergeInto: (parentVersionId: string) => boolean;
   unresolvedConflicts: Record<string, number>;
   onDelete: (version: VersionSummary, isRoot: boolean) => void;
   onMerge: (version: VersionSummary) => void;
@@ -23,6 +24,7 @@ interface VersionTreeRowProps extends Omit<VersionTreeProps, 'nodes'> {
 export function VersionTree({
   nodes,
   canEdit,
+  canMergeInto,
   unresolvedConflicts,
   onDelete,
   onMerge,
@@ -37,6 +39,7 @@ export function VersionTree({
           depth={0}
           parentName={null}
           canEdit={canEdit}
+          canMergeInto={canMergeInto}
           unresolvedConflicts={unresolvedConflicts}
           onDelete={onDelete}
           onMerge={onMerge}
@@ -52,6 +55,7 @@ function VersionTreeRow({
   depth,
   parentName,
   canEdit,
+  canMergeInto,
   unresolvedConflicts,
   onDelete,
   onMerge,
@@ -91,7 +95,11 @@ function VersionTreeRow({
         <span className="ml-auto whitespace-nowrap text-sm text-ink-500">
           {formatDate(node.version.createdAt)}
         </span>
-        {canEdit && !isRoot && parentName !== null && (
+        {canEdit &&
+          !isRoot &&
+          parentName !== null &&
+          node.version.parentVersionId !== null &&
+          canMergeInto(node.version.parentVersionId) && (
           <RowButton
             label={
               mergeBlocked
@@ -124,6 +132,7 @@ function VersionTreeRow({
               depth={depth + 1}
               parentName={node.version.name}
               canEdit={canEdit}
+              canMergeInto={canMergeInto}
               unresolvedConflicts={unresolvedConflicts}
               onDelete={onDelete}
               onMerge={onMerge}

@@ -5,7 +5,7 @@ import { SelectField } from '../ui/SelectField';
 import { AddMemberCard, type SelectedUser } from '../members/AddMemberCard';
 import { projectsApi } from '../../api/projects';
 import { getErrorMessage } from '../../api/errors';
-import { EDITOR_LIMITS, PROJECT_MEMBER_TYPE_LABELS } from './projectMemberTypeLabels';
+import { EDITOR_LIMITS, EXECUTIVE_LIMITS, PROJECT_MEMBER_TYPE_LABELS } from './projectMemberTypeLabels';
 import type { ProjectMemberCandidate, ProjectMemberType } from '../../types/project';
 
 interface AddProjectMemberCardProps {
@@ -75,7 +75,9 @@ export function AddProjectMemberCard({ projectId, onAdded }: AddProjectMemberCar
       roleLabel="Rol en el proyecto"
       roleLabels={PROJECT_MEMBER_TYPE_LABELS}
       defaultRole="EDITOR"
-      roleHint={(role) => (role === 'EDITOR' ? EDITOR_LIMITS : null)}
+      roleHint={(role) =>
+        role === 'EDITOR' ? EDITOR_LIMITS : role === 'EXECUTIVE' ? EXECUTIVE_LIMITS : null
+      }
       submitLabel="Agregar al proyecto"
       onAdd={handleAdd}
       source={

@@ -30,29 +30,29 @@ try {
  await page.goto('http://localhost:5173/editor');
  await page.getByRole('option',{name:'Scenario',exact:true}).waitFor({state:'attached'});
  for (const [type, label, fields] of [
-  ['INTERNAL_CONSUMPTION','Internal Consumption', ['Summer consumption','Autumn consumption','Winter consumption','Spring consumption']],
-  ['INDUSTRIAL_CONSUMPTION','Industrial Consumption', ['Constant consumption']]
+  ['INTERNAL_CONSUMPTION','Consumo interno', ['Consumo de verano','Consumo de otoño','Consumo de invierno','Consumo de primavera']],
+  ['INDUSTRIAL_CONSUMPTION','Consumo industrial', ['Consumo constante']]
  ]) {
   await page.getByRole('button',{name:label,exact:true}).click();
-  assert.equal(await page.getByLabel('Type',{exact:true}).inputValue(),type);
-  await page.getByLabel('Name',{exact:true}).fill(label);
+  assert.equal(await page.getByLabel('Tipo',{exact:true}).inputValue(),type);
+  await page.getByLabel('Nombre',{exact:true}).fill(label);
   for(let i=0;i<fields.length;i++) await page.getByLabel(fields[i],{exact:true}).fill(String(10+i));
-  await page.getByRole('button',{name:'Create node',exact:true}).click();
-  await page.getByRole('button',{name:'Create node',exact:true}).waitFor({state:'hidden'});
+  await page.getByRole('button',{name:'Crear nodo',exact:true}).click();
+  await page.getByRole('button',{name:'Crear nodo',exact:true}).waitFor({state:'hidden'});
   assert.equal(nodePayload.type.nodeType,type);assert.equal(nodePayload.type.role,'SINK');
   assert.equal(nodePayload.type.vertical,'INTERNAL_CONSUMPTION');
-  await page.locator('.react-flow__node').click();await page.getByRole('button',{name:'Edit',exact:true}).click();
+  await page.locator('.react-flow__node').click();await page.getByRole('button',{name:'Editar',exact:true}).click();
   for(let i=0;i<fields.length;i++) assert.equal(await page.getByLabel(fields[i],{exact:true}).inputValue(),String(10+i));
   await page.getByLabel(fields[0],{exact:true}).fill('22.5');
-  await page.getByRole('button',{name:'Save node',exact:true}).click();
-  await page.getByRole('button',{name:'Save node',exact:true}).waitFor({state:'hidden'});
-  await page.getByRole('button',{name:/^map$/i}).click();
-  await page.locator('button').filter({hasText:/^diagram$/i}).click({timeout:5000});
-  await page.locator('.react-flow__node').click();await page.getByRole('button',{name:'Edit',exact:true}).click();
+  await page.getByRole('button',{name:'Guardar nodo',exact:true}).click();
+  await page.getByRole('button',{name:'Guardar nodo',exact:true}).waitFor({state:'hidden'});
+  await page.getByRole('button',{name:/^mapa$/i}).click();
+  await page.locator('button').filter({hasText:/^diagrama$/i}).click({timeout:5000});
+  await page.locator('.react-flow__node').click();await page.getByRole('button',{name:'Editar',exact:true}).click();
   assert.equal(await page.getByLabel(fields[0],{exact:true}).inputValue(),'22.5');
-  await page.getByRole('button',{name:'Close',exact:true}).click();
+  await page.getByRole('button',{name:'Cerrar',exact:true}).click();
   await page.locator('.react-flow__node').click();
-  await page.getByRole('button',{name:'Delete node',exact:true}).click();
+  await page.getByRole('button',{name:'Eliminar nodo',exact:true}).click();
   await page.locator('.react-flow__node').waitFor({state:'hidden'});
   assert.equal(nodePayload.state,'REMOVED');
   await page.reload();

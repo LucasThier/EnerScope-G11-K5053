@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Alert } from '../ui/Alert';
 import { Button } from '../ui/Button';
 import { FilterSelect } from '../ui/FilterSelect';
@@ -6,6 +6,15 @@ import { Modal, ModalFooter } from '../ui/Modal';
 import { TextField } from '../ui/TextField';
 import { getErrorMessage } from '../../api/errors';
 import { useVersions } from '../../hooks/useVersions';
+import {
+  FIRST_VERSION_ADMIN_MESSAGE,
+  NO_EDITABLE_PARENT_MESSAGE,
+  newVersionBlockMessage,
+  newVersionMode,
+  parentForNewVersion,
+  pickDefaultParent,
+  validateVersionName,
+} from '../../utils/newVersion';
 
 interface NewVersionModalProps {
   projectId: string;
@@ -13,9 +22,13 @@ interface NewVersionModalProps {
   onClose: () => void;
   onCreated: (versionId: string) => Promise<void> | void;
   defaultParentId?: string;
+  canCreateRoot: boolean;
+  canBranchFrom?: (parentVersionId: string) => boolean;
 }
 
 const NAME_MAX = 320;
+
+export { FIRST_VERSION_ADMIN_MESSAGE, NO_EDITABLE_PARENT_MESSAGE };
 
 export function NewVersionModal({
   projectId,
@@ -23,8 +36,14 @@ export function NewVersionModal({
   onClose,
   onCreated,
   defaultParentId,
+  canCreateRoot,
+  canBranchFrom,
 }: NewVersionModalProps) {
   const { versions, loading: loadingVersions, createVersion } = useVersions(open ? projectId : null);
+  const parents = useMemo(
+    () => (canBranchFrom ? versions.filter((version) => canBranchFrom(version.id)) : versions),
+    [versions, canBranchFrom],
+  );
   const [name, setName] = useState('');
   const [parentVersionId, setParentVersionId] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
@@ -40,23 +59,21 @@ export function NewVersionModal({
   }, [open]);
 
   useEffect(() => {
-    if (!open || loadingVersions || versions.length === 0) {
+    if (!open || loadingVersions) {
       return;
     }
-    if (defaultParentId && versions.some((version) => version.id === defaultParentId)) {
-      setParentVersionId(defaultParentId);
-      return;
+    const picked = pickDefaultParent(parents, defaultParentId);
+    if (picked) {
+      setParentVersionId(picked);
     }
-    const root = versions.find((version) => version.parentVersionId === null) ?? versions[0];
-    setParentVersionId(root.id);
-  }, [open, loadingVersions, versions, defaultParentId]);
+  }, [open, loadingVersions, parents, defaultParentId]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setSubmitError(null);
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setNameError('El nombre es obligatorio.');
+    const checked = validateVersionName(name);
+    if (checked.name === null) {
+      setNameError(checked.error);
       return;
     }
     setNameError(null);
@@ -64,8 +81,8 @@ export function NewVersionModal({
     setSubmitting(true);
     try {
       const createdId = await createVersion({
-        name: trimmedName,
-        parentVersion: versions.length > 0 ? parentVersionId : null,
+        name: checked.name,
+        parentVersion: parentForNewVersion(versions.length, parentVersionId),
       });
       await onCreated(createdId);
       onClose();
@@ -76,8 +93,26 @@ export function NewVersionModal({
     }
   }
 
+  const mode = newVersionMode({
+    loading: loadingVersions,
+    versionCount: versions.length,
+    parentCount: parents.length,
+    canCreateRoot,
+  });
+  const blockMessage = newVersionBlockMessage(mode);
+
   return (
     <Modal open={open} onClose={onClose} title="Nueva versión">
+      {blockMessage ? (
+        <div className="flex flex-col gap-4">
+          <Alert tone="info">{blockMessage}</Alert>
+          <ModalFooter>
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cerrar
+            </Button>
+          </ModalFooter>
+        </div>
+      ) : (
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
         {submitError && <Alert tone="error">{submitError}</Alert>}
 
@@ -97,7 +132,7 @@ export function NewVersionModal({
             <FilterSelect
               label="Versión padre"
               value={parentVersionId}
-              options={versions.map((version) => ({ value: version.id, label: version.name }))}
+              options={parents.map((version) => ({ value: version.id, label: version.name }))}
               onChange={setParentVersionId}
             />
           </div>
@@ -112,6 +147,7 @@ export function NewVersionModal({
           </Button>
         </ModalFooter>
       </form>
+      )}
     </Modal>
   );
 }

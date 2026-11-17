@@ -104,7 +104,7 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `POST` | `/auth/login` | public | Authenticate, returns a session (with the user + role) |
 | `POST` | `/auth/refresh` | public | Exchange a refresh token for a new session |
 | `POST` | `/auth/logout` | public | No-op server side (client clears tokens) |
-| `GET` | `/organizations` | bearer | List organizations (all for admins; own for other users) |
+| `GET` | `/organizations` | bearer | List organizations (all for admins; own for other users). `?mine=true` returns only the caller's own memberships, admins included, each with the caller's `memberType` |
 | `POST` | `/organizations` | admin | Create an organization |
 | `GET` | `/organizations/{organizationId}/members` | admin / org member | List the organization's members with their identity fields |
 | `POST` | `/organizations/{organizationId}/members` | admin / org owner | Add an existing user to the organization with a role (`OWNER`/`MEMBER`) |
@@ -112,19 +112,22 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `POST` | `/organizations/{organizationId}/users/bulk` | admin / org owner | Bulk-register users into the organization from a CSV; returns generated credentials |
 | `GET` | `/projects` | bearer | List projects (all for admins; own memberships for other users). Optional `?organizationId=` filter |
 | `POST` | `/projects` | admin / org member | Create a project under an organization the caller belongs to |
-| `POST` | `/projects/{projectId}/members` | admin / project admin | Add a user to the project with a role (`ADMIN`/`EDITOR`) |
-| `POST` | `/projects/{projectId}/version` | admin / project editor | Create a version of a project, optionally under a parent version |
+| `POST` | `/projects/{projectId}/members` | admin / project admin | Add a user to the project with a role (`ADMIN`/`EDITOR`/`EXECUTIVE`) |
+| `GET` | `/projects/{projectId}/version-members` | admin / **project admin** | Role matrix: every **active** version of the project with its members and roles, in one call (same member shape as `GET /version/{id}/members`) |
+| `GET` | `/projects/{projectId}/access` | admin / project member | What the caller may do on each version of the project (`source`, roles, `can*` flags, `canManageRoles`) |
+| `POST` | `/projects/{projectId}/version` | admin / project editor with a parent; **admin / project admin without one** | Create a version of a project, optionally under a parent version; the creator becomes `ADMIN` of a child |
 | `POST` | `/version/createtest` | admin | Create a version detached from every project |
 | `GET` | `/version/{id}` | admin / project member | Read a version |
-| `PATCH` | `/version/{id}` | admin / project editor | Rename a version or re-parent it |
-| `DELETE` | `/version/{id}` | admin / project editor | Delete a version and every version below it |
+| `PATCH` | `/version/{id}` | admin / project editor (re-parenting also needs to manage the version and edit the new parent) | Rename a version or re-parent it |
+| `DELETE` | `/version/{id}` | admin / project admin or version admin, of **every** version in the subtree | Delete a version and every version below it, in one transaction; `403` (naming no version) and nothing deleted if any is refused |
 | `POST` `PATCH` `DELETE` | `/version/{id}/node[/{nodeId}]` | admin / project editor | Add, edit or remove a node in a version |
 | `POST` `PATCH` `DELETE` | `/version/{id}/connection[/{connectionId}]` | admin / project editor | Add, edit or remove a connection in a version |
-| `PATCH` | `/version/merge/{subId}` | admin / project editor or version admin | Merge a subversion into its parent |
-| `POST` | `/version/{id}/members` | admin / project admin or version admin | Grant a user a version role (`ADMIN`/`EDITOR`+vertical/`SIMULATOR`) |
-| `GET` | `/version/{id}/members` | admin / project or version member | List a version's members and their roles |
-| `DELETE` | `/version/{id}/members/{memberId}/roles/{roleId}` | admin / project admin or version admin | Revoke one version role |
-| `GET` | `/version/{id}/member-candidates` | admin / project admin or version admin | List project members who can be granted a version role |
+| `PATCH` | `/version/merge/{subId}` | admin / admin of the destination version (project or version admin) who may also edit the changed verticals | Merge a subversion into its parent |
+| `POST` | `/version/{id}/members` | admin / **project admin** | Grant a user a version role (`ADMIN`/`EDITOR`+vertical/`SIMULATOR`) |
+| `GET` | `/version/{id}/members` | admin / **project admin** | List a version's members and their roles |
+| `PUT` | `/version/{id}/members/{memberId}/roles/{roleId}` | admin / **project admin** | Change one version role to another type/vertical in place (keeps the role id and the membership) |
+| `DELETE` | `/version/{id}/members/{memberId}/roles/{roleId}` | admin / **project admin** | Revoke one version role |
+| `GET` | `/version/{id}/member-candidates` | admin / **project admin** | List project members who can be granted a version role |
 | `PATCH` | `/users/me/password` | bearer | Change your own password (requires the current one) |
 | `GET` | `/health` | public | Liveness probe |
 
@@ -133,22 +136,33 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 Upload a CSV (`multipart/form-data`, form field **`file`**) to create many users
 at once and add them **into the organization** as members. Allowed for platform
 admins and organization owners (members with `MANAGE_ORGANIZATION`). The file
-needs a header row with columns for the email, first name and last name, plus an
-optional `role` column. Column names are case-insensitive and a few aliases are
-accepted:
+needs a header row with columns for the email, first name and last name, plus
+optional `role` and `jobTitle` columns, and **at most 500 data rows** (the header
+does not count): a larger file answers `400 The CSV file has more than 500
+rows`, after the caller is authorized and before any row is created. The file
+itself is capped at **1 MB** (`spring.servlet.multipart.max-file-size=1MB`,
+`max-request-size=2MB`, set explicitly): a larger one answers `413 The uploaded
+file exceeds the maximum size of 1 MB` (`GlobalExceptionHandler`), not `500`.
+Spring rejects an oversized multipart before the request reaches the
+controller, so the `413` comes **before** any authorization `403`: a caller who
+may not use the endpoint still sees `413` for a too-large file. The web client
+splits larger imports into batches of 50 rows. Column names are
+case-insensitive and a few aliases are accepted:
 
 - email → `mail`, `email`, `e-mail`, `correo`
 - first name → `firstName`, `first_name`, `first name`, `nombre`
 - last name → `lastName`, `last_name`, `last name`, `apellido`
 - role (optional) → `role`, `rol`, `memberType`, `tipo` — values `OWNER`/`MEMBER`,
   defaulting to `MEMBER` when the column or cell is absent
+- job title (optional) → `jobTitle`, `job_title`, `job title`, `puesto`, `cargo` —
+  up to 120 characters; a longer one fails that row, a blank one is stored as none
 
 Example input:
 
 ```csv
-mail,firstName,lastName,role
-jane@example.com,Jane,Doe,MEMBER
-john@example.com,John,Roe,OWNER
+mail,firstName,lastName,role,jobTitle
+jane@example.com,Jane,Doe,MEMBER,Analyst
+john@example.com,John,Roe,OWNER,Project lead
 ```
 
 Each valid row is created as a regular platform user with a **securely generated
@@ -172,7 +186,8 @@ added to the organization with the given membership role. The response envelope'
 ```
 
 Invalid or duplicate rows do not abort the batch: they are skipped and listed in
-`failures` (with the line number and reason), never carrying a password.
+`failures` (with the line number — within the uploaded file, the header being
+line 1 — and the reason), never carrying a password.
 
 ### Your own account (`PATCH /users/me/password`)
 
@@ -183,9 +198,8 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
 - The new password is held to the same minimum as registration (8 characters).
   A wrong current password answers `400 Current password is incorrect`.
 - This is what closes the loop on admin-created and bulk-registered accounts,
-  which start with a password chosen by somebody else. **There is no screen for
-  it yet** — the frontend card is pending, so for now it is reachable from
-  Swagger or a client.
+  which start with a password chosen by somebody else. The web client
+  reaches it from the profile screen (`ProfilePage` → `ChangePasswordForm`).
 
 ### Organizations (`POST /organizations/**`)
 
@@ -227,12 +241,37 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   project is created by the people who are going to work on it. Projects are
   their own top-level resource, not nested under `/organizations`.
 - `POST /projects/{projectId}/members` adds an existing user (`userId`) to
-  the project with a `memberType` (`ADMIN` or `EDITOR`). The role's
+  the project with a `memberType` (`ADMIN`, `EDITOR` or `EXECUTIVE`). The role's
   permissions are derived server-side from the type — `ADMIN` gets
   `MANAGE_PROJECT` + `EDIT_PROJECT` + `VIEW_PROJECT`, `EDITOR` gets
-  `EDIT_PROJECT` + `VIEW_PROJECT`. Adding the same user to the same project
-  twice is rejected. Restricted to callers holding `MANAGE_PROJECT` on that
-  project (its `ADMIN` members) or a platform admin.
+  `EDIT_PROJECT` + `VIEW_PROJECT`, `EXECUTIVE` gets `VIEW_PROJECT` only. Adding
+  the same user to the same project twice is rejected. Restricted to callers
+  holding `MANAGE_PROJECT` on that project (its `ADMIN` members) or a platform
+  admin.
+- **`EXECUTIVE` is a read-only project member.** With only `VIEW_PROJECT` it
+  can read the project, its members, every version, the diagram and any node,
+  and the economic configuration, draft, scenario, evaluations and jobs; the
+  project access answers `canView` and nothing else (`effectiveRole`
+  `EXECUTIVE`, `source` `PROJECT_FALLBACK`). It gets `403` on everything that
+  writes — nodes, connections, creating, renaming or deleting versions, saving
+  the configuration, draft or scenario, simulating and retrying jobs — and on
+  managing project members, listing member candidates and version roles. Only a
+  project or platform `ADMIN` assigns or changes the type (an `EDITOR` gets
+  `403`); changing the last `ADMIN` into an `EXECUTIVE` is refused like any
+  other demotion. `GET /projects` reports the caller's role in each project as
+  `myRole`, so for an executive it is `EXECUTIVE` (`ADMIN` still wins when a
+  membership somehow carries two roles). No migration: `member_type` is a
+  free `VARCHAR(30)` with no `CHECK`.
+- **An `EXECUTIVE` cannot hold version roles.** `POST
+  /version/{id}/members` and `PUT /version/{id}/members/{memberId}/roles/{roleId}`
+  answer `400 An EXECUTIVE of the project cannot hold version roles` for any
+  role type (after the `403`/`404` checks, which keep their order). Turning an
+  existing member into an `EXECUTIVE` (`PATCH /projects/{id}/members/{memberId}`)
+  **deletes all of that user's version memberships in that project**, in the
+  same transaction, and logs how many; changing between `ADMIN` and `EDITOR`
+  leaves them alone. Going back to `EDITOR` does not restore them.
+  Tests: [`docs/testing.md`](../docs/testing.md) → *Project member type
+  EXECUTIVE*.
 
 ### Versions (`POST /projects/{projectId}/version`)
 
@@ -244,32 +283,120 @@ Invalid or duplicate rows do not abort the batch: they are skipped and listed in
   nested under `/projects` for now — this minimal slice has no sub-resource
   of its own to justify promoting it to a top-level `/versions` resource like
   `Project` was.
+### Node structural role
+
+`type.role` (`GENERATOR`, `INTERMEDIATE`, `SINK`) is **derived from `type.nodeType`**
+on the server, the same way `type.vertical` is: `WELL` is `GENERATOR`;
+`GATHERING_NETWORK`, `TREATMENT_PLANT`, `PIPELINE`, `PIPELINE_CONECTION`,
+`COMPRESSING_PLANT`, `GROUND_LIQUEFACTION_PLANT` and `FLNG_UNIT` are
+`INTERMEDIATE`; `SEAPORT_TERMINAL`, `LNG_CAMER`, `INTERNAL_CONSUMPTION` and
+`INDUSTRIAL_CONSUMPTION` are `SINK` (`NodeTypeEnum.role()`). `role` is optional
+in the request; if sent and different, create and edit (`/nodes/*` and
+`/version/{id}/node`) answer `400 Node role does not match its type: …`.
+Cloning a node (branches) recomputes the role from the type; with a `null` type
+it copies the stored role, since there is nothing to derive it from.
+
+### FLNG unit attributes
+
+`GET /version/{id}/node/{nodeId}` returns `attributes.shipCapacity` (the vessel)
+and `attributes.gasConsumption` (its own gas use) for a `FLNG_UNIT`; they are
+independent and `PATCH /version/{id}/node/{nodeId}` stores each from its own
+field. Before `3d19cd7` an edit copied `shipCapacity` into `gasConsumption` and
+the detail returned neither, so FLNG edited earlier may hold equal values; no
+migration repairs them. Known gaps in the node DTOs (not fixed): they carry no
+`@Valid`/`@NotNull`, numeric wrapper fields (`Integer`/`Float`) unbox into
+primitive entity fields and throw `NullPointerException` when `null`, and
+`TreatmentPlant.contaminantWaste` is accepted but not persisted (reads back as
+`0`). Details: [`docs/considerations.md`](../docs/considerations.md).
+
 ### Version members (`/version/{id}/members`, `/version/{id}/member-candidates`)
 
-- Version-level roles only come into play for someone who has **no** role on
-  the version at all: with none, access falls back to project membership (a
-  project `ADMIN` is therefore a version `ADMIN` too, by default). The moment
-  a user holds *any* role on a version, that role is the **sole** source of
-  truth for what they may do on it — it is never topped up by what their
-  project role would otherwise allow. A `SIMULATOR` cannot edit the version's
-  name, a node or a connection even though every project member can; an
-  `EDITOR` scoped to `EXTRACTION` cannot touch a `TRANSPORTATION` node.
+- **Project administrators administer every version.** An active project member
+  holding `MANAGE_PROJECT` (the project `ADMIN`) can do everything on every
+  version of the project, whatever version roles they hold; their explicit roles
+  are kept and shown but never narrow them (`GET /projects/{id}/access` reports
+  the source as `PROJECT_ADMIN`). A platform `ADMIN` can do everything too.
+- For everybody else, version-level roles only come into play for someone who
+  has **no** role on the version at all: with none, access falls back to project
+  membership. The moment a non-admin holds *any* role on a version, that role is
+  the **sole** source of truth for what they may do on it — it is never topped
+  up by what their project role would otherwise allow. A `SIMULATOR` cannot edit
+  the version's name, a node or a connection even though every project member
+  can; an `EDITOR` scoped to `EXTRACTION` cannot touch a `TRANSPORTATION` node.
+  A role only counts while its holder is an **active** member of the project.
 - Three roles: `ADMIN` (delete the version, merge a subversion into it,
-  resolve its conflicts), `EDITOR` (scoped to exactly one `vertical` — e.g.
+  resolve its conflicts, re-parent it — **not** manage who has access, which is
+  reserved to project and platform admins), `EDITOR` (scoped to exactly one `vertical` — e.g.
   `EXTRACTION` — plus `INTERNAL_CONSUMPTION` nodes and connections, which any
   `EDITOR` may touch regardless of their assigned vertical), and `SIMULATOR`
-  (view only, plus a future simulation endpoint). Every role grants read
-  access to the version.
+  (view and simulate; no editing). Every role grants read access to the
+  version.
 - Unlike a project member, a version member may hold **any number of roles
   at once** — e.g. `EDITOR` for two verticals plus `SIMULATOR`. `POST
   /version/{id}/members` always **adds** a role (`userId`, `memberType`,
-  `vertical` — required for `EDITOR`, forbidden otherwise); there is no
-  "change role" that replaces the set. `DELETE
+  `vertical` — required for `EDITOR`, forbidden otherwise). `PUT
+  /version/{id}/members/{memberId}/roles/{roleId}` (`memberType`, `vertical`)
+  **changes one role in place**, in one transaction: the role keeps its id, the
+  membership is never removed (revoke + grant would delete it when it was the
+  last role) and the permissions become those of the new type. Order of
+  answers: `403` (same guard as granting; a version `ADMIN`, `EDITOR` or
+  `SIMULATOR` included) → `404` (version, member or role not on that version)
+  → `400` (shape, or the member already holds the resulting role — the same
+  `User already has this role` as `POST`). Asking for the role's current shape
+  is a no-op (`200`, nothing saved). `DELETE
   /version/{id}/members/{memberId}/roles/{roleId}` revokes one role; once a
   member's last role is revoked, the membership itself is removed.
+- **The `EDITOR` role may simulate through a stored permission.** Its default
+  permissions are `EDIT_VERSION`, `SIMULATE_VERSION` and `VIEW_VERSION`; the old
+  rule in code (`VersionAccess.grantedByRoles`) is gone and migration `V24`
+  backfills the permission on existing `EDITOR` rows. **Deploy the migration and
+  this code together**: the new code on a database without `V24` would stop
+  letting existing editors simulate. Validate it with
+  `VersionMemberRepositoryPostgreSqlIT.v24BackfillsEditorSimulatePermissionAndIsIdempotent`
+  (run by hand: `ECONOMIC_TEST_DATABASE_URL=… mvn -B verify`).
+- **`GET /projects/{projectId}/version-members` returns the whole matrix.** One
+  entry per **active** version (`versionId`, `versionName`, `members`), each
+  `members` being exactly what `GET /version/{id}/members` returns, so the UI
+  needs one call instead of one per version. Same callers (project `ADMIN`,
+  platform `ADMIN`); `403` comes before `404`, so only a platform `ADMIN` is told
+  a project does not exist. It runs one query for members, users and roles; the
+  roles' permissions are loaded with `@BatchSize`, so the statement count does
+  not grow with members or roles (pinned by
+  `VersionMemberRepositoryPostgreSqlIT`, by hand).
+- **Only a project `ADMIN` or a platform `ADMIN` may grant, change, revoke or list
+  roles** (and list the candidates): `403 You are not allowed to manage the
+  roles of this version` for anyone else, a version `ADMIN` included. The
+  permission is checked **before** the version is looked up, so for anyone but a
+  platform `ADMIN` an unknown version id answers `403`, never `404`; only a
+  platform `ADMIN` (who skips the check) gets `404`, so the endpoints no longer
+  reveal whether a version exists.
 - Granting a role requires the target user to already be an active member of
   the version's owning project — `GET /version/{id}/member-candidates` lists
   exactly those users.
+- Creating a child version **copies the parent's roles** to the child, and its
+  creator becomes `ADMIN` of the child (a project or platform admin gets no row:
+  they already administer it). A version with no parent (a root) can only be
+  created by a project or platform `ADMIN`.
+- Deleting a version deletes everything below it and needs permission to
+  administer **every** version in the subtree; a descendant of another project
+  (or of none) can only be deleted by a platform `ADMIN`.
+- **A version role counts only while the project and the version are active.**
+  `VersionMemberRepository.findEffectiveByVersionIdAndUserId` requires an active
+  project, an active version and an active project membership of the holder, so
+  deactivating the version or the project cuts off its role holders (`403` on
+  every read); a platform `ADMIN` still reads a deactivated version.
+  `VersionService.getVersion` and `VersionConflictService.getConflictsForVersion`
+  are `@Transactional(readOnly = true)`, so the guard works without an open
+  persistence session (see the `open-in-view` debt in `docs/considerations.md`).
+- `GET /projects/{id}/access` reports `canCreateRootVersions` (it was
+  `canCreateVersions`): true for the project `ADMIN` (`MANAGE_PROJECT`) and the
+  platform `ADMIN`, false for a project `EDITOR` — who can still branch from a
+  version they may edit.
+- **Economic configuration and drafts answer `403` before `400`.**
+  `EconomicService.save` and `saveDraft` run the per-vertical check
+  (`ScenarioChangeScope`) before the business/structural validation, so an
+  editor who changes another vertical's node and also sends an invalid value
+  gets `403`, not `400`.
 - **Snapshots start empty, never null.** A version is created with empty
   `nodeSnapshot`/`connectionSnapshot` lists, so the create response and a later
   read answer the same shape (`[]`), and the in-place mutations the service does

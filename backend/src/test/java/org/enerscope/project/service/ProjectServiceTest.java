@@ -28,6 +28,12 @@ import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
+import org.enerscope.version.model.VersionMember;
+import org.enerscope.version.model.VersionMemberRole;
+import org.enerscope.version.model.enums.VersionMemberType;
+import org.enerscope.node.model.enums.VerticalEnum;
+import org.enerscope.version.repository.VersionMemberRepository;
+import org.enerscope.version.service.VersionAccessGuard;
 import org.enerscope.version.service.VersionService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -47,6 +54,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -56,6 +64,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -81,6 +90,8 @@ class ProjectServiceTest {
         private OrganizationService organizationService;
         @Mock
         private AppLogger logger;
+        @Mock
+        private VersionMemberRepository versionMemberRepository;
 
         private static final java.util.Map<ProjectMemberType, Set<ProjectMemberPermission>>
                         DEFAULT_PERMISSIONS_FOR_TEST = java.util.Map.of(
@@ -103,7 +114,9 @@ class ProjectServiceTest {
                                 organizationMemberRepository, userRepository,
                                 logger, versionService,
                                 new ProjectAccessGuard(projectMemberRepository, logger),
-                                organizationService);
+                                organizationService, versionMemberRepository,
+                                new VersionAccessGuard(projectRepository, versionMemberRepository,
+                                                new ProjectAccessGuard(projectMemberRepository, logger), logger));
         }
 
         @AfterEach
@@ -278,6 +291,84 @@ class ProjectServiceTest {
         }
 
         @Test
+        void addMemberGrantsExecutiveOnlyViewPermission() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User user = new User("john@enerscope.org", "John", "Roe", "hashed");
+                authenticateAs(admin());
+                when(projectRepository.findByIdAndActiveTrue(projectId)).thenReturn(Optional.of(project));
+                when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+                stubUserInOrganization(user);
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(false);
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                ProjectMember saved = projectService.addMember(
+                                projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EXECUTIVE));
+
+                ProjectMemberRole role = saved.getRoles().iterator().next();
+                assertEquals(ProjectMemberType.EXECUTIVE, role.getMemberType());
+                assertEquals(Set.of(ProjectMemberPermission.VIEW_PROJECT), role.getPermissions());
+        }
+
+        @Test
+        void changeMemberRoleToExecutiveDeletesTheMembersVersionRoles() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                User john = userNamed("john@enerscope.org");
+                ProjectMember member = memberOf(john, project, ProjectMemberType.EDITOR);
+                VersionMember versionMembership = new VersionMember(john, null);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+                when(versionMemberRepository.findByUserIdAndProjectIdIn(john.getId(), List.of(projectId)))
+                                .thenReturn(List.of(versionMembership));
+
+                ProjectMember saved = projectService.changeMemberRole(
+                                projectId, memberId, new UpdateProjectMemberRoleRequestDTO(ProjectMemberType.EXECUTIVE));
+
+                verify(versionMemberRepository).deleteAll(List.of(versionMembership));
+                ProjectMemberRole role = saved.getRoles().iterator().next();
+                assertEquals(ProjectMemberType.EXECUTIVE, role.getMemberType());
+                assertEquals(Set.of(ProjectMemberPermission.VIEW_PROJECT), role.getPermissions());
+        }
+
+        @Test
+        void changeMemberRoleBetweenAdminAndEditorLeavesVersionRolesAlone() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                ProjectMember member = memberOf(userNamed("john@enerscope.org"), project, ProjectMemberType.EDITOR);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                projectService.changeMemberRole(
+                                projectId, memberId, new UpdateProjectMemberRoleRequestDTO(ProjectMemberType.ADMIN));
+
+                verifyNoInteractions(versionMemberRepository);
+        }
+
+        @Test
+        void changeMemberRoleRefusesToTurnTheLastAdminIntoAnExecutive() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                ProjectMember member = memberOf(userNamed("jane@enerscope.org"), project, ProjectMemberType.ADMIN);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+                when(projectMemberRepository.countAdminsByProject(projectId)).thenReturn(1L);
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.changeMemberRole(
+                                projectId, memberId, new UpdateProjectMemberRoleRequestDTO(ProjectMemberType.EXECUTIVE)));
+
+                verify(projectMemberRepository, never()).save(any());
+                verify(versionMemberRepository, never()).deleteAll(any());
+                assertEquals(ProjectMemberType.ADMIN, member.getRoles().iterator().next().getMemberType());
+        }
+
+        @Test
         void addMemberRejectsUnknownProject() {
                 UUID projectId = UUID.randomUUID();
                 UUID userId = UUID.randomUUID();
@@ -445,19 +536,42 @@ class ProjectServiceTest {
         @Test
         void updateProjectRejectsAPatchWithEveryFieldNull() {
                 UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(
+                                new Project("Grid", "", new Organization("Acme"))));
 
                 assertThrows(IllegalArgumentException.class, () -> projectService.updateProject(
                                 projectId, new UpdateProjectRequestDTO(null, null)));
-                verify(projectRepository, never()).findById(any());
                 verify(projectRepository, never()).save(any());
         }
 
         @Test
         void updateProjectRejectsANullBody() {
                 UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(
+                                new Project("Grid", "", new Organization("Acme"))));
 
                 assertThrows(IllegalArgumentException.class, () -> projectService.updateProject(projectId, null));
-                verify(projectRepository, never()).findById(any());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void updateProjectAnswers403BeforeValidatingTheBodyForAnEditor() {
+                UUID projectId = UUID.randomUUID();
+                User caller = userNamed("editor@enerscope.org");
+                authenticateAs(caller);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(
+                                new Project("Grid", "", new Organization("Acme"))));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                assertThrows(ForbiddenException.class, () -> projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO("   ", null)));
+                assertThrows(ForbiddenException.class, () -> projectService.updateProject(
+                                projectId, new UpdateProjectRequestDTO(null, null)));
+                assertThrows(ForbiddenException.class, () -> projectService.updateProject(projectId, null));
+                verify(projectRepository, never()).save(any());
         }
 
         @Test
@@ -556,7 +670,7 @@ class ProjectServiceTest {
 
                 assertEquals(1, result.size());
                 assertEquals("jane@enerscope.org", result.get(0).getUser().getMail());
-                verify(projectMemberRepository, never()).existsByProjectIdAndUserId(any(), any());
+                verify(projectMemberRepository, never()).findByProjectIdAndUserId(any(), any());
         }
 
         @Test
@@ -565,7 +679,8 @@ class ProjectServiceTest {
                 User caller = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
                 authenticateAs(caller);
                 when(projectRepository.existsByIdAndActiveTrue(projectId)).thenReturn(true);
-                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(true);
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
                 when(projectMemberRepository.findByProjectIdWithUser(projectId))
                                 .thenReturn(List.of(sampleMember(ProjectMemberType.EDITOR)));
 
@@ -578,7 +693,7 @@ class ProjectServiceTest {
                 User caller = new User("outsider@enerscope.org", "Out", "Sider", "hashed", PlatformRole.USER);
                 authenticateAs(caller);
                 when(projectRepository.existsByIdAndActiveTrue(projectId)).thenReturn(true);
-                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())).thenReturn(false);
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())).thenReturn(Optional.empty());
 
                 assertThrows(ForbiddenException.class, () -> projectService.listMembers(projectId));
                 verify(projectMemberRepository, never()).findByProjectIdWithUser(any());
@@ -699,6 +814,273 @@ class ProjectServiceTest {
         }
 
         @Test
+        void saveVersionCopiesEveryRoleOfTheParentWithItsVerticalAndPermissions() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                Version child = new Version();
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                User editor = new User("editor@enerscope.org", "Ed", "Itor", "hashed");
+                VersionMember parentMember = new VersionMember(editor, parent);
+                VersionMemberRole extraction = versionRole(VersionMemberType.EDITOR, VerticalEnum.EXTRACTION);
+                VersionMemberRole simulator = versionRole(VersionMemberType.SIMULATOR, null);
+                parentMember.addRole(extraction);
+                parentMember.addRole(simulator);
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(data)).thenReturn(child);
+                when(versionMemberRepository.findByVersionIdWithUser(parent.getId())).thenReturn(List.of(parentMember));
+
+                projectService.saveVersion(projectId, data);
+
+                ArgumentCaptor<List<VersionMember>> saved = ArgumentCaptor.captor();
+                verify(versionMemberRepository).saveAll(saved.capture());
+                assertEquals(1, saved.getValue().size());
+                VersionMember copy = saved.getValue().get(0);
+                assertSame(editor, copy.getUser());
+                assertSame(child, copy.getVersion());
+                assertEquals(2, copy.getRoles().size());
+                for (VersionMemberRole original : List.of(extraction, simulator)) {
+                        VersionMemberRole copied = copy.getRoles().stream()
+                                        .filter(role -> role.getMemberType() == original.getMemberType())
+                                        .findFirst().orElseThrow();
+                        assertNotSame(original, copied);
+                        assertEquals(original.getVertical(), copied.getVertical());
+                        assertEquals(original.getPermissions(), copied.getPermissions());
+                        assertEquals(original.getName(), copied.getName());
+                        assertSame(copy, copied.getMember());
+                }
+        }
+
+        @Test
+        void saveVersionWithoutParentCopiesNoRoles() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                VersionDTO data = new VersionDTO("Root", null);
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(data)).thenReturn(new Version());
+
+                projectService.saveVersion(projectId, data);
+
+                verifyNoInteractions(versionMemberRepository);
+        }
+
+        @Test
+        void saveVersionWithParentOfNoOneElseCopiesNothing() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(data)).thenReturn(new Version());
+                when(versionMemberRepository.findByVersionIdWithUser(parent.getId())).thenReturn(List.of());
+
+                projectService.saveVersion(projectId, data);
+
+                verify(versionMemberRepository, never()).saveAll(any());
+        }
+
+        @Test
+        void saveVersionRefusesASimulatorOfTheParentWith403AndCreatesNothing() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                User caller = regularUser();
+                authenticateAs(caller);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+                VersionMember simulator = new VersionMember(caller, parent);
+                simulator.addRole(versionRole(VersionMemberType.SIMULATOR, null));
+                when(versionMemberRepository.findEffectiveByVersionIdAndUserId(parent.getId(), caller.getId()))
+                                .thenReturn(Optional.of(simulator));
+
+                assertThrows(ForbiddenException.class,
+                                () -> projectService.saveVersion(projectId, new VersionDTO("Child", parent.getId())));
+
+                verify(versionService, never()).saveVersion(any());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void saveVersionLetsAnEditorOfOneVerticalOfTheParentCreateAChild() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                User caller = regularUser();
+                authenticateAs(caller);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+                VersionMember editor = new VersionMember(caller, parent);
+                editor.addRole(versionRole(VersionMemberType.EDITOR, VerticalEnum.EXPORT));
+                when(versionMemberRepository.findEffectiveByVersionIdAndUserId(parent.getId(), caller.getId()))
+                                .thenReturn(Optional.of(editor));
+                Version child = new Version();
+                when(versionService.saveVersion(data)).thenReturn(child);
+
+                assertSame(child, projectService.saveVersion(projectId, data));
+        }
+
+        @Test
+        void saveVersionMakesAProjectEditorWithoutRolesTheAdminOfTheChild() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                User caller = regularUser();
+                authenticateAs(caller);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                ProjectMember callerMembership = sampleMember(ProjectMemberType.EDITOR);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectRepository.findIdByVersionId(parent.getId())).thenReturn(Optional.of(projectId));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(callerMembership));
+                Version child = new Version();
+                when(versionService.saveVersion(data)).thenReturn(child);
+
+                projectService.saveVersion(projectId, data);
+
+                ArgumentCaptor<List<VersionMember>> saved = ArgumentCaptor.captor();
+                verify(versionMemberRepository).saveAll(saved.capture());
+                assertEquals(1, saved.getValue().size());
+                VersionMember creator = saved.getValue().get(0);
+                assertSame(callerMembership.getUser(), creator.getUser());
+                assertSame(child, creator.getVersion());
+                assertEquals(1, creator.getRoles().size());
+                VersionMemberRole role = creator.getRoles().iterator().next();
+                assertEquals(VersionMemberType.ADMIN, role.getMemberType());
+                assertEquals(null, role.getVertical());
+                assertEquals(VersionMember.defaultPermissionsFor(VersionMemberType.ADMIN), role.getPermissions());
+                assertNotSame(VersionMember.defaultPermissionsFor(VersionMemberType.ADMIN), role.getPermissions());
+                assertSame(creator, role.getMember());
+        }
+
+        @Test
+        void saveVersionAddsAdminToTheCreatorsCopiedRowInsteadOfCreatingASecondOne() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                User caller = regularUser();
+                authenticateAs(caller);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+                VersionMember parentRow = new VersionMember(caller, parent);
+                parentRow.addRole(versionRole(VersionMemberType.EDITOR, VerticalEnum.EXPORT));
+                when(versionMemberRepository.findEffectiveByVersionIdAndUserId(parent.getId(), caller.getId()))
+                                .thenReturn(Optional.of(parentRow));
+                when(versionMemberRepository.findByVersionIdWithUser(parent.getId())).thenReturn(List.of(parentRow));
+                Version child = new Version();
+                when(versionService.saveVersion(data)).thenReturn(child);
+
+                projectService.saveVersion(projectId, data);
+
+                ArgumentCaptor<List<VersionMember>> saved = ArgumentCaptor.captor();
+                verify(versionMemberRepository).saveAll(saved.capture());
+                assertEquals(1, saved.getValue().size());
+                VersionMember creator = saved.getValue().get(0);
+                assertEquals(2, creator.getRoles().size());
+                assertTrue(creator.getRoles().stream().anyMatch(role -> role.getMemberType() == VersionMemberType.EDITOR
+                                && role.getVertical() == VerticalEnum.EXPORT));
+                assertTrue(creator.getRoles().stream().anyMatch(role -> role.getMemberType() == VersionMemberType.ADMIN));
+                assertEquals(1, parentRow.getRoles().size());
+        }
+
+        @Test
+        void saveVersionDoesNotGiveTheCreatorASecondAdminRoleWhenTheParentAlreadyMadeThemAdmin() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                User caller = regularUser();
+                authenticateAs(caller);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+                VersionMember parentRow = new VersionMember(caller, parent);
+                parentRow.addRole(versionRole(VersionMemberType.ADMIN, null));
+                when(versionMemberRepository.findEffectiveByVersionIdAndUserId(parent.getId(), caller.getId()))
+                                .thenReturn(Optional.of(parentRow));
+                when(versionMemberRepository.findByVersionIdWithUser(parent.getId())).thenReturn(List.of(parentRow));
+                when(versionService.saveVersion(data)).thenReturn(new Version());
+
+                projectService.saveVersion(projectId, data);
+
+                ArgumentCaptor<List<VersionMember>> saved = ArgumentCaptor.captor();
+                verify(versionMemberRepository).saveAll(saved.capture());
+                assertEquals(1, saved.getValue().get(0).getRoles().size());
+        }
+
+        @Test
+        void saveVersionGivesNoRoleToAProjectAdminCreator() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                User caller = regularUser();
+                authenticateAs(caller);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectRepository.findIdByVersionId(parent.getId())).thenReturn(Optional.of(projectId));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.ADMIN)));
+                when(versionService.saveVersion(data)).thenReturn(new Version());
+
+                projectService.saveVersion(projectId, data);
+
+                verify(versionMemberRepository, never()).saveAll(any());
+        }
+
+        @Test
+        void saveVersionGivesNoRoleToAPlatformAdminCreator() {
+                UUID projectId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                Version parent = versionWithId();
+                project.addVersion(parent);
+                VersionDTO data = new VersionDTO("Child", parent.getId());
+                authenticateAs(admin());
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(versionService.saveVersion(data)).thenReturn(new Version());
+
+                projectService.saveVersion(projectId, data);
+
+                verify(versionMemberRepository, never()).saveAll(any());
+                verify(projectMemberRepository, never()).findByProjectIdAndUserId(any(), any());
+        }
+
+        @Test
+        void saveVersionAuthorizesAForeignParentBeforeSayingItBelongsToAnotherProject() {
+                UUID projectId = UUID.randomUUID();
+                UUID foreignProjectId = UUID.randomUUID();
+                UUID foreignParentId = UUID.randomUUID();
+                Project project = new Project("New project", "", new Organization("Acme"));
+                User caller = regularUser();
+                authenticateAs(caller);
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.ADMIN)));
+                when(projectRepository.findIdByVersionId(foreignParentId)).thenReturn(Optional.of(foreignProjectId));
+                when(projectMemberRepository.findByProjectIdAndUserId(foreignProjectId, caller.getId()))
+                                .thenReturn(Optional.empty());
+
+                assertThrows(ForbiddenException.class,
+                                () -> projectService.saveVersion(projectId, new VersionDTO("Child", foreignParentId)));
+
+                verify(versionService, never()).saveVersion(any());
+        }
+
+        @Test
         void saveVersionRejectsNullProjectId() {
                 assertThrows(IllegalArgumentException.class,
                                 () -> projectService.saveVersion(null, new VersionDTO("Baseline", null)));
@@ -737,6 +1119,38 @@ class ProjectServiceTest {
                                 () -> projectService.saveVersion(projectId, new VersionDTO("Baseline", null)));
                 verify(versionService, never()).saveVersion(any());
                 verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void saveVersionWithoutParentRefusesAProjectEditorWith403() {
+                UUID projectId = UUID.randomUUID();
+                User caller = userNamed("editor@enerscope.org");
+                authenticateAs(caller);
+                Project project = new Project("Grid Expansion", "", new Organization("Acme"));
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                assertThrows(ForbiddenException.class,
+                                () -> projectService.saveVersion(projectId, new VersionDTO("Root", null)));
+                verify(versionService, never()).saveVersion(any());
+                verify(projectRepository, never()).save(any());
+        }
+
+        @Test
+        void saveVersionWithoutParentAllowsAProjectAdmin() {
+                UUID projectId = UUID.randomUUID();
+                User caller = userNamed("admin@enerscope.org");
+                authenticateAs(caller);
+                Project project = new Project("Grid Expansion", "", new Organization("Acme"));
+                VersionDTO data = new VersionDTO("Root", null);
+                Version version = new Version();
+                when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.ADMIN)));
+                when(versionService.saveVersion(data)).thenReturn(version);
+
+                assertSame(version, projectService.saveVersion(projectId, data));
         }
 
         @Test
@@ -1068,10 +1482,29 @@ class ProjectServiceTest {
 
         @Test
         void changeMemberRoleRejectsAMissingMemberType() {
+                UUID projectId = UUID.randomUUID();
+                authenticateAs(admin());
+                activeProject(projectId);
+
                 assertThrows(IllegalArgumentException.class, () -> projectService.changeMemberRole(
-                                UUID.randomUUID(), UUID.randomUUID(), new UpdateProjectMemberRoleRequestDTO(null)));
+                                projectId, UUID.randomUUID(), new UpdateProjectMemberRoleRequestDTO(null)));
                 assertThrows(IllegalArgumentException.class, () -> projectService.changeMemberRole(
-                                UUID.randomUUID(), UUID.randomUUID(), null));
+                                projectId, UUID.randomUUID(), null));
+        }
+
+        @Test
+        void changeMemberRoleAnswers403BeforeValidatingTheBodyForAnEditor() {
+                UUID projectId = UUID.randomUUID();
+                User caller = userNamed("editor@enerscope.org");
+                authenticateAs(caller);
+                activeProject(projectId);
+                when(projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId()))
+                                .thenReturn(Optional.of(sampleMember(ProjectMemberType.EDITOR)));
+
+                assertThrows(ForbiddenException.class, () -> projectService.changeMemberRole(
+                                projectId, UUID.randomUUID(), new UpdateProjectMemberRoleRequestDTO(null)));
+                assertThrows(ForbiddenException.class, () -> projectService.changeMemberRole(
+                                projectId, UUID.randomUUID(), null));
         }
 
         @Test
@@ -1127,6 +1560,98 @@ class ProjectServiceTest {
 
                 assertFalse(project.getMembers().contains(member));
                 verify(projectMemberRepository).delete(member);
+        }
+
+        @Test
+        void removeMemberAlsoDeletesTheirVersionMembershipsInThatProject() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                User john = userNamed("john@enerscope.org");
+                ProjectMember member = memberOf(john, project, ProjectMemberType.EDITOR);
+                project.addMember(member);
+                VersionMember versionMembership = new VersionMember(john, null);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+                when(versionMemberRepository.findByUserIdAndProjectIdIn(john.getId(), List.of(projectId)))
+                                .thenReturn(List.of(versionMembership));
+
+                projectService.removeMember(projectId, memberId);
+
+                verify(versionMemberRepository).deleteAll(List.of(versionMembership));
+                verify(projectMemberRepository).delete(member);
+        }
+
+        @Test
+        void removeMemberTouchesNoVersionMembershipWhenTheUserHasNone() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                ProjectMember member = memberOf(userNamed("john@enerscope.org"), project, ProjectMemberType.EDITOR);
+                project.addMember(member);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+
+                projectService.removeMember(projectId, memberId);
+
+                verify(versionMemberRepository, never()).deleteAll(any());
+                verify(projectMemberRepository).delete(member);
+        }
+
+        @Test
+        void removeMemberKeepsVersionMembershipsWhenTheLastAdminGuardRefuses() {
+                UUID projectId = UUID.randomUUID();
+                UUID memberId = UUID.randomUUID();
+                Project project = activeProject(projectId);
+                ProjectMember member = memberOf(userNamed("jane@enerscope.org"), project, ProjectMemberType.ADMIN);
+                project.addMember(member);
+                authenticateAs(admin());
+                when(projectMemberRepository.findByIdAndProjectId(memberId, projectId)).thenReturn(Optional.of(member));
+                when(projectMemberRepository.countAdminsByProject(projectId)).thenReturn(1L);
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.removeMember(projectId, memberId));
+
+                verifyNoInteractions(versionMemberRepository);
+        }
+
+        @Test
+        void addMemberPurgesLeftoverVersionMembershipsOfTheUserInThatProject() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User jane = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+                VersionMember leftover = new VersionMember(jane, null);
+                authenticateAs(admin());
+                when(projectRepository.findByIdAndActiveTrue(projectId)).thenReturn(Optional.of(project));
+                when(userRepository.findById(userId)).thenReturn(Optional.of(jane));
+                stubUserInOrganization(jane);
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(false);
+                when(versionMemberRepository.findByUserIdAndProjectIdIn(userId, List.of(projectId)))
+                                .thenReturn(List.of(leftover));
+                when(projectMemberRepository.save(any(ProjectMember.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                projectService.addMember(projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR));
+
+                verify(versionMemberRepository).deleteAll(List.of(leftover));
+                verify(projectMemberRepository).save(any(ProjectMember.class));
+        }
+
+        @Test
+        void addMemberLeavesVersionMembershipsAloneWhenItRejectsADuplicate() {
+                UUID projectId = UUID.randomUUID();
+                UUID userId = UUID.randomUUID();
+                Project project = new Project("Grid Expansion", "Expands the regional grid", new Organization("Acme"));
+                User jane = new User("jane@enerscope.org", "Jane", "Doe", "hashed");
+                authenticateAs(admin());
+                when(projectRepository.findByIdAndActiveTrue(projectId)).thenReturn(Optional.of(project));
+                when(userRepository.findById(userId)).thenReturn(Optional.of(jane));
+                stubUserInOrganization(jane);
+                when(projectMemberRepository.existsByProjectIdAndUserId(projectId, userId)).thenReturn(true);
+
+                assertThrows(IllegalArgumentException.class, () -> projectService.addMember(
+                                projectId, new AddProjectMemberRequestDTO(userId, ProjectMemberType.EDITOR)));
+
+                verifyNoInteractions(versionMemberRepository);
         }
 
         @Test
@@ -1409,6 +1934,21 @@ class ProjectServiceTest {
                 assertThrows(UnauthorizedException.class, () -> projectService.deactivateProject(projectId));
                 assertTrue(project.isActive());
                 verify(projectRepository, never()).save(any());
+        }
+
+        private static Version versionWithId() {
+                Version version = new Version();
+                org.springframework.test.util.ReflectionTestUtils.setField(version, "id", UUID.randomUUID());
+                return version;
+        }
+
+        private static VersionMemberRole versionRole(VersionMemberType type, VerticalEnum vertical) {
+                return new VersionMemberRole(type.name(), type,
+                                new java.util.HashSet<>(VersionMember.defaultPermissionsFor(type)), vertical);
+        }
+
+        private static User regularUser() {
+                return User.fromJwtClaims(UUID.randomUUID(), "member@enerscope.org", "Jane", "Doe", PlatformRole.USER);
         }
 
         private User creator() {

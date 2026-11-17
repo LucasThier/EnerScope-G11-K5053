@@ -6,6 +6,7 @@ import org.enerscope.node.dto.*;
 import org.enerscope.node.service.NodeService;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
+import org.enerscope.version.service.VersionAccessGuard;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,10 +20,14 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Nodes", description = "Node management operations")
 public class NodeController {
 
-        private final NodeService nodeService;
+        private static final String CREATE_NODES_ACTION = "create nodes outside a version";
 
-        public NodeController(NodeService nodeService) {
+        private final NodeService nodeService;
+        private final VersionAccessGuard accessGuard;
+
+        public NodeController(NodeService nodeService, VersionAccessGuard accessGuard) {
                 this.nodeService = nodeService;
+                this.accessGuard = accessGuard;
         }
 
         // NODE CREATION
@@ -33,6 +38,7 @@ public class NodeController {
         @Operation(summary = "Create a Well node", description = "Create a new Well node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createWell(
                         @RequestBody WellDTO wellDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.saveWell(wellDTO);
                 return Responses.ok("Well created successfully");
         }
@@ -41,6 +47,7 @@ public class NodeController {
         @Operation(summary = "Create a Gathering Network node", description = "Create a new Gathering Network node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createGatheringNetwork(
                         @RequestBody GatheringNetworkDTO gatheringNetworkDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.saveGatheringNetwork(gatheringNetworkDTO);
                 return Responses.ok("Gathering Network created successfully");
         }
@@ -51,6 +58,7 @@ public class NodeController {
         public ResponseEntity<ApiResponse<Void>> createTreatmentPlant(
 
                         @RequestBody TreatmentPlantDTO treatmentPlantDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.saveTreatmentPlant(treatmentPlantDTO);
                 return Responses.ok("Treatment Plant created successfully");
         }
@@ -61,6 +69,7 @@ public class NodeController {
         public ResponseEntity<ApiResponse<Void>> createPipeline(
 
                         @RequestBody PipelineDTO pipelineDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.savePipeline(pipelineDTO);
                 return Responses.ok("Pipeline created successfully");
         }
@@ -71,6 +80,7 @@ public class NodeController {
         public ResponseEntity<ApiResponse<Void>> createPipelineConnection(
 
                         @RequestBody PipelineConnectionDTO pipelineConnectionDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.savePipelineConnection(pipelineConnectionDTO);
                 return Responses.ok("Pipeline Connection created successfully");
         }
@@ -81,6 +91,7 @@ public class NodeController {
         public ResponseEntity<ApiResponse<Void>> createCompressingPlant(
 
                         @RequestBody CompressingPlantDTO compressingPlantDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.saveCompressingPlant(compressingPlantDTO);
                 return Responses.ok("Compressing Plant created successfully");
         }
@@ -91,6 +102,7 @@ public class NodeController {
         public ResponseEntity<ApiResponse<Void>> createGroundBasedLiquefactionPlant(
 
                         @RequestBody GroundBasedLiquefactionPlantDTO gblpDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.saveGroundBasedLiquefactionPlant(gblpDTO);
                 return Responses.ok("Ground Based Liquefaction Plant created successfully");
         }
@@ -101,6 +113,7 @@ public class NodeController {
         public ResponseEntity<ApiResponse<Void>> createFLNGUnit(
 
                         @RequestBody FLNGUnitDTO flngUnitDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.saveFLNGUnit(flngUnitDTO);
                 return Responses.ok("FLNG Unit created successfully");
         }
@@ -111,6 +124,7 @@ public class NodeController {
         public ResponseEntity<ApiResponse<Void>> createLNGCarrier(
 
                         @RequestBody LNGCarrierDTO lngCarrierDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.saveLNGCarrier(lngCarrierDTO);
                 return Responses.ok("LNG Carrier created successfully");
         }
@@ -121,6 +135,7 @@ public class NodeController {
         public ResponseEntity<ApiResponse<Void>> createSeaportTerminal(
 
                         @RequestBody SeaportTerminalDTO seaportTerminalDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.saveSeaportTerminal(seaportTerminalDTO);
                 return Responses.ok("Seaport Terminal created successfully");
         }
@@ -131,6 +146,7 @@ public class NodeController {
         public ResponseEntity<ApiResponse<Void>> createConnection(
 
                         @RequestBody ConnectionDTO connectionDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.saveConnection(connectionDTO);
                 return Responses.ok("Connection created successfully");
         }
@@ -139,6 +155,7 @@ public class NodeController {
         @Operation(summary = "Create a Internal Consumption node", description = "Create a new Internal Consumption node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createInternalConsumption(
                 @RequestBody InternalConsumptionDTO internalConsumptionDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.saveInternalConsumption(internalConsumptionDTO);
                 return Responses.ok("Internal Consumption created successfully");
         }
@@ -147,6 +164,7 @@ public class NodeController {
         @Operation(summary = "Create a Industrial Consumption node", description = "Create a new Industrial Consumption node with all required properties.")
         public ResponseEntity<ApiResponse<Void>> createInt(
                 @RequestBody IndustrialConsumptionDTO industrialConsumptionDTO) {
+                accessGuard.assertIsPlatformAdmin(CREATE_NODES_ACTION);
                 nodeService.saveIndustrialConsumption(industrialConsumptionDTO);
                 return Responses.ok("Industrial Consumption created successfully");
         }

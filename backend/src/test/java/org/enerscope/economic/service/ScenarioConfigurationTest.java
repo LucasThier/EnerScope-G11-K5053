@@ -89,6 +89,19 @@ class ScenarioConfigurationTest {
   assertThrows(IllegalArgumentException.class,()->economics.validateConfiguration(economics.get(projectId,versionId),em.find(Version.class,versionId)));
  }
 
+ @Test void viewerGets403BeforeTheRequestIsValidatedOnSave() {
+  var viewer=User.fromJwtClaims(UUID.randomUUID(),"viewer@example.com","View","Er");
+  var member=new org.enerscope.project.model.ProjectMember(viewer,em.find(Project.class,projectId));
+  member.addRole(new org.enerscope.project.model.ProjectMemberRole("Viewer",org.enerscope.project.model.enums.ProjectMemberType.EDITOR,
+      Set.of(org.enerscope.project.model.enums.ProjectMemberPermission.VIEW_PROJECT)));
+  em.find(Project.class,projectId).addMember(member);
+  var authentication=new UsernamePasswordAuthenticationToken(viewer.getId(),null,List.of());
+  authentication.setDetails(new Session("test",viewer,Instant.now().plusSeconds(3600)));SecurityContextHolder.getContext().setAuthentication(authentication);
+  assertThrows(org.enerscope.common.ForbiddenException.class,()->scenarios.save(projectId,versionId,null));
+  assertThrows(org.enerscope.common.ForbiddenException.class,()->scenarios.save(projectId,versionId,
+      new SaveRequest("stale","stale",mapper.createObjectNode(),null,null)));
+ }
+
  @AfterEach
  void clear(){SecurityContextHolder.clearContext();}
  SaveRequest request(ScenarioConfigurationDTO state) {
@@ -188,5 +201,55 @@ class ScenarioConfigurationTest {
   assertThrows(org.enerscope.common.EntityNotFoundException.class,()->scenarios.get(projectId,UUID.randomUUID()));
   SecurityContextHolder.clearContext();
   assertThrows(org.enerscope.common.UnauthorizedException.class,()->scenarios.get(projectId,versionId));
+ }
+ @Autowired org.enerscope.version.service.VersionAccessService versionAccess;
+
+ private void actAsVersionMember(org.enerscope.version.model.enums.VersionMemberType... types) {
+  var project=em.find(Project.class,projectId);var version=em.find(Version.class,versionId);
+  String mail="member-"+UUID.randomUUID()+"@example.com";
+  var member=new User(mail,"Version","Member","hashed");em.persist(member);
+  var projectMember=new org.enerscope.project.model.ProjectMember(member,project);
+  var editor=org.enerscope.project.model.enums.ProjectMemberType.EDITOR;
+  projectMember.addRole(new org.enerscope.project.model.ProjectMemberRole(editor.name(),editor,
+    EnumSet.copyOf(org.enerscope.project.model.ProjectMember.defaultPermissionsFor(editor))));
+  project.addMember(projectMember);em.persist(projectMember);
+  var versionMember=new org.enerscope.version.model.VersionMember(member,version);
+  for(var type:types) versionMember.addRole(new org.enerscope.version.model.VersionMemberRole(type.name(),type,
+    EnumSet.copyOf(org.enerscope.version.model.VersionMember.defaultPermissionsFor(type)),
+    type==org.enerscope.version.model.enums.VersionMemberType.EDITOR?VerticalEnum.EXPORT:null));
+  em.persist(versionMember);em.flush();
+  var caller=User.fromJwtClaims(member.getId(),mail,"Version","Member",PlatformRole.USER);
+  var authentication=new UsernamePasswordAuthenticationToken(caller.getId(),null,List.of());
+  authentication.setDetails(new Session("test",caller,Instant.now().plusSeconds(3600)));SecurityContextHolder.getContext().setAuthentication(authentication);
+ }
+
+ @Test
+ void versionSimulatorReadsScenarioAndEconomicsButCannotSaveOrDiscard() {
+  actAsVersionMember(org.enerscope.version.model.enums.VersionMemberType.SIMULATOR);
+  var state=scenarios.get(projectId,versionId);
+  assertNotNull(economics.get(projectId,versionId));
+  assertThrows(org.enerscope.common.ForbiddenException.class,()->scenarios.save(projectId,versionId,request(state)));
+  assertThrows(org.enerscope.common.ForbiddenException.class,()->scenarios.discard(projectId,versionId,state.token()));
+  assertNull(scenarios.get(projectId,versionId).draft());
+ }
+
+ @Test
+ void versionSimulatorCanQueueAProbabilisticJob() {
+  actAsVersionMember(org.enerscope.version.model.enums.VersionMemberType.SIMULATOR);
+  assertNotNull(jobs.submit(projectId,versionId,new EconomicJobRequest(1,"42")).id());
+ }
+
+ @Test
+ void accessEndpointReadsVersionRolesStoredInTheDatabase() {
+  actAsVersionMember(org.enerscope.version.model.enums.VersionMemberType.EDITOR,org.enerscope.version.model.enums.VersionMemberType.SIMULATOR);
+  em.clear();
+  var access=versionAccess.resolveForProject(projectId);
+  assertEquals(org.enerscope.project.model.enums.ProjectMemberType.EDITOR,access.projectRole());
+  var version=access.versions().getFirst();
+  assertEquals(versionId,version.versionId());
+  assertEquals(org.enerscope.version.model.enums.VersionAccessSource.VERSION_ROLES,version.source());
+  assertEquals("EDITOR",version.effectiveRole());
+  assertEquals(List.of(VerticalEnum.EXPORT,VerticalEnum.INTERNAL_CONSUMPTION),version.editableVerticals());
+  assertTrue(version.canSimulate());assertFalse(version.canManage());
  }
 }

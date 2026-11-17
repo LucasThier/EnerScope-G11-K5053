@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { authApi } from '../api/auth';
 import { organizationsApi } from '../api/organizations';
 import { session } from '../api/session';
+import { registerAuthHandlers } from '../api/authEvents';
 import type {
   LoginRequest,
   RegisterRequest,
@@ -44,6 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
   }, []);
+
+  useEffect(() => {
+    registerAuthHandlers({ refreshUser: refresh, sessionLost: () => setUser(null) });
+    return () => registerAuthHandlers(null);
+  }, [refresh]);
 
   useEffect(() => {
     let active = true;

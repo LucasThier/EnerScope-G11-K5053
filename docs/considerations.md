@@ -27,9 +27,11 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   `admin@enerscope.org` is an `ADMIN`. `platformRole` is the app-wide role;
   organization/project membership roles are scoped and separate. `jobTitle` is
   descriptive only and never affects authorization.
-- Authentication is **stateless** (JWT). There is no session table; a `Session`
-  is rebuilt from the token on each request. Revocation before expiry is not
-  supported — keep access-token lifetimes short.
+- Authentication is **stateless** (JWT). There is no session table, but every
+  authenticated request loads the user by the token's `sub`: a deactivated or
+  missing account is refused (`401`) and the platform role comes from the
+  database, not from the token. There is still no per-token revocation — see
+  the 2026-11-14 log entry.
 - Flyway owns the schema; Hibernate runs in `validate`. The H2 profile used by
   tests disables Flyway and lets Hibernate build the schema — keep entities
   portable enough for both, or adjust the test profile deliberately.
@@ -64,18 +66,47 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   `aria-describedby`/`aria-invalid` wiring, the focus trap and the single set of
   control heights. Add a variant to the component rather than a one-off in a
   screen.
-- The signed-in sidebar is a **transient overlay**, not a persistent rail: the
-  app opens it once on `/app`, the left screen edge and `Ctrl`/`Cmd`+`B` open
-  it, any navigation closes it, and below `64rem` it is a drawer.
-  `useNavigationTree` **hides** the sections the caller cannot reach.
-- **Membership has three independent role scopes** (platform, organization,
-  project), belonging to the organization is a prerequisite for belonging to one
+- The signed-in sidebar is **fixed at `80rem` and wider** while it is pinned
+  (the default; the pin button at its foot, `Ctrl`/`Cmd`+`B` and the
+  `sidebarPinned` LocalStorage key control it) and a **transient overlay**
+  otherwise: with the pin off, or between `64rem` and `80rem`, the app opens it
+  once on `/app`, the left screen edge and `Ctrl`/`Cmd`+`B` open it, any
+  navigation closes it, and below `64rem` it is a drawer. Exactly one leaf is
+  highlighted as current (`activeLeaf`). `useNavigationTree` **hides** the
+  sections the caller cannot reach. (This replaces the 2026-10 description of a
+  purely transient overlay.)
+- **Membership has four independent role scopes** (platform, organization,
+  project and — on top of project membership — version), belonging to the organization is a prerequisite for belonging to one
   of its projects, and an organization's last owner / a project's last
   administrator cannot be removed or demoted — **not even by a platform
   admin**. See [`domain-model.md`](domain-model.md) → *Membership rules*.
-- The frontend still has **no test runner**: the bar for a frontend change is
-  `npm run build` (type-check) plus `npm run lint`, and the rest is the manual
-  checklist in [`testing.md`](testing.md) → *Manual verification*.
+- The frontend has a **test runner**: `npm test` (the built-in `node:test`, no
+  dependency; 157 tests on 2026-11-15). The bar for a frontend change is
+  `npm test`, `npm run build` (type-check) and `npm run lint`; screens that no
+  unit test reaches stay on the manual checklist in
+  [`testing.md`](testing.md) → *Manual verification (frontend)*. If the menu
+  changes on purpose, regenerate `tests/permissionsNav.golden.json` with
+  `RECORD_PERMISSIONS_GOLDEN=1 npm test` and review the diff.
+
+## Pending
+
+- **"Limpieza de datos tras las pruebas" (not started; nothing has been
+  measured or deleted).** When testing is over, the test database has to be
+  cleaned of what the tests left behind:
+  - versions whose parent belongs to **another project**;
+  - orphan `version_member` rows (no longer pointing at a live version, user or
+    project membership);
+  - test users, projects and data, such as the `verif-` and `carga500`
+    families.
+  - **Order of work.** First **read-only measurement queries** (counts and
+    samples per category above, no `UPDATE`/`DELETE`), reviewed before anything
+    else. Only then a **reviewed cleanup script** that runs inside a
+    transaction and ends in **`ROLLBACK` by default** (committing is an explicit
+    edit of the script, not a flag left on by accident), and only after a
+    **backup** of the database taken beforehand.
+  - Not done here: the queries and the script do not exist yet, so the
+    criteria for "orphan" and for what counts as test data (name prefixes
+    included) are still to be confirmed against the real data before writing them.
 
 ## Log
 
@@ -2130,6 +2161,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     default H2 URL (it logs a WARN and carries on), so nothing could ever
     persist a result in the H2 tests. `ResultMappingTest` opts into
     `NON_KEYWORDS=YEAR`; do the same for any new test that touches `result`.
+    (That class was lost in a merge and rewritten on 2026-11-15; the rewritten
+    one uses the plain H2 URL of the `test` profile with `MODE=PostgreSQL` —
+    see the last entry.)
   - **To check when the `Probabilistica` work is merged:** `FinalResult` there
     declares three `@OneToMany List<ResultPerNode>` (`percentile90/50/10`) with
     no `@JoinColumn` or `@JoinTable`, while `V9` creates the join tables
@@ -2522,8 +2556,8 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     **once up front**.
   - **The endpoint** is `POST /organizations/{organizationId}/users/bulk`,
     multipart, field name `file`. The client allows it a 180s timeout, because
-    hashing a password per row is slow and the default would cut a 100-row file
-    off mid-flight.
+    hashing a password per row is slow and the default would cut a large file
+    off mid-flight (the frontend now sends batches of 50; see the limits below).
   - **The format.** A header row is required. `mail`, `firstName` and
     `lastName` are mandatory; `role` is optional and takes `OWNER`/`MEMBER`
     (case-insensitive), defaulting to `MEMBER`. Column names are matched
@@ -2547,12 +2581,13 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     its reason, and imports only the valid ones. The backend re-checks all of it
     and reports per-row failures with `line` (1-based, header is line 1) and
     `mail`. The two message sets are kept in step by `translateBackendMessage`.
-  - **The limits are 100 data rows and 1 MB per file, and both are enforced in
-    the browser only.** 100 because each account costs seconds of password
-    hashing; 1 MB because that is exactly Spring's default multipart
-    `max-file-size`, so the browser refuses the file the server would have
-    refused badly (see below). Over either limit the preview still renders, the
-    import button stays disabled, and the message says to split the file.
+  - **The limits are up to 500 users (data rows) and 1 MB per file, enforced in
+    both the browser and the backend.** The client sends the valid rows in
+    batches of 50, with a progress bar and a *Cancelar* button. The backend
+    answers `400` if a file has more than 500 rows and `413` if the file exceeds
+    1 MB (see the 2026-11-15 entries below). Over either limit the preview still
+    renders, the import button stays disabled, and the message says to split the
+    file. *(An earlier version of this entry said 100 rows, browser only.)*
   - **The generated passwords are shown once.** The response's `credentialsCsv`
     (`mail,password`) is never persisted and cannot be re-fetched. The screen
     says so, the download is a BOM-prefixed
@@ -2590,6 +2625,7 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
       the operator to check the member list before retrying, because a retry of
       the same file will report those rows as already existing.
     - **A file over the multipart limit answers `500`, not `400`.**
+      *(Superseded on 2026-11-15, see the last entry: it answers `413` now.)*
       `MaxUploadSizeExceededException` has no handler, so it falls through to
       `GlobalExceptionHandler`'s catch-all and comes back as
       `Internal error`. The 1 MB guard in the browser is a workaround, not a
@@ -2629,7 +2665,8 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     on `prefers-color-scheme` inside the SVG. Fixing it means updating the
     `theme-color` meta from `useTheme` (the favicon cannot be fixed that way and
     would need two files).
-  - **`GET /organizations/owned` is fetched several times per page.**
+  - **`GET /organizations/owned` is fetched several times per page.** *(Resolved
+    2026-11-15: `MyOrganizationsProvider` now holds it — see that entry.)*
     `useOwnedOrganizations` is a plain `useState` + `useEffect` per consumer
     with **no cache and no shared provider**, and it has five callers —
     `useNavigationTree`, `AppLayout`'s title hook, `QuickActions`,
@@ -2644,18 +2681,21 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     only two, which is why there is no `RadioField` yet; a third one is the
     signal to write it, with `useField` for the wiring and `controlClasses` for
     the box.
-  - **`sidebarPinned` and `sidebarExpanded` are orphaned LocalStorage keys.**
-    The pin and the per-module expansion both moved into React state when the
-    sidebar became an overlay (the expansion now lives in `Sidebar`'s
-    `expanded` map and resets on reload). Nothing reads or writes either key any
-    more and nothing clears them, so they linger in the browsers of anyone who
-    used an earlier build. Harmless, but do not reuse those names for something
-    with a different shape — a stale value would be parsed as the new one.
-  - **The frontend has no test runner.** `package.json` has `dev`, `build`,
-    `lint` and `preview` and no test dependency, so the bar for a frontend
-    change is `npm run build` (which type-checks) plus `npm run lint`, and
-    everything else is manual — see [`testing.md`](testing.md) → *Manual
-    verification*. The pure functions written on these branches
+  - **`sidebarExpanded` is an orphaned LocalStorage key** (and `sidebarPinned`
+    was one until 2026-11-15, when the pin came back — see that entry). The
+    per-module expansion moved into React state when the sidebar became an
+    overlay (it lives in `Sidebar`'s `expanded` map and resets on reload).
+    Nothing reads or writes `sidebarExpanded` any more, so it lingers in the
+    browsers of anyone who used an earlier build. Harmless, but do not reuse the
+    name for something with a different shape — a stale value would be parsed
+    as the new one. **`sidebarPinned` is live again** with a boolean, default
+    `true`: a value left by an old build is read as the user's pin preference,
+    and anything other than `false` counts as pinned.
+  - **The frontend had no test runner when this was written (2026-10-18);
+    `npm test` exists now** (see the 2026-11-05 entry and the 2026-11-15 one),
+    so read the rest of this bullet as history. The bar then was `npm run build`
+    plus `npm run lint`, and everything else manual — see
+    [`testing.md`](testing.md) → *Manual verification*. The pure functions written on these branches
     (`utils/csvImport.ts`, `utils/membershipGuards.ts`,
     `utils/projectPermissions.ts`, `navItems.tsx`'s `moduleTitleFor` /
     `breadcrumbsFor` / `documentSectionFor`) were deliberately kept free of
@@ -2678,3 +2718,574 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
   - **The frontend reaches the API through a Pages Function** (`frontend/functions/api/[[path]].js`), not a build-time URL. Keep `src/api/client.ts` on the relative `/api/v1` base; the function strips `Origin`, so CORS never applies to the SPA's own calls. Preview deployments work for the same reason.
   - **Keep the health check public.** Lightsail rolls out only when `GET /api/v1/health` answers 2xx; if that endpoint ever requires auth or moves, update `HEALTH_CHECK_PATH` in the deployment script, or every deploy will fail.
   - **No persistent disk on Lightsail containers**: PostgreSQL must stay outside the container service.
+
+- 2026-11-14 — Version access, node verticals and session validation
+  (`update-frontend`). Five changes; tests in [`testing.md`](testing.md) →
+  *Version access, node verticals and session validation*.
+  - **Effective role per version.** A version role takes precedence over the
+    project role on that version; with no version role the project role
+    applies; a platform admin can do everything. `VersionAccess` computes the
+    capabilities (`VersionCapability`: `VIEW`, `EDIT`, `EDIT_CONNECTIONS`,
+    `SIMULATE`, `MANAGE`, each with its version permission and its project
+    fallback) and `GET /projects/{id}/access` returns them per active version
+    (`source`, `effectiveRole`, `editableVerticals`, `can*` flags).
+    `VersionAccessGuard` uses the same enum and primitives; two tests check
+    guard ⇔ `VersionAccess` for every role.
+  - **Simulating** (`POST …/economics/evaluations`, `…/evaluation-jobs`,
+    `…/evaluation-jobs/{j}/retry`) requires `EDIT_PROJECT` on the project and
+    `assertCanSimulateVersion`. A version `EDITOR` may simulate **by a rule in
+    code** (`VersionAccess`), not by a stored permission: `GET
+    /version/{id}/members` shows `EDITOR` without `SIMULATE_VERSION`. Moving it
+    to data needs a migration that adds the permission to existing roles.
+  - **Saving** economic configuration, its draft, the scenario configuration
+    and discarding the scenario draft requires `EDIT_PROJECT` and
+    `assertCanEditVersion`; **reading** them stays `VIEW_PROJECT`, so a
+    `SIMULATOR` reads what it cannot change. Diagram and node detail
+    (`GET /version/{id}/diagram`, `GET /version/{id}/node/{n}`) require
+    `assertCanViewVersion`. *(Corrected 2026-11-15: the check runs **before** the
+    lookup, so a non-admin asking for a version that does not exist gets `403`,
+    and only a platform admin gets `404`.)*
+  - **`POST /nodes/*` (13 endpoints) and `GET /version/conflicts` are
+    platform-admin only** (`assertIsPlatformAdmin`; `403 Only platform admins
+    can create nodes outside a version` / `… list every conflict`). The check
+    is in `NodeController`, not `NodeService`, because `VersionService` reuses
+    the save methods. This closes the "still open" `POST /nodes/**` note of
+    the 2026-09-15 authorization entry. Nothing in the frontend calls either.
+  - **A version role only counts while its holder is a project member.** The
+    guard reads `VersionMemberRepository.findEffectiveByVersionIdAndUserId`
+    (the row plus an `EXISTS` on `project_member`; **since 2026-11-15 that
+    `EXISTS` requires the membership to be active** — it used to count an
+    inactive one), and the
+    version member listing applies the same filter. Removing someone from a
+    project (`ProjectService.removeMember`) or from an organization
+    (`OrganizationService.removeMember`) deletes their `version_member` rows in
+    the same transaction, after the last-admin guards; `addMember` purges
+    leftover rows so a re-added member starts from the project role. Rows are
+    loaded and `deleteAll`-ed, not bulk-deleted, because of the role and
+    permission cascades. Deactivations (user, project, organization) and role
+    changes do **not** touch version rows. There is no "last version admin"
+    guard: the project admins (by fallback) and platform admins can still
+    manage the version.
+  - **The server derives a node's vertical** from `NodeTypeEnum.vertical()`
+    (`PIPELINE_CONECTION` → `TRANSPORTATION`, both consumers →
+    `INTERNAL_CONSUMPTION`). Creation authorizes against that vertical first
+    (`403`) and then validates the declared one (`400 Node vertical does not
+    match its type: …`); a missing declaration is filled in. Edits, moves,
+    renames and deletes are authorized by the stored type, not the stored
+    vertical; an edit cannot relabel the vertical, and `NodeService` applies
+    the same check, so `POST /nodes/*` cannot store an inconsistent vertical
+    either. Reads report the derived vertical, and an edit stores it, so a row
+    saved with a wrong vertical would display correctly and be repaired on its
+    next edit (covered with a seeded row in the tests); no migration. Whether
+    any existing database actually holds such rows is **not verified**.
+    Every new node type must declare its vertical in the enum constructor.
+  - **`SessionService.validate` loads the user on every request.** A
+    deactivated or missing account gets `401` on its next request; the
+    platform role (and the `ROLE_*` authority) comes from the database, so a
+    demotion or promotion applies at once. The `role` claim is still issued but
+    no longer used to authorize. Cost: one primary-key lookup on `app_user`
+    per authenticated request, no cache. `PostgreSqlEconomicIT` now persists
+    the admin that signs its token. This closes the "platform role comes from
+    the JWT claim" note of the 2026-09-15 authorization entry.
+  - **Known gap: reactivation revives earlier tokens.** An access token issued
+    before a deactivation works again if the account is reactivated within
+    that token's 60-minute lifetime. Preventing it needs a per-user session
+    version stored in `app_user`, i.e. a migration.
+  - **Frontend, not changed:** a `401` already triggers one refresh, and the
+    refresh of a deactivated account answers `401`, so the client clears its
+    session. From reading the frontend code (not tested end to end): a
+    demoted admin keeps seeing admin navigation (the stored `UserSummary` says
+    `ADMIN`) until a reload, and those calls answer `403`.
+  - **Update (2026-11-15, later):** the `POST /nodes/pipeline-connection` body
+    now binds. `PIPELINE_CONECTION` was added to `NodeRequestDeserializer` (commit
+    `fe54ddf`) and `NodeRequestDeserializerTest` covers it
+    (`pipelineConnectionBodyKeepsItsOwnFields`, and the type is in
+    `everySupportedNodeTypeSelectsItsDeclaredClass`). The endpoint
+    itself is covered over HTTP too: `NodeCreateAccessHttpTest.everyEndpoint()`
+    includes it (`200` for the platform admin, `403`/`401` for everyone else), and
+    `platformAdminCreatingAPipelineConnectionStoresTransferCapacityAndOutputPriority`
+    checks that `transferCapacity` and `outputPriority` are stored. **Still not
+    verified:** whether existing databases hold node rows whose stored vertical
+    does not match their type.
+
+- 2026-11-14 — Branches, merge and conflicts no longer cross projects
+  (`update-frontend`, commit `5d5ccc3`). Tests in [`testing.md`](testing.md) →
+  *Branches, merge and conflicts across projects*. Throughout, **authorization
+  runs first and the same-project validation second**: a caller without access
+  gets `403`, and only a caller who is allowed gets the `400`.
+  - **Creating a child version** (`POST /projects/{id}/version` with a parent)
+    needs permission to edit the parent. The child gets a **snapshot copy of
+    the parent's version roles**, vertical and permissions included; later
+    changes to either side's roles do not propagate. Roles of people outside
+    the project or removed from it are not copied; those of deactivated
+    members are, so they stay narrow. A parent from another project answers
+    `403` to someone who cannot edit it and then `400 Parent version must
+    belong to the selected project` to someone who can; an unknown parent
+    answers `403`, never `404`.
+  - **Merge** needs administering the **destination** (the parent) and editing
+    the vertical of every node the child touched; a connection change needs
+    editing connections. Administering only the child is not enough. The child
+    and the destination must belong to the same project (`400 The versions
+    belong to different projects`), checked after authorization; a refused
+    merge changes nothing.
+  - **Resolving a conflict** needs administering the sibling, viewing the
+    merged parent and editing the node's vertical (or connections) on the
+    sibling, then the same-project check. A refusal copies nothing and leaves
+    the conflict unresolved.
+  - **Re-parenting** (`PATCH /version/{id}` with `parentVersion`) needs
+    managing the version and editing the new parent, and the new parent must
+    be in the same project (`400 Parent version must belong to the same
+    project`) and not a descendant of the version (`400 A version cannot be
+    its own ancestor`). Verified in `VersionService.modifyVersion`: without
+    `parentVersion` in the body only editing the version is required, so a
+    rename does not need administering it.
+  - **Conflicts between projects** are skipped when a merge records them and
+    omitted from `GET /version/{id}/conflicts`, so a child hung from another
+    project's version neither receives nor reveals that project's data;
+    conflicts of its own project stay listed.
+  - **Nodes cloned into a child** store the vertical derived from their type,
+    not the stored value.
+  - **Not verified:** whether existing databases already hold a child whose
+    parent is in another project — the new checks block creating one, they do
+    not clean it up.
+
+- 2026-11-15 — Version roles under the project administrator, cascading delete,
+  root versions, 403 before 400, CSV cap, and the frontend that goes with them
+  (`update-frontend`, commits `158532e`, `22c4504`, `e651e24`, `81f93ac` and the
+  frontend commits before them). Tests in [`testing.md`](testing.md) → *Frontend
+  unit tests* and *Version roles, cascade delete, root versions and CSV limit*.
+  Each rule below was checked against the code on the date of this entry.
+  - **Only the project `ADMIN` and the platform `ADMIN` manage version roles.**
+    `VersionAccessGuard.assertCanManageVersionRoles` guards granting, revoking
+    and listing roles (`POST/GET /version/{id}/members`,
+    `DELETE …/members/{m}/roles/{r}`) and `GET /version/{id}/member-candidates`.
+    A version `ADMIN` who is not a project admin gets `403 You are not allowed
+    to manage the roles of this version`. There is no "change role": a change is
+    a revoke plus a grant. **`MANAGE_VERSION` keeps the rest of its meaning:**
+    deleting the version, being the destination of a merge, resolving conflicts
+    and re-parenting (`assertCanManageVersion`). This supersedes the
+    2026-11-14 wording that a version admin "can manage" without qualification.
+  - **The project administrator administers every version.** Anyone holding
+    `MANAGE_PROJECT` on an active membership passes every version check even
+    when they hold a narrower version role (`isProjectAdmin` in the guard);
+    `GET /projects/{id}/access` reports it as source `PROJECT_ADMIN`
+    (`effectiveRole` `ADMIN`) and still lists their explicit roles, and each
+    version carries `canManageRoles` (true only for `PLATFORM_ADMIN` and
+    `PROJECT_ADMIN`). The project-level `canManageProject` and `canCreateVersions`
+    flags are `MANAGE_PROJECT` and `EDIT_PROJECT`: **`canCreateVersions` is true
+    for an editor, but a root version needs `canManageProject`** — the frontend
+    does not read `canCreateVersions`. *(Superseded on 2026-11-15: the flag was
+    renamed `canCreateRootVersions` and now follows `MANAGE_PROJECT`; see the
+    last entry.)*
+  - **Whoever creates a child version becomes its `ADMIN`.** After the parent's
+    roles are copied, a creator who is an active project member but not a
+    project admin gets `ADMIN` on the child — on the same membership row if
+    the copy already holds one for them, without a second `ADMIN` role if the
+    parent already made them admin. Project and platform admins get no row (they
+    already administer it). The parent is untouched: the creator stays narrow
+    there.
+  - **A version role counts only while its holder is an active project
+    member.** `VersionMemberRepository.findEffectiveByVersionIdAndUserId` now
+    requires `project_member.active`; before, an inactive membership still
+    counted. `ProjectAccessGuard.isActive` (active membership **and** active
+    account) and `grants` (also an active role) are the single check used by
+    the guard, `VersionAccess`, `EconomicService` and `VersionQueryService`.
+    Deactivated members keep their version rows (and so stay narrow if
+    reactivated); removal deletes them (2026-11-14).
+  - **Cascading delete.** `VersionService.deleteVersion` is `@Transactional`:
+    it needs `MANAGE` on the root, collects the subtree, then needs to manage
+    **every** descendant (`assertCanManageDescendant`) before deleting anything.
+    One refused descendant gives `403 You are not allowed to delete one or more
+    versions below this one` — a generic message that names no version — and
+    deletes nothing. A descendant that belongs to another project, or to none
+    (legacy data), can only be deleted by a platform admin, even by the admin of
+    that other project. The check runs before the lookup, so a non-admin
+    deleting a version that does not exist gets `403` (a platform admin gets
+    `404`).
+  - **Root versions** (`POST /projects/{id}/version` without a parent) need
+    `MANAGE_PROJECT` or a platform admin; a project `EDITOR` gets `403`. With a
+    parent, `EDIT_PROJECT` plus editing the parent, as before. The frontend
+    mirrors this: *Nueva versión* on an empty project is offered to the project
+    administrator only, and an editor sees *Pedile al administrador del proyecto
+    que cree la primera versión.*
+  - **Authorization before validation (`403` before `400`)** in
+    `ProjectService.updateProject` and `changeMemberRole`,
+    `OrganizationService.changeMemberRole`, and the bulk CSV (the `403` comes
+    before the empty-file and size checks of the service). The request body is
+    no longer validated before the caller is known to be allowed. For economic
+    configuration and the scenario save there are two layers: the version-level
+    check (`assertCanEditVersion`, `403`) runs first; the **per-vertical**
+    check (`ScenarioChangeScope`) runs after the structural validation in
+    `EconomicService.save` / `saveDraft` (so an editor sending a malformed body
+    still sees `400` first — *superseded on 2026-11-15: the vertical check now
+    runs first in `EconomicService`, see the last entry*) and before the business validation in
+    `ScenarioConfigurationService.save` (whose validation errors come back in a
+    `200` body, so an editor changing another vertical's node gets `403`, not
+    the list of errors). Do not assume "403 first" there without reading the
+    order.
+  - **`403` before `404` for versions, except the role endpoints.** The version
+    reads (`getVersion`, diagram, node detail, node moves/renames/edits) and
+    `deleteVersion` check access **before** looking the version up: a version
+    that does not exist or is attached to no project answers `403 You are not
+    allowed to access this version` to a non-admin, and a platform admin (who
+    skips the check) gets `404`. The role endpoints (`addRole`, `listMembers`,
+    `removeRole`, `member-candidates`) still look the version up first, so any
+    authenticated caller can tell whether a version id exists from their `404`.
+    Left as is; make them consistent if probing matters. *(Superseded on
+    2026-11-15: they now check the permission first; see the last entry.)*
+  - **Bulk CSV** (`POST /organizations/{id}/users/bulk`). New optional column
+    `jobTitle` (aliases `job_title`, `job title`, `puesto`, `cargo`; ≤120
+    characters, stored trimmed, blank = none; a longer one fails that row). A
+    file with more than **500 data rows** (the header does not count) is refused
+    whole with `400 The CSV file has more than 500 rows`, after authorization and
+    before any row is created. Row failures carry the line within the uploaded
+    batch (the header is line 1).
+  - **Frontend CSV import.** The client allows 500 rows and 1 MB, and sends the
+    valid rows in **sequential batches of 50**, each a separate
+    `POST …/users/bulk`, merging the results (one credentials header). Failures
+    are mapped back to the **real line of the original file**, not the batch
+    line. There is a progress bar and a *Cancelar* button (the in-flight batch is
+    aborted). **A cut can leave partial writes:** if a batch fails with a
+    network error or a `5xx` the client cannot know whether it was written, so
+    it keeps the credentials of the earlier batches, lists the uncertain rows
+    and the rows never sent, and warns that the accounts may exist; a `4xx`
+    batch counts as not sent. Credentials of what was created can be downloaded
+    after a cut or a cancel, and closing without downloading them asks for
+    confirmation. The action is **Agregar integrantes** (per active
+    organization) in *Administración → Organizaciones*.
+  - **Sidebar.** `SidebarProvider` keeps the menu **fixed** (pushing the
+    content) when the viewport is ≥ `80rem` and the pin is on; the pin is the
+    `sidebarPinned` LocalStorage key (boolean, default on), toggled from the pin
+    button at the foot of the sidebar — which only exists at ≥ `80rem` — or by
+    `Ctrl`/`Cmd`+`B` when it is fixed. Below `80rem`, or unpinned, it is the
+    transient overlay of 2026-10 (opens once on `/app`, the left edge and
+    `Ctrl`/`Cmd`+`B` open it, navigation closes it); below `64rem` a drawer.
+    Exactly **one** item is current at a time (`activeLeaf` picks the best
+    match). Resizing across `80rem` or `64rem` closes the overlay.
+  - **Selected project.** `ProjectRouteGuard` wraps every
+    `/projects/:projectId/*` route except `/projects` itself: a project id that
+    is not in the caller's list (deleted, someone else's) redirects to the same
+    module of the stored or first project (`projectRouteRedirect`) or to
+    `/projects`, and shows a loader while the list loads. The active project
+    resolves route → stored (`lastProjectId`) → first; a foreign route id
+    resolves to none, never to the first. `/versions` is an index that redirects
+    to `/projects/{active}/versions` when a project is active (*Versionado* per
+    active project); a `403`/`404` on a read reloads the project list, while a
+    forbidden save or mutation never does. `utils/activeProject.ts` holds the
+    pure functions and is covered by `activeProjectResolution.test.mjs`.
+  - **Project team screen** (`/projects/:projectId/team`) has two tabs,
+    *Integrantes* and *Roles por versión* (`?tab=roles&version=…`). *Roles por
+    versión* shows *Mis accesos* (what the caller can do on each version, from
+    `/access`), a version picker (filter *Solo las que administro*) and,
+    for the selected version, the members and the assignment form. Who can
+    manage roles is decided **only by `canManageRoles`** from `/access` — not
+    `canManage` — so a version administrator who is not a project admin sees
+    their own access and a notice instead of the form.
+    `permissions/access.ts` centralizes the role checks; the platform admin and
+    the project administrator administer every version.
+  - **`MyOrganizationsProvider`** loads `GET /organizations?mine=true` (only the
+    caller's memberships, platform admins included), `GET /organizations/owned`
+    and, for a platform admin, the full list, once, for the whole app; it feeds
+    the navigation, `OrganizationMemberRoute`, `MyOrganizationsPage` and the
+    workspace. `useOwnedOrganizations` now just reads `owned` from the same
+    provider, so its five callers no longer each fetch `/organizations/owned`:
+    the 2026-10-18 debt note about that is **resolved** (the provider lives in
+    `AppLayout`, so it is only available inside the signed-in shell).
+  - **Navigation tests.** `tests/permissionsCharacterization.test.mjs` pins the
+    menu for every role / project role / membership / loading combination against
+    `tests/permissionsNav.golden.json`. Regenerate the golden with
+    `RECORD_PERMISSIONS_GOLDEN=1 npm test` **only** when the menu changes on
+    purpose, and review the JSON diff. `npm test` is the built-in `node:test`
+    runner (no dependency); this replaces every older "the frontend has no test
+    runner" note.
+  - **Cadena de valor module is in Spanish.** Screen copy and node/field labels
+    live in `components/editor/nodeCatalog.ts` (`NODE_STATE_LABELS`,
+    `VERTICAL_LABELS`, each node's `label` and field `label`s). Glossary used
+    (keep it when adding a node type): *well* → **Pozo**, *gathering network* →
+    **Red de recolección**, *treatment plant* → **Planta de tratamiento**,
+    *pipeline* → **Gasoducto**, *compressing plant* → **Planta compresora**,
+    *ground liquefaction plant* → **Planta de licuefacción en tierra**, *FLNG
+    unit* → **Unidad FLNG**, *seaport terminal* → **Terminal portuaria**, *LNG
+    carrier* → **Buque metanero**, *internal / industrial consumption* →
+    **Consumo interno / industrial**; verticals **Extracción, Transporte,
+    Licuefacción, Exportación, Consumo interno**; *decline curve* → **Curva de
+    declinación**, *gas richness* → **Riqueza del gas**, *vessel depth* →
+    **Calado**, *loss per km / per metre* → **Pérdidas por kilómetro / por
+    metro**, *hiring cost* → **Costo de contratación**. DTM, MTPA and FLNG
+    stay as acronyms. Stored values and API enums stay in English; only labels
+    are translated, and the sidebar entry is *Cadena de valor* (full name *Mapa
+    de la Cadena de Valor*). The backend still answers errors in English.
+  - **Version role messages.** `api/errors.ts` translates the version
+    endpoints' `403`/`400`/`404` messages (e.g. "ask a project administrator"
+    for managing roles; the cascading-delete `403` is shown without naming
+    versions). A `403` caused by a lost membership is handled by the project
+    list reload above.
+  - **Not verified (this entry):** the Playwright scripts
+    (`tests/*-browser.mjs`, among them `sidebarPin-browser.mjs`) were not run;
+    nothing here was exercised against a PostgreSQL by me — the `*IT` counts come
+    from reports of a manual run earlier on the same day; whether any existing
+    database holds a descendant version in another project (which only a
+    platform admin can now delete) or roles whose holder is an inactive project
+    member; and the behaviour of the screens in a real browser beyond what the
+    unit tests cover.
+
+- 2026-11-15 (later) — Active-only guards, `413`, `403` before `404`/`400`,
+  `canCreateRootVersions` and the frontend that goes with them (`update-frontend`,
+  commits `9a4a27f`, `b4dfa71`, `ff35593`). Tests in [`testing.md`](testing.md) →
+  *Active-only guards, 413, 403 before 400 and the rewritten `ResultMappingTest`*
+  and *Frontend unit tests*. Each rule below was checked against the code on the
+  date of this entry. It supersedes the passages of the entry above that say
+  otherwise (they carry a pointer to this one).
+  - **A version role counts only while the project and the version are active.**
+    `VersionMemberRepository.findEffectiveByVersionIdAndUserId` now also requires
+    `v.active = true AND p.active = true`, on top of the active project
+    membership. Deactivating a version or its project cuts off every holder of a
+    version role (`403` on view/diagram/conflicts) while a platform admin still
+    reads it. This is the single lookup the guards use, so the rule applies to
+    all of them.
+  - **`getVersion` and `getConflictsForVersion` are `@Transactional(readOnly =
+    true)`** so the guard and the reads work with `spring.jpa.open-in-view=false`
+    (the property is still unset in `application.properties`, i.e. `true`).
+    `VersionReadWithoutOpenInViewHttpTest` pins that for the services and for
+    `GET /version/{id}/conflicts`.
+  - **`403` before `404` on the role endpoints.** `addRole`, `listMembers`,
+    `removeRole` and `listMemberCandidates` call `assertCanManageVersionRoles`
+    **before** looking the version up. The guard answers `403` for a version that
+    does not exist or is attached to no project, so only a platform admin (who
+    skips it) gets `404`; a project admin or anybody else can no longer probe
+    whether a version id exists. This replaces the "left as is" note of the
+    previous entry for those four endpoints.
+  - **`403` before `400` in the economic configuration and draft.**
+    `EconomicService.save` and `saveDraft` now call the per-vertical check
+    (`ScenarioChangeScope.assertCanSave` / `assertCanSaveDraft`) **before**
+    `validateConfiguration` / `draft.validateStructure()`. An editor who changes
+    another vertical's node gets `403` even when the body is also invalid or
+    malformed; with only an invalid value they still get `400`. A `null`
+    configuration or draft body answers `IllegalArgumentException` (`400`), not a
+    `NullPointerException`. This replaces the earlier note that structural
+    validation came first in those two methods.
+  - **`413` for a CSV above 1 MB.** `spring.servlet.multipart.max-file-size=1MB`
+    and `max-request-size=2MB` are now set explicitly and
+    `GlobalExceptionHandler.handleUploadTooLarge` answers `413 The uploaded file
+    exceeds the maximum size of 1 MB` (it was `500 Internal error`).
+    **The `413` is answered before any `403`:** the multipart is cut while the
+    request is parsed, before it reaches the controller, so a caller who may not
+    use `POST /organizations/{id}/users/bulk` still sees `413` for an oversized
+    file, and a file under the limit gets the `403`. That order is a consequence of
+    where Spring parses the body; it is **not covered by a test**
+    (`BulkUploadSizeLimitHttpTest` sends the oversized file as a platform admin),
+    and the 500-row `400` and the `403` of the previous entry only apply to files
+    that fit under the limit. The frontend shows *El archivo supera el tamaño máximo de 1 MB.* for a
+    `413` (`useCsvUserImport`), with no unit test.
+  - **`canCreateVersions` is now `canCreateRootVersions`**
+    (`ProjectAccessDTO`, the frontend `ProjectAccess` type): true for a platform
+    admin or `MANAGE_PROJECT`, false for a project `EDITOR`, because only an admin
+    can create a root version (it was `EDIT_PROJECT`, which was true for an
+    editor). A client that still reads `canCreateVersions` gets `undefined`.
+    `canCreateRootVersions` and the existing `canManageProject` carry the same
+    condition today; keep them as separate flags in case the rules diverge.
+  - **Javadoc fixed to match the guard.** The Javadoc of
+    `VersionAccessGuard` (`assertCanEditVersion`, `assertCanManageVersion`,
+    `assertCanEditNodeVertical`, `assertCanEditConnection`,
+    `assertCanSimulateVersion`) said a version role is never topped up by the
+    project permission; it now says an **ADMIN of the owning project always
+    passes** (as the previous entry already described). The `DELETE
+    /version/{id}` summary now says it deletes the subtree. Comments only.
+  - **Frontend, this pass.**
+    - `api/errors.ts` translates the branch, merge, vertical and lineage
+      messages (*edit this version*, *this vertical's nodes*, *simulate this
+      version*, *Node vertical does not match its type: …*, *The versions belong
+      to different projects*, *Parent version must belong to the same project*,
+      *A version cannot be its own ancestor*, *Simulation graph contains a cycle*,
+      *Resource not found*, *Project permission required: VIEW_PROJECT*) and
+      shortens *You are not allowed to manage this project* to *No tenés permiso
+      para administrar este proyecto.* Messages not in the table still pass
+      through in English.
+    - **Session refresh on a `403` for a platform administrator.** The response
+      interceptor (`api/client.ts`) calls `requestUserRefresh()`
+      (`api/authEvents.ts`) once per request when the cached user is a platform
+      admin, so a role change on the server is picked up without a reload. Refreshes
+      are at least **5 s** apart (`MIN_USER_REFRESH_INTERVAL_MS`), so a burst of
+      `403`s triggers one. `AuthProvider` registers the handlers; when the
+      refresh-token exchange fails after a `401`, `notifySessionLost()` clears the
+      user and the app returns to the login. A regular user's `403` refreshes
+      nothing.
+    - **Labels.** Project member types read *Administrador del proyecto* and
+      *Editor del proyecto*. In the projects table, someone who cannot administer
+      the project sees **Ver equipo** (the same `/projects/:id/team` screen)
+      instead of the manage button.
+    - **Permissions read from `/projects/:id/access`.** *Nueva versión* lists as
+      parents only the versions the caller can edit (`canBranchFromParent`) and
+      says so when there are none; *Mergear* appears only when the caller can
+      manage the parent (`canMergeIntoParent`); in the scenario configuration,
+      *Guardar* follows `canEditEconomicConfiguration` and *Crear copia simple*
+      needs edit permission on **every** vertical of the scenario
+      (`uneditableVerticals`, any node of an unknown type blocks it). If the
+      access call fails, the screens fall back to the older project-level flags.
+  - **Known debt found in this pass (left as is):**
+    - **`GET /version/{id}` returns the `Version` entity and answers `500` with
+      `spring.jpa.open-in-view=false`.** The lazy associations
+      (`parentVersion`, the snapshots and change logs) are serialized by Jackson
+      outside any session. It works today only because `open-in-view` is left at
+      its default (`true`). `VersionReadWithoutOpenInViewHttpTest` therefore
+      calls `getVersion` on the service, not over HTTP. Fix by returning a DTO
+      (`VersionResponseDTO`, as already noted on 2026-11-14) before turning
+      `open-in-view` off.
+    - **`404` before `403` for a project that does not exist** in
+      `EconomicService.authorizeProject` (so `authorize()` and every economic
+      endpoint behind it) and in `VersionAccessService.resolveForProject`
+      (`GET /projects/{id}/access`): both load the project first, so a
+      non-admin learns whether a project id exists. Unlike the version
+      endpoints, not changed.
+    - **`ProjectService.copyVersionRoles` copies inert rows.** When a child is
+      created, every role row of the parent is copied with no check on its
+      holder (the code reads `findByVersionIdWithUser(parentId)` and copies all
+      of it). For deactivated accounts and deactivated project memberships this
+      is pinned by `VersionRoleCopyDeactivatedUsersHttpTest`: the rows are
+      copied, grant nothing (`findEffectiveByVersionIdAndUserId` ignores them)
+      and would reappear if the membership were reactivated. For a holder who is
+      **not in the project at all** it is by reading the code only — no test
+      builds a parent row for a non-member, and the PostgreSQL case
+      `theChildDoesNotCopyTheRowOfSomeoneWhoIsNotInTheProject…` covers someone
+      who has no row in the parent. Not filtered, not cleaned.
+    - **`ResultMappingTest` does not cover `ddl-auto=validate` against a real
+      PostgreSQL.** It is a `@DataJpaTest` on H2 with a Hibernate-generated
+      schema (Flyway off), so it checks that the entities map to the table and
+      column names the migrations use, not that `V8`/`V9` produce a schema
+      Hibernate accepts. The Testcontainers-style check named on 2026-10-05 is
+      still open (and `*IT` classes need a PostgreSQL started by hand). The
+      rewritten class runs without `NON_KEYWORDS=YEAR` in its URL and passes; why
+      `year` no longer needs it there was not investigated.
+    - **A non-existent id answers `404`/`400` before the permission check, so a
+      caller can tell whether it exists.** Besides the two project cases above:
+      `ScenarioConfigurationService.readiness` (~150) loads the project (`404`)
+      before `authorizeProject`; `VersionQueryService.list` (~23) answers `404
+      Project not found` before checking membership; `ProjectService.listMembers`
+      (~162) answers `400 Project not found` before `assertCanViewProject`; and
+      `VersionConflictService.getConflictsForVersion` (~136) answers
+      `VersionNotFoundException` before `assertCanViewVersion`. Not changed.
+    - **`GET /users/search` exposes name and email across organizations.** It
+      returns the name and email of any active platform user to an organization
+      owner (lookup by exact email, not limited to their own organization).
+      Product decision pending: keep it, or restrict it.
+  - **Test counts and their source.** `mvn test` (run on 2026-11-15 for this
+    entry): 1362 executions in 80 classes, 0 failures/errors/skipped, from the
+    Surefire reports; 1238 cases counted in the sources. `npm test`: 173 tests in
+    27 files, 0 failures. The five `*IT` classes: 49 executions, read from the
+    reports a manual run left in `backend/target/surefire-reports` at 13:31 the
+    same day.
+  - **Not verified (this entry):** the five `*IT` classes were **not** re-run
+    for this update (no PostgreSQL was started), so their 49 is only as current
+    as that earlier manual run; the Flyway migrations and `ddl-auto=validate` on
+    a real PostgreSQL; `npm run build` / `npm run lint` and the Playwright
+    scripts (`tests/*-browser.mjs`), which were not run; the screens in a real
+    browser; the `413`-before-`403` order and the frontend `413` message (no
+    test); and whether any existing database holds role rows of deactivated
+    users or versions that now stop counting.
+
+- 2026-11-15 — Structural role, editor simulate permission, role change and project
+  matrix (`update-frontend`, backend; tests in [`testing.md`](testing.md) → *Structural
+  role, editor simulate permission, role change and project matrix*).
+  - **Structural role is derived from the node type.** `NodeTypeEnum.role()` /
+    `checkedRole()` next to `vertical()`; `role` is optional in the request and a
+    different one is `400` (create and edit, `/nodes/*` and `/version/{id}/node`).
+    `PIPELINE_CONECTION` is `INTERMEDIATE` (the frontend catalog does not create it).
+    Cloning recomputes the role from a non-null type; with a null type it copies the
+    stored one (commented in `NodeCloner`). Fixtures that sent `SEAPORT_TERMINAL` as
+    `INTERMEDIATE` were corrected, not the validation.
+    **Pending, read-only, to run on the real database:**
+    `SELECT type, role, count(*) FROM node_type_data GROUP BY type, role ORDER BY type, role;`
+    — rows whose role disagrees with the type are repaired by a later `V25` only
+    after being seen; until then they are shown as stored and repaired when cloned.
+  - **`V24` stores the editor's simulate permission.** It inserts `SIMULATE_VERSION`
+    for every `EDITOR` role (active or not; `ON CONFLICT DO NOTHING`, so re-running
+    is a no-op); `VersionMember.DEFAULT_PERMISSIONS` and `VersionAccess` no longer
+    carry the rule in code. **Migration and code must be deployed together.**
+    Validate with `VersionMemberRepositoryPostgreSqlIT` (by hand). This closes the
+    2026-11-14 note that moving it to data needed a migration.
+  - **`PUT /version/{id}/members/{memberId}/roles/{roleId}`** (project and platform
+    admin only): order `403` → `404` → `400`; duplicate is the `400` of `POST`; same
+    shape is a no-op. `VersionMemberRole` used to keep the caller's `Set`, which for
+    the defaults is the shared static one, so changing permissions in place would
+    have corrupted every later grant; the constructor now copies it.
+  - **`GET /projects/{id}/version-members`** returns the active versions with the
+    same member shape as the per-version listing (shared `VersionMemberDTO.from`);
+    `403` before `404`. The N+1 on role permissions is resolved with `@BatchSize`,
+    the permissions stay in the DTO. A `ProjectController` now depends on
+    `VersionMemberService`.
+  - **Frontend, cross-cutting (not re-documented in its README here):** `npm test`
+    runs 220 tests, 0 failures (run for this entry). The editor denies by default
+    from `/access`; project access is shared per project and invalidated at the API
+    layer; the user detail screen has actions.
+  - **Debts still open.** Other endpoints that return entities fail with
+    `open-in-view=false` (see 2026-11-15, `GET /version/{id}`; this change adds none:
+    the new endpoints return DTOs). The shared project-access cache is per browser
+    tab: another tab is not told about an invalidation. The `backend-it` job in
+    `.github/workflows/ci.yml` still runs with `continue-on-error: true`, so a
+    failing `*IT` does not fail the build.
+  - **Test counts.** `mvn test`: 1463 executions in 85 classes, 0 failures/errors/
+    skipped (1285 cases in the sources). The `*IT` classes were **not** run: the 49
+    from the earlier manual run plus the 2 new cases (not run) make 51. Flyway on a
+    real PostgreSQL and the `V24` run are unverified here.
+
+- 2026-11-15 — Project member type `EXECUTIVE` (read-only), no version roles for it
+  (`update-frontend`, backend; tests in [`testing.md`](testing.md) → *Project member
+  type EXECUTIVE*; behaviour in [`backend/README.md`](../backend/README.md) and
+  [`domain-model.md`](domain-model.md)). This implements what earlier notes treated
+  as a missing read-only role; no earlier entry in this file was found to replace.
+  - **Implemented.** `ProjectMemberType.EXECUTIVE` with only `VIEW_PROJECT`: it
+    reads everything in the project and writes nothing; it cannot manage members or
+    version roles. `myRole` in the project summaries has an `EXECUTIVE` branch after
+    `ADMIN` and `EDITOR`. No migration (`member_type` is `VARCHAR(30)`, no `CHECK`).
+  - **Decision: an `EXECUTIVE` never holds version roles.** Granting or changing one
+    is `400` (after `403`/`404`); turning a member into an `EXECUTIVE` deletes their
+    version memberships of that project in the same transaction. *Why:* a version
+    role replaces the project role on that version, so an `EDITOR`/`SIMULATOR` role
+    would have given a "read-only" member write access. *Cost:* the purge is
+    irreversible — going back to `EDITOR` does not restore the roles — and leaves
+    only an `INFO` log line, no audit record.
+  - **Still not defined.** Seeing only some versions (an `EXECUTIVE` sees all of
+    them); whether the purge should warn first or be reversible; an organization-
+    level executive. Nothing here decides them.
+  - **Test counts.** `mvn test`: 1488 executions in 87 classes, 0 failures/errors/
+    skipped (1310 cases in the sources). `ProjectRepositoryPostgreSqlIT` gained one
+    case (`summariesReportExecutiveAsMyRoleOnPostgreSql`) that was **not run**, like
+    the two `VersionMemberRepositoryPostgreSqlIT` cases (V24 backfill, project
+    matrix query count) from the previous entry: 52 `*IT` executions are written,
+    49 of them seen in a manual run. The `backend-it` CI job is still
+    `continue-on-error`.
+
+
+- 2026-11-15 (later) — `FLNG_UNIT` edit no longer copies the ship capacity into
+  the gas consumption (`update-frontend`, commit `3d19cd7`; tests in
+  [`testing.md`](testing.md) → *FLNG unit: ship capacity and gas consumption*).
+  - **The bug.** `NodeService.editFLNGUnit` did
+    `unit.setGasConsumption(dto.getShipCapacity())`; it now reads
+    `dto.getGasConsumption()`. Separately, the node detail
+    (`VersionService`, `typeAttributes`) omitted both fields; it now returns
+    `shipCapacity` and `gasConsumption`.
+  - **Data written before the fix may be wrong.** Any FLNG edited before this
+    commit can have `gas_consumption` equal to `ship_capacity` because of the
+    copy; nothing in the data says which edits did it, and **no migration repairs
+    it** (the right value is not recoverable). A FLNG that never had its gas
+    consumption edited also looks like that if both were created equal, so equal
+    values are a hint, not proof. **To measure it after the merge** (not run
+    yet): count FLNG rows with `ship_capacity = gas_consumption`, per version,
+    and compare with the creation payloads if they are kept.
+  - **Known debt found in this pass (left as is):**
+    - **`TreatmentPlant.contaminantWaste` is not persisted.** The DTO field is
+      accepted and passed to the constructor, but the entity does not keep it, so
+      the node detail returns `0.0` (`VersionService` has a comment saying so).
+      A value typed in the editor is lost on save.
+    - **Numeric DTO fields unbox and throw `NullPointerException` on `null`.**
+      `FLNGUnitDTO` and other DTOs declare wrapper types (`Integer shipCapacity`,
+      `Float gasConsumption`) while the entities hold primitives (`int`, `float`),
+      so a body that omits or nulls one throws `NullPointerException` at the
+      setter call. Read from the code, **not tested**: the HTTP status it ends in
+      was not checked (expected an unhandled `500`, not a `400`).
+    - **The node DTOs have no `@Valid` / `@NotNull`.** Only the organization DTOs
+      are validated, so nothing rejects a missing or out-of-range value before the
+      service. Fixing the two points above properly means adding validation here.
+  - **Test counts.** `mvn test`: 1493 executions in 88 classes, 0 failures/errors/
+    skipped (1316 cases in the sources); +5 over the previous entry (1488): the
+    FLNG tests (+4) and the pipeline-connection storage test (+1).

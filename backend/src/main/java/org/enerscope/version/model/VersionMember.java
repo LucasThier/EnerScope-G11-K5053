@@ -46,6 +46,7 @@ public class VersionMember extends BaseEntity {
                     VersionMemberPermission.VIEW_VERSION),
             VersionMemberType.EDITOR, EnumSet.of(
                     VersionMemberPermission.EDIT_VERSION,
+                    VersionMemberPermission.SIMULATE_VERSION,
                     VersionMemberPermission.VIEW_VERSION),
             VersionMemberType.SIMULATOR, EnumSet.of(
                     VersionMemberPermission.SIMULATE_VERSION,

@@ -13,6 +13,7 @@ import {
   type NodeMouseHandler,
   type EdgeMouseHandler,
   type ReactFlowInstance,
+  type AriaLabelConfig,
 } from '@xyflow/react';
 import { useTheme } from '../../hooks/useTheme';
 import type { Diagram, DiagramNode, NodeType } from '../../types/diagram';
@@ -46,16 +47,45 @@ interface DiagramCanvasProps {
   onEditNode: (nodeId: string) => void;
   /** A connection is being drawn (click-to-connect); shows a crosshair cursor. */
   connecting?: boolean;
+  /** Create, move and delete nodes. Deny by default. */
+  canEdit?: boolean;
+  /** Create and delete connections. Deny by default. */
+  canEditConnections?: boolean;
 }
 
 const nodeTypes = { ener: EnerNode };
+
+const MOVE_DIRECTIONS: Record<string, string> = {
+  up: 'arriba',
+  down: 'abajo',
+  left: 'la izquierda',
+  right: 'la derecha',
+};
+
+const FLOW_ARIA_LABELS: Partial<AriaLabelConfig> = {
+  'node.a11yDescription.default':
+    'Presioná Enter o la barra espaciadora para seleccionar un nodo. Presioná Suprimir para eliminarlo y Escape para cancelar.',
+  'node.a11yDescription.keyboardDisabled':
+    'Presioná Enter o la barra espaciadora para seleccionar un nodo. Después podés moverlo con las flechas. Presioná Suprimir para eliminarlo y Escape para cancelar.',
+  'node.a11yDescription.ariaLiveMessage': ({ direction, x, y }) =>
+    `Se movió el nodo seleccionado hacia ${MOVE_DIRECTIONS[direction] ?? direction}. Nueva posición: x ${x}, y ${y}.`,
+  'edge.a11yDescription.default':
+    'Presioná Enter o la barra espaciadora para seleccionar una conexión. Después podés presionar Suprimir para eliminarla o Escape para cancelar.',
+  'controls.ariaLabel': 'Panel de controles',
+  'controls.zoomIn.ariaLabel': 'Acercar',
+  'controls.zoomOut.ariaLabel': 'Alejar',
+  'controls.fitView.ariaLabel': 'Ajustar la vista',
+  'controls.interactive.ariaLabel': 'Activar o desactivar la edición',
+  'minimap.ariaLabel': 'Minimapa',
+  'handle.ariaLabel': 'Punto de conexión',
+};
 
 function fallbackPosition(index: number): { x: number; y: number } {
   const perRow = 4;
   return { x: 80 + (index % perRow) * 220, y: 80 + Math.floor(index / perRow) * 140 };
 }
 
-function toRfNode(node: DiagramNode, index: number, selected: boolean): Node {
+function toRfNode(node: DiagramNode, index: number, selected: boolean, canEdit: boolean): Node {
   const pos = node.graphData?.graphPosition;
   const position =
     pos && pos.x != null && pos.y != null ? { x: pos.x, y: pos.y } : fallbackPosition(index);
@@ -71,17 +101,25 @@ function toRfNode(node: DiagramNode, index: number, selected: boolean): Node {
     position,
     selected,
     // Only the selected node can be dragged (select first, then move).
-    draggable: selected,
+    draggable: selected && canEdit,
+    deletable: canEdit,
     data,
   };
 }
 
-function toRfEdge(fromNodeId: string, toNodeId: string, id: string, stroke: string): Edge {
+function toRfEdge(
+  fromNodeId: string,
+  toNodeId: string,
+  id: string,
+  stroke: string,
+  canEditConnections: boolean,
+): Edge {
   return {
     id,
     source: fromNodeId,
     target: toNodeId,
     type: 'smoothstep',
+    deletable: canEditConnections,
     markerEnd: { type: MarkerType.ArrowClosed, width: 20, height: 20, color: stroke },
     // `cursor: pointer` signals the edge is clickable (double-click removes it).
     style: { stroke, strokeWidth: 1.75, cursor: 'pointer' },
@@ -106,6 +144,8 @@ export function DiagramCanvas({
   onDropNode,
   onEditNode,
   connecting = false,
+  canEdit = false,
+  canEditConnections = false,
 }: DiagramCanvasProps) {
   const { resolved } = useTheme();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -117,25 +157,26 @@ export function DiagramCanvas({
   const connectionMadeRef = useRef(false);
 
   useEffect(() => {
-    setNodes(diagram.nodes.map((n, i) => toRfNode(n, i, n.id === selectedNodeId)));
-  }, [diagram.nodes, selectedNodeId, setNodes]);
+    setNodes(diagram.nodes.map((n, i) => toRfNode(n, i, n.id === selectedNodeId, canEdit)));
+  }, [diagram.nodes, selectedNodeId, canEdit, setNodes]);
 
   useEffect(() => {
     setEdges(
       diagram.connections.map((c) =>
-        toRfEdge(c.fromNodeId, c.toNodeId, c.id, CONNECTION_COLORS[resolved]),
+        toRfEdge(c.fromNodeId, c.toNodeId, c.id, CONNECTION_COLORS[resolved], canEditConnections),
       ),
     );
-  }, [diagram.connections, resolved, setEdges]);
+  }, [diagram.connections, resolved, canEditConnections, setEdges]);
 
   const handleConnect = useCallback(
     (connection: Connection) => {
+      if (!canEditConnections) return;
       if (connection.source && connection.target && connection.source !== connection.target) {
         connectionMadeRef.current = true;
         onConnect(connection.source, connection.target);
       }
     },
-    [onConnect],
+    [onConnect, canEditConnections],
   );
 
   const handleNodeClick: NodeMouseHandler<Node> = useCallback(
@@ -144,8 +185,10 @@ export function DiagramCanvas({
   );
 
   const handleNodeDoubleClick: NodeMouseHandler<Node> = useCallback(
-    (_event, node) => onEditNode(node.id),
-    [onEditNode],
+    (_event, node) => {
+      if (canEdit) onEditNode(node.id);
+    },
+    [onEditNode, canEdit],
   );
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
@@ -156,6 +199,7 @@ export function DiagramCanvas({
   const handleDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
+      if (!canEdit) return;
       const type = event.dataTransfer.getData(NODE_DRAG_TYPE) as NodeType;
       if (!type) return;
       const instance = instanceRef.current;
@@ -164,16 +208,19 @@ export function DiagramCanvas({
       const rect = event.currentTarget.getBoundingClientRect();
       onDropNode(type, flow.x, flow.y, event.clientX - rect.left, event.clientY - rect.top);
     },
-    [onDropNode],
+    [onDropNode, canEdit],
   );
 
   const handleEdgeDoubleClick: EdgeMouseHandler<Edge> = useCallback(
-    (_event, edge) => onDeleteConnection(edge.id),
-    [onDeleteConnection],
+    (_event, edge) => {
+      if (canEditConnections) onDeleteConnection(edge.id);
+    },
+    [onDeleteConnection, canEditConnections],
   );
 
   const handleWrapperDoubleClick = useCallback(
     (event: React.MouseEvent) => {
+      if (!canEdit) return;
       const target = event.target as HTMLElement;
       // Ignore double-clicks on a node or an edge; only empty canvas creates.
       if (target.closest('.react-flow__node') || target.closest('.react-flow__edge')) return;
@@ -183,7 +230,7 @@ export function DiagramCanvas({
       const rect = event.currentTarget.getBoundingClientRect();
       onCreateAt(flow.x, flow.y, event.clientX - rect.left, event.clientY - rect.top);
     },
-    [onCreateAt],
+    [onCreateAt, canEdit],
   );
 
   return (
@@ -220,15 +267,24 @@ export function DiagramCanvas({
         connectionRadius={45}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
-        onNodeDragStop={(_e, node) => onMoveNode(node.id, node.position.x, node.position.y)}
-        onNodesDelete={(deleted) => deleted.forEach((n) => onDeleteNode(n.id))}
+        onNodeDragStop={(_e, node) => {
+          if (canEdit) onMoveNode(node.id, node.position.x, node.position.y);
+        }}
+        onNodesDelete={(deleted) => {
+          if (canEdit) deleted.forEach((n) => onDeleteNode(n.id));
+        }}
+        nodesDraggable={canEdit}
+        nodesConnectable={canEditConnections}
         onEdgeDoubleClick={handleEdgeDoubleClick}
-        onEdgesDelete={(deleted) => deleted.forEach((e) => onDeleteConnection(e.id))}
+        onEdgesDelete={(deleted) => {
+          if (canEditConnections) deleted.forEach((e) => onDeleteConnection(e.id));
+        }}
         onPaneClick={() => onSelectNode(null)}
         zoomOnDoubleClick={false}
         colorMode={resolved}
         fitView
         proOptions={{ hideAttribution: true }}
+        ariaLabelConfig={FLOW_ARIA_LABELS}
       >
         <Background />
         <Controls />

@@ -1,4 +1,5 @@
 import { projectDestination } from '../utils/workspaceRoutes';
+import { resolveActiveProject } from '../utils/activeProject';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
 import { projectsApi } from '../api/projects';
@@ -18,9 +19,7 @@ const LAST_PROJECT_KEY = 'lastProjectId';
  *
  * <p>Resolution order is deliberate: a project id in the URL wins, so a shared
  * or bookmarked link always opens the project it names; otherwise the last
- * selection is restored; otherwise the first project. Project-scoped routes do
- * not exist yet, so in practice the stored preference decides today — the URL
- * branch starts working the moment those routes land, with no change here.</p>
+ * selection is restored; otherwise the first project.</p>
  */
 export function ActiveProjectProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -52,13 +51,10 @@ export function ActiveProjectProvider({ children }: { children: ReactNode }) {
     void reload();
   }, [reload]);
 
-  const activeProject = useMemo(() => {
-    if (projects.length === 0) {
-      return null;
-    }
-    const byId = (id: string | null) => projects.find((project) => project.id === id) ?? null;
-    return routeProjectId ? byId(routeProjectId) : byId(lastProjectId) ?? projects[0];
-  }, [projects, routeProjectId, lastProjectId]);
+  const activeProject = useMemo(
+    () => resolveActiveProject(projects, routeProjectId, lastProjectId),
+    [projects, routeProjectId, lastProjectId],
+  );
 
   useEffect(() => {
     if (activeProject && activeProject.id !== lastProjectId) {
@@ -80,6 +76,7 @@ export function ActiveProjectProvider({ children }: { children: ReactNode }) {
   const value: ActiveProjectContextValue = {
     projects,
     activeProject,
+    storedProjectId: lastProjectId,
     isLoading,
     error,
     selectProject,

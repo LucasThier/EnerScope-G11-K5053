@@ -1,5 +1,5 @@
 import type { ResolvedTheme } from '../../hooks/useTheme';
-import type { NodeState, NodeType, StructuralRole, Vertical } from '../../types/diagram';
+import type { DeclineDistribution, NodeState, NodeType, StructuralRole, Vertical } from '../../types/diagram';
 
 /** A numeric, type-specific field of a node subtype. */
 export interface NodeFieldSpec {
@@ -26,123 +26,135 @@ export interface NodeTypeSpec {
 export const NODE_TYPE_SPECS: NodeTypeSpec[] = [
   {
     type: 'WELL',
-    label: 'Well',
+    label: 'Pozo',
     vertical: 'EXTRACTION',
     role: 'GENERATOR',
     fields: [
-      { key: 'maxCollectionCapacity', label: 'Max collection capacity' },
-      { key: 'declineCurve', label: 'Decline curve' },
-      { key: 'gasRichness', label: 'Gas richness (0-1)' },
-      { key: 'dtmTime', label: 'DTM time', integer: true },
-      { key: 'dtmCost', label: 'DTM cost', economic: true },
-      { key: 'surface', label: 'Surface' },
+      { key: 'maxCollectionCapacity', label: 'Capacidad máxima de recolección' },
+      { key: 'declineCurve', label: 'Curva de declinación' },
+      { key: 'gasRichness', label: 'Riqueza del gas (0–1)' },
+      { key: 'dtmTime', label: 'Tiempo DTM', integer: true },
+      { key: 'dtmCost', label: 'Costo DTM', economic: true },
+      { key: 'surface', label: 'Superficie' },
     ],
   },
   {
     type: 'GATHERING_NETWORK',
-    label: 'Gathering network',
+    label: 'Red de recolección',
     vertical: 'EXTRACTION',
     role: 'INTERMEDIATE',
     fields: [
-      { key: 'maxTransportCapacity', label: 'Max transport capacity' },
-      { key: 'length', label: 'Length' },
-      { key: 'lossPerMeter', label: 'Loss per meter' },
-      { key: 'connectedWells', label: 'Connected wells', integer: true },
+      { key: 'maxTransportCapacity', label: 'Capacidad máxima de transporte' },
+      { key: 'length', label: 'Longitud' },
+      { key: 'lossPerMeter', label: 'Pérdidas por metro' },
+      { key: 'connectedWells', label: 'Pozos conectados', integer: true },
     ],
   },
   {
     type: 'TREATMENT_PLANT',
-    label: 'Treatment plant',
+    label: 'Planta de tratamiento',
     vertical: 'EXTRACTION',
     role: 'INTERMEDIATE',
     fields: [
-      { key: 'maxTreatmentCapacity', label: 'Max treatment capacity' },
-      { key: 'contaminantWaste', label: 'Contaminant waste' },
-      { key: 'intermediateStorage', label: 'Intermediate storage' },
-      { key: 'treatmentCost', label: 'Treatment cost', economic: true },
+      { key: 'maxTreatmentCapacity', label: 'Capacidad de tratamiento' },
+      { key: 'contaminantWaste', label: 'Residuos contaminantes' },
+      { key: 'intermediateStorage', label: 'Almacenamiento intermedio' },
+      { key: 'treatmentCost', label: 'Costo de tratamiento', economic: true },
     ],
   },
   {
     type: 'PIPELINE',
-    label: 'Pipeline',
+    label: 'Gasoducto',
     vertical: 'TRANSPORTATION',
     role: 'INTERMEDIATE',
     fields: [
-      { key: 'maxFlowCapacity', label: 'Max flow capacity' },
-      { key: 'length', label: 'Length' },
-      { key: 'lossPerKm', label: 'Loss per km' },
+      { key: 'maxFlowCapacity', label: 'Capacidad máxima de flujo' },
+      { key: 'length', label: 'Longitud' },
+      { key: 'lossPerKm', label: 'Pérdidas por kilómetro' },
+    ],
+  },
+  {
+    type: 'PIPELINE_CONECTION',
+    label: 'Conexión de gasoducto',
+    vertical: 'TRANSPORTATION',
+    role: 'INTERMEDIATE',
+    fields: [
+      { key: 'transferCapacity', label: 'Capacidad de transferencia' },
+      { key: 'outputPriority', label: 'Prioridad de salida' },
     ],
   },
   {
     type: 'COMPRESSING_PLANT',
-    label: 'Compressing plant',
+    label: 'Planta compresora',
     vertical: 'TRANSPORTATION',
     role: 'INTERMEDIATE',
     fields: [
-      { key: 'maxCompressionCapacity', label: 'Max compression capacity' },
-      { key: 'processWaste', label: 'Process waste' },
-      { key: 'gasConsumption', label: 'Gas consumption' },
+      { key: 'maxCompressionCapacity', label: 'Capacidad de compresión' },
+      { key: 'processWaste', label: 'Pérdidas del proceso' },
+      { key: 'gasConsumption', label: 'Consumo de gas' },
     ],
   },
   {
     type: 'GROUND_LIQUEFACTION_PLANT',
-    label: 'Ground liquefaction plant',
+    label: 'Planta de licuefacción en tierra',
     vertical: 'LIQUEFACTION',
     role: 'INTERMEDIATE',
     fields: [
-      { key: 'maxProcessingCapacity', label: 'Max processing capacity' },
-      { key: 'mtpaRatio', label: 'MTPA ratio' },
-      { key: 'intermediateStorage', label: 'Intermediate storage' },
-      { key: 'gasConsumption', label: 'Gas consumption' },
+      { key: 'maxProcessingCapacity', label: 'Capacidad de procesamiento' },
+      { key: 'mtpaRatio', label: 'Relación MTPA' },
+      { key: 'intermediateStorage', label: 'Almacenamiento intermedio' },
+      { key: 'gasConsumption', label: 'Consumo de gas' },
     ],
   },
   {
     type: 'FLNG_UNIT',
-    label: 'FLNG unit',
+    label: 'Unidad FLNG',
     vertical: 'LIQUEFACTION',
     role: 'INTERMEDIATE',
     fields: [
-      { key: 'maxProcessingCapacity', label: 'Max processing capacity' },
-      { key: 'mtpaRatio', label: 'MTPA ratio' },
-      { key: 'intermediateStorage', label: 'Intermediate storage' },
-      { key: 'vesselDepth', label: 'Vessel depth' },
-      { key: 'hiringCost', label: 'Hiring cost', economic: true },
+      { key: 'maxProcessingCapacity', label: 'Capacidad de procesamiento' },
+      { key: 'mtpaRatio', label: 'Relación MTPA' },
+      { key: 'intermediateStorage', label: 'Almacenamiento intermedio' },
+      { key: 'vesselDepth', label: 'Calado' },
+      { key: 'shipCapacity', label: 'Capacidad del buque', integer: true },
+      { key: 'gasConsumption', label: 'Consumo de gas' },
+      { key: 'hiringCost', label: 'Costo de contratación', economic: true },
     ],
   },
   {
     type: 'SEAPORT_TERMINAL',
-    label: 'Seaport terminal',
+    label: 'Terminal portuaria',
     vertical: 'EXPORT',
     role: 'SINK',
     fields: [
-      { key: 'intermediateStorage', label: 'Intermediate storage' },
-      { key: 'portDepth', label: 'Port depth' },
-      { key: 'shipCapacity', label: 'Ship capacity', integer: true },
+      { key: 'intermediateStorage', label: 'Almacenamiento intermedio' },
+      { key: 'portDepth', label: 'Profundidad del puerto' },
+      { key: 'shipCapacity', label: 'Capacidad del buque', integer: true },
     ],
   },
   {
     type: 'LNG_CAMER',
-    label: 'LNG carrier',
+    label: 'Buque metanero',
     vertical: 'EXPORT',
     role: 'SINK',
     fields: [
-      { key: 'exportFrequency', label: 'Export frequency', integer: true },
-      { key: 'shipCapacity', label: 'Ship capacity' },
-      { key: 'fullLoadTime', label: 'Full load time' },
-      { key: 'hiringCost', label: 'Hiring cost', economic: true },
-      { key: 'timeToDestination', label: 'Time to destination', integer: true },
+      { key: 'exportFrequency', label: 'Frecuencia de exportación', integer: true },
+      { key: 'shipCapacity', label: 'Capacidad del buque' },
+      { key: 'fullLoadTime', label: 'Tiempo de carga completa' },
+      { key: 'hiringCost', label: 'Costo de contratación', economic: true },
+      { key: 'timeToDestination', label: 'Tiempo al destino', integer: true },
     ],
   },
-  { type: 'INTERNAL_CONSUMPTION', label: 'Internal Consumption', vertical: 'INTERNAL_CONSUMPTION', role: 'SINK',
+  { type: 'INTERNAL_CONSUMPTION', label: 'Consumo interno', vertical: 'INTERNAL_CONSUMPTION', role: 'SINK',
     fields: [
-      { key: 'consumptionSummer', label: 'Summer consumption' },
-      { key: 'consumptionAutumn', label: 'Autumn consumption' },
-      { key: 'consumptionWinter', label: 'Winter consumption' },
-      { key: 'consumptionSpring', label: 'Spring consumption' },
+      { key: 'consumptionSummer', label: 'Consumo de verano' },
+      { key: 'consumptionAutumn', label: 'Consumo de otoño' },
+      { key: 'consumptionWinter', label: 'Consumo de invierno' },
+      { key: 'consumptionSpring', label: 'Consumo de primavera' },
     ],
   },
-  { type: 'INDUSTRIAL_CONSUMPTION', label: 'Industrial Consumption', vertical: 'INTERNAL_CONSUMPTION', role: 'SINK',
-    fields: [{ key: 'consumption', label: 'Constant consumption' }],
+  { type: 'INDUSTRIAL_CONSUMPTION', label: 'Consumo industrial', vertical: 'INTERNAL_CONSUMPTION', role: 'SINK',
+    fields: [{ key: 'consumption', label: 'Consumo constante' }],
   },
 ];
 
@@ -154,6 +166,37 @@ export function operationalFields(spec: NodeTypeSpec): NodeFieldSpec[] {
 export function specForType(type: NodeType): NodeTypeSpec | undefined {
   return NODE_TYPE_SPECS.find((s) => s.type === type);
 }
+
+export function nodeTypeLabel(type: NodeType): string {
+  return specForType(type)?.label ?? type;
+}
+
+export const NODE_STATE_LABELS: Record<NodeState, string> = {
+  RUNNING: 'En operación',
+  PROPOSED: 'Propuesto',
+  PENDING: 'Pendiente',
+  REMOVED: 'Eliminado',
+};
+
+export const VERTICAL_LABELS: Record<Vertical, string> = {
+  EXTRACTION: 'Extracción',
+  TRANSPORTATION: 'Transporte',
+  LIQUEFACTION: 'Licuefacción',
+  EXPORT: 'Exportación',
+  INTERNAL_CONSUMPTION: 'Consumo interno',
+};
+
+export const ROLE_LABELS: Record<StructuralRole, string> = {
+  GENERATOR: 'Origen',
+  INTERMEDIATE: 'Intermedio',
+  SINK: 'Destino',
+};
+
+export const DECLINE_LABELS: Record<DeclineDistribution['type'], string> = {
+  CONSTANT: 'Constante',
+  NORMAL: 'Normal',
+  UNIFORM: 'Uniforme',
+};
 
 /** Palette colour per vertical (from the brand tokens). */
 export const VERTICAL_COLORS: Record<ResolvedTheme, Record<Vertical, string>> = {
@@ -202,11 +245,22 @@ export const NODE_STATES: NodeState[] = ['PROPOSED', 'PENDING', 'RUNNING'];
  * well → gathering → treatment → pipeline/compression → liquefaction (ground or
  * FLNG) → export (seaport terminal → carrier, or FLNG straight to carrier).
  */
+const PIPELINE_TARGETS: NodeType[] = [
+  'PIPELINE',
+  'COMPRESSING_PLANT',
+  'GROUND_LIQUEFACTION_PLANT',
+  'FLNG_UNIT',
+  'INTERNAL_CONSUMPTION',
+  'INDUSTRIAL_CONSUMPTION',
+];
+
 export const ALLOWED_CONNECTIONS: Partial<Record<NodeType, NodeType[]>> = {
   WELL: ['GATHERING_NETWORK'],
   GATHERING_NETWORK: ['TREATMENT_PLANT'],
   TREATMENT_PLANT: ['PIPELINE', 'COMPRESSING_PLANT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
-  PIPELINE: ['PIPELINE', 'COMPRESSING_PLANT', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
+  PIPELINE: [...PIPELINE_TARGETS, 'PIPELINE_CONECTION'],
+  // regla confirmada por el equipo: va siempre después de un PIPELINE y sale igual que un PIPELINE
+  PIPELINE_CONECTION: [...PIPELINE_TARGETS],
   COMPRESSING_PLANT: ['PIPELINE', 'GROUND_LIQUEFACTION_PLANT', 'FLNG_UNIT', 'INTERNAL_CONSUMPTION', 'INDUSTRIAL_CONSUMPTION'],
   GROUND_LIQUEFACTION_PLANT: ['SEAPORT_TERMINAL'],
   FLNG_UNIT: ['LNG_CAMER'],

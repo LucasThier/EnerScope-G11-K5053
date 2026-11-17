@@ -1,5 +1,6 @@
 import { useId, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { versionsIndexRedirect } from '../utils/activeProject';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -31,6 +32,11 @@ export function VersionsIndexPage() {
     }
     return ordered.filter((project) => project.name.toLowerCase().includes(term));
   }, [ordered, search]);
+
+  const redirect = isLoading ? null : versionsIndexRedirect(activeProject?.id ?? null);
+  if (redirect) {
+    return <Navigate to={redirect} replace />;
+  }
 
   return (
     <div>

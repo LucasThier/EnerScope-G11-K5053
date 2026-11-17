@@ -1,5 +1,6 @@
 package org.enerscope.version.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
@@ -19,6 +20,7 @@ import org.enerscope.user.model.User;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.enerscope.version.dto.AddVersionMemberRoleRequestDTO;
+import org.enerscope.version.dto.ChangeVersionMemberRoleRequestDTO;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.dto.ConflictResolutionType;
 import org.enerscope.version.dto.VersionConflictDTO;
@@ -30,6 +32,7 @@ import org.enerscope.version.model.VersionMember;
 import org.enerscope.version.model.VersionMemberRole;
 import org.enerscope.version.service.VersionConflictService;
 import org.enerscope.version.service.VersionMemberService;
+import org.enerscope.version.service.VersionReadService;
 import org.enerscope.version.service.VersionService;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
@@ -40,6 +43,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -51,6 +55,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class VersionController {
 
     private final VersionService versionService;
+    private final VersionReadService versionReadService;
     private final VersionConflictService versionConflictService;
     private final VersionMemberService versionMemberService;
     /*
@@ -69,7 +74,9 @@ public class VersionController {
     }
 
     @DeleteMapping(value = "/{id}")
-    @Operation(summary = "Delete a version", description = "Delete an existing Version by its ID.")
+    @Operation(summary = "Delete a version",
+            description = "Deletes the version and every version below it. The caller must be able to manage the "
+                    + "version and each descendant; if any is refused, nothing is deleted.")
     public ResponseEntity<ApiResponse<Void>> deleteVersion(
             @PathVariable UUID id) {
         versionService.deleteVersion(id);
@@ -84,7 +91,7 @@ public class VersionController {
     }
 
     @GetMapping(value = "/conflicts", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(summary = "List every conflict", description = "All recorded conflicts across every version, regardless of who they affect. For testing/debugging.")
+    @Operation(summary = "List every conflict", description = "All recorded conflicts across every version, regardless of who they affect. For testing/debugging. Platform admins only.")
     public ResponseEntity<ApiResponse<List<VersionConflictDTO>>> getAllConflicts() {
         return Responses.ok("Conflicts retrieved successfully", versionConflictService.getAllConflicts());
     }
@@ -99,11 +106,9 @@ public class VersionController {
 
     @GetMapping(value = "/{id}")
     @Operation(summary = "Get a version", description = "Retrieve an existing Version by its ID.")
-    public ResponseEntity<ApiResponse<Version>> getVersion(
+    public ResponseEntity<ApiResponse<JsonNode>> getVersion(
             @PathVariable UUID id) {
-        Version version = versionService.getVersion(id);
-
-        return Responses.ok("Version retrieved successfully", version);
+        return Responses.ok("Version retrieved successfully", versionReadService.getVersionJson(id));
     }
 
     @PatchMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -221,7 +226,8 @@ public class VersionController {
     @Operation(summary = "Grant a role on a version",
             description = "Grants a user a role on the version: ADMIN (delete/merge/resolve conflicts), "
                     + "EDITOR for one vertical, or SIMULATOR. Adds the role on top of whatever roles the "
-                    + "user already has on this version - it never replaces them.")
+                    + "user already has on this version - it never replaces them. Only a project ADMIN or a "
+                    + "platform ADMIN may call it.")
     public ResponseEntity<ApiResponse<VersionMemberDTO>> addVersionMember(
             @PathVariable UUID versionId,
             @Valid @RequestBody AddVersionMemberRoleRequestDTO data) {
@@ -230,7 +236,8 @@ public class VersionController {
     }
 
     @GetMapping(value = "/{versionId}/members", produces = MediaType.APPLICATION_JSON_VALUE)
-    @Operation(summary = "List the members of a version", description = "Returns every member with every role they hold on this version.")
+    @Operation(summary = "List the members of a version", description = "Returns every member with every role they hold on this version. Only a project "
+                    + "ADMIN or a platform ADMIN may call it.")
     public ResponseEntity<ApiResponse<List<VersionMemberDTO>>> listVersionMembers(
             @PathVariable UUID versionId) {
         List<VersionMemberDTO> members = versionMemberService.listMembers(versionId).stream()
@@ -239,10 +246,27 @@ public class VersionController {
         return Responses.ok("Version members", members);
     }
 
+    @PutMapping(value = "/{versionId}/members/{memberId}/roles/{roleId}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Change a version role",
+            description = "Turns one role of a member into another type (and vertical, for EDITOR) in place, "
+                    + "atomically: the role keeps its id, the membership is never removed, and the permissions "
+                    + "become those of the new type. 400 if the member already holds the resulting role; 404 if "
+                    + "the member or role is not on this version. Only a project ADMIN or a platform ADMIN may "
+                    + "call it (a version ADMIN, EDITOR or SIMULATOR gets 403).")
+    public ResponseEntity<ApiResponse<VersionMemberDTO>> changeVersionMemberRole(
+            @PathVariable UUID versionId,
+            @PathVariable UUID memberId,
+            @PathVariable UUID roleId,
+            @Valid @RequestBody ChangeVersionMemberRoleRequestDTO data) {
+        VersionMember member = versionMemberService.changeRole(versionId, memberId, roleId, data);
+        return Responses.ok("Member role changed", toDTO(member));
+    }
+
     @DeleteMapping(value = "/{versionId}/members/{memberId}/roles/{roleId}")
     @Operation(summary = "Revoke a version role",
             description = "Revokes a single role from a member. If it was their only role on this "
-                    + "version, the membership itself is removed.")
+                    + "version, the membership itself is removed. Only a project ADMIN or a platform ADMIN may "
+                    + "call it.")
     public ResponseEntity<ApiResponse<Void>> removeVersionMemberRole(
             @PathVariable UUID versionId,
             @PathVariable UUID memberId,
@@ -254,7 +278,7 @@ public class VersionController {
     @GetMapping(value = "/{versionId}/member-candidates", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "List the users that can be granted a version role",
             description = "Active members of the version's owning project. The optional q filters by "
-                    + "first name, last name or mail.")
+                    + "first name, last name or mail. Only a project ADMIN or a platform ADMIN may call it.")
     public ResponseEntity<ApiResponse<List<VersionMemberCandidateDTO>>> listVersionMemberCandidates(
             @PathVariable UUID versionId,
             @RequestParam(required = false) String q) {
@@ -262,23 +286,6 @@ public class VersionController {
     }
 
     private VersionMemberDTO toDTO(VersionMember member) {
-        User user = member.getUser();
-        List<VersionMemberRoleDTO> roles = member.getRoles().stream()
-                .map(this::toDTO)
-                .toList();
-        return new VersionMemberDTO(
-                member.getId(),
-                user.getId(),
-                user.getMail(),
-                user.getFirstName(),
-                user.getLastName(),
-                user.getJobTitle(),
-                user.isActive(),
-                roles);
-    }
-
-    private VersionMemberRoleDTO toDTO(VersionMemberRole role) {
-        return new VersionMemberRoleDTO(
-                role.getId(), role.getMemberType(), role.getVertical(), role.getPermissions());
+        return VersionMemberDTO.from(member);
     }
 }

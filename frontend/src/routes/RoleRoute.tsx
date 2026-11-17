@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { hasPlatformRole } from '../permissions/access';
 import type { PlatformRole } from '../types/auth';
 
 interface RoleRouteProps {
@@ -13,7 +14,7 @@ export function RoleRoute({ role }: RoleRouteProps) {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  if (user.platformRole !== role) {
+  if (!hasPlatformRole(user, role)) {
     return <Navigate to="/" replace />;
   }
   return <Outlet />;

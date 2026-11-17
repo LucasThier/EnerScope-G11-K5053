@@ -18,7 +18,7 @@ import { UserMenu } from './UserMenu';
  * its 44px hit area is optically flush with the edge rather than indented.
  */
 export function TopBar() {
-  const { isDrawer, isVisible, menuId, menuButtonRef, toggleFromButton } = useSidebar();
+  const { isDrawer, isFixed, isVisible, menuId, menuButtonRef, toggleFromButton } = useSidebar();
   const { resolved } = useTheme();
   const { pathname } = useLocation();
   const routeMatch = useMatch(PROJECT_ROUTE_PATTERN);
@@ -45,23 +45,31 @@ export function TopBar() {
       <div
         className="flex h-full shrink-0 items-center gap-2 px-4 sm:gap-3 lg:w-60 lg:px-6"
       >
-        <button
-          ref={menuButtonRef}
-          type="button"
-          onClick={(event) => toggleFromButton(event.detail === 0)}
-          aria-label={action}
-          aria-expanded={isVisible}
-          aria-controls={menuId}
-          title={`${action} (Ctrl/⌘ B)`}
-          className={
-            '-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-ink-500 ' +
-            'transition-colors hover:bg-nav-hover hover:text-ink-700 focus:outline-none ' +
-            'focus-visible:ring-2 focus-visible:ring-focus'
-          }
+        {!isFixed && (
+          <button
+            ref={menuButtonRef}
+            type="button"
+            onClick={(event) => toggleFromButton(event.detail === 0)}
+            aria-label={action}
+            aria-expanded={isVisible}
+            aria-controls={menuId}
+            title={`${action} (Ctrl/⌘ B)`}
+            className={
+              '-ml-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-ink-500 ' +
+              'transition-colors hover:bg-nav-hover hover:text-ink-700 focus:outline-none ' +
+              'focus-visible:ring-2 focus-visible:ring-focus'
+            }
+          >
+            {isDrawer && isVisible ? <CloseIcon /> : <MenuIcon />}
+          </button>
+        )}
+        <Link
+          to="/app"
+          aria-label="EnerScope, ir al inicio"
+          className="flex shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         >
-          {isDrawer && isVisible ? <CloseIcon /> : <MenuIcon />}
-        </button>
-        <Logo variant="mark" tone={resolved === 'dark' ? 'light' : 'dark'} />
+          <Logo variant="mark" tone={resolved === 'dark' ? 'light' : 'dark'} />
+        </Link>
       </div>
 
       {crumbs.length > 1 && (

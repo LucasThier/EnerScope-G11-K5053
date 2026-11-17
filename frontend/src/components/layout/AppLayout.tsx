@@ -1,5 +1,6 @@
 import { Outlet, useLocation, useMatch } from 'react-router-dom';
 import { ActiveProjectProvider } from '../../hooks/ActiveProjectProvider';
+import { ProjectAccessProvider } from '../../hooks/ProjectAccessProvider';
 import { MyOrganizationsProvider } from '../../hooks/MyOrganizationsProvider';
 import { SidebarProvider } from '../../hooks/SidebarProvider';
 import { useActiveProject, PROJECT_ROUTE_PATTERN } from '../../hooks/useActiveProject';
@@ -19,9 +20,11 @@ export function AppLayout() {
   return (
     <MyOrganizationsProvider>
       <ActiveProjectProvider>
-        <SidebarProvider>
-          <AppShell />
-        </SidebarProvider>
+        <ProjectAccessProvider>
+          <SidebarProvider>
+            <AppShell />
+          </SidebarProvider>
+        </ProjectAccessProvider>
       </ActiveProjectProvider>
     </MyOrganizationsProvider>
   );

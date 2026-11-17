@@ -3,6 +3,7 @@ package org.enerscope.project.repository;
 import org.enerscope.project.dto.ProjectSummaryDTO;
 import org.enerscope.project.model.Project;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.enerscope.project.dto.ProjectVersionRef;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -34,6 +35,10 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
                                      WHERE pe.project = p AND pe.user.id = :userId AND pe.active = true
                                        AND re.memberType = org.enerscope.project.model.enums.ProjectMemberType.EDITOR)
                             THEN org.enerscope.project.model.enums.ProjectMemberType.EDITOR
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember px JOIN px.roles rx
+                                     WHERE px.project = p AND px.user.id = :userId AND px.active = true
+                                       AND rx.memberType = org.enerscope.project.model.enums.ProjectMemberType.EXECUTIVE)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.EXECUTIVE
                         ELSE NULL
                     END)
             FROM Project p
@@ -61,6 +66,10 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
                                      WHERE pe.project = p AND pe.user.id = :userId AND pe.active = true
                                        AND re.memberType = org.enerscope.project.model.enums.ProjectMemberType.EDITOR)
                             THEN org.enerscope.project.model.enums.ProjectMemberType.EDITOR
+                        WHEN EXISTS (SELECT 1 FROM ProjectMember px JOIN px.roles rx
+                                     WHERE px.project = p AND px.user.id = :userId AND px.active = true
+                                       AND rx.memberType = org.enerscope.project.model.enums.ProjectMemberType.EXECUTIVE)
+                            THEN org.enerscope.project.model.enums.ProjectMemberType.EXECUTIVE
                         ELSE NULL
                     END)
             FROM Project p
@@ -90,6 +99,21 @@ public interface ProjectRepository extends JpaRepository<Project, UUID> {
             WHERE v.id = :versionId AND v.active = true AND p.active = true
             """)
     Optional<UUID> findIdByVersionId(@Param("versionId") UUID versionId);
+
+    @Query("""
+            SELECT p.id FROM Project p JOIN p.versions v
+            WHERE v.id = :versionId
+            """)
+    Optional<UUID> findOwnerIdByVersionId(@Param("versionId") UUID versionId);
+
+    /** The project's active versions, oldest first, without loading their node snapshots. */
+    @Query("""
+            SELECT new org.enerscope.project.dto.ProjectVersionRef(v.id, v.name)
+            FROM Project p JOIN p.versions v
+            WHERE p.id = :projectId AND v.active = true
+            ORDER BY v.createdAt, v.id
+            """)
+    List<ProjectVersionRef> findActiveVersionRefs(@Param("projectId") UUID projectId);
 
     boolean existsByIdAndActiveTrue(UUID id);
 

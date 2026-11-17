@@ -18,8 +18,10 @@ import org.enerscope.project.service.ProjectService;
 import org.enerscope.user.model.User;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
+import org.enerscope.version.dto.ProjectVersionMembersDTO;
 import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.dto.VersionSummaryDTO;
+import org.enerscope.version.service.VersionMemberService;
 import org.enerscope.version.service.VersionService;
 import org.enerscope.version.model.Version;
 import org.springframework.http.MediaType;
@@ -47,9 +49,11 @@ import java.util.UUID;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final VersionMemberService versionMemberService;
 
-    public ProjectController(ProjectService projectService) {
+    public ProjectController(ProjectService projectService, VersionMemberService versionMemberService) {
         this.projectService = projectService;
+        this.versionMemberService = versionMemberService;
     }
 
     @GetMapping
@@ -107,6 +111,16 @@ public class ProjectController {
                 .map(this::toDTO)
                 .toList();
         return Responses.ok("Project members", members);
+    }
+
+    @GetMapping("/{projectId}/version-members")
+    @Operation(summary = "Role matrix of a project's versions",
+            description = "Every active version of the project with every member and every role they hold on "
+                    + "it, in one call. Each entry's members are what GET /version/{id}/members returns for that "
+                    + "version. Only a project ADMIN or a platform ADMIN may call it; 403 comes before 404.")
+    public ResponseEntity<ApiResponse<List<ProjectVersionMembersDTO>>> listVersionMembers(
+            @PathVariable UUID projectId) {
+        return Responses.ok("Version members of the project", versionMemberService.listProjectMatrix(projectId));
     }
 
     @PatchMapping("/{projectId}/members/{memberId}")

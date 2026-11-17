@@ -48,9 +48,22 @@ public class ProjectAccessGuard {
         if (AuthUtil.isPlatformAdmin(caller)) {
             return;
         }
-        if (!projectMemberRepository.existsByProjectIdAndUserId(projectId, caller.getId())) {
+        boolean member = projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())
+                .filter(ProjectAccessGuard::isActive)
+                .isPresent();
+        if (!member) {
             deny(caller, "view", projectId);
         }
+    }
+
+    public boolean canManageProject(UUID projectId) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
+            return true;
+        }
+        return projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())
+                .map(member -> grants(member, ProjectMemberPermission.MANAGE_PROJECT))
+                .orElse(false);
     }
 
     /**
@@ -64,9 +77,10 @@ public class ProjectAccessGuard {
     }
 
     /**
-     * Ensures the caller may administer the project itself — today, changing who
-     * is on it. Requires {@link ProjectMemberPermission#MANAGE_PROJECT}, which
-     * only ADMIN members hold.
+     * Ensures the caller may administer the project itself — changing who is on
+     * it, creating its root versions, and governing the roles of its versions.
+     * Requires {@link ProjectMemberPermission#MANAGE_PROJECT}, which only ADMIN
+     * members hold; a platform ADMIN passes without it.
      */
     public void assertCanManageProject(UUID projectId) {
         assertHasPermission(projectId, ProjectMemberPermission.MANAGE_PROJECT, "manage");
@@ -78,16 +92,20 @@ public class ProjectAccessGuard {
             return;
         }
         boolean allowed = projectMemberRepository.findByProjectIdAndUserId(projectId, caller.getId())
-                .map(member -> hasPermission(member, permission))
+                .map(member -> grants(member, permission))
                 .orElse(false);
         if (!allowed) {
             deny(caller, action, projectId);
         }
     }
 
-    private boolean hasPermission(ProjectMember member, ProjectMemberPermission permission) {
-        return member.getRoles().stream()
-                .anyMatch(role -> role.getPermissions().contains(permission));
+    public static boolean isActive(ProjectMember member) {
+        return member.isActive() && member.getUser().isActive();
+    }
+
+    public static boolean grants(ProjectMember member, ProjectMemberPermission permission) {
+        return isActive(member) && member.getRoles().stream()
+                .anyMatch(role -> role.isActive() && role.getPermissions().contains(permission));
     }
 
     private void deny(User caller, String action, UUID projectId) {
