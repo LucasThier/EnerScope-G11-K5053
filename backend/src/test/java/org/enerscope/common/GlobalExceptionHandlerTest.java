@@ -27,7 +27,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void missingMultipartFieldReturns400WithFieldName() {
-        var response = exceptionHandler.handleMissingRequestPart(
+        var response = handler.handleMissingRequestPart(
                 new MissingServletRequestPartException("file"));
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
@@ -37,7 +37,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void malformedMultipartRequestReturns400() {
-        var response = exceptionHandler.handleMalformedMultipart(new MultipartException("malformed"));
+        var response = handler.handleMalformedMultipart(new MultipartException("malformed"));
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertFalse(response.getBody().success());
