@@ -324,6 +324,16 @@ export function UserIcon(props: IconProps) {
   );
 }
 
+export function UserPlusIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M19 8v6M16 11h6" />
+    </Icon>
+  );
+}
+
 export function LogoutIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -345,6 +355,15 @@ export function ChevronRightIcon(props: IconProps) {
   return (
     <Icon {...props}>
       <path d="m9 6 6 6-6 6" />
+    </Icon>
+  );
+}
+
+export function PinIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 17v5" />
+      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
     </Icon>
   );
 }

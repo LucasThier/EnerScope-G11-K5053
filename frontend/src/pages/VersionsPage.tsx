@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import { isProjectAccessLoss } from '../utils/activeProject';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -7,11 +8,20 @@ import { PageLoader } from '../components/ui/PageLoader';
 import { PlusIcon } from '../components/ui/icons';
 import { DeleteVersionDialog } from '../components/versions/DeleteVersionDialog';
 import { MergeVersionDialog } from '../components/versions/MergeVersionDialog';
-import { NewVersionModal } from '../components/versions/NewVersionModal';
+import {
+  FIRST_VERSION_ADMIN_MESSAGE,
+  NewVersionModal,
+} from '../components/versions/NewVersionModal';
 import { ResolveConflictsDialog } from '../components/versions/ResolveConflictsDialog';
 import { VersionTree } from '../components/versions/VersionTree';
 import { useActiveProject } from '../hooks/useActiveProject';
-import { useAuth } from '../hooks/useAuth';
+import { useGuardedProjectAccess } from '../hooks/useGuardedProjectAccess';
+import { AccessFailureAlert } from '../components/versionRoles/AccessFailureAlert';
+import {
+  canBranchFromParent,
+  canMergeIntoParent,
+  projectVersioning,
+} from '../utils/versionAccessRules';
 import { useVersionConflicts } from '../hooks/useVersionConflicts';
 import { useVersions } from '../hooks/useVersions';
 import { buildVersionTree, getDescendants } from '../utils/versionTree';
@@ -28,8 +38,7 @@ export function VersionsPage() {
 }
 
 function VersionsWorkspace({ projectId }: { projectId?: string }) {
-  const { user } = useAuth();
-  const { projects, isLoading: projectsLoading } = useActiveProject();
+  const { projects, reload: reloadProjects } = useActiveProject();
   const { versions, loading, error, errorStatus, reload, deleteVersion, mergeVersion } = useVersions(
     projectId ?? null,
   );
@@ -41,8 +50,19 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
   const [resolving, setResolving] = useState<VersionSummary | null>(null);
 
   const project = projects.find((candidate) => candidate.id === projectId);
-  const isPlatformAdmin = user?.platformRole === 'ADMIN';
-  const canEdit = isPlatformAdmin || project?.myRole === 'ADMIN' || project?.myRole === 'EDITOR';
+  const { access, failure: accessFailure, retry: retryAccess } = useGuardedProjectAccess(projectId);
+  const { canEdit, canCreateRoot, canCreateVersion } = projectVersioning(
+    access,
+    versions.length,
+  );
+  const canMergeInto = useCallback(
+    (parentVersionId: string) => canMergeIntoParent(access, parentVersionId),
+    [access],
+  );
+  const canBranchFrom = useCallback(
+    (parentVersionId: string) => canBranchFromParent(access, parentVersionId),
+    [access],
+  );
 
   const tree = useMemo(() => buildVersionTree(versions), [versions]);
   const descendants = useMemo(
@@ -95,14 +115,14 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
     setResolving(null);
   }, [projectId]);
 
+  useEffect(() => {
+    if (isProjectAccessLoss(errorStatus)) {
+      void reloadProjects();
+    }
+  }, [errorStatus, reloadProjects]);
+
   if (!projectId) {
     return null;
-  }
-  if (errorStatus === 403) {
-    return <Navigate to="/versions" replace />;
-  }
-  if (!projectsLoading && !projects.some((candidate) => candidate.id === projectId)) {
-    return <Navigate to="/versions" replace />;
   }
   if (loading) {
     return <PageLoader />;
@@ -112,19 +132,21 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
     <div>
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link to="/versions" className="text-sm font-semibold text-brand-800 hover:underline">
-            ← Versionado
+          <Link to="/projects" className="text-sm font-semibold text-brand-800 hover:underline">
+            ← Proyectos
           </Link>
           <h1 className="mt-2 text-2xl font-semibold text-ink-800">Versionado</h1>
           <p className="mt-1 text-sm text-ink-500">{project?.name ?? 'el proyecto'}</p>
         </div>
-        {!error && canEdit && (
+        {!error && canCreateVersion && (
           <Button onClick={() => setIsModalOpen(true)}>
             <PlusIcon className="h-4 w-4" />
             Nueva versión
           </Button>
         )}
       </header>
+
+      <AccessFailureAlert message={accessFailure} onRetry={() => void retryAccess()} />
 
       <Card padded={false} className="overflow-hidden">
         {error ? (
@@ -134,17 +156,21 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
         ) : versions.length === 0 ? (
           <div className="px-4 py-8 text-center">
             <p className="text-sm text-ink-500">Este proyecto todavía no tiene versiones.</p>
-            {canEdit && (
+            {canCreateRoot && (
               <Button className="mt-4" onClick={() => setIsModalOpen(true)}>
                 <PlusIcon className="h-4 w-4" />
                 Nueva versión
               </Button>
+            )}
+            {canEdit && !canCreateRoot && (
+              <p className="mt-2 text-sm text-ink-500">{FIRST_VERSION_ADMIN_MESSAGE}</p>
             )}
           </div>
         ) : (
           <VersionTree
             nodes={tree}
             canEdit={canEdit}
+            canMergeInto={canMergeInto}
             unresolvedConflicts={unresolvedByVersion}
             onDelete={(version, isRoot) => setDeleting({ version, isRoot })}
             onMerge={setMerging}
@@ -166,6 +192,8 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
         <>
           <NewVersionModal
             projectId={projectId}
+            canCreateRoot={canCreateRoot}
+            canBranchFrom={canBranchFrom}
             open={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             onCreated={reload}

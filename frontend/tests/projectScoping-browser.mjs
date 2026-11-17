@@ -36,7 +36,7 @@ await page.getByRole('option',{name:'Demo version',exact:true}).waitFor({state:'
 await project.selectOption('p2');
 await page.getByRole('button',{name:'Prueba1',exact:true}).waitFor({state:'attached'});
 assert.equal(await version.locator('option[value="v1"]').count(),0);
-assert.equal(await page.getByRole('button',{name:'+ Add node',exact:true}).isDisabled(),true);
+assert.equal(await page.getByRole('button',{name:'+ Agregar nodo',exact:true}).isDisabled(),true);
 delay=500;oldRequested=false;
 await page.getByRole('button',{name:'Prueba1',exact:true}).click();
 await page.getByRole('listbox').getByRole('button',{name:/Demo/}).click();
@@ -52,6 +52,8 @@ await page.getByRole('link',{name:'Configuración del Escenario',exact:true}).cl
 await page.getByText('Este proyecto todavía no tiene versiones disponibles.',{exact:true}).waitFor();
 assert.equal(await page.getByRole('button',{name:'Nuevo escenario',exact:true}).count(),0);
 assert.equal(submitted,null);
+await page.goto((process.env.APP_URL || 'http://localhost:5173') + '/projects/foreign/scenario-configurations');
+await page.waitForURL('**/projects/p1/scenario-configurations');
 assert.deepEqual(errors,[]);
 console.log('PASS: project isolation, stale response, empty-project configuration without creation.');
 } finally {await browser.close();}

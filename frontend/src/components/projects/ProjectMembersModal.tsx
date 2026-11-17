@@ -11,6 +11,7 @@ import {
 import { projectsApi } from '../../api/projects';
 import { getErrorMessage } from '../../api/errors';
 import { useAuth } from '../../hooks/useAuth';
+import { canManageProject, isPlatformAdmin } from '../../permissions/access';
 import { formatDate } from '../../utils/date';
 import type { ProjectMember, ProjectSummary } from '../../types/project';
 
@@ -64,7 +65,7 @@ export function ProjectMembersModal({ project, onClose }: ProjectMembersModalPro
   const callerMembership = members.find((member) => member.userId === caller?.id);
   const canManage =
     !loading &&
-    (caller?.platformRole === 'ADMIN' || callerMembership?.memberType === 'ADMIN');
+    canManageProject(callerMembership?.memberType, isPlatformAdmin(caller));
 
   return (
     <Modal open={project !== null} onClose={onClose} title={project?.name ?? ''} size="lg">

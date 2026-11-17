@@ -14,8 +14,10 @@
 ---
 
 Monorepo for **EnerScope** — a web application with a Spring Boot backend and a
-React + Vite frontend. This initial scaffold covers **users, authentication and
-session management** (JWT based). Domain features are added on top of this base.
+React + Vite frontend. It covers **users, authentication and session
+management** (JWT based), **organizations and projects** with scoped roles,
+**versions** of a project's value-chain model (with per-version roles, branches,
+merge and conflicts), and the **economic evaluation** of scenarios.
 
 - **Domain:** `enerscope.org`
 - **Backend:** Java 21 · Spring Boot 3.5 · PostgreSQL · Flyway · JWT · Swagger
@@ -25,8 +27,8 @@ session management** (JWT based). Domain features are added on top of this base.
 
 ```
 EnerScope/
-├─ backend/     Spring Boot API (auth, users, sessions, health)
-├─ frontend/    React + Vite client (auth portal: login/panels + API/session layer)
+├─ backend/     Spring Boot API (auth, users, organizations, projects, versions, economics)
+├─ frontend/    React + Vite client (shell, projects and teams, versions, value-chain map, economics)
 ├─ docs/        Architecture and technical documentation
 └─ README.md    This file
 ```
@@ -53,6 +55,19 @@ npm run dev
 - Swagger UI: http://localhost:8080/api/v1/swagger-ui.html
 - Health: http://localhost:8080/api/v1/health
 
+Tests:
+
+```bash
+cd backend && mvn test        # JUnit, H2 — no database needed
+cd frontend && npm test       # node:test unit suite
+cd frontend && npm run build  # type-check + build
+```
+
+The five `*PostgreSqlIT` backend classes are **not** part of `mvn test`; they are
+run by hand against a disposable PostgreSQL (see
+[docs/testing.md](docs/testing.md) → *PostgreSQL classes*). Counts and the
+case-by-case catalog are in [docs/testing.md](docs/testing.md).
+
 A default administrator is seeded on first boot: `admin@enerscope.org`
 (password configurable via `ADMIN_PASSWORD`, default `admin12345`). It has the
 platform **`ADMIN`** role — registration is not self-service, so this account is
@@ -64,7 +79,8 @@ the one that creates the first users (see [backend/README.md](backend/README.md)
 - [Backend README](backend/README.md) — run, env vars, Swagger, structure
 - [Frontend README](frontend/README.md) — run, env vars, structure, conventions
 - [docs/architecture.md](docs/architecture.md) — system architecture
-- [docs/domain-model.md](docs/domain-model.md) — domain model
+- [docs/domain-model.md](docs/domain-model.md) — domain model, membership and version-role rules
+- [docs/testing.md](docs/testing.md) — test catalog and counts (backend, frontend, manual checks)
 - [docs/technical-decisions.md](docs/technical-decisions.md) — technical decisions
 - [docs/considerations.md](docs/considerations.md) — running notes & expectations for future work
 - [docs/deploy.md](docs/deploy.md) — deployment: pushes to `master` deploy the backend to AWS Lightsail and the frontend to Cloudflare Pages

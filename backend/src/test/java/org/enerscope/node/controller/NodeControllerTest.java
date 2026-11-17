@@ -15,6 +15,7 @@ import org.enerscope.node.repository.WellRepository;
 import org.enerscope.node.service.NodeService;
 import org.enerscope.probabilistic.ConstantValue;
 import org.enerscope.probabilistic.ProbabilisticDistribution;
+import org.enerscope.version.service.VersionAccessGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -57,6 +58,9 @@ class NodeControllerTest {
 
     @Mock
     private NodeService nodeService;
+
+    @Mock
+    private VersionAccessGuard accessGuard;
 
     @InjectMocks
     private NodeController nodeController;

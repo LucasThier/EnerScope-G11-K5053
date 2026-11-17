@@ -13,13 +13,14 @@ import { ProjectMembersModal } from '../components/projects/ProjectMembersModal'
 import { ProjectsTable } from '../components/projects/ProjectsTable';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useAuth } from '../hooks/useAuth';
+import { isPlatformAdmin } from '../permissions/access';
 import type { ProjectSummary } from '../types/project';
 
 const ALL_ORGANIZATIONS = 'all';
 
 export function ProjectsPage() {
   const searchId = useId();
-  const { projects, isLoading, error, reload, selectProject } = useActiveProject();
+  const { projects, activeProject, isLoading, error, reload, selectProject } = useActiveProject();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -118,11 +119,13 @@ export function ProjectsPage() {
         ) : (
           <ProjectsTable
             projects={visibleProjects}
-            isPlatformAdmin={user?.platformRole === 'ADMIN'}
+            activeProjectId={activeProject?.id ?? null}
+            isPlatformAdmin={isPlatformAdmin(user)}
             onView={setViewing}
             onEdit={setEditing}
             onDelete={setDeleting}
             onManageMembers={(project) => navigate(`/projects/${project.id}/team`)}
+            onViewTeam={(project) => navigate(`/projects/${project.id}/team`)}
             onViewVersions={(project) => {
               selectProject(project.id);
               navigate(`/projects/${project.id}/versions`);

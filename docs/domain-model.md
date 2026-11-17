@@ -32,7 +32,7 @@ access-token `role` claim and mapped to a Spring Security `ROLE_*` authority.
 **`jobTitle` is not a role.** It is descriptive text with no bearing on
 authorization, and it is not carried in the token claims: it reaches the client
 through `UserSummaryDTO` on login and refresh, both of which read the user from
-the database. Set it at registration; there is no endpoint to change it yet.
+the database. Set it at registration (including the bulk CSV `jobTitle` column) and change it afterwards with `PATCH /users/me`, which only edits the caller's own profile.
 
 ### Authentication & registration
 
@@ -45,7 +45,12 @@ Registration is **not** self-service. Accounts are created by:
   `POST /organizations/{id}/users` (one user) or
   `POST /organizations/{id}/users/bulk` (a CSV batch), which create `USER`
   accounts and add them to the organization (as `MEMBER` by default; the bulk CSV
-  may set `OWNER`/`MEMBER` per row).
+  may set `OWNER`/`MEMBER` per row and, with an optional `jobTitle` column
+  — aliases `job_title`, `job title`, `puesto`, `cargo`; ≤120 characters — the
+  user's job title). A bulk file may hold **at most 500 data rows** (the header
+  does not count); a larger one is refused whole with `400 The CSV file has more
+  than 500 rows`, after the caller is authorized. A row that fails validation is
+  skipped and reported with its line; it does not abort the batch.
 
 The seeded `admin@enerscope.org` starts with `platformRole = ADMIN` and is the
 bootstrap administrator.
@@ -136,23 +141,35 @@ owns its own role instance(s).
 | --- | --- | --- |
 | `id` | UUID | Primary key (from `BaseEntity`) |
 | `name` | String | Defaults to the `memberType` name — no dedicated naming API yet |
-| `memberType` | `ProjectMemberType` (enum) | `ADMIN` \| `EDITOR` |
+| `memberType` | `ProjectMemberType` (enum) | `ADMIN` \| `EDITOR` \| `EXECUTIVE` |
 | `permissions` | Set\<`ProjectMemberPermission`\> (enum) | `@ElementCollection` in `project_member_role_permission`; `MANAGE_PROJECT` \| `EDIT_PROJECT` \| `VIEW_PROJECT` |
 
 `ProjectService` assigns permissions from a fixed `memberType` →
-`permissions` mapping when a member is added (`ADMIN` gets all three
-permissions, `EDITOR` gets `EDIT_PROJECT` + `VIEW_PROJECT`). There is no API
-yet to define custom roles or permission sets.
+`permissions` mapping (`ProjectMember.defaultPermissionsFor`) when a member is
+added or changes type (`ADMIN` gets all three permissions, `EDITOR` gets
+`EDIT_PROJECT` + `VIEW_PROJECT`, `EXECUTIVE` gets `VIEW_PROJECT` only). There is
+no API yet to define custom roles or permission sets. The column is a plain
+`VARCHAR(30)` without a `CHECK`, so adding `EXECUTIVE` needed no migration.
 
 ## Membership rules (platform, organization, project)
 
-Three role scopes exist and they are independent of each other:
+Four role scopes exist and they are independent of each other:
 
 | Scope | Where it lives | Values | What it governs |
 | --- | --- | --- | --- |
 | Platform | `User.platformRole` | `ADMIN` \| `USER` | App-wide administration (user ABM, organization ABM, detached versions). |
 | Organization | `OrganizationMemberRole.memberType` | `OWNER` \| `MEMBER` | Who may manage an organization's people (`MANAGE_ORGANIZATION`). |
-| Project | `ProjectMemberRole.memberType` | `ADMIN` \| `EDITOR` | Who may manage a project and who may only edit its content. |
+| Project | `ProjectMemberRole.memberType` | `ADMIN` \| `EDITOR` \| `EXECUTIVE` | Who may manage a project, who may only edit its content and who may only read it (`EXECUTIVE`). |
+| Version | `VersionMemberRole.memberType` | `ADMIN` \| `EDITOR` (per vertical) \| `SIMULATOR` | What each project member may do on one version; overrides the project role there. Never held by an `EXECUTIVE`. |
+
+- **A project `EXECUTIVE` is read-only everywhere and holds no version roles.**
+  Its only permission is `VIEW_PROJECT`, so it sees every version of the
+  project (`source` `PROJECT_FALLBACK`, `effectiveRole` `EXECUTIVE`, `canView`
+  only) and can do nothing on any. Granting or changing a version role for one
+  is `400`; turning an existing member into an `EXECUTIVE` deletes their
+  version memberships in that project in the same transaction
+  (`ProjectService.changeMemberRole`). The project summaries' `myRole` has an
+  `EXECUTIVE` branch next to `ADMIN` and `EDITOR`, in that order of precedence.
 
 - **A project member must belong to the project's organization.** `ProjectService.addMember`
   looks the candidate up in `organization_member` first and rejects the request
@@ -165,6 +182,62 @@ Three role scopes exist and they are independent of each other:
   organization membership, in one transaction.
 - **The reverse does not hold:** removing someone from a project leaves their
   organization membership untouched.
+- **A version role overrides the project role, on that version only — except
+  for the project administrator.** With a version role, `VersionAccessGuard`
+  and `VersionAccess` decide from it alone; without one they fall back to the
+  project role (`VersionCapability` names the project permission each
+  capability falls back to); a platform `ADMIN` can do everything. A version
+  `EDITOR` edits its own vertical plus `INTERNAL_CONSUMPTION` and may simulate
+  through a **stored** `SIMULATE_VERSION` permission (migration `V24`; the rule
+  in code was removed). **A project `ADMIN` (an active
+  member holding `MANAGE_PROJECT`) administers every version of the project
+  whatever version roles they hold**; their explicit roles are kept and shown
+  but never narrow them. `GET /projects/{id}/access` returns the result per
+  version: `source` is `PLATFORM_ADMIN`, `PROJECT_ADMIN`, `VERSION_ROLES` or
+  `PROJECT_FALLBACK`, and `canManageRoles` says whether the caller may assign
+  roles on that version.
+- **Only the project `ADMIN` and the platform `ADMIN` assign, revoke and list
+  version roles** (`assertCanManageVersionRoles`; also the member-candidates
+  listing). A version `ADMIN` who is not a project admin cannot. `MANAGE_VERSION`
+  still covers deleting the version, being the destination of a merge,
+  resolving conflicts and re-parenting. A version member holds any number of
+  roles at once; roles are granted and revoked one by one, and `PUT
+  /version/{id}/members/{memberId}/roles/{roleId}` changes one in place (same id,
+  membership kept, permissions replaced by the new type's defaults).
+  `GET /projects/{id}/version-members` lists every active version with its
+  members and roles in one call.
+- **A version role needs an active project membership, project and version.**
+  Granting one requires being an active project member, and the guard only
+  counts a role while the `project_member` row exists **and is active**, the
+  project is active and the version is active (`findEffectiveByVersionIdAndUserId`):
+  deactivating the version or the project cuts off its role holders, while a
+  platform `ADMIN` still reads it. The rows stay in the table. `ProjectService`
+  still copies every row of the parent, including those of deactivated users
+  (tested) or of people outside the project (by reading the code), when a child
+  is created; they are inert (never effective) but are not cleaned up.
+- **Creating a child version.** The child receives a copy of the parent's
+  version roles (vertical and permissions included; later changes do not
+  propagate), and **its creator becomes `ADMIN` of the child** unless they are a
+  project or platform admin (who already administer it). Root versions (no
+  parent) can be created only by a project `ADMIN` or a platform `ADMIN`;
+  `GET /projects/{id}/access` reports it as `canCreateRootVersions` (true for
+  `MANAGE_PROJECT` and the platform admin, false for a project `EDITOR`; it was
+  `canCreateVersions` and followed `EDIT_PROJECT`).
+- **Deleting a version deletes its subtree**, in one transaction, and needs
+  permission to administer every version in it; a descendant of another
+  project, or of none, can only be deleted by a platform `ADMIN`. Nothing is
+  deleted when any descendant is refused.
+- **Leaving a project or an organization removes the version roles.**
+  `ProjectService.removeMember` and `OrganizationService.removeMember` delete
+  the person's `version_member` rows in the affected projects, in the same
+  transaction and only after the last-admin guards pass. `addMember` deletes
+  any leftover rows, so a re-added member starts from the project role.
+- **Role endpoints check the permission before the version exists.**
+  `assertCanManageVersionRoles` runs before the lookup, so for anyone but a
+  platform `ADMIN` an unknown version id answers `403`; only a platform `ADMIN`
+  gets `404`. (A non-existent *project* still answers `404` before `403` on
+  `GET /projects/{id}/access` and the economic endpoints — known debt in
+  `considerations.md`.)
 
 ### The last owner and the last administrator are protected
 
@@ -216,8 +289,11 @@ No creation timestamp field of its own; it reuses `createdAt` from
 | `project` | Project | `@ManyToOne`, required |
 | `parentVersion` | Version | `@ManyToOne`, self-reference, optional (the first version of a project has none) |
 
-`VersionService` rejects a `parentVersion` that belongs to a different
-`project` than the one the new version is being created under.
+`ProjectService.saveVersion` rejects a `parentVersion` that belongs to a
+different `project` than the one the new version is being created under, and a
+version without a parent (a root) can only be created by a project `ADMIN` or a
+platform `ADMIN`. `VersionLineage` applies the same-project rule when merging,
+resolving conflicts and re-parenting.
 
 A `Version` now **owns the diagram**: its `nodeSnapshot` (`List<BaseNode>` via
 the `versionXNode` join table) and `connectionSnapshot` (`List<NodeConnection>`
@@ -252,10 +328,17 @@ concrete node type (`Well`, `GatheringNetwork`, `TreatmentPlant`, `Pipeline`,
 | `identityId` | UUID | Cross-version identity: the same real node keeps this id across versions (used by the diff/merge logic). |
 | `name` | String | |
 | `state` | NodeStateEnum | `RUNNING` \| `PROPOSED` \| `PENDING` \| `REMOVED` |
-| `type` | NodeTypeData | `@OneToOne` — `vertical` / `role` / `nodeType` enums |
+| `type` | NodeTypeData | `@OneToOne` — `vertical` / `role` / `nodeType` enums; `vertical` and `role` are derived from `nodeType` (`NodeTypeEnum`) and rejected with `400` if they disagree |
 | `graphData` | NodeGraphData | `@OneToOne` — see below |
 | `investmentCost` | InvestmentCost | `@OneToOne` |
 | plus per-type fields | | capacities, costs, etc. |
+
+`FLNGUnit` keeps two separate numbers: `shipCapacity` (the vessel) and
+`gasConsumption` (its own gas use). They are independent; the node detail
+returns both. Earlier edits copied one into the other — see
+[`considerations.md`](considerations.md) (*`FLNG_UNIT` edit no longer copies…*).
+`TreatmentPlant.contaminantWaste` is accepted by the DTO but **not persisted**
+(it reads back as `0`).
 
 ### NodeGraphData
 
@@ -456,12 +539,20 @@ connections' for fully correct rewiring.
 
 ## Session (non-persistent)
 
-A `Session` is an in-memory object rebuilt from a JWT on every request. It is
-**not** stored in the database (authentication is stateless). It holds:
+A `Session` is an in-memory object built on every request from a valid access
+token. It is **not** stored in the database (authentication is stateless). It
+holds:
 
 - the raw access `token`,
-- the `User` (reconstructed from token claims),
+- the `User` **loaded from the database** by the token's `sub`
+  (`SessionService.validate`), so its `active` flag and `platformRole` are the
+  current ones,
 - the `expiresAt` instant.
+
+When the user no longer exists or is deactivated, no session is built and the
+request is answered `401`. A token issued before a deactivation works again if
+the account is reactivated within that token's lifetime; preventing it would
+need a per-user session version stored in `app_user`.
 
 ## Tokens
 
@@ -470,7 +561,11 @@ A `Session` is an in-memory object rebuilt from a JWT on every request. It is
 | Access | `access` | 60 minutes | Sent on every request to authenticate |
 | Refresh | `refresh` | 30 days | Exchanged for a new access token |
 
-Access tokens carry `sub` (user id), `mail`, `firstName` and `lastName`.
+Access tokens carry `sub` (user id), `mail`, `firstName`, `lastName` and
+`role` (the platform role at issue time). `role` is informational only:
+authorization uses the role stored in the database (see *Session*). Refresh
+tokens carry `sub` and a random `jti`; `POST /auth/refresh` reloads the user
+and refuses a deactivated account with `401`.
 
 ## MoneyAmount (value object)
 

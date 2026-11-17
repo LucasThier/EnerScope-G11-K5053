@@ -9,7 +9,11 @@ import org.enerscope.logging.AppLogger;
 import org.enerscope.organization.model.Organization;
 import org.enerscope.project.model.*;
 import org.enerscope.project.model.enums.*;
+import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.project.repository.ProjectRepository;
+import org.enerscope.project.service.ProjectAccessGuard;
+import org.enerscope.version.repository.VersionMemberRepository;
+import org.enerscope.version.service.VersionAccessGuard;
 import org.enerscope.scenario.dto.EconomicDraftDTO;
 import org.enerscope.scenario.model.EconomicDraftEntity;
 import org.enerscope.scenario.repository.EconomicDraftRepository;
@@ -30,8 +34,14 @@ class EconomicServiceTest {
     final EconomicEvaluationRepository evaluations=mock(EconomicEvaluationRepository.class);
     final EconomicDraftRepository drafts=mock(EconomicDraftRepository.class);
     final EconomicSimulationAdapter simulator=spy(new EconomicSimulationAdapter());
+    final ProjectMemberRepository projectMembers=mock(ProjectMemberRepository.class);
+    final VersionMemberRepository versionMembers=mock(VersionMemberRepository.class);
+    final VersionAccessGuard versionAccessGuard=new VersionAccessGuard(projects,versionMembers,
+            new ProjectAccessGuard(projectMembers,mock(AppLogger.class)),mock(AppLogger.class));
     final EconomicService service=new EconomicService(projects,configs,evaluations,drafts,new EconomicValidator(),new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator()),
-            new EconomicIndicatorsCalculator(), simulator,MAPPER,mock(AppLogger.class));
+            new EconomicIndicatorsCalculator(), simulator,MAPPER,mock(AppLogger.class),versionAccessGuard,
+            new org.enerscope.scenario.service.ScenarioChangeScope(new org.enerscope.scenario.service.ScenarioOperations(MAPPER),
+                    versionAccessGuard,MAPPER,mock(AppLogger.class)));
     final UUID projectId=UUID.randomUUID(); final varHolder holder=new varHolder();
     static class varHolder { final org.enerscope.version.model.Version version=version(); }
     Project project; User user;
@@ -41,6 +51,9 @@ class EconomicServiceTest {
         user=User.fromJwtClaims(UUID.randomUUID(),"reader@example.com","Reader","User");
         project=new Project("Example","Example",new Organization("Example"));project.addVersion(holder.version);
         when(projects.findById(projectId)).thenReturn(Optional.of(project));
+        when(projects.findIdByVersionId(holder.version.getId())).thenReturn(Optional.of(projectId));
+        when(projectMembers.findByProjectIdAndUserId(eq(projectId),any())).thenAnswer(call->project.getMembers().stream()
+                .filter(m->m.getUser().getId().equals(call.getArgument(1))).findFirst());
         authenticate(user);
     }
 
@@ -222,7 +235,8 @@ class EconomicServiceTest {
         var configuration = exportConfiguration();
         var error = assertThrows(IllegalArgumentException.class, () -> service.save(projectId, holder.version.getId(), configuration));
         assertEquals("El volumen exportado requiere un buque del escenario.", error.getMessage());
-        verifyNoInteractions(configs, simulator, evaluations);
+        verify(configs, never()).save(any());
+        verifyNoInteractions(simulator, evaluations);
     }
 
     @Test void savedInvalidExportCannotRunSimulation() throws Exception {
@@ -264,6 +278,28 @@ class EconomicServiceTest {
         verifyNoInteractions(configs, simulator, evaluations);
     }
 
+    @Test void viewerGets403BeforeValidationOnSaveAndSaveDraft() {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        assertThrows(ForbiddenException.class, () -> service.save(projectId, holder.version.getId(), null));
+        assertThrows(ForbiddenException.class, () -> service.saveDraft(projectId, holder.version.getId(),
+                new EconomicDraftDTO(1, MAPPER.createObjectNode())));
+        verify(configs, never()).save(any());
+        verify(drafts, never()).save(any());
+    }
+
+    @Test void saveWithANullConfigurationAnswersIllegalArgumentNotNullPointer() {
+        grant(ProjectMemberPermission.EDIT_PROJECT);
+        assertThrows(IllegalArgumentException.class, () -> service.save(projectId, holder.version.getId(), null));
+        verify(configs, never()).save(any());
+    }
+
+    @Test void saveDraftWithANullBodyAnswersIllegalArgumentNotNullPointer() {
+        grant(ProjectMemberPermission.EDIT_PROJECT);
+        assertThrows(IllegalArgumentException.class, () -> service.saveDraft(projectId, holder.version.getId(),
+                new EconomicDraftDTO(1, null)));
+        verify(drafts, never()).save(any());
+    }
+
     @Test void viewerReadsDraftButCannotSaveIt() throws Exception {
         grant(ProjectMemberPermission.VIEW_PROJECT);
         var draft = incompleteDraft();
@@ -283,12 +319,96 @@ class EconomicServiceTest {
         grant(ProjectMemberPermission.EDIT_PROJECT);
         assertThrows(IllegalArgumentException.class, () -> service.saveDraft(projectId, holder.version.getId(),
                 new EconomicDraftDTO(1, MAPPER.createObjectNode())));
-        verifyNoInteractions(drafts);
+        verify(drafts, never()).save(any());
     }
 
     @Test void validatedConfigurationSaveClearsDraft() {
         grant(ProjectMemberPermission.EDIT_PROJECT);
         service.save(projectId, holder.version.getId(), configuration());
         verify(drafts).deleteByVersionId(holder.version.getId());
+    }
+
+    private void grantVersionRole(org.enerscope.version.model.enums.VersionMemberType type,
+                                  org.enerscope.node.model.enums.VerticalEnum vertical) {
+        var member=new org.enerscope.version.model.VersionMember(user,holder.version);
+        member.addRole(new org.enerscope.version.model.VersionMemberRole(type.name(),type,
+                EnumSet.copyOf(org.enerscope.version.model.VersionMember.defaultPermissionsFor(type)),vertical));
+        when(versionMembers.findEffectiveByVersionIdAndUserId(holder.version.getId(),user.getId())).thenReturn(Optional.of(member));
+    }
+
+    @Test void projectEditorWithVersionSimulatorRoleCanEvaluateButCannotSaveConfigurationOrDraft() throws Exception {
+        grant(ProjectMemberPermission.EDIT_PROJECT,ProjectMemberPermission.VIEW_PROJECT);
+        grantVersionRole(org.enerscope.version.model.enums.VersionMemberType.SIMULATOR,null);
+        when(configs.findByVersionId(holder.version.getId())).thenReturn(Optional.of(
+                new EconomicConfigurationEntity(holder.version, MAPPER.writeValueAsString(configuration()))));
+        when(evaluations.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+
+        assertNotNull(service.evaluate(projectId,holder.version.getId()));
+        var error=assertThrows(ForbiddenException.class,()->service.save(projectId,holder.version.getId(),configuration()));
+        assertEquals("You are not allowed to edit this version",error.getMessage());
+        assertThrows(ForbiddenException.class,()->service.saveDraft(projectId,holder.version.getId(),incompleteDraft()));
+        verify(configs,never()).save(any());
+        verify(drafts,never()).save(any());
+    }
+
+    @Test void projectEditorWithVersionSimulatorRoleCanReadConfigurationDraftAndHistory() throws Exception {
+        grant(ProjectMemberPermission.EDIT_PROJECT,ProjectMemberPermission.VIEW_PROJECT);
+        grantVersionRole(org.enerscope.version.model.enums.VersionMemberType.SIMULATOR,null);
+        when(configs.findByVersionId(holder.version.getId())).thenReturn(Optional.of(
+                new EconomicConfigurationEntity(holder.version, MAPPER.writeValueAsString(configuration()))));
+
+        assertEquals(configuration(),service.get(projectId,holder.version.getId()));
+        assertNull(service.getDraft(projectId,holder.version.getId()));
+        assertTrue(service.list(projectId,holder.version.getId()).isEmpty());
+    }
+
+    @Test void versionEditorOfOneVerticalCanSaveConfigurationAndEvaluate() throws Exception {
+        grant(ProjectMemberPermission.EDIT_PROJECT,ProjectMemberPermission.VIEW_PROJECT);
+        grantVersionRole(org.enerscope.version.model.enums.VersionMemberType.EDITOR,org.enerscope.node.model.enums.VerticalEnum.EXTRACTION);
+        when(configs.findByVersionId(holder.version.getId())).thenReturn(Optional.of(
+                new EconomicConfigurationEntity(holder.version, MAPPER.writeValueAsString(configuration()))));
+        when(evaluations.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
+
+        assertEquals(configuration(),service.save(projectId,holder.version.getId(),configuration()));
+        assertNotNull(service.evaluate(projectId,holder.version.getId()));
+    }
+
+    @Test void simulationRefusedByVersionGuardHappensBeforeTouchingDrafts() {
+        grant(ProjectMemberPermission.EDIT_PROJECT,ProjectMemberPermission.VIEW_PROJECT);
+        var member=new org.enerscope.version.model.VersionMember(user,holder.version);
+        when(versionMembers.findEffectiveByVersionIdAndUserId(holder.version.getId(),user.getId())).thenReturn(Optional.of(member));
+
+        var error=assertThrows(ForbiddenException.class,()->service.evaluate(projectId,holder.version.getId()));
+        assertEquals("You are not allowed to simulate this version",error.getMessage());
+        verifyNoInteractions(simulator,evaluations,drafts);
+    }
+
+    @Test void versionInAnotherProjectIsStill404BeforeTheVersionGuard() {
+        grant(ProjectMemberPermission.EDIT_PROJECT,ProjectMemberPermission.VIEW_PROJECT);
+        assertThrows(EntityNotFoundException.class,()->service.evaluate(projectId,UUID.randomUUID()));
+        verifyNoInteractions(versionMembers);
+    }
+
+    @Test void unknownProjectIs403ForANonAdminOnEveryEconomicEntryPoint() {
+        UUID missing=UUID.randomUUID(); UUID versionId=holder.version.getId();
+        for (org.junit.jupiter.api.function.Executable call : List.<org.junit.jupiter.api.function.Executable>of(
+                ()->service.get(missing,versionId), ()->service.getDraft(missing,versionId),
+                ()->service.list(missing,versionId), ()->service.evaluate(missing,versionId),
+                ()->service.save(missing,versionId,configuration()))) {
+            assertThrows(ForbiddenException.class,call);
+        }
+        verifyNoInteractions(configs,evaluations,drafts,versionMembers);
+    }
+
+    @Test void unknownProjectMessageMatchesTheOneForANonMemberOfARealProject() {
+        var unknown=assertThrows(ForbiddenException.class,()->service.get(UUID.randomUUID(),holder.version.getId()));
+        var realOutsider=assertThrows(ForbiddenException.class,()->service.get(projectId,holder.version.getId()));
+        assertEquals(realOutsider.getMessage(),unknown.getMessage());
+    }
+
+    @Test void unknownProjectIs404ForAPlatformAdmin() {
+        user.updatePlatformRole(PlatformRole.ADMIN);
+        assertThrows(EntityNotFoundException.class,()->service.get(UUID.randomUUID(),holder.version.getId()));
+        assertThrows(EntityNotFoundException.class,()->service.evaluate(UUID.randomUUID(),holder.version.getId()));
     }
 }

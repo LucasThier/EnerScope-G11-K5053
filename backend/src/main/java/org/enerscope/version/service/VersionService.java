@@ -8,6 +8,8 @@ import org.enerscope.version.dto.VersionDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.repository.VersionRepository;
 import org.enerscope.node.model.enums.ChangeTypeEnum;
+import org.enerscope.node.model.enums.NodeTypeEnum;
+import org.enerscope.node.model.enums.VerticalEnum;
 import org.springframework.stereotype.Service;
 
 import lombok.Getter;
@@ -110,6 +112,7 @@ public class VersionService {
     private final NodeService nodeService;
     private final VersionConflictService versionConflictService;
     private final VersionAccessGuard accessGuard;
+    private final VersionLineage lineage;
 
     /**
      * Creates a version detached from every project, for
@@ -195,51 +198,43 @@ public class VersionService {
         return saved;
     }
 
+    @Transactional
     public void deleteVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
         accessGuard.assertCanManageVersion(id);
-        Version version = versionRepository.findById(id)
+        versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
-        // WE DELETE ALL OF THE SUB-VERSIONS, MAYBE CHANGE LATER
 
-        deleteSubVersions(id);
-        logger.info("Deleted version with id: {}", id);
+        List<UUID> versionsToDelete = collectSubtree(id);
+        for (UUID versionId : versionsToDelete) {
+            if (!versionId.equals(id)) {
+                accessGuard.assertCanManageDescendant(id, versionId);
+            }
+        }
+
+        Collections.reverse(versionsToDelete);
+        versionRepository.deleteAllById(versionsToDelete);
+        logger.info("Deleted {} versions in tree starting from root version ID: {}",
+                versionsToDelete.size(), id);
     }
 
-    /**
-     * Deletes a version and everything below it. Private on purpose: it is only
-     * reached through {@link #deleteVersion}, which runs the permission check —
-     * a public entry point here would be an unguarded way to delete a tree.
-     *
-     * <p>Known limitation: the permission check covers the root version's
-     * project. A child version attached to a different project would be deleted
-     * without that project being checked; see {@code docs/considerations.md}.</p>
-     */
-    private void deleteSubVersions(UUID parentVersion) {
-
-        List<UUID> versionsToDelete = new ArrayList<>();
+    private List<UUID> collectSubtree(UUID rootId) {
+        List<UUID> collected = new ArrayList<>();
         Queue<UUID> queue = new LinkedList<>();
-        queue.add(parentVersion);
-        versionsToDelete.add(parentVersion);
+        queue.add(rootId);
+        collected.add(rootId);
         while (!queue.isEmpty()) {
             UUID currentId = queue.poll();
-            List<Version> children = versionRepository.findByParentVersionId(currentId);
-
-            for (Version child : children) {
-                if (versionsToDelete.add(child.getId())) { // add returns true if not already present
+            for (Version child : versionRepository.findByParentVersionId(currentId)) {
+                if (collected.add(child.getId())) {
                     queue.add(child.getId());
                 }
             }
         }
-
-        if (!versionsToDelete.isEmpty()) {
-            Collections.reverse(versionsToDelete);
-            versionRepository.deleteAllById(versionsToDelete);
-            logger.info("Deleted {} versions in tree starting from root version ID: {}",
-                    versionsToDelete.size(), parentVersion);
-        }
+        return collected;
     }
 
+    @Transactional(readOnly = true)
     public Version getVersion(UUID id) {
         Objects.requireNonNull(id, "Version ID cannot be null");
         accessGuard.assertCanViewVersion(id);
@@ -255,6 +250,7 @@ public class VersionService {
     @Transactional(readOnly = true)
     public DiagramDTO getDiagram(UUID versionId) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
 
@@ -283,6 +279,7 @@ public class VersionService {
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
         Objects.requireNonNull(positionDTO, "Position DTO cannot be null");
 
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         lockScenario(version);
@@ -326,6 +323,7 @@ public class VersionService {
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
         Objects.requireNonNull(basics, "Basics DTO cannot be null");
 
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         lockScenario(version);
@@ -360,6 +358,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
 
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         BaseNode node = nodeRepository.findById(nodeId)
@@ -371,8 +370,7 @@ public class VersionService {
 
         NodeTypeDataDTO type = null;
         if (node.getType() != null) {
-            NodeTypeData t = node.getType();
-            type = new NodeTypeDataDTO(t.getVertical(), t.getRole(), t.getNodeType());
+            type = toTypeDataDTO(node.getType());
         }
 
         return new NodeDetailDTO(
@@ -424,6 +422,8 @@ public class VersionService {
             a.put("mtpaRatio", (double) f.getMTPARatio());
             a.put("intermediateStorage", (double) f.getIntermediateStorage());
             a.put("vesselDepth", (double) f.getVesselDepth());
+            a.put("shipCapacity", (double) f.getShipCapacity());
+            a.put("gasConsumption", (double) f.getGasConsumption());
             a.put("hiringCost", money(f.getHiringCost()));
         } else if (node instanceof SeaportTerminal s) {
             a.put("intermediateStorage", (double) s.getIntermediateStorage());
@@ -475,7 +475,8 @@ public class VersionService {
                     if (value instanceof NodeGraphData g) {
                         value = cloneGraphData(g);
                     } else if (value instanceof NodeTypeData t) {
-                        value = new NodeTypeData(t.getVertical(), t.getRole(), t.getNodeType());
+                        value = new NodeTypeData(t.getNodeType() == null ? t.getVertical() : t.getNodeType().vertical(),
+                                t.getRole(), t.getNodeType());
                     } else if (value instanceof InvestmentCost ic) {
                         value = cloneInvestmentCost(ic);
                     }
@@ -526,8 +527,7 @@ public class VersionService {
     private DiagramNodeDTO toDiagramNode(BaseNode node) {
         NodeTypeDataDTO type = null;
         if (node.getType() != null) {
-            NodeTypeData t = node.getType();
-            type = new NodeTypeDataDTO(t.getVertical(), t.getRole(), t.getNodeType());
+            type = toTypeDataDTO(node.getType());
         }
 
         return new DiagramNodeDTO(node.getId(), node.getIdentityId(), node.getName(), node.getState(), type,
@@ -544,6 +544,10 @@ public class VersionService {
         Objects.requireNonNull(id, "Version ID cannot be null");
         Objects.requireNonNull(data, "VersionDTO cannot be null");
         accessGuard.assertCanEditVersion(id);
+        if (data.getParentVersion() != null) {
+            accessGuard.assertCanManageVersion(id);
+            accessGuard.assertCanEditVersion(data.getParentVersion());
+        }
 
         Version existingVersion = versionRepository.findById(id)
                 .orElseThrow(() -> new VersionNotFoundException(id));
@@ -551,6 +555,8 @@ public class VersionService {
         if (data.getParentVersion() != null) {
             Version parentVerison = versionRepository.findById(data.getParentVersion())
                     .orElseThrow(() -> new VersionNotFoundException(data.getParentVersion()));
+            lineage.assertParentInSameProject(id, parentVerison.getId());
+            lineage.assertNotAncestor(id, parentVerison);
             existingVersion.setParentVersion(parentVerison);
         }
 
@@ -567,11 +573,12 @@ public class VersionService {
     public BaseNode addNodeToVersion(UUID versionId, BaseNodeDTO nodeDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
-        if (nodeDTO.getType() != null) {
-            accessGuard.assertCanEditNodeVertical(versionId, nodeDTO.getType().getVertical());
-        } else {
-            accessGuard.assertCanEditVersion(versionId);
+        if (nodeDTO.getType() == null || nodeDTO.getType().getNodeType() == null) {
+            throw new IllegalArgumentException("A supported type.nodeType is required");
         }
+        NodeTypeEnum nodeType = nodeDTO.getType().getNodeType();
+        accessGuard.assertCanEditNodeVertical(versionId, nodeType.vertical());
+        alignDeclaredVertical(versionId, nodeDTO.getType(), nodeType);
 
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
@@ -669,6 +676,7 @@ public class VersionService {
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
         Objects.requireNonNull(nodeDTO, "Node DTO cannot be null");
 
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         lockScenario(version);
@@ -676,6 +684,15 @@ public class VersionService {
         BaseNode requestedNode = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new EntityNotFoundException("Node not found with id: " + nodeId));
         assertCanEditNode(versionId, requestedNode);
+        if (nodeDTO.getType() != null) {
+            NodeTypeEnum nodeType = storedNodeType(requestedNode);
+            if (nodeType == null) {
+                nodeType = nodeDTO.getType().getNodeType();
+            }
+            if (nodeType != null) {
+                alignDeclaredVertical(versionId, nodeDTO.getType(), nodeType);
+            }
+        }
         UUID identityId = requestedNode.getIdentityId();
 
         // Resolve the node to actually mutate from this version's OWN current
@@ -734,11 +751,32 @@ public class VersionService {
      * here assumes it defensively).
      */
     private void assertCanEditNode(UUID versionId, BaseNode node) {
-        if (node.getType() != null) {
-            accessGuard.assertCanEditNodeVertical(versionId, node.getType().getVertical());
+        NodeTypeEnum nodeType = storedNodeType(node);
+        if (nodeType != null) {
+            accessGuard.assertCanEditNodeVertical(versionId, nodeType.vertical());
         } else {
             accessGuard.assertCanEditVersion(versionId);
         }
+    }
+
+    private static NodeTypeEnum storedNodeType(BaseNode node) {
+        return node.getType() == null ? null : node.getType().getNodeType();
+    }
+
+    private void alignDeclaredVertical(UUID versionId, NodeTypeDataDTO declared, NodeTypeEnum nodeType) {
+        try {
+            declared.setVertical(nodeType.checkedVertical(declared.getVertical()));
+            declared.setRole(nodeType.checkedRole(declared.getRole()));
+        } catch (IllegalArgumentException e) {
+            logger.warn("Rejected node of type {} declared as vertical {} / role {} in version {}",
+                    nodeType, declared.getVertical(), declared.getRole(), versionId);
+            throw e;
+        }
+    }
+
+    private static NodeTypeDataDTO toTypeDataDTO(NodeTypeData type) {
+        VerticalEnum vertical = type.getNodeType() == null ? type.getVertical() : type.getNodeType().vertical();
+        return new NodeTypeDataDTO(vertical, type.getRole(), type.getNodeType());
     }
 
     private boolean matchesIdentity(BaseNode node, UUID identityId) {
@@ -895,6 +933,7 @@ public class VersionService {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         Objects.requireNonNull(nodeId, "Node ID cannot be null");
 
+        accessGuard.assertCanViewVersion(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         lockScenario(version);
@@ -1018,7 +1057,7 @@ public class VersionService {
     @Transactional
     public Version mergeSubVersionIntoParent(UUID subVersionId) {
         Objects.requireNonNull(subVersionId, "Subversion ID cannot be null");
-        accessGuard.assertCanManageVersion(subVersionId);
+        accessGuard.assertCanViewVersion(subVersionId);
 
         Version subVersion = versionRepository.findById(subVersionId)
                 .orElseThrow(() -> new VersionNotFoundException(subVersionId));
@@ -1032,6 +1071,8 @@ public class VersionService {
         if (!Objects.equals(subVersion.getParentVersion(), parentVersion)) {
             throw new IllegalArgumentException("Subversion does not have the specified parent version");
         }
+        assertCanMerge(parentVersion.getId(), subVersion);
+        lineage.assertSameProject(subVersion.getId(), parentVersion.getId());
 
         // Apply the subversion's own differential changes onto the parent's
         // CURRENT snapshot, instead of wholesale-replacing it - a wholesale
@@ -1059,6 +1100,23 @@ public class VersionService {
         versionConflictService.recordMergeConflicts(saved, subVersion);
 
         return saved;
+    }
+
+    private void assertCanMerge(UUID targetVersionId, Version subVersion) {
+        accessGuard.assertCanManageVersion(targetVersionId);
+        List<BaseNode> touched = new ArrayList<>();
+        for (NodeChange change : subVersion.getNodeChanges()) {
+            if (change.getChangedNode() != null) {
+                touched.add(change.getChangedNode());
+            }
+            if (change.getResultNode() != null) {
+                touched.add(change.getResultNode());
+            }
+        }
+        accessGuard.assertCanEditNodes(targetVersionId, touched);
+        if (!subVersion.getConnectionChanges().isEmpty()) {
+            accessGuard.assertCanEditConnection(targetVersionId);
+        }
     }
 
     /**

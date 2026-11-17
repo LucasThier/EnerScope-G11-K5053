@@ -119,6 +119,41 @@ class OrganizationBulkRegistrationServiceTest {
     }
 
     @Test
+    void storesTheJobTitleFromThePuestoColumn() {
+        String csv = "mail,firstName,lastName,puesto\n"
+                + "jane@example.com,Jane,Doe,  Analista Senior  \n"
+                + "john@example.com,John,Roe,\n";
+
+        service.register(ORG_ID, csv);
+
+        ArgumentCaptor<RegisterRequestDTO> captor = ArgumentCaptor.forClass(RegisterRequestDTO.class);
+        verify(userService, times(2)).register(captor.capture());
+        assertEquals("Analista Senior", captor.getAllValues().get(0).jobTitle());
+        assertEquals(null, captor.getAllValues().get(1).jobTitle());
+    }
+
+    @Test
+    void leavesTheJobTitleEmptyWhenThereIsNoColumnForIt() {
+        service.register(ORG_ID, "mail,firstName,lastName\njane@example.com,Jane,Doe\n");
+
+        ArgumentCaptor<RegisterRequestDTO> captor = ArgumentCaptor.forClass(RegisterRequestDTO.class);
+        verify(userService).register(captor.capture());
+        assertEquals(null, captor.getValue().jobTitle());
+    }
+
+    @Test
+    void rejectsAJobTitleLongerThanTheLimitAsFailure() {
+        String csv = "mail,firstName,lastName,jobTitle\nx@example.com,Ann,Lee," + "a".repeat(121) + "\n";
+
+        BulkRegistrationResultDTO result = service.register(ORG_ID, csv);
+
+        assertEquals(0, result.created());
+        assertEquals(1, result.failed());
+        assertTrue(result.failures().get(0).reason().contains("job title"));
+        verify(userService, never()).register(any());
+    }
+
+    @Test
     void collectsInvalidRowsAsFailuresWithoutAborting() {
         String csv = "mail,firstName,lastName\n"
                 + "good@example.com,Ann,Lee\n"
@@ -180,6 +215,28 @@ class OrganizationBulkRegistrationServiceTest {
                 assertThrows(IllegalArgumentException.class, () -> service.register(ORG_ID, csv));
         assertTrue(ex.getMessage().contains("lastName"));
         verify(userService, never()).register(any());
+    }
+
+    @Test
+    void throwsWhenFileHasMoreThanMaxRows() {
+        StringBuilder csv = new StringBuilder("mail,firstName,lastName\n");
+        for (int i = 0; i < 501; i++) {
+            csv.append("user").append(i).append("@example.com,Jane,Doe\n");
+        }
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.register(ORG_ID, csv.toString()));
+        assertEquals("The CSV file has more than 500 rows", ex.getMessage());
+        verify(userService, never()).register(any());
+    }
+
+    @Test
+    void acceptsExactlyMaxRows() {
+        StringBuilder csv = new StringBuilder("mail,firstName,lastName\n");
+        for (int i = 0; i < 500; i++) {
+            csv.append("user").append(i).append("@example.com,Jane,Doe\n");
+        }
+        BulkRegistrationResultDTO result = service.register(ORG_ID, csv.toString());
+        assertEquals(500, result.created());
     }
 
     @Test

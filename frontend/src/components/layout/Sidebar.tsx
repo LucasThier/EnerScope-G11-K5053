@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useId, useState } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useNavigationTree } from '../../hooks/useNavigationTree';
 import { useSidebar } from '../../hooks/useSidebar';
-import { type NavGroup, type NavItem } from './navItems';
-import { ChevronDownIcon, LockIcon } from '../ui/icons';
+import { activeLeaf, type NavGroup, type NavItem } from './navItems';
+import { ChevronDownIcon, LockIcon, PinIcon } from '../ui/icons';
 
 const FOCUSABLE = 'a[href], button:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
@@ -13,10 +13,23 @@ const itemBase =
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus';
 
 export function Sidebar() {
-  const { origin, isVisible, pushes, isDrawer, menuId, panelRef, menuButtonRef, close, keepOpen } =
-    useSidebar();
+  const {
+    origin,
+    isVisible,
+    pushes,
+    isDrawer,
+    isPinned,
+    canPin,
+    menuId,
+    panelRef,
+    menuButtonRef,
+    close,
+    keepOpen,
+    togglePin,
+  } = useSidebar();
   const { pathname } = useLocation();
   const groups = useNavigationTree();
+  const active = useMemo(() => activeLeaf(groups, pathname), [groups, pathname]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const toggleModule = useCallback(
@@ -24,10 +37,10 @@ export function Sidebar() {
       const id = moduleKey(item);
       setExpanded((current) => ({
         ...current,
-        [id]: !(current[id] ?? containsActiveChild(item, pathname)),
+        [id]: !(current[id] ?? containsActiveChild(item, active)),
       }));
     },
-    [pathname],
+    [active],
   );
 
   useEffect(() => {
@@ -104,12 +117,31 @@ export function Sidebar() {
             key={group.title}
             group={group}
             isFirst={index === 0}
+            active={active}
             expanded={expanded}
             onToggleModule={toggleModule}
             onNavigate={close}
           />
         ))}
       </nav>
+      {canPin && (
+        <div className="flex shrink-0 justify-end border-t border-ink-100 px-3 py-2">
+          <button
+            type="button"
+            onClick={(event) => togglePin(event.detail === 0)}
+            aria-pressed={isPinned}
+            aria-label="Fijar menú"
+            title={isPinned ? 'Desfijar menú' : 'Fijar menú'}
+            className={
+              'flex h-11 w-11 items-center justify-center rounded-xl transition-colors ' +
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
+              (isPinned ? activeTone : restingTone)
+            }
+          >
+            <PinIcon />
+          </button>
+        </div>
+      )}
     </aside>
   );
 }
@@ -118,26 +150,20 @@ function moduleKey(item: NavItem): string {
   return item.id ?? item.label;
 }
 
-function isItemActive(item: NavItem, pathname: string): boolean {
-  if (item.matchPattern) {
-    return item.matchPattern.test(pathname) || pathname === item.to;
-  }
-  return item.to !== undefined && pathname === item.to;
-}
-
-function containsActiveChild(item: NavItem, pathname: string): boolean {
-  return (item.children ?? []).some((child) => isItemActive(child, pathname));
+function containsActiveChild(item: NavItem, active: NavItem | null): boolean {
+  return active !== null && (item.children ?? []).includes(active);
 }
 
 interface GroupProps {
   group: NavGroup;
   isFirst: boolean;
+  active: NavItem | null;
   expanded: Record<string, boolean>;
   onToggleModule: (item: NavItem) => void;
   onNavigate: () => void;
 }
 
-function NavGroupBlock({ group, isFirst, expanded, onToggleModule, onNavigate }: GroupProps) {
+function NavGroupBlock({ group, isFirst, active, expanded, onToggleModule, onNavigate }: GroupProps) {
   const titleId = useId();
 
   return (
@@ -154,12 +180,13 @@ function NavGroupBlock({ group, isFirst, expanded, onToggleModule, onNavigate }:
             {item.children ? (
               <NavModuleRow
                 item={item}
+                active={active}
                 expandedState={expanded[moduleKey(item)]}
                 onToggle={() => onToggleModule(item)}
                 onNavigate={onNavigate}
               />
             ) : (
-              <NavItemRow item={item} onNavigate={onNavigate} />
+              <NavItemRow item={item} active={active} onNavigate={onNavigate} />
             )}
           </li>
         ))}
@@ -180,15 +207,15 @@ const marker = (
 
 interface ModuleProps {
   item: NavItem;
+  active: NavItem | null;
   expandedState: boolean | undefined;
   onToggle: () => void;
   onNavigate: () => void;
 }
 
-function NavModuleRow({ item, expandedState, onToggle, onNavigate }: ModuleProps) {
-  const location = useLocation();
+function NavModuleRow({ item, active, expandedState, onToggle, onNavigate }: ModuleProps) {
   const panelId = useId();
-  const containsActive = containsActiveChild(item, location.pathname);
+  const containsActive = containsActiveChild(item, active);
   const open = expandedState ?? containsActive;
 
   return (
@@ -222,7 +249,7 @@ function NavModuleRow({ item, expandedState, onToggle, onNavigate }: ModuleProps
         {open &&
           (item.children ?? []).map((child) => (
             <li key={child.label}>
-              <NavItemRow item={child} onNavigate={onNavigate} />
+              <NavItemRow item={child} active={active} onNavigate={onNavigate} />
             </li>
           ))}
       </ul>
@@ -230,8 +257,15 @@ function NavModuleRow({ item, expandedState, onToggle, onNavigate }: ModuleProps
   );
 }
 
-function NavItemRow({ item, onNavigate }: { item: NavItem; onNavigate: () => void }) {
-  const location = useLocation();
+function NavItemRow({
+  item,
+  active,
+  onNavigate,
+}: {
+  item: NavItem;
+  active: NavItem | null;
+  onNavigate: () => void;
+}) {
   const fullName = item.fullLabel ?? item.label;
 
   const body = (
@@ -246,15 +280,16 @@ function NavItemRow({ item, onNavigate }: { item: NavItem; onNavigate: () => voi
    * to carry that meaning is what made them unreadable before. */
   if (!item.to) {
     const isSoon = item.availability === 'soon';
+    const reason = isSoon ? 'próximamente' : item.reason;
     return (
       <span
         aria-disabled="true"
-        title={isSoon ? `${fullName} — próximamente` : fullName}
+        title={reason ? `${fullName} — ${reason}` : fullName}
         className={`${itemBase} cursor-not-allowed font-normal text-ink-500`}
       >
         <span className="shrink-0 text-ink-400">{item.icon}</span>
         <span className="truncate">{item.label}</span>
-        <span className="sr-only">{isSoon ? '— próximamente' : '— sin permisos'}</span>
+        {reason && <span className="sr-only">{`— ${reason}`}</span>}
         {!isSoon && <LockIcon className="ml-auto h-3.5 w-3.5 shrink-0 text-ink-500" />}
       </span>
     );
@@ -267,31 +302,15 @@ function NavItemRow({ item, onNavigate }: { item: NavItem; onNavigate: () => voi
     title: fullName,
   };
 
-  if (item.matchPattern) {
-    const isActive = item.matchPattern.test(location.pathname) || location.pathname === item.to;
-    return (
-      <Link
-        {...linkProps}
-        aria-current={isActive ? 'page' : undefined}
-        className={`${itemBase} ${isActive ? activeTone : restingTone}`}
-      >
-        {isActive && marker}
-        {body}
-      </Link>
-    );
-  }
-
+  const isActive = item === active;
   return (
-    <NavLink
+    <Link
       {...linkProps}
-      className={({ isActive }) => `${itemBase} ${isActive ? activeTone : restingTone}`}
+      aria-current={isActive ? 'page' : undefined}
+      className={`${itemBase} ${isActive ? activeTone : restingTone}`}
     >
-      {({ isActive }) => (
-        <>
-          {isActive && marker}
-          {body}
-        </>
-      )}
-    </NavLink>
+      {isActive && marker}
+      {body}
+    </Link>
   );
 }

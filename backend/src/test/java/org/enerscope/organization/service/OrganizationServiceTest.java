@@ -21,6 +21,9 @@ import org.enerscope.organization.repository.OrganizationRepository;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.repository.ProjectMemberRepository;
+import org.enerscope.version.model.Version;
+import org.enerscope.version.model.VersionMember;
+import org.enerscope.version.repository.VersionMemberRepository;
 import org.enerscope.session.model.Session;
 import org.enerscope.user.model.User;
 import org.enerscope.user.model.enums.PlatformRole;
@@ -35,6 +38,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -68,6 +72,8 @@ class OrganizationServiceTest {
     @Mock
     private ProjectMemberRepository projectMemberRepository;
     @Mock
+    private VersionMemberRepository versionMemberRepository;
+    @Mock
     private AppLogger logger;
 
     private OrganizationService organizationService;
@@ -76,7 +82,7 @@ class OrganizationServiceTest {
     void setUp() {
         organizationService = new OrganizationService(
                 organizationRepository, organizationMemberRepository, userRepository, userService,
-                projectMemberRepository, logger);
+                projectMemberRepository, versionMemberRepository, logger);
     }
 
     @AfterEach
@@ -1152,11 +1158,28 @@ class OrganizationServiceTest {
 
     @Test
     void changeMemberRoleRejectsAMissingRole() {
+        UUID organizationId = UUID.randomUUID();
         authenticateAs(admin());
+        stubActiveOrganization(organizationId);
 
         assertThrows(IllegalArgumentException.class, () -> organizationService.changeMemberRole(
-                UUID.randomUUID(), UUID.randomUUID(), new UpdateOrganizationMemberRoleRequestDTO(null)));
+                organizationId, UUID.randomUUID(), new UpdateOrganizationMemberRoleRequestDTO(null)));
         verify(organizationMemberRepository, never()).save(any());
+    }
+
+    @Test
+    void changeMemberRoleAnswers403BeforeValidatingTheBodyForAPlainMember() {
+        UUID organizationId = UUID.randomUUID();
+        User caller = new User("member@enerscope.org", "Mem", "Ber", "hashed", PlatformRole.USER);
+        authenticateAs(caller);
+        Organization organization = stubActiveOrganization(organizationId);
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, caller.getId()))
+                .thenReturn(Optional.of(viewOnlyMembership(caller, organization)));
+
+        assertThrows(ForbiddenException.class, () -> organizationService.changeMemberRole(
+                organizationId, UUID.randomUUID(), new UpdateOrganizationMemberRoleRequestDTO(null)));
+        assertThrows(ForbiddenException.class, () -> organizationService.changeMemberRole(
+                organizationId, UUID.randomUUID(), null));
     }
 
     @Test
@@ -1326,6 +1349,77 @@ class OrganizationServiceTest {
         verify(projectMemberRepository, never()).findByUserInOrganization(any(), any());
         verify(projectMemberRepository, never()).deleteAll(any());
         verify(organizationMemberRepository, never()).delete(any());
+    }
+
+    @Test
+    void removeMemberAlsoRemovesTheirVersionMembershipsInEveryProjectOfThatOrganization() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember member = memberOf(organization, OrganizationMemberType.MEMBER);
+        organization.addMember(member);
+        Project grid = new Project("Grid Expansion", "Expands the grid", organization);
+        Project storage = new Project("Storage", "Adds storage", organization);
+        UUID gridId = UUID.randomUUID();
+        UUID storageId = UUID.randomUUID();
+        ReflectionTestUtils.setField(grid, "id", gridId);
+        ReflectionTestUtils.setField(storage, "id", storageId);
+        List<ProjectMember> projectMemberships = List.of(
+                new ProjectMember(member.getUser(), grid), new ProjectMember(member.getUser(), storage));
+        VersionMember versionMembership = new VersionMember(member.getUser(), (Version) null);
+        authenticateAs(admin());
+        when(organizationRepository.findByIdAndActiveTrue(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId))
+                .thenReturn(Optional.of(member));
+        when(projectMemberRepository.findByUserInOrganization(member.getUser().getId(), organizationId))
+                .thenReturn(projectMemberships);
+        when(versionMemberRepository.findByUserIdAndProjectIdIn(member.getUser().getId(), List.of(gridId, storageId)))
+                .thenReturn(List.of(versionMembership));
+
+        organizationService.removeMember(organizationId, memberId);
+
+        verify(versionMemberRepository).deleteAll(List.of(versionMembership));
+        verify(projectMemberRepository).deleteAll(projectMemberships);
+        verify(organizationMemberRepository).delete(member);
+    }
+
+    @Test
+    void removeMemberQueriesNoVersionMembershipWhenTheUserIsInNoProject() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember member = memberOf(organization, OrganizationMemberType.MEMBER);
+        organization.addMember(member);
+        authenticateAs(admin());
+        when(organizationRepository.findByIdAndActiveTrue(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId))
+                .thenReturn(Optional.of(member));
+        when(projectMemberRepository.findByUserInOrganization(member.getUser().getId(), organizationId))
+                .thenReturn(List.of());
+
+        organizationService.removeMember(organizationId, memberId);
+
+        verifyNoInteractions(versionMemberRepository);
+        verify(organizationMemberRepository).delete(member);
+    }
+
+    @Test
+    void removeMemberKeepsVersionMembershipsWhenAProjectWouldBeLeftWithoutAnAdministrator() {
+        UUID organizationId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        Organization organization = new Organization("Acme");
+        OrganizationMember member = memberOf(organization, OrganizationMemberType.MEMBER);
+        organization.addMember(member);
+        authenticateAs(admin());
+        when(organizationRepository.findByIdAndActiveTrue(organizationId)).thenReturn(Optional.of(organization));
+        when(organizationMemberRepository.findByIdAndOrganizationId(memberId, organizationId))
+                .thenReturn(Optional.of(member));
+        when(projectMemberRepository.countProjectsLeftWithoutAdmin(member.getUser().getId(), organizationId))
+                .thenReturn(1L);
+
+        assertThrows(IllegalArgumentException.class, () -> organizationService.removeMember(organizationId, memberId));
+
+        verifyNoInteractions(versionMemberRepository);
     }
 
     @Test

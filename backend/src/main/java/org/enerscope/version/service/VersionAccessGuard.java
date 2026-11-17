@@ -3,7 +3,10 @@ package org.enerscope.version.service;
 import org.enerscope.common.ForbiddenException;
 import org.enerscope.common.UnauthorizedException;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.node.model.BaseNode;
+import org.enerscope.node.model.enums.NodeTypeEnum;
 import org.enerscope.node.model.enums.VerticalEnum;
+import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.repository.ProjectRepository;
 import org.enerscope.project.service.ProjectAccessGuard;
 import org.enerscope.user.model.User;
@@ -14,6 +17,8 @@ import org.enerscope.version.model.enums.VersionMemberPermission;
 import org.enerscope.version.repository.VersionMemberRepository;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,10 +38,10 @@ import java.util.UUID;
  * permission whenever the version role came up short would make that
  * narrowing pointless: every project member already holds at least
  * {@code EDIT_PROJECT}, so the fallback would silently hand back everything
- * the version role was supposed to withhold. A project {@code ADMIN} is
- * still automatically a version {@code ADMIN} too — but only as long as
- * they hold no version role of their own; the fallback is what grants that,
- * and it only ever runs for someone with no row in {@code version_member}.
+ * the version role was supposed to withhold. The one exception is a project
+ * {@code ADMIN}, who is always a version {@code ADMIN} too, whatever version
+ * roles they hold: that is checked just before a version-role holder would
+ * be refused.
  * </p>
  *
  * <p>Every method follows the same shape as {@link ProjectAccessGuard}'s: no
@@ -76,7 +81,7 @@ public class VersionAccessGuard {
         if (findVersionMember(versionId, caller.getId()).isPresent()) {
             return;
         }
-        projectAccessGuard.assertCanViewProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.VIEW, versionId);
     }
 
     /**
@@ -84,9 +89,10 @@ public class VersionAccessGuard {
      * re-parenting it, moving a node — anything not scoped to one
      * vertical; see {@link #assertCanEditNodeVertical} for that). A caller
      * holding a version role needs {@code EDIT_VERSION} *from that role* —
-     * a {@code SIMULATOR} role is not enough, and nothing falls back to the
-     * project permission for them. Only a caller with no version role at
-     * all falls back to {@code assertCanEditProject} on the owning project.
+     * a {@code SIMULATOR} role is not enough, and the project permission does
+     * not stand in for it, except that an ADMIN of the owning project always
+     * passes. Only a caller with no version role at all falls back to
+     * {@code assertCanEditProject} on the owning project.
      */
     public void assertCanEditVersion(UUID versionId) {
         User caller = AuthUtil.requireSession().getUser();
@@ -95,20 +101,20 @@ public class VersionAccessGuard {
         }
         Optional<VersionMember> member = findVersionMember(versionId, caller.getId());
         if (member.isPresent()) {
-            requirePermission(member.get(), VersionMemberPermission.EDIT_VERSION, caller, versionId, "edit");
+            requirePermission(member.get(), VersionCapability.EDIT.versionPermission(), caller, versionId, "edit");
             return;
         }
-        projectAccessGuard.assertCanEditProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.EDIT, versionId);
     }
 
     /**
      * Ensures the caller may administer the version itself — deleting it,
      * merging a subversion into it, or resolving its conflicts. A caller
      * holding a version role needs {@code MANAGE_VERSION} from it (an
-     * {@code ADMIN} role on this version specifically); only a caller with
-     * no version role falls back to {@code MANAGE_PROJECT} on the owning
-     * project, which is how a project {@code ADMIN} ends up a version
-     * {@code ADMIN} too by default.
+     * {@code ADMIN} role on this version specifically), unless they are an
+     * ADMIN of the owning project, who passes whatever version roles they
+     * hold; only a caller with no version role falls back to
+     * {@code MANAGE_PROJECT} on the owning project.
      */
     public void assertCanManageVersion(UUID versionId) {
         User caller = AuthUtil.requireSession().getUser();
@@ -117,10 +123,64 @@ public class VersionAccessGuard {
         }
         Optional<VersionMember> member = findVersionMember(versionId, caller.getId());
         if (member.isPresent()) {
-            requirePermission(member.get(), VersionMemberPermission.MANAGE_VERSION, caller, versionId, "manage");
+            requirePermission(member.get(), VersionCapability.MANAGE.versionPermission(), caller, versionId, "manage");
             return;
         }
-        projectAccessGuard.assertCanManageProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.MANAGE, versionId);
+    }
+
+    /**
+     * Ensures the caller may delete a version below {@code rootId} as part of a
+     * cascading delete. A descendant that belongs to a different project than
+     * the root (legacy data) can only be deleted by a platform ADMIN; any
+     * refusal carries a generic message that names no version.
+     */
+    public void assertCanManageDescendant(UUID rootId, UUID descendantId) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
+            return;
+        }
+        Optional<UUID> rootProject = projectRepository.findIdByVersionId(rootId);
+        Optional<UUID> descendantProject = projectRepository.findIdByVersionId(descendantId);
+        if (rootProject.isEmpty() || !rootProject.equals(descendantProject)) {
+            denyDescendantDelete(caller, rootId, descendantId);
+        }
+        try {
+            assertCanManageVersion(descendantId);
+        } catch (ForbiddenException e) {
+            denyDescendantDelete(caller, rootId, descendantId);
+        }
+    }
+
+    private void denyDescendantDelete(User caller, UUID rootId, UUID descendantId) {
+        logger.warn("User {} is not allowed to delete version {} below version {}",
+                caller.getMail(), descendantId, rootId);
+        throw new ForbiddenException("You are not allowed to delete one or more versions below this one");
+    }
+
+    /**
+     * Ensures the caller may assign, change, revoke or list the roles of a
+     * version. Unlike {@link #assertCanManageVersion}, holding an {@code ADMIN}
+     * version role is not enough: only a platform ADMIN or an ADMIN of the
+     * owning project may govern who has access to the version.
+     */
+    public void assertCanManageVersionRoles(UUID versionId) {
+        User caller = AuthUtil.requireSession().getUser();
+        if (AuthUtil.isPlatformAdmin(caller)) {
+            return;
+        }
+        if (!isProjectAdmin(versionId)) {
+            deny(caller, versionId, "manage the roles of");
+        }
+    }
+
+    /**
+     * The project-level twin of {@link #assertCanManageVersionRoles}: the same
+     * callers (the project's ADMIN or a platform ADMIN), asked once for the
+     * whole project instead of per version.
+     */
+    public void assertCanManageVersionRolesOfProject(UUID projectId) {
+        projectAccessGuard.assertCanManageProject(projectId);
     }
 
     /**
@@ -131,8 +191,8 @@ public class VersionAccessGuard {
      * nodes regardless of that scope (not tied to one specialty, like
      * connections — see {@link #assertCanEditConnection}); anything else
      * (e.g. a bare {@code SIMULATOR} role, or an {@code EDITOR} for a
-     * different vertical) is refused outright — it does **not** fall back
-     * to the project permission. Only a caller with no version role at all
+     * different vertical) is refused, unless they are an ADMIN of the owning
+     * project, who always passes. Only a caller with no version role at all
      * falls back to {@code assertCanEditProject} on the owning project.
      */
     public void assertCanEditNodeVertical(UUID versionId, VerticalEnum vertical) {
@@ -143,12 +203,32 @@ public class VersionAccessGuard {
         Optional<VersionMember> member = findVersionMember(versionId, caller.getId());
         if (member.isPresent()) {
             boolean allowed = member.get().getRoles().stream().anyMatch(role -> canEditVertical(role, vertical));
-            if (!allowed) {
+            if (!allowed && !isProjectAdmin(versionId)) {
                 deny(caller, versionId, "edit this vertical's nodes in");
             }
             return;
         }
-        projectAccessGuard.assertCanEditProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.EDIT, versionId);
+    }
+
+    public void assertCanEditNodes(UUID versionId, Collection<BaseNode> nodes) {
+        EnumSet<VerticalEnum> verticals = EnumSet.noneOf(VerticalEnum.class);
+        boolean untyped = false;
+        for (BaseNode node : nodes) {
+            NodeTypeEnum type = node.getType() == null ? null : node.getType().getNodeType();
+            if (type == null) {
+                untyped = true;
+            } else {
+                verticals.add(type.vertical());
+            }
+        }
+        logger.debug("Authorizing {} node(s) across verticals {} in version {}", nodes.size(), verticals, versionId);
+        if (untyped) {
+            assertCanEditVersion(versionId);
+        }
+        for (VerticalEnum vertical : verticals) {
+            assertCanEditNodeVertical(versionId, vertical);
+        }
     }
 
     /**
@@ -156,9 +236,9 @@ public class VersionAccessGuard {
      * to one vertical — they link nodes across verticals — so a version
      * role needs {@code EDIT_VERSION} regardless of which vertical its
      * {@code EDITOR} role, if any, is scoped to; a bare {@code SIMULATOR}
-     * role is refused outright, with no fallback. Only a caller with no
-     * version role at all falls back to {@code assertCanEditProject} on the
-     * owning project.
+     * role is refused, unless the caller is an ADMIN of the owning project,
+     * who always passes. Only a caller with no version role at all falls
+     * back to {@code assertCanEditProject} on the owning project.
      */
     public void assertCanEditConnection(UUID versionId) {
         User caller = AuthUtil.requireSession().getUser();
@@ -167,18 +247,19 @@ public class VersionAccessGuard {
         }
         Optional<VersionMember> member = findVersionMember(versionId, caller.getId());
         if (member.isPresent()) {
-            requirePermission(member.get(), VersionMemberPermission.EDIT_VERSION, caller, versionId, "edit");
+            requirePermission(member.get(), VersionCapability.EDIT_CONNECTIONS.versionPermission(), caller, versionId, "edit");
             return;
         }
-        projectAccessGuard.assertCanEditProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.EDIT_CONNECTIONS, versionId);
     }
 
     /**
      * Ensures the caller may run the simulation for this version. A caller
      * holding a version role needs {@code SIMULATE_VERSION} from it
-     * ({@code ADMIN} or {@code SIMULATOR}); only a caller with no version
-     * role falls back to {@code assertCanEditProject} on the owning
-     * project.
+     * (stored on {@code ADMIN}, {@code EDITOR} and {@code SIMULATOR} roles), unless
+     * they are an ADMIN of the owning project, who always passes; only a
+     * caller with no version role falls back to {@code assertCanEditProject}
+     * on the owning project.
      */
     public void assertCanSimulateVersion(UUID versionId) {
         User caller = AuthUtil.requireSession().getUser();
@@ -187,10 +268,13 @@ public class VersionAccessGuard {
         }
         Optional<VersionMember> member = findVersionMember(versionId, caller.getId());
         if (member.isPresent()) {
-            requirePermission(member.get(), VersionMemberPermission.SIMULATE_VERSION, caller, versionId, "simulate");
+            if (!VersionAccess.fromVersionRoles(member.get().getRoles()).can(VersionCapability.SIMULATE)
+                    && !isProjectAdmin(versionId)) {
+                deny(caller, versionId, "simulate");
+            }
             return;
         }
-        projectAccessGuard.assertCanEditProject(owningProjectId(versionId));
+        fallBackToProject(VersionCapability.SIMULATE, versionId);
     }
 
     /**
@@ -218,16 +302,36 @@ public class VersionAccessGuard {
     }
 
     private Optional<VersionMember> findVersionMember(UUID versionId, UUID userId) {
-        return versionMemberRepository.findByVersionIdAndUserId(versionId, userId);
+        return versionMemberRepository.findEffectiveByVersionIdAndUserId(versionId, userId);
+    }
+
+    private void fallBackToProject(VersionCapability capability, UUID versionId) {
+        UUID projectId = owningProjectId(versionId);
+        if (capability.projectPermission() == null) {
+            projectAccessGuard.assertCanViewProject(projectId);
+        } else if (capability.projectPermission() == ProjectMemberPermission.MANAGE_PROJECT) {
+            projectAccessGuard.assertCanManageProject(projectId);
+        } else {
+            projectAccessGuard.assertCanEditProject(projectId);
+        }
+    }
+
+    static boolean carries(Collection<VersionMemberRole> roles, VersionMemberPermission permission) {
+        return roles.stream().anyMatch(role -> role.getPermissions().contains(permission));
     }
 
     /** Throws {@link ForbiddenException} unless one of the member's roles carries {@code permission}. */
     private void requirePermission(VersionMember member, VersionMemberPermission permission, User caller,
                                     UUID versionId, String action) {
-        boolean allowed = member.getRoles().stream().anyMatch(role -> role.getPermissions().contains(permission));
-        if (!allowed) {
+        if (!carries(member.getRoles(), permission) && !isProjectAdmin(versionId)) {
             deny(caller, versionId, action);
         }
+    }
+
+    private boolean isProjectAdmin(UUID versionId) {
+        return projectRepository.findIdByVersionId(versionId)
+                .map(projectAccessGuard::canManageProject)
+                .orElse(false);
     }
 
     /**
@@ -238,7 +342,7 @@ public class VersionAccessGuard {
      * {@link VerticalEnum#INTERNAL_CONSUMPTION}, which — like connections —
      * is not tied to one specialty.
      */
-    private boolean canEditVertical(VersionMemberRole role, VerticalEnum vertical) {
+    static boolean canEditVertical(VersionMemberRole role, VerticalEnum vertical) {
         if (!role.getPermissions().contains(VersionMemberPermission.EDIT_VERSION)) {
             return false;
         }

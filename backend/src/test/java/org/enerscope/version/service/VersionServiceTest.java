@@ -3,10 +3,14 @@ package org.enerscope.version.service;
 import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.VersionNotFoundException;
 import org.enerscope.money.MoneyAmount;
+import org.enerscope.node.dto.NodeTypeDataDTO;
 import org.enerscope.node.dto.WellDTO;
 import org.enerscope.node.dto.PipelineConnectionDTO;
 import org.enerscope.node.dto.InternalConsumptionDTO;
 import org.enerscope.node.dto.IndustrialConsumptionDTO;
+import org.enerscope.node.model.enums.NodeTypeEnum;
+import org.enerscope.node.model.enums.StructuralRoleEnum;
+import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.InvestmentCost;
@@ -71,6 +75,9 @@ class VersionServiceTest {
         @Mock
         private VersionAccessGuard accessGuard;
 
+        @Mock
+        private VersionLineage lineage;
+
         @InjectMocks
         private VersionService versionService;
 
@@ -124,7 +131,8 @@ class VersionServiceTest {
                                 logger,
                                 nodeService,
                                 versionConflictService,
-                                accessGuard);
+                                accessGuard,
+                                lineage);
         }
 
         @Test
@@ -547,6 +555,7 @@ class VersionServiceTest {
                 WellDTO wellDTO = new WellDTO();
                 wellDTO.setName("Test Well");
                 wellDTO.setState(NodeStateEnum.PROPOSED);
+                wellDTO.setType(new NodeTypeDataDTO(null, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
 
                 Version version = new Version("Test Version", null, new ArrayList<>(), new ArrayList<>(),
                                 new ArrayList<>(),
@@ -994,4 +1003,652 @@ class VersionServiceTest {
                     verify(distributions.get(index), org.mockito.Mockito.never()).generateValue();
                 }
         }
+
+    private Version versionWithId(UUID id) {
+        Version version = new Version("V", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        org.springframework.test.util.ReflectionTestUtils.setField(version, "id", id);
+        return version;
+    }
+
+    @Test
+    void deleteVersionAuthorizesEveryDescendantAndThenDeletesTheWholeSubtree() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        UUID grandchildId = UUID.randomUUID();
+        when(versionRepository.findById(rootId)).thenReturn(Optional.of(versionWithId(rootId)));
+        when(versionRepository.findByParentVersionId(rootId)).thenReturn(List.of(versionWithId(childId)));
+        when(versionRepository.findByParentVersionId(childId)).thenReturn(List.of(versionWithId(grandchildId)));
+        when(versionRepository.findByParentVersionId(grandchildId)).thenReturn(List.of());
+
+        versionService.deleteVersion(rootId);
+
+        verify(accessGuard).assertCanManageVersion(rootId);
+        verify(accessGuard).assertCanManageDescendant(rootId, childId);
+        verify(accessGuard).assertCanManageDescendant(rootId, grandchildId);
+        verify(versionRepository).deleteAllById(List.of(grandchildId, childId, rootId));
+    }
+
+    @Test
+    void deleteVersionDeletesNothingWhenAnyDescendantIsForbidden() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        UUID grandchildId = UUID.randomUUID();
+        when(versionRepository.findById(rootId)).thenReturn(Optional.of(versionWithId(rootId)));
+        when(versionRepository.findByParentVersionId(rootId)).thenReturn(List.of(versionWithId(childId)));
+        when(versionRepository.findByParentVersionId(childId)).thenReturn(List.of(versionWithId(grandchildId)));
+        when(versionRepository.findByParentVersionId(grandchildId)).thenReturn(List.of());
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException(
+                "You are not allowed to delete one or more versions below this one"))
+                .when(accessGuard).assertCanManageDescendant(rootId, childId);
+
+        org.enerscope.common.ForbiddenException ex = assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.deleteVersion(rootId));
+
+        assertEquals("You are not allowed to delete one or more versions below this one", ex.getMessage());
+        verify(versionRepository, org.mockito.Mockito.never()).deleteAllById(any());
+    }
+
+    @Test
+    void deleteVersionRefusesWithoutLookingAtTheTreeWhenTheRootIsForbidden() {
+        UUID rootId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("You are not allowed to manage this version"))
+                .when(accessGuard).assertCanManageVersion(rootId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.deleteVersion(rootId));
+
+        verify(versionRepository, org.mockito.Mockito.never()).findByParentVersionId(any());
+        verify(versionRepository, org.mockito.Mockito.never()).deleteAllById(any());
+    }
+
+    @Test
+    void deleteVersionIsTransactional() throws NoSuchMethodException {
+        assertTrue(VersionService.class.getMethod("deleteVersion", UUID.class)
+                .isAnnotationPresent(org.springframework.transaction.annotation.Transactional.class));
+    }
+
+    @Test
+    void getDiagramIsRefusedWhenTheCallerCannotViewTheVersion() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("You are not allowed to view this project"))
+                .when(accessGuard).assertCanViewVersion(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.getDiagram(versionId));
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void getDiagramChecksViewAccessForAnExistingVersion() {
+        UUID versionId = UUID.randomUUID();
+        Version version = new Version("Shared", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+
+        assertEquals(versionId, versionService.getDiagram(versionId).getVersionId());
+        verify(accessGuard).assertCanViewVersion(versionId);
+    }
+
+    @Test
+    void getDiagramOfAMissingVersionChecksAccessAndThen404sForAnAuthorizedCaller() {
+        UUID versionId = UUID.randomUUID();
+        when(versionRepository.findById(versionId)).thenReturn(Optional.empty());
+
+        assertThrows(VersionNotFoundException.class, () -> versionService.getDiagram(versionId));
+        verify(accessGuard).assertCanViewVersion(versionId);
+    }
+
+    @Test
+    void getDiagramOfAMissingVersionAnswers403WithoutLookingItUpForAnUnauthorizedCaller() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("You are not allowed to access this version"))
+                .when(accessGuard).assertCanViewVersion(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.getDiagram(versionId));
+        verify(versionRepository, org.mockito.Mockito.never()).findById(any());
+    }
+
+    @Test
+    void getNodeDetailIsRefusedBeforeLoadingTheNodeWhenTheCallerCannotViewTheVersion() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("You are not allowed to view this project"))
+                .when(accessGuard).assertCanViewVersion(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.getNodeDetail(versionId, nodeId));
+        verifyNoInteractions(versionRepository);
+        verifyNoInteractions(nodeRepository);
+    }
+
+    private static Well wellTyped(UUID id, VerticalEnum storedVertical) {
+        Well well = new Well("Typed Well", NodeStateEnum.PROPOSED, Instant.now(), 120, MoneyAmount.of(1), 30,
+                MoneyAmount.of(1), 0.0f, new InvestmentCost(), new NodeGraphData(), UUID.randomUUID(),
+                new NodeTypeData(storedVertical, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL),
+                1f, new ConstantValue(0.5f), 0.5f, 1, MoneyAmount.of(1), 1f);
+        org.springframework.test.util.ReflectionTestUtils.setField(well, "id", id);
+        return well;
+    }
+
+    private static WellDTO wellDeclaredAs(VerticalEnum vertical) {
+        WellDTO dto = new WellDTO();
+        dto.setName("Declared Well");
+        dto.setType(new NodeTypeDataDTO(vertical, StructuralRoleEnum.GENERATOR, NodeTypeEnum.WELL));
+        return dto;
+    }
+
+    @Test
+    void addNodeToVersionAuthorizesWithTheVerticalDerivedFromTheTypeBeforeCheckingTheDeclaredOne() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("denied"))
+                .when(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.addNodeToVersion(versionId, wellDeclaredAs(VerticalEnum.EXPORT)));
+        verify(accessGuard, org.mockito.Mockito.never()).assertCanEditNodeVertical(versionId, VerticalEnum.EXPORT);
+        verifyNoInteractions(nodeService, versionRepository);
+    }
+
+    @Test
+    void addNodeToVersionRejectsDeclaredVerticalThatDoesNotMatchTheType() {
+        UUID versionId = UUID.randomUUID();
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> versionService.addNodeToVersion(versionId, wellDeclaredAs(VerticalEnum.INTERNAL_CONSUMPTION)));
+
+        assertEquals("Node vertical does not match its type: WELL belongs to EXTRACTION, not INTERNAL_CONSUMPTION",
+                error.getMessage());
+        verify(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+        verifyNoInteractions(nodeService, versionRepository);
+    }
+
+    @Test
+    void addNodeToVersionFillsAMissingVerticalFromTheType() {
+        UUID versionId = UUID.randomUUID();
+        Version version = new Version("V", null, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeService.saveWell(any(WellDTO.class))).thenReturn(wellTyped(UUID.randomUUID(), VerticalEnum.EXTRACTION));
+        WellDTO dto = wellDeclaredAs(null);
+
+        versionService.addNodeToVersion(versionId, dto);
+
+        assertEquals(VerticalEnum.EXTRACTION, dto.getType().getVertical());
+        verify(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+    }
+
+    @Test
+    void addNodeToVersionRejectsMissingNodeType() {
+        UUID versionId = UUID.randomUUID();
+        WellDTO withoutType = new WellDTO();
+        WellDTO withoutNodeType = wellDeclaredAs(VerticalEnum.EXTRACTION);
+        withoutNodeType.getType().setNodeType(null);
+
+        assertThrows(IllegalArgumentException.class, () -> versionService.addNodeToVersion(versionId, withoutType));
+        assertThrows(IllegalArgumentException.class, () -> versionService.addNodeToVersion(versionId, withoutNodeType));
+        verifyNoInteractions(accessGuard, nodeService, versionRepository);
+    }
+
+    @Test
+    void editNodeInVersionRejectsChangingTheVerticalOfTheNode() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Well stored = wellTyped(nodeId, VerticalEnum.EXTRACTION);
+        Version version = new Version("V", null, new ArrayList<>(List.of(stored)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(stored));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> versionService.editNodeInVersion(versionId, nodeId, wellDeclaredAs(VerticalEnum.EXPORT)));
+
+        verify(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+        verifyNoInteractions(nodeService);
+        assertEquals(VerticalEnum.EXTRACTION, stored.getType().getVertical());
+        assertSame(stored, version.getNodeSnapshot().get(0));
+    }
+
+    @Test
+    void editNodeInVersionAuthorizesByTheStoredNodeTypeNotTheStoredVertical() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Well spoofed = wellTyped(nodeId, VerticalEnum.EXPORT);
+        Version version = new Version("V", null, new ArrayList<>(List.of(spoofed)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(spoofed));
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("denied"))
+                .when(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.editNodeInVersion(versionId, nodeId, wellDeclaredAs(VerticalEnum.EXTRACTION)));
+        verify(accessGuard, org.mockito.Mockito.never()).assertCanEditNodeVertical(versionId, VerticalEnum.EXPORT);
+        verifyNoInteractions(nodeService);
+    }
+
+    @Test
+    void deleteNodeFromVersionAuthorizesByTheStoredNodeType() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Well spoofed = wellTyped(nodeId, VerticalEnum.EXPORT);
+        Version version = new Version("V", null, new ArrayList<>(List.of(spoofed)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(spoofed));
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("denied"))
+                .when(accessGuard).assertCanEditNodeVertical(versionId, VerticalEnum.EXTRACTION);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.deleteNodeFromVersion(versionId, nodeId));
+        assertTrue(version.getNodeSnapshot().contains(spoofed));
+    }
+
+    @Test
+    void diagramAndNodeDetailReportTheVerticalDerivedFromTheType() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Well spoofed = wellTyped(nodeId, VerticalEnum.EXPORT);
+        Version version = new Version("V", null, new ArrayList<>(List.of(spoofed)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(spoofed));
+
+        assertEquals(VerticalEnum.EXTRACTION,
+                versionService.getDiagram(versionId).getNodes().get(0).getType().getVertical());
+        assertEquals(VerticalEnum.EXTRACTION,
+                versionService.getNodeDetail(versionId, nodeId).getType().getVertical());
+    }
+
+    @Test
+    void mergeAuthorizesTheDestinationAndEveryTouchedNodeInsteadOfTheSubversion() {
+        Version parent = versionWithId("Parent", null);
+        Well original = typedWell(NodeTypeEnum.WELL, VerticalEnum.EXTRACTION);
+        parent.getNodeSnapshot().add(original);
+        Version sub = versionWithId("Sub", parent);
+        Well edited = typedWell(NodeTypeEnum.WELL, VerticalEnum.EXTRACTION);
+        edited.setIdentityId(original.getIdentityId());
+        Well added = typedWell(NodeTypeEnum.LNG_CAMER, VerticalEnum.EXTRACTION);
+        sub.getNodeChanges().add(nodeChange(ChangeTypeEnum.EDIT, original, edited));
+        sub.getNodeChanges().add(nodeChange(ChangeTypeEnum.ADD, null, added));
+        stubMerge(parent, sub);
+
+        versionService.mergeSubVersionIntoParent(sub.getId());
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(accessGuard, lineage);
+        order.verify(accessGuard).assertCanViewVersion(sub.getId());
+        order.verify(accessGuard).assertCanManageVersion(parent.getId());
+        order.verify(accessGuard).assertCanEditNodes(parent.getId(), List.of(original, edited, added));
+        order.verify(lineage).assertSameProject(sub.getId(), parent.getId());
+        verify(accessGuard, org.mockito.Mockito.never()).assertCanManageVersion(sub.getId());
+        verify(accessGuard, org.mockito.Mockito.never()).assertCanEditConnection(any());
+    }
+
+    @Test
+    void mergeRefusedForOneVerticalLeavesTheParentUntouched() {
+        Version parent = versionWithId("Parent", null);
+        Well original = typedWell(NodeTypeEnum.WELL, VerticalEnum.EXTRACTION);
+        parent.getNodeSnapshot().add(original);
+        Version sub = versionWithId("Sub", parent);
+        sub.getNodeChanges().add(nodeChange(ChangeTypeEnum.DELETE, original, null));
+        stubMerge(parent, sub);
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("denied"))
+                .when(accessGuard).assertCanEditNodes(org.mockito.ArgumentMatchers.eq(parent.getId()), any());
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.mergeSubVersionIntoParent(sub.getId()));
+
+        assertEquals(List.of(original), parent.getNodeSnapshot());
+        assertTrue(parent.getNodeChanges().isEmpty());
+        verify(versionRepository, org.mockito.Mockito.never()).save(any());
+        verifyNoInteractions(versionConflictService, lineage);
+    }
+
+    @Test
+    void mergeOfAConnectionChangeRequiresEditingConnectionsOnTheDestination() {
+        Version parent = versionWithId("Parent", null);
+        org.enerscope.node.model.NodeConnection connection = new org.enerscope.node.model.NodeConnection(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        parent.getConnectionSnapshot().add(connection);
+        Version sub = versionWithId("Sub", parent);
+        org.enerscope.node.model.ConnectionChange change = new org.enerscope.node.model.ConnectionChange();
+        change.setChangeType(ChangeTypeEnum.DELETE);
+        change.setChangedConnection(connection);
+        sub.getConnectionChanges().add(change);
+        stubMerge(parent, sub);
+        org.mockito.Mockito.doThrow(new org.enerscope.common.ForbiddenException("denied"))
+                .when(accessGuard).assertCanEditConnection(parent.getId());
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.mergeSubVersionIntoParent(sub.getId()));
+
+        assertEquals(List.of(connection), parent.getConnectionSnapshot());
+        verify(versionRepository, org.mockito.Mockito.never()).save(any());
+        verifyNoInteractions(versionConflictService);
+    }
+
+    @Test
+    void mergeBetweenProjectsIsRejectedAfterAuthorizingAndChangesNothing() {
+        Version parent = versionWithId("Parent", null);
+        Well original = typedWell(NodeTypeEnum.WELL, VerticalEnum.EXTRACTION);
+        parent.getNodeSnapshot().add(original);
+        Version sub = versionWithId("Sub", parent);
+        sub.getNodeChanges().add(nodeChange(ChangeTypeEnum.DELETE, original, null));
+        stubMerge(parent, sub);
+        org.mockito.Mockito.doThrow(new IllegalArgumentException("The versions belong to different projects"))
+                .when(lineage).assertSameProject(sub.getId(), parent.getId());
+
+        assertThrows(IllegalArgumentException.class, () -> versionService.mergeSubVersionIntoParent(sub.getId()));
+
+        verify(accessGuard).assertCanManageVersion(parent.getId());
+        assertEquals(List.of(original), parent.getNodeSnapshot());
+        verify(versionRepository, org.mockito.Mockito.never()).save(any());
+        verifyNoInteractions(versionConflictService);
+    }
+
+    @Test
+    void reparentingRequiresManagingTheVersionAndEditingTheNewParentThenChecksTheLineage() {
+        Version version = versionWithId("Moved", null);
+        Version newParent = versionWithId("New parent", null);
+        when(versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        when(versionRepository.findById(newParent.getId())).thenReturn(Optional.of(newParent));
+        when(versionRepository.save(version)).thenReturn(version);
+
+        versionService.modifyVersion(version.getId(), new org.enerscope.version.dto.VersionDTO(null, newParent.getId()));
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(accessGuard, lineage);
+        order.verify(accessGuard).assertCanEditVersion(version.getId());
+        order.verify(accessGuard).assertCanManageVersion(version.getId());
+        order.verify(accessGuard).assertCanEditVersion(newParent.getId());
+        order.verify(lineage).assertParentInSameProject(version.getId(), newParent.getId());
+        order.verify(lineage).assertNotAncestor(version.getId(), newParent);
+        assertSame(newParent, version.getParentVersion());
+    }
+
+    @Test
+    void reparentingRejectedByTheLineageKeepsTheOldParent() {
+        Version oldParent = versionWithId("Old parent", null);
+        Version version = versionWithId("Moved", oldParent);
+        Version foreign = versionWithId("Foreign", null);
+        when(versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        when(versionRepository.findById(foreign.getId())).thenReturn(Optional.of(foreign));
+        org.mockito.Mockito.doThrow(new IllegalArgumentException("Parent version must belong to the same project"))
+                .when(lineage).assertParentInSameProject(version.getId(), foreign.getId());
+
+        assertThrows(IllegalArgumentException.class, () -> versionService.modifyVersion(version.getId(),
+                new org.enerscope.version.dto.VersionDTO(null, foreign.getId())));
+
+        assertSame(oldParent, version.getParentVersion());
+        verify(versionRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void renamingDoesNotRequireManagingTheVersion() {
+        Version version = versionWithId("Old", null);
+        when(versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        when(versionRepository.save(version)).thenReturn(version);
+
+        versionService.modifyVersion(version.getId(), new org.enerscope.version.dto.VersionDTO("New", null));
+
+        verify(accessGuard).assertCanEditVersion(version.getId());
+        verify(accessGuard, org.mockito.Mockito.never()).assertCanManageVersion(any());
+        verifyNoInteractions(lineage);
+    }
+
+    @Test
+    void branchingStoresTheVerticalDerivedFromTheTypeNotTheStoredOne() {
+        Version parent = versionWithId("Parent", null);
+        parent.getNodeSnapshot().add(typedWell(NodeTypeEnum.WELL, VerticalEnum.EXPORT));
+        when(versionRepository.findById(parent.getId())).thenReturn(Optional.of(parent));
+        when(nodeRepository.save(any(BaseNode.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(versionRepository.save(any(Version.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Version child = versionService.saveVersion(new org.enerscope.version.dto.VersionDTO("Child", parent.getId()));
+
+        assertEquals(VerticalEnum.EXTRACTION, child.getNodeSnapshot().get(0).getType().getVertical());
+        assertEquals(NodeTypeEnum.WELL, child.getNodeSnapshot().get(0).getType().getNodeType());
+    }
+
+    private static org.enerscope.common.ForbiddenException denied() {
+        return new org.enerscope.common.ForbiddenException("denied");
+    }
+
+    @Test
+    void saveOrphanVersionIsRefusedForANonPlatformAdminAndSavesNothing() {
+        org.mockito.Mockito.doThrow(denied()).when(accessGuard).assertIsPlatformAdmin("create detached versions");
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.saveOrphanVersion(new org.enerscope.version.dto.VersionDTO("Detached", null)));
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void saveOrphanVersionCreatesTheVersionForAPlatformAdmin() {
+        when(versionRepository.save(any(Version.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Version created = versionService.saveOrphanVersion(new org.enerscope.version.dto.VersionDTO("Detached", null));
+
+        assertEquals("Detached", created.getName());
+        verify(accessGuard).assertIsPlatformAdmin("create detached versions");
+    }
+
+    @Test
+    void getVersionIsRefusedWithoutLookingItUpWhenTheCallerCannotViewIt() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(denied()).when(accessGuard).assertCanViewVersion(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.getVersion(versionId));
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void getVersionChecksViewAccessAndReturnsTheVersion() {
+        Version version = versionWithId("Shared", null);
+        when(versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+
+        assertSame(version, versionService.getVersion(version.getId()));
+        verify(accessGuard).assertCanViewVersion(version.getId());
+    }
+
+    @Test
+    void getVersionOfAMissingVersionChecksAccessAndThen404sForAnAuthorizedCaller() {
+        UUID versionId = UUID.randomUUID();
+        when(versionRepository.findById(versionId)).thenReturn(Optional.empty());
+
+        assertThrows(VersionNotFoundException.class, () -> versionService.getVersion(versionId));
+        verify(accessGuard).assertCanViewVersion(versionId);
+    }
+
+    @Test
+    void updateNodePositionIsRefusedBeforeLoadingAnythingWhenTheCallerCannotViewTheVersion() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(denied()).when(accessGuard).assertCanViewVersion(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.updateNodePosition(
+                versionId, UUID.randomUUID(), new org.enerscope.node.dto.NodeGraphDataDTO()));
+        verifyNoInteractions(versionRepository, nodeRepository);
+    }
+
+    @Test
+    void updateNodePositionIsRefusedWhenTheCallerCannotEditTheVerticalOfTheNodeAndSavesNothing() {
+        Version version = versionWithId("V", null);
+        Well node = wellTyped(UUID.randomUUID(), VerticalEnum.EXTRACTION);
+        version.getNodeSnapshot().add(node);
+        when(versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(node.getId())).thenReturn(Optional.of(node));
+        org.mockito.Mockito.doThrow(denied()).when(accessGuard)
+                .assertCanEditNodeVertical(version.getId(), VerticalEnum.EXTRACTION);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.updateNodePosition(
+                version.getId(), node.getId(), new org.enerscope.node.dto.NodeGraphDataDTO()));
+        verify(nodeRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void updateNodePositionOfAnUntypedNodeFallsBackToTheVersionEditCheck() {
+        Version version = versionWithId("V", null);
+        Well node = new Well();
+        org.springframework.test.util.ReflectionTestUtils.setField(node, "id", UUID.randomUUID());
+        when(versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(node.getId())).thenReturn(Optional.of(node));
+        org.mockito.Mockito.doThrow(denied()).when(accessGuard).assertCanEditVersion(version.getId());
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.updateNodePosition(
+                version.getId(), node.getId(), new org.enerscope.node.dto.NodeGraphDataDTO()));
+        verify(accessGuard, org.mockito.Mockito.never()).assertCanEditNodeVertical(any(), any());
+        verify(nodeRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void updateNodeBasicsIsRefusedBeforeLoadingAnythingWhenTheCallerCannotViewTheVersion() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(denied()).when(accessGuard).assertCanViewVersion(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.updateNodeBasics(
+                versionId, UUID.randomUUID(), new org.enerscope.node.dto.NodeBasicsDTO()));
+        verifyNoInteractions(versionRepository, nodeRepository);
+    }
+
+    @Test
+    void updateNodeBasicsIsRefusedWhenTheCallerCannotEditTheVerticalOfTheNodeAndSavesNothing() {
+        Version version = versionWithId("V", null);
+        Well node = wellTyped(UUID.randomUUID(), VerticalEnum.EXTRACTION);
+        version.getNodeSnapshot().add(node);
+        when(versionRepository.findById(version.getId())).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(node.getId())).thenReturn(Optional.of(node));
+        org.mockito.Mockito.doThrow(denied()).when(accessGuard)
+                .assertCanEditNodeVertical(version.getId(), VerticalEnum.EXTRACTION);
+        org.enerscope.node.dto.NodeBasicsDTO basics = new org.enerscope.node.dto.NodeBasicsDTO();
+        basics.setName("Renamed");
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.updateNodeBasics(version.getId(), node.getId(), basics));
+        assertEquals("Typed Well", node.getName());
+        verify(nodeRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    private static org.enerscope.node.dto.ConnectionDTO connectionDto() {
+        org.enerscope.node.dto.ConnectionDTO dto = new org.enerscope.node.dto.ConnectionDTO();
+        dto.setFromNodeId(UUID.randomUUID());
+        dto.setToNodeId(UUID.randomUUID());
+        return dto;
+    }
+
+    @Test
+    void addConnectionToVersionIsRefusedBeforeTouchingAnythingWhenTheCallerCannotEditConnections() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(denied()).when(accessGuard).assertCanEditConnection(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.addConnectionToVersion(versionId, connectionDto()));
+        verifyNoInteractions(versionRepository, nodeRepository, nodeService);
+    }
+
+    @Test
+    void addConnectionToVersionChecksConnectionEditAccessAndThen404sForAMissingVersion() {
+        UUID versionId = UUID.randomUUID();
+        when(versionRepository.findById(versionId)).thenReturn(Optional.empty());
+
+        assertThrows(VersionNotFoundException.class,
+                () -> versionService.addConnectionToVersion(versionId, connectionDto()));
+        verify(accessGuard).assertCanEditConnection(versionId);
+    }
+
+    @Test
+    void editConnectionInVersionIsRefusedBeforeTouchingAnythingWhenTheCallerCannotEditConnections() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(denied()).when(accessGuard).assertCanEditConnection(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.editConnectionInVersion(
+                versionId, UUID.randomUUID(), connectionDto()));
+        verifyNoInteractions(versionRepository, connectionRepository, nodeService);
+    }
+
+    @Test
+    void editConnectionInVersionChecksConnectionEditAccessAndThen404sForAMissingVersion() {
+        UUID versionId = UUID.randomUUID();
+        when(versionRepository.findById(versionId)).thenReturn(Optional.empty());
+
+        assertThrows(VersionNotFoundException.class, () -> versionService.editConnectionInVersion(
+                versionId, UUID.randomUUID(), connectionDto()));
+        verify(accessGuard).assertCanEditConnection(versionId);
+    }
+
+    @Test
+    void deleteConnectionFromVersionIsRefusedBeforeTouchingAnythingWhenTheCallerCannotEditConnections() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(denied()).when(accessGuard).assertCanEditConnection(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class,
+                () -> versionService.deleteConnectionFromVersion(versionId, UUID.randomUUID()));
+        verifyNoInteractions(versionRepository, connectionRepository);
+    }
+
+    @Test
+    void deleteConnectionFromVersionChecksConnectionEditAccessAndThen404sForAMissingVersion() {
+        UUID versionId = UUID.randomUUID();
+        when(versionRepository.findById(versionId)).thenReturn(Optional.empty());
+
+        assertThrows(VersionNotFoundException.class,
+                () -> versionService.deleteConnectionFromVersion(versionId, UUID.randomUUID()));
+        verify(accessGuard).assertCanEditConnection(versionId);
+    }
+
+    @Test
+    void modifyVersionIsRefusedBeforeLoadingTheVersionWhenTheCallerCannotEditIt() {
+        UUID versionId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(denied()).when(accessGuard).assertCanEditVersion(versionId);
+
+        assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.modifyVersion(
+                versionId, new org.enerscope.version.dto.VersionDTO("New", null)));
+        verifyNoInteractions(versionRepository, lineage);
+    }
+
+    @Test
+    void saveVersionRejectsABlankName() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> versionService.saveVersion(new org.enerscope.version.dto.VersionDTO("", null)));
+
+        assertEquals("Version name cannot be blank or whitespace only", error.getMessage());
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void saveVersionRejectsAWhitespaceOnlyName() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> versionService.saveVersion(new org.enerscope.version.dto.VersionDTO(" \t ", null)));
+
+        assertEquals("Version name cannot be blank or whitespace only", error.getMessage());
+        verifyNoInteractions(versionRepository);
+    }
+
+    @Test
+    void saveVersionRejectsANullName() {
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> versionService.saveVersion(new org.enerscope.version.dto.VersionDTO(null, null)));
+
+        assertEquals("Version name cannot be null", error.getMessage());
+        verifyNoInteractions(versionRepository);
+    }
+
+    private void stubMerge(Version parent, Version sub) {
+        when(versionRepository.findById(sub.getId())).thenReturn(Optional.of(sub));
+        when(versionRepository.findById(parent.getId())).thenReturn(Optional.of(parent));
+        org.mockito.Mockito.lenient().when(versionRepository.save(any(Version.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private static Version versionWithId(String name, Version parent) {
+        Version version = new Version(name, parent, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>());
+        org.springframework.test.util.ReflectionTestUtils.setField(version, "id", UUID.randomUUID());
+        return version;
+    }
+
+    private static Well typedWell(NodeTypeEnum type, VerticalEnum storedVertical) {
+        Well well = new Well();
+        well.setName("Well " + type);
+        well.setIdentityId(UUID.randomUUID());
+        well.setType(new NodeTypeData(storedVertical, StructuralRoleEnum.GENERATOR, type));
+        org.springframework.test.util.ReflectionTestUtils.setField(well, "id", UUID.randomUUID());
+        return well;
+    }
+
+    private static NodeChange nodeChange(ChangeTypeEnum type, BaseNode changed, BaseNode result) {
+        NodeChange change = new NodeChange();
+        change.setChangeType(type);
+        change.setChangedNode(changed);
+        change.setResultNode(result);
+        return change;
+    }
 }

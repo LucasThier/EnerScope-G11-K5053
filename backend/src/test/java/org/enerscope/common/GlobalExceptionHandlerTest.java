@@ -13,15 +13,15 @@ import static org.mockito.Mockito.mock;
 
 class GlobalExceptionHandlerTest {
 
-    private final GlobalExceptionHandler exceptionHandler =
-            new GlobalExceptionHandler(mock(AppLogger.class));
+    private final GlobalExceptionHandler handler = new GlobalExceptionHandler(mock(AppLogger.class));
 
     @Test
-    void oversizedMultipartUploadReturns413WithApiResponse() {
-        var response = exceptionHandler.handleMaxUploadSizeExceeded(new MaxUploadSizeExceededException(1024));
+    void uploadAboveTheLimitAnswers413WithAClearMessage() {
+        var response = handler.handleUploadTooLarge(new MaxUploadSizeExceededException(1024 * 1024));
 
         assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, response.getStatusCode());
         assertFalse(response.getBody().success());
+        assertEquals("The uploaded file exceeds the maximum size of 1 MB", response.getBody().message());
         assertEquals("Uploaded file exceeds the maximum allowed size", response.getBody().message());
     }
 

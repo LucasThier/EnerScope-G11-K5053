@@ -7,20 +7,29 @@ import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.ProjectMember;
 import org.enerscope.project.repository.ProjectMemberRepository;
 import org.enerscope.project.repository.ProjectRepository;
+import org.enerscope.project.service.ProjectAccessGuard;
 import org.enerscope.user.model.User;
 import org.enerscope.user.repository.UserRepository;
+import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.version.dto.AddVersionMemberRoleRequestDTO;
+import org.enerscope.version.dto.ChangeVersionMemberRoleRequestDTO;
+import org.enerscope.version.dto.ProjectVersionMembersDTO;
 import org.enerscope.version.dto.VersionMemberCandidateDTO;
+import org.enerscope.version.dto.VersionMemberDTO;
 import org.enerscope.version.model.Version;
 import org.enerscope.version.model.VersionMember;
 import org.enerscope.version.model.VersionMemberRole;
+import org.enerscope.project.model.enums.ProjectMemberType;
 import org.enerscope.version.model.enums.VersionMemberType;
 import org.enerscope.version.repository.VersionMemberRepository;
 import org.enerscope.version.repository.VersionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -44,16 +53,15 @@ public class VersionMemberService {
     private final AppLogger logger;
 
     /**
-     * Grants a user one role on a version. Restricted to callers who can
-     * manage the version (its ADMIN members, or the owning project's ADMIN,
-     * or a platform ADMIN) — without the check, any authenticated user could
-     * grant themselves access to any version.
+     * Grants a user one role on a version. Restricted to the owning project's
+     * ADMIN or a platform ADMIN — without the check, any authenticated user
+     * could grant themselves access to any version.
      */
     @Transactional
     public VersionMember addRole(UUID versionId, AddVersionMemberRoleRequestDTO data) {
+        accessGuard.assertCanManageVersionRoles(versionId);
         Version version = versionRepository.findById(versionId)
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
-        accessGuard.assertCanManageVersion(versionId);
         validateRoleShape(data);
 
         User user = userRepository.findById(data.userId())
@@ -64,9 +72,13 @@ public class VersionMemberService {
 
         UUID projectId = projectRepository.findIdByVersionId(versionId)
                 .orElseThrow(() -> new IllegalArgumentException("Version is not attached to any project"));
-        if (!projectMemberRepository.existsByProjectIdAndUserId(projectId, data.userId())) {
+        boolean projectMember = projectMemberRepository.findByProjectIdAndUserId(projectId, data.userId())
+                .filter(ProjectAccessGuard::isActive)
+                .isPresent();
+        if (!projectMember) {
             throw new IllegalArgumentException("User is not a member of the version's project");
         }
+        assertNotExecutive(projectId, data.userId());
 
         VersionMember member = versionMemberRepository.findByVersionIdAndUserId(versionId, data.userId())
                 .orElseGet(() -> new VersionMember(user, version));
@@ -85,30 +97,122 @@ public class VersionMemberService {
         return saved;
     }
 
+    /** An EXECUTIVE of the project is read-only everywhere, so it cannot hold version roles. */
+    private void assertNotExecutive(UUID projectId, UUID userId) {
+        boolean executive = projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+                .filter(ProjectAccessGuard::isActive)
+                .map(m -> m.getRoles().stream().anyMatch(r -> r.getMemberType() == ProjectMemberType.EXECUTIVE))
+                .orElse(false);
+        if (executive) {
+            throw new IllegalArgumentException("An EXECUTIVE of the project cannot hold version roles");
+        }
+    }
+
     private void validateRoleShape(AddVersionMemberRoleRequestDTO data) {
-        if (data == null || data.memberType() == null) {
+        validateRoleShape(data == null ? null : data.memberType(), data == null ? null : data.vertical());
+    }
+
+    private void validateRoleShape(VersionMemberType memberType, VerticalEnum vertical) {
+        if (memberType == null) {
             throw new IllegalArgumentException("memberType cannot be null");
         }
-        if (data.memberType() == VersionMemberType.EDITOR && data.vertical() == null) {
+        if (memberType == VersionMemberType.EDITOR && vertical == null) {
             throw new IllegalArgumentException("EDITOR roles require a vertical");
         }
-        if (data.memberType() != VersionMemberType.EDITOR && data.vertical() != null) {
+        if (memberType != VersionMemberType.EDITOR && vertical != null) {
             throw new IllegalArgumentException(
-                    data.memberType() + " roles apply to the whole version, not one vertical");
+                    memberType + " roles apply to the whole version, not one vertical");
         }
     }
 
     /**
-     * Every member of the version with their roles. As permissive as reading
-     * the version itself: any version role or project membership is enough.
+     * Changes one role of a member to another type/vertical in a single
+     * transaction, keeping the role's id and the membership (unlike revoking
+     * and granting, which deletes the member when it was their last role). The
+     * permissions are replaced by those of the new type. Same callers as
+     * {@link #addRole}: the owning project's ADMIN or a platform ADMIN; a
+     * version ADMIN, EDITOR or SIMULATOR gets 403. The guard runs first, then
+     * 404 for an unknown version, member or role (a member or role of another
+     * version is also 404). Turning the role into one the member already holds
+     * is 400, like {@code addRole}; asking for the role's current shape is a
+     * no-op.
      */
-    @Transactional(readOnly = true)
-    public List<VersionMember> listMembers(UUID versionId) {
+    @Transactional
+    public VersionMember changeRole(UUID versionId, UUID memberId, UUID roleId,
+                                    ChangeVersionMemberRoleRequestDTO data) {
+        accessGuard.assertCanManageVersionRoles(versionId);
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
-        accessGuard.assertCanViewVersion(versionId);
+        VersionMember member = versionMemberRepository.findByIdAndVersionId(memberId, versionId)
+                .orElseThrow(() -> new EntityNotFoundException("Member not found"));
+        VersionMemberRole role = member.getRoles().stream()
+                .filter(r -> r.getId().equals(roleId))
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException("Role not found"));
+        validateRoleShape(data == null ? null : data.memberType(), data == null ? null : data.vertical());
+        projectRepository.findIdByVersionId(versionId)
+                .ifPresent(projectId -> assertNotExecutive(projectId, member.getUser().getId()));
+
+        boolean unchanged = role.getMemberType() == data.memberType()
+                && Objects.equals(role.getVertical(), data.vertical());
+        if (unchanged) {
+            logger.debug("Role {} of user {} on version {} already has that shape; nothing to change",
+                    roleId, member.getUser().getMail(), versionId);
+            return member;
+        }
+        boolean duplicate = member.getRoles().stream().anyMatch(other -> other != role
+                && other.getMemberType() == data.memberType()
+                && Objects.equals(other.getVertical(), data.vertical()));
+        if (duplicate) {
+            throw new IllegalArgumentException("User already has this role");
+        }
+
+        VersionMemberType before = role.getMemberType();
+        role.changeTo(data.memberType(), data.vertical(), VersionMember.defaultPermissionsFor(data.memberType()));
+        VersionMember saved = versionMemberRepository.save(member);
+        logger.info("Changed role {} of user {} on version {} from {} to {} ({})",
+                roleId, member.getUser().getMail(), versionId, before, data.memberType(), data.vertical());
+        return saved;
+    }
+
+    /**
+     * Every member of the version with their roles. Restricted to the callers
+     * who can manage its roles: the owning project's ADMIN or a platform ADMIN.
+     */
+    @Transactional(readOnly = true)
+    public List<VersionMember> listMembers(UUID versionId) {
+        accessGuard.assertCanManageVersionRoles(versionId);
+        if (!versionRepository.existsById(versionId)) {
+            throw new VersionNotFoundException(versionId);
+        }
         return versionMemberRepository.findByVersionIdWithUser(versionId);
+    }
+
+    /**
+     * Who holds which role on each active version of a project, in one call:
+     * the project-wide version of {@link #listMembers}, with the same access
+     * rule (the project's ADMIN or a platform ADMIN). The guard runs first, so
+     * a caller without access gets 403 whether or not the project exists; only
+     * a platform ADMIN reaches the 404.
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectVersionMembersDTO> listProjectMatrix(UUID projectId) {
+        accessGuard.assertCanManageVersionRolesOfProject(projectId);
+        if (!projectRepository.existsByIdAndActiveTrue(projectId)) {
+            throw new EntityNotFoundException("Project not found");
+        }
+        Map<UUID, List<VersionMemberDTO>> membersByVersion = new HashMap<>();
+        for (VersionMember member : versionMemberRepository.findByProjectIdWithUser(projectId)) {
+            membersByVersion.computeIfAbsent(member.getVersion().getId(), id -> new ArrayList<>())
+                    .add(VersionMemberDTO.from(member));
+        }
+        List<ProjectVersionMembersDTO> matrix = projectRepository.findActiveVersionRefs(projectId).stream()
+                .map(ref -> new ProjectVersionMembersDTO(ref.id(), ref.name(),
+                        membersByVersion.getOrDefault(ref.id(), List.of())))
+                .toList();
+        logger.debug("Built the version role matrix of project {}: {} versions", projectId, matrix.size());
+        return matrix;
     }
 
     /**
@@ -119,10 +223,10 @@ public class VersionMemberService {
      */
     @Transactional
     public void removeRole(UUID versionId, UUID memberId, UUID roleId) {
+        accessGuard.assertCanManageVersionRoles(versionId);
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
-        accessGuard.assertCanManageVersion(versionId);
 
         VersionMember member = versionMemberRepository.findByIdAndVersionId(memberId, versionId)
                 .orElseThrow(() -> new EntityNotFoundException("Member not found"));
@@ -144,22 +248,23 @@ public class VersionMemberService {
 
     /**
      * Users who can be granted a version role: active members of the
-     * version's owning project. A version role only ever adds capabilities
-     * on top of project membership (see {@code ProjectAccessGuard}), so
-     * granting one to someone outside the project would be a permission with
-     * no project-level access underneath it to narrow.
+     * version's owning project. A version role narrows what a project member
+     * may do on the version rather than granting access to someone outside
+     * the project, so only people who already hold project membership are
+     * candidates.
      */
     @Transactional(readOnly = true)
     public List<VersionMemberCandidateDTO> listMemberCandidates(UUID versionId, String q) {
+        accessGuard.assertCanManageVersionRoles(versionId);
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
-        accessGuard.assertCanManageVersion(versionId);
         UUID projectId = projectRepository.findIdByVersionId(versionId)
                 .orElseThrow(() -> new IllegalArgumentException("Version is not attached to any project"));
 
         String needle = q == null ? null : q.trim().toLowerCase();
         return projectMemberRepository.findByProjectIdWithUser(projectId).stream()
+                .filter(ProjectAccessGuard::isActive)
                 .map(ProjectMember::getUser)
                 .filter(User::isActive)
                 .filter(user -> matches(user, needle))

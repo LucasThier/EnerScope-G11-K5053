@@ -49,6 +49,7 @@ public class OrganizationBulkRegistrationService {
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
     private static final int NAME_MIN = 2;
     private static final int NAME_MAX = 60;
+    static final int MAX_ROWS = 500;
 
     // Header aliases -> canonical field. All keys are lower-case.
     private static final Map<String, String> MAIL_HEADERS = Map.of(
@@ -61,6 +62,9 @@ public class OrganizationBulkRegistrationService {
             "last name", "lastName", "apellido", "lastName");
     private static final Set<String> ROLE_HEADERS = Set.of(
             "role", "rol", "membertype", "member_type", "member type", "tipo");
+    private static final Set<String> JOB_TITLE_HEADERS = Set.of(
+            "jobtitle", "job_title", "job title", "puesto", "cargo");
+    private static final int JOB_TITLE_MAX = 120;
 
     private final OrganizationRepository organizationRepository;
     private final OrganizationMemberRepository organizationMemberRepository;
@@ -92,6 +96,9 @@ public class OrganizationBulkRegistrationService {
         if (rows.isEmpty()) {
             throw new IllegalArgumentException("The CSV file is empty");
         }
+        if (rows.size() - 1 > MAX_ROWS) {
+            throw new IllegalArgumentException("The CSV file has more than " + MAX_ROWS + " rows");
+        }
 
         Columns columns = resolveColumns(rows.get(0));
 
@@ -110,8 +117,9 @@ public class OrganizationBulkRegistrationService {
             String firstName = at(row, columns.firstName);
             String lastName = at(row, columns.lastName);
             String roleRaw = columns.role != null ? at(row, columns.role) : null;
+            String jobTitle = columns.jobTitle != null ? at(row, columns.jobTitle) : null;
 
-            String error = validate(mail, firstName, lastName, roleRaw, seenMails);
+            String error = validate(mail, firstName, lastName, roleRaw, jobTitle, seenMails);
             if (error != null) {
                 failures.add(new FailedRegistrationDTO(line, mail, error));
                 continue;
@@ -121,7 +129,7 @@ public class OrganizationBulkRegistrationService {
                 OrganizationMemberType memberType = parseMemberType(roleRaw);
                 String password = passwordGenerator.generate();
                 User user = userService.register(new RegisterRequestDTO(
-                        mail, firstName, lastName, password, PlatformRole.USER, null));
+                        mail, firstName, lastName, password, PlatformRole.USER, normalizedJobTitle(jobTitle)));
                 addMembership(organization, user, memberType);
                 credentials.add(List.of(mail.trim().toLowerCase(Locale.ROOT), password));
             } catch (IllegalArgumentException ex) {
@@ -146,7 +154,7 @@ public class OrganizationBulkRegistrationService {
     }
 
     private String validate(String mail, String firstName, String lastName,
-                            String roleRaw, Set<String> seenMails) {
+                            String roleRaw, String jobTitle, Set<String> seenMails) {
         if (mail == null || mail.isBlank()) {
             return "Missing email";
         }
@@ -165,7 +173,17 @@ public class OrganizationBulkRegistrationService {
         if (invalidRole(roleRaw)) {
             return "Invalid role (OWNER or MEMBER)";
         }
+        if (jobTitle != null && jobTitle.trim().length() > JOB_TITLE_MAX) {
+            return "Invalid job title (" + JOB_TITLE_MAX + " characters max)";
+        }
         return null;
+    }
+
+    private String normalizedJobTitle(String jobTitle) {
+        if (jobTitle == null || jobTitle.isBlank()) {
+            return null;
+        }
+        return jobTitle.trim();
     }
 
     private boolean invalidName(String name) {
@@ -200,6 +218,7 @@ public class OrganizationBulkRegistrationService {
         Integer firstName = null;
         Integer lastName = null;
         Integer role = null;
+        Integer jobTitle = null;
         for (int i = 0; i < header.size(); i++) {
             String key = header.get(i).trim().toLowerCase(Locale.ROOT);
             if (mail == null && MAIL_HEADERS.containsKey(key)) {
@@ -210,6 +229,8 @@ public class OrganizationBulkRegistrationService {
                 lastName = i;
             } else if (role == null && ROLE_HEADERS.contains(key)) {
                 role = i;
+            } else if (jobTitle == null && JOB_TITLE_HEADERS.contains(key)) {
+                jobTitle = i;
             }
         }
         List<String> missing = new ArrayList<>();
@@ -220,12 +241,12 @@ public class OrganizationBulkRegistrationService {
             throw new IllegalArgumentException(
                     "CSV header is missing required column(s): " + String.join(", ", missing));
         }
-        return new Columns(mail, firstName, lastName, role);
+        return new Columns(mail, firstName, lastName, role, jobTitle);
     }
 
     private static String at(List<String> row, int index) {
         return index < row.size() ? row.get(index) : null;
     }
 
-    private record Columns(int mail, int firstName, int lastName, Integer role) {}
+    private record Columns(int mail, int firstName, int lastName, Integer role, Integer jobTitle) {}
 }

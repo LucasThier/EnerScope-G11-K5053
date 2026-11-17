@@ -10,10 +10,16 @@ import { MapView } from '../components/editor/MapView';
 import { NodeDataPanel } from '../components/editor/NodeDataPanel';
 import { NodeFormPanel, type NodeFormInitial } from '../components/editor/NodeFormPanel';
 import { NodePalette } from '../components/editor/NodePalette';
-import { NewVersionModal } from '../components/versions/NewVersionModal';
+import {
+  FIRST_VERSION_ADMIN_MESSAGE,
+  NewVersionModal,
+} from '../components/versions/NewVersionModal';
+import { useGuardedProjectAccess } from '../hooks/useGuardedProjectAccess';
+import { editorGates } from '../utils/editorPermissions';
+import { AccessFailureAlert } from '../components/versionRoles/AccessFailureAlert';
 import {
   canConnect,
-  specForType,
+  nodeTypeLabel,
   type GraphDataInput,
   type NodeBaseValues,
 } from '../components/editor/nodeCatalog';
@@ -26,6 +32,8 @@ import type { NodeDetail, NodeType, VersionSummary } from '../types/diagram';
 type Mode = 'diagram' | 'map';
 type Projection = 'mercator' | 'globe';
 type PanelMode = 'data' | 'create' | 'edit';
+
+const MODE_LABELS: Record<Mode, string> = { diagram: 'Diagrama', map: 'Mapa' };
 
 interface EditState {
   nodeId: string;
@@ -100,6 +108,19 @@ function EditorWorkspace() {
   const versions = versionState.project === projectId ? versionState.list : [];
   const versionId = versions.some(v => v.id === versionState.selected) ? versionState.selected : '';
   const setVersionId = (id: string) => setVersionState(state => ({ ...state, selected: id }));
+  const {
+    access,
+    loading: accessLoading,
+    failure: accessFailure,
+    retry: retryAccess,
+  } = useGuardedProjectAccess(projectId || undefined);
+  const accessFailed = accessFailure !== null;
+  // Deny by default: nothing is editable until /access answers for this version.
+  const gates = useMemo(
+    () => editorGates(access, versionId || null, accessFailed, accessLoading),
+    [access, versionId, accessFailed, accessLoading],
+  );
+  const { canEdit, canEditConnections, canCreateRoot, canBranchFrom } = gates;
   const versionRequest = useRef(0);
   const [selectorError, setSelectorError] = useState<string | null>(null);
 
@@ -123,35 +144,102 @@ function EditorWorkspace() {
     loading,
     error,
     busy,
-    addNode,
-    removeNode,
-    restoreNode,
-    updateNodeBasics,
+    addNode: addNodeRaw,
+    removeNode: removeNodeRaw,
+    restoreNode: restoreNodeRaw,
+    updateNodeBasics: updateNodeBasicsRaw,
     getNodeDetail,
-    editNodeData,
-    addConnection,
-    deleteConnection,
-    moveNodeGraph,
-    moveNodeGeo,
+    editNodeData: editNodeDataRaw,
+    addConnection: addConnectionRaw,
+    deleteConnection: deleteConnectionRaw,
+    moveNodeGraph: moveNodeGraphRaw,
+    moveNodeGeo: moveNodeGeoRaw,
   } = useDiagram(versionId || null);
+
+  // Every mutation re-checks its permission here, so no entry point (button,
+  // double click, key, drag, drop) can write without it.
+  const addNode = useCallback<typeof addNodeRaw>(
+    async (...args) => {
+      if (!canEdit) return;
+      await addNodeRaw(...args);
+    },
+    [canEdit, addNodeRaw],
+  );
+  const editNodeData = useCallback<typeof editNodeDataRaw>(
+    async (...args) => {
+      if (!canEdit) return;
+      await editNodeDataRaw(...args);
+    },
+    [canEdit, editNodeDataRaw],
+  );
+  const removeNode = useCallback<typeof removeNodeRaw>(
+    async (...args) => {
+      if (!canEdit) return;
+      await removeNodeRaw(...args);
+    },
+    [canEdit, removeNodeRaw],
+  );
+  const restoreNode = useCallback<typeof restoreNodeRaw>(
+    async (...args) => {
+      if (!canEdit) return;
+      await restoreNodeRaw(...args);
+    },
+    [canEdit, restoreNodeRaw],
+  );
+  const updateNodeBasics = useCallback<typeof updateNodeBasicsRaw>(
+    async (...args) => {
+      if (!canEdit) return;
+      await updateNodeBasicsRaw(...args);
+    },
+    [canEdit, updateNodeBasicsRaw],
+  );
+  const moveNodeGraph = useCallback<typeof moveNodeGraphRaw>(
+    async (...args) => {
+      if (!canEdit) return;
+      await moveNodeGraphRaw(...args);
+    },
+    [canEdit, moveNodeGraphRaw],
+  );
+  const moveNodeGeo = useCallback<typeof moveNodeGeoRaw>(
+    async (...args) => {
+      if (!canEdit) return;
+      await moveNodeGeoRaw(...args);
+    },
+    [canEdit, moveNodeGeoRaw],
+  );
+  const addConnection = useCallback<typeof addConnectionRaw>(
+    async (...args) => {
+      if (!canEditConnections) return;
+      await addConnectionRaw(...args);
+    },
+    [canEditConnections, addConnectionRaw],
+  );
+  const deleteConnection = useCallback<typeof deleteConnectionRaw>(
+    async (...args) => {
+      if (!canEditConnections) return;
+      await deleteConnectionRaw(...args);
+    },
+    [canEditConnections, deleteConnectionRaw],
+  );
 
   // Guards a new connection against the value-chain rules before creating it,
   // surfacing a clear message when the two node types cannot be linked.
   const handleConnect = useCallback(
     (fromNodeId: string, toNodeId: string) => {
+      if (!canEditConnections) return;
       const from = diagram?.nodes.find((n) => n.id === fromNodeId);
       const to = diagram?.nodes.find((n) => n.id === toNodeId);
       if (!from || !to) return;
       if (!canConnect(from.type.nodeType, to.type.nodeType)) {
-        const fromLabel = specForType(from.type.nodeType)?.label ?? from.type.nodeType;
-        const toLabel = specForType(to.type.nodeType)?.label ?? to.type.nodeType;
-        setConnectError(`A ${fromLabel} cannot connect to a ${toLabel}.`);
+        const fromLabel = nodeTypeLabel(from.type.nodeType);
+        const toLabel = nodeTypeLabel(to.type.nodeType);
+        setConnectError(`Esta conexión no está permitida: ${fromLabel} → ${toLabel}.`);
         return;
       }
       setConnectError(null);
       void addConnection(fromNodeId, toNodeId);
     },
-    [diagram, addConnection],
+    [diagram, addConnection, canEditConnections],
   );
 
   const closePanel = useCallback(() => {
@@ -193,12 +281,13 @@ function EditorWorkspace() {
 
   const openCreateAt = useCallback(
     (flowX: number, flowY: number, localX: number, localY: number, type?: NodeType | null) => {
+      if (!canEdit) return;
       setCreatePos({ x: flowX, y: flowY });
       setCreateAnchor({ x: localX, y: localY });
       setCreateType(type ?? null);
       setPanelMode('create');
     },
-    [],
+    [canEdit],
   );
 
   // Dropping a palette tile onto the canvas opens the create form at the drop
@@ -212,6 +301,7 @@ function EditorWorkspace() {
 
   const handleEditData = useCallback(
     async (nodeId: string) => {
+      if (!canEdit) return;
       // Open the edit panel immediately so there is no perceived delay. If the
       // node's full detail is already loaded (it was selected first), use it
       // straight away; otherwise show a spinner and fill in once it arrives.
@@ -230,7 +320,7 @@ function EditorWorkspace() {
       }
       setEditState(editStateFromDetail(detail));
     },
-    [selectedDetail, getNodeDetail, closePanel],
+    [canEdit, selectedDetail, getNodeDetail, closePanel],
   );
 
   // Double-clicking a node (or the panel's Edit button) selects it and opens
@@ -238,15 +328,32 @@ function EditorWorkspace() {
   const openEditNode = useCallback(
     (nodeId: string) => {
       setSelectedNodeId(nodeId);
-      void handleEditData(nodeId);
+      if (canEdit) void handleEditData(nodeId);
     },
-    [handleEditData],
+    [canEdit, handleEditData],
   );
 
-  const startConnect = useCallback((nodeId: string) => {
-    setConnectError(null);
-    setConnectingFrom(nodeId);
-  }, []);
+  const startConnect = useCallback(
+    (nodeId: string) => {
+      if (!canEditConnections) return;
+      setConnectError(null);
+      setConnectingFrom(nodeId);
+    },
+    [canEditConnections],
+  );
+
+  // Permissions can be lost while a form or a pending connection is open
+  // (access reloaded, version switched): close whatever is no longer allowed.
+  useEffect(() => {
+    if (!canEdit && (panelMode === 'create' || panelMode === 'edit')) {
+      closePanel();
+    }
+  }, [canEdit, panelMode, closePanel]);
+  useEffect(() => {
+    if (!canEditConnections) {
+      setConnectingFrom(null);
+    }
+  }, [canEditConnections]);
 
   // Safety net: reset per-diagram UI state when the open version changes.
   // The actual fix lives where versionId/projectId/orgId are set — see
@@ -314,7 +421,7 @@ function EditorWorkspace() {
       const preferred = selectId ?? preferredVersion;
       setVersionState({ project: projectId, list, selected: list.find(v => v.id === preferred)?.id ?? list[0]?.id ?? '' });
     } catch (err) {
-      if (request === versionRequest.current) setSelectorError(getErrorMessage(err, 'Could not load versions'));
+      if (request === versionRequest.current) setSelectorError(getErrorMessage(err, 'No se pudieron cargar las versiones'));
     }
   }, [projectId, preferredVersion, clearNodeSelection]);
   const invalidateRequest = useCallback(() => { versionRequest.current++; }, []);
@@ -324,24 +431,24 @@ function EditorWorkspace() {
   }, [loadVersions, invalidateRequest]);
 
   async function handleCreateOrganization() {
-    const name = window.prompt('New organization name');
+    const name = window.prompt('Nombre de la nueva organización');
     if (!name || !name.trim()) return;
     try {
       const created = await createOrganization(name.trim());
       setOrgId(created.id);
     } catch (err) {
-      setSelectorError(getErrorMessage(err, 'Could not create the organization'));
+      setSelectorError(getErrorMessage(err, 'No se pudo crear la organización'));
     }
   }
 
   async function handleCreateProject() {
     if (!orgId) {
-      setSelectorError('Create or pick an organization first.');
+      setSelectorError('Primero creá o elegí una organización.');
       return;
     }
-    const name = window.prompt('New project name');
+    const name = window.prompt('Nombre del nuevo proyecto');
     if (!name || !name.trim()) return;
-    const description = window.prompt('Project description', '') ?? '';
+    const description = window.prompt('Descripción del proyecto', '') ?? '';
     try {
       const res = await projectsApi.create({
         name: name.trim(),
@@ -351,7 +458,7 @@ function EditorWorkspace() {
       await reloadProjects();
       if (res.data.data?.id) selectProject(res.data.data.id);
     } catch (err) {
-      setSelectorError(getErrorMessage(err, 'Could not create the project'));
+      setSelectorError(getErrorMessage(err, 'No se pudo crear el proyecto'));
     }
   }
 
@@ -373,12 +480,13 @@ function EditorWorkspace() {
   // Clicking a palette tile adds that node type near the current spread.
   const handlePickFromPalette = useCallback(
     (type: NodeType) => {
+      if (!canEdit) return;
       setCreatePos(nextNodePosition);
       setCreateAnchor(null);
       setCreateType(type);
       setPanelMode('create');
     },
-    [nextNodePosition],
+    [canEdit, nextNodePosition],
   );
 
   function panelStyle(): CSSProperties {
@@ -402,7 +510,7 @@ function EditorWorkspace() {
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Toolbar */}
       <div className="flex flex-wrap items-end gap-3 border-b border-ink-100 bg-surface px-4 py-2.5">
-        <Field label="Organization">
+        <Field label="Organización">
           <div className="flex items-center gap-1">
             <select
                 className={selectClass}
@@ -413,20 +521,20 @@ function EditorWorkspace() {
                   if (first) selectProject(first.id);
                 }}
             >
-              {organizations.length === 0 && <option value="">No organizations</option>}
+              {organizations.length === 0 && <option value="">Sin organizaciones</option>}
               {organizations.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.name}
                 </option>
               ))}
             </select>
-            <Button variant="ghost" size="compact" onClick={handleCreateOrganization} className="px-3">
+            <Button variant="ghost" size="compact" onClick={handleCreateOrganization} className="px-3" aria-label="Nueva organización" title="Nueva organización">
               +
             </Button>
           </div>
         </Field>
 
-        <Field label="Project">
+        <Field label="Proyecto">
           <div className="flex items-center gap-1">
             <select
               className={selectClass}
@@ -437,7 +545,7 @@ function EditorWorkspace() {
               }}
               disabled={projects.length === 0}
             >
-              {projects.length === 0 && <option value="">No projects</option>}
+              {projects.length === 0 && <option value="">Sin proyectos</option>}
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -450,13 +558,15 @@ function EditorWorkspace() {
               disabled={!orgId}
               size="compact"
               className="px-3"
+              aria-label="Nuevo proyecto"
+              title="Nuevo proyecto"
             >
               +
             </Button>
           </div>
         </Field>
 
-        <Field label="Version">
+        <Field label="Versión">
           <div className="flex items-center gap-1">
             <select
               className={selectClass}
@@ -467,28 +577,35 @@ function EditorWorkspace() {
               }}
               disabled={versions.length === 0}
             >
-              {versions.length === 0 && <option value="">No versions</option>}
+              {versions.length === 0 && <option value="">Sin versiones</option>}
               {versions.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}
                 </option>
               ))}
             </select>
-            <Button
-              variant="ghost"
-              onClick={() => setIsNewVersionModalOpen(true)}
-              disabled={!projectId}
-              size="compact"
-              className="px-3"
-            >
-              +
-            </Button>
+            {(versions.length > 0 || canCreateRoot) && (
+              <Button
+                variant="ghost"
+                onClick={() => setIsNewVersionModalOpen(true)}
+                disabled={!projectId}
+                size="compact"
+                className="px-3"
+                aria-label="Nueva versión"
+                title="Nueva versión"
+              >
+                +
+              </Button>
+            )}
+            {versions.length === 0 && !canCreateRoot && projectId && !accessLoading && !accessFailed && (
+              <span className="text-xs text-ink-500">{FIRST_VERSION_ADMIN_MESSAGE}</span>
+            )}
           </div>
         </Field>
 
         <div className="mx-1 h-8 w-px self-center bg-ink-100" />
 
-        <Field label="View">
+        <Field label="Vista">
           <div className="inline-flex h-control-compact overflow-hidden rounded-control border border-control-border">
             {(['diagram', 'map'] as Mode[]).map((m) => (
               <button
@@ -502,14 +619,14 @@ function EditorWorkspace() {
                     : 'bg-surface text-ink-600 hover:bg-ink-50 focus-visible:ring-focus')
                 }
               >
-                {m}
+                {MODE_LABELS[m]}
               </button>
             ))}
           </div>
         </Field>
 
         {mode === 'map' && (
-          <Field label="Projection">
+          <Field label="Proyección">
             <div className="inline-flex h-control-compact overflow-hidden rounded-control border border-control-border">
               {(['mercator', 'globe'] as Projection[]).map((p) => (
                 <button
@@ -523,7 +640,7 @@ function EditorWorkspace() {
                       : 'bg-surface text-ink-600 hover:bg-ink-50 focus-visible:ring-focus')
                   }
                 >
-                  {p === 'mercator' ? '2D' : 'Globe'}
+                  {p === 'mercator' ? '2D' : 'Globo'}
                 </button>
               ))}
             </div>
@@ -534,6 +651,7 @@ function EditorWorkspace() {
           {(loading || busy) && <Spinner className="h-4 w-4 text-brand-600" />}
           <Button
             onClick={() => {
+              if (!canEdit) return;
               if (panelMode === 'create') {
                 closePanel();
               } else {
@@ -543,12 +661,16 @@ function EditorWorkspace() {
                 setPanelMode('create');
               }
             }}
-            disabled={!versionId}
+            disabled={!versionId || !canEdit}
             className="text-sm"
           >
-            {panelMode === 'create' ? 'Cancel' : '+ Add node'}
+            {panelMode === 'create' ? 'Cancelar' : '+ Agregar nodo'}
           </Button>
         </div>
+      </div>
+
+      <div className="px-4 pt-2">
+        <AccessFailureAlert message={accessFailure} onRetry={() => void retryAccess()} />
       </div>
 
       {(error || selectorError) && (
@@ -561,8 +683,8 @@ function EditorWorkspace() {
       <div className="relative flex min-h-0 flex-1">
         {!versionId ? (
           <div className="flex h-full w-full items-center justify-center p-8 text-center text-sm text-ink-500">
-            Pick an organization, project and version to start — or create a version to begin a new
-            diagram.
+            Elegí una organización, un proyecto y una versión para empezar, o creá una versión para armar un
+            diagrama nuevo.
           </div>
         ) : !diagram ? (
           <div className="flex h-full w-full items-center justify-center">
@@ -571,7 +693,7 @@ function EditorWorkspace() {
         ) : (
           <>
             {mode === 'diagram' && (
-              <NodePalette onPick={handlePickFromPalette} disabled={busy} />
+              <NodePalette onPick={handlePickFromPalette} disabled={busy || !canEdit} />
             )}
             <div ref={canvasWrapRef} className="relative min-h-0 flex-1">
             <div className="absolute inset-0">
@@ -589,6 +711,8 @@ function EditorWorkspace() {
                   onDropNode={handleDropNode}
                   onEditNode={openEditNode}
                   connecting={!!connectingFrom}
+                  canEdit={canEdit}
+                  canEditConnections={canEditConnections}
                 />
               ) : (
                 <MapView
@@ -598,6 +722,7 @@ function EditorWorkspace() {
                   selectedNodeId={selectedNodeId}
                   onSelectNode={selectNode}
                   onMoveGeo={moveNodeGeo}
+                  canEdit={canEdit}
                 />
               )}
             </div>
@@ -611,7 +736,7 @@ function EditorWorkspace() {
                     onClick={() => setConnectError(null)}
                     className="rounded-full px-2 py-0.5 text-xs font-semibold text-warn-700 hover:bg-warn-100"
                   >
-                    Dismiss
+                    Cerrar
                   </button>
                 </div>
               </div>
@@ -622,14 +747,14 @@ function EditorWorkspace() {
               <div className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2">
                 <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-brand-200 bg-brand-50 px-4 py-2 text-sm text-brand-800 shadow-float">
                   <span>
-                    Connecting from <strong>{connectingNode?.name ?? 'node'}</strong> — click a target
-                    node
+                    Conectando desde <strong>{connectingNode?.name ?? 'nodo'}</strong>: hacé clic en el nodo de
+                    destino
                   </span>
                   <button
                     onClick={() => setConnectingFrom(null)}
                     className="rounded-full px-2 py-0.5 text-xs font-semibold text-brand-900 hover:bg-brand-100"
                   >
-                    Cancel (Esc)
+                    Cancelar (Esc)
                   </button>
                 </div>
               </div>
@@ -638,7 +763,7 @@ function EditorWorkspace() {
             {/* Floating menu */}
             {mode === 'diagram' && (
               <FloatingPanel style={panelStyle()}>
-                {panelMode === 'create' ? (
+                {panelMode === 'create' && canEdit ? (
                   <NodeFormPanel
                     mode="create"
                     busy={busy}
@@ -648,7 +773,7 @@ function EditorWorkspace() {
                       addNode(spec, base, typeFields, createPos.x, createPos.y)
                     }
                   />
-                ) : panelMode === 'edit' && editState ? (
+                ) : panelMode === 'edit' && editState && canEdit ? (
                   editState.initial ? (
                     <NodeFormPanel
                       mode="edit"
@@ -676,6 +801,8 @@ function EditorWorkspace() {
                     node={selectedNode}
                     detail={selectedDetail}
                     busy={busy}
+                    canEdit={canEdit}
+                    canEditConnections={canEditConnections}
                     onUpdateBasics={updateNodeBasics}
                     onEditData={handleEditData}
                     onStartConnect={startConnect}
@@ -690,7 +817,7 @@ function EditorWorkspace() {
                   />
                 ) : (
                   <div className="p-4 text-sm text-ink-500">
-                    Double-click empty canvas to add a node, or click a node to see its data.
+                    Hacé doble clic en un espacio vacío del lienzo para agregar un nodo, o hacé clic en un nodo para ver sus datos.
                   </div>
                 )}
               </FloatingPanel>
@@ -703,6 +830,8 @@ function EditorWorkspace() {
       {projectId && (
         <NewVersionModal
           projectId={projectId}
+          canCreateRoot={canCreateRoot}
+          canBranchFrom={canBranchFrom}
           open={isNewVersionModalOpen}
           onClose={() => setIsNewVersionModalOpen(false)}
           onCreated={(createdId) => {

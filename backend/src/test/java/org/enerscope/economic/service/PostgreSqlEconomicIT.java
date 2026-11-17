@@ -54,7 +54,8 @@ class PostgreSqlEconomicIT {
     @Test void completeHttpExampleCreatesVersionNodesAndEvaluation() throws Exception {
         Organization organization=new Organization("HTTP example");em.persist(organization);
         Project project=new Project("HTTP example","Disposable fixture",organization);em.persist(project);em.flush();
-        String token=jwt.generateAccessToken(User.fromJwtClaims(UUID.randomUUID(),"api@example.com","API","Admin",PlatformRole.ADMIN));
+        User apiAdmin=new User("api-"+UUID.randomUUID()+"@example.com","API","Admin","hashed",PlatformRole.ADMIN);em.persist(apiAdmin);em.flush();
+        String token=jwt.generateAccessToken(apiAdmin);
         var response=mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/projects/"+project.getId()+"/version")
                 .header("Authorization","Bearer "+token).contentType("application/json").content("{\"name\":\"HTTP economic example\"}"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk()).andReturn();

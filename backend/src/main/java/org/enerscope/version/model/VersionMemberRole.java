@@ -12,6 +12,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.BatchSize;
 import org.enerscope.common.BaseEntity;
 import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.version.model.enums.VersionMemberPermission;
@@ -44,6 +45,8 @@ public class VersionMemberRole extends BaseEntity {
     @Column(name = "vertical", length = 30)
     private VerticalEnum vertical;
 
+    // Batched so a listing of many roles loads their permissions in a few queries, not one per role.
+    @BatchSize(size = 100)
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(
             name = "version_member_role_permission",
@@ -66,8 +69,29 @@ public class VersionMemberRole extends BaseEntity {
         }
         this.name = name;
         this.memberType = memberType;
-        this.permissions = permissions;
+        // Copied: callers often pass the shared defaults of VersionMember, which must never be mutated.
+        this.permissions = new HashSet<>(permissions);
         this.vertical = vertical;
+    }
+
+    /**
+     * Turns this role into another type in place, keeping its id and its member.
+     * The permissions are replaced by the defaults of the new type, so none of
+     * the old type's permissions survive.
+     */
+    public void changeTo(VersionMemberType memberType, VerticalEnum vertical,
+                         Set<VersionMemberPermission> defaultPermissions) {
+        if (memberType == VersionMemberType.EDITOR && vertical == null) {
+            throw new IllegalArgumentException("An EDITOR role requires a vertical");
+        }
+        if (memberType != VersionMemberType.EDITOR && vertical != null) {
+            throw new IllegalArgumentException(memberType + " roles apply to the whole version, not one vertical");
+        }
+        this.name = memberType.name();
+        this.memberType = memberType;
+        this.vertical = vertical;
+        this.permissions.clear();
+        this.permissions.addAll(defaultPermissions);
     }
 
     void assignToMember(VersionMember member) {

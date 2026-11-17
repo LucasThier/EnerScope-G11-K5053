@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { session } from './session';
+import { isPlatformAdmin } from '../permissions/access';
+import { notifySessionLost, requestUserRefresh } from './authEvents';
 import type { ApiResponse, NewSessionResponse } from '../types/auth';
 
 export const client = axios.create({
@@ -18,6 +20,15 @@ client.interceptors.response.use(
   (res) => res,
   async (error) => {
     const originalRequest = error.config;
+    if (
+      error.response?.status === 403 &&
+      originalRequest &&
+      !originalRequest._forbiddenChecked &&
+      isPlatformAdmin(session.getUser())
+    ) {
+      originalRequest._forbiddenChecked = true;
+      requestUserRefresh();
+    }
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       const refreshToken = session.getRefreshToken();
@@ -35,6 +46,7 @@ client.interceptors.response.use(
           }
         } catch {
           session.clear();
+          notifySessionLost();
         }
       }
     }

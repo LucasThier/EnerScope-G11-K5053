@@ -20,6 +20,7 @@ import org.enerscope.version.model.enums.VersionMemberType;
 import org.enerscope.version.service.VersionConflictService;
 import org.enerscope.version.service.VersionMemberService;
 import org.enerscope.version.service.VersionNodeCsvImportService;
+import org.enerscope.version.service.VersionReadService;
 import org.enerscope.version.service.VersionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -75,6 +76,8 @@ class VersionControllerTest {
     @MockitoBean
     private VersionService versionService;
     @MockitoBean
+    private VersionReadService versionReadService;
+    @MockitoBean
     private SessionService sessionService;
     @MockitoBean
     private VersionConflictService versionConflictService;
@@ -113,7 +116,7 @@ class VersionControllerTest {
     @Test
     void getVersionReturnsTheVersion() throws Exception {
         UUID versionId = UUID.randomUUID();
-        when(versionService.getVersion(versionId)).thenReturn(sampleVersion());
+        when(versionReadService.getVersionJson(versionId)).thenReturn(objectMapper.valueToTree(sampleVersion()));
 
         mockMvc.perform(get("/version/" + versionId)
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
@@ -126,7 +129,7 @@ class VersionControllerTest {
     @Test
     void getVersionPropagatesForbiddenWith403() throws Exception {
         UUID versionId = UUID.randomUUID();
-        when(versionService.getVersion(versionId))
+        when(versionReadService.getVersionJson(versionId))
                 .thenThrow(new ForbiddenException("You are not allowed to view this project"));
 
         mockMvc.perform(get("/version/" + versionId)
@@ -141,7 +144,7 @@ class VersionControllerTest {
         mockMvc.perform(get("/version/" + UUID.randomUUID()))
                 .andExpect(status().isUnauthorized());
 
-        verify(versionService, never()).getVersion(any());
+        verify(versionReadService, never()).getVersionJson(any());
     }
 
     // ---- deleteVersion -------------------------------------------------------

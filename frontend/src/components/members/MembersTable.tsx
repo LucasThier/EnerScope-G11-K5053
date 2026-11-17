@@ -30,7 +30,7 @@ interface MembersTableProps<M extends MemberRow> {
 }
 
 const headerCell = 'px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
-const bodyCell = 'px-3 py-2 align-top text-sm text-ink-700';
+const bodyCell = 'px-3 py-2.5 align-middle text-sm text-ink-700';
 
 export function MembersTable<M extends MemberRow>({
   members,
@@ -45,7 +45,8 @@ export function MembersTable<M extends MemberRow>({
   busyMemberId = null,
   roleError = null,
 }: MembersTableProps<M>) {
-  const columnCount = onRemove ? 5 : 4;
+  const showJobTitle = members.some((member) => member.jobTitle);
+  const columnCount = 3 + (showJobTitle ? 1 : 0) + (onRemove ? 1 : 0);
   const roles = Object.keys(roleLabels) as M['memberType'][];
 
   return (
@@ -59,9 +60,11 @@ export function MembersTable<M extends MemberRow>({
             <th scope="col" className={headerCell}>
               Email
             </th>
-            <th scope="col" className={headerCell}>
-              Puesto
-            </th>
+            {showJobTitle && (
+              <th scope="col" className={headerCell}>
+                Puesto
+              </th>
+            )}
             <th scope="col" className={headerCell}>
               Rol
             </th>
@@ -79,7 +82,7 @@ export function MembersTable<M extends MemberRow>({
             const reasonId = `motivo-${member.id}`;
             return [
               <tr key={member.id}>
-                <td className={`${bodyCell} font-semibold text-ink-800`}>
+                <td className={`${bodyCell} whitespace-nowrap font-semibold text-ink-800`}>
                   {fullName}
                   {!member.active && (
                     <span
@@ -90,8 +93,8 @@ export function MembersTable<M extends MemberRow>({
                     </span>
                   )}
                 </td>
-                <td className={bodyCell}>{member.userMail}</td>
-                <td className={bodyCell}>{member.jobTitle ?? '—'}</td>
+                <td className={`${bodyCell} break-all`}>{member.userMail}</td>
+                {showJobTitle && <td className={bodyCell}>{member.jobTitle ?? '—'}</td>}
                 <td className={`${bodyCell} whitespace-nowrap`}>
                   {onChangeRole ? (
                     <select
@@ -113,7 +116,7 @@ export function MembersTable<M extends MemberRow>({
                     roleLabels[member.memberType as M['memberType']]
                   )}
                   {reason && (
-                    <p id={reasonId} className="mt-1 max-w-56 whitespace-normal text-xs text-ink-500">
+                    <p id={reasonId} className="mt-1 max-w-56 whitespace-normal leading-snug text-xs text-ink-500">
                       {reason}
                     </p>
                   )}

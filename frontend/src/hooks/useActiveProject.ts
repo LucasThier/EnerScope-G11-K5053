@@ -8,6 +8,7 @@ export interface ActiveProjectContextValue {
   projects: ProjectSummary[];
   /** The project the app is currently working on, or null while loading or with no projects. */
   activeProject: ProjectSummary | null;
+  storedProjectId: string | null;
   isLoading: boolean;
   error: string | null;
   selectProject: (projectId: string) => void;

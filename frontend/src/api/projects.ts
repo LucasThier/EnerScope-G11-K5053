@@ -1,4 +1,5 @@
 import { client } from './client';
+import { invalidatesAccess } from './accessEvents';
 import type { ApiResponse } from '../types/auth';
 import type { ConflictDecision, VersionConflict, VersionSummary } from '../types/diagram';
 import type {
@@ -37,7 +38,7 @@ export const projectsApi = {
     client.patch(`/projects/${projectId}`, data),
 
   remove: (projectId: string): Promise<AxiosResponse<ApiResponse<null>>> =>
-    client.delete(`/projects/${projectId}`),
+    invalidatesAccess(client.delete(`/projects/${projectId}`), projectId),
 
   /** Members of a project: readable by platform admins and by members of the project. */
   members: (projectId: string): Promise<AxiosResponse<ApiResponse<ProjectMember[]>>> =>
@@ -52,13 +53,13 @@ export const projectsApi = {
     projectId: string,
     data: { name: string; parentVersion?: string | null },
   ): Promise<AxiosResponse<ApiResponse<CreatedVersion>>> =>
-    client.post(`/projects/${projectId}/version`, data),
+    invalidatesAccess(client.post(`/projects/${projectId}/version`, data), projectId),
 
   deleteVersion: (versionId: string): Promise<AxiosResponse<ApiResponse<null>>> =>
-    client.delete(`/version/${versionId}`),
+    invalidatesAccess(client.delete(`/version/${versionId}`)),
 
   mergeVersion: (subId: string): Promise<AxiosResponse<ApiResponse<unknown>>> =>
-    client.patch(`/version/merge/${subId}`),
+    invalidatesAccess(client.patch(`/version/merge/${subId}`)),
 
   getVersionConflicts: (
     versionId: string,
@@ -75,17 +76,17 @@ export const projectsApi = {
     projectId: string,
     data: AddProjectMemberRequest,
   ): Promise<AxiosResponse<ApiResponse<ProjectMember>>> =>
-    client.post(`/projects/${projectId}/members`, data),
+    invalidatesAccess(client.post(`/projects/${projectId}/members`, data), projectId),
 
   changeMemberRole: (
     projectId: string,
     memberId: string,
     data: UpdateProjectMemberRoleRequest,
   ): Promise<AxiosResponse<ApiResponse<ProjectMember>>> =>
-    client.patch(`/projects/${projectId}/members/${memberId}`, data),
+    invalidatesAccess(client.patch(`/projects/${projectId}/members/${memberId}`, data), projectId),
 
   removeMember: (projectId: string, memberId: string): Promise<AxiosResponse<ApiResponse<null>>> =>
-    client.delete(`/projects/${projectId}/members/${memberId}`),
+    invalidatesAccess(client.delete(`/projects/${projectId}/members/${memberId}`), projectId),
 
   memberCandidates: (
     projectId: string,

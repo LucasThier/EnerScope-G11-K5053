@@ -20,6 +20,7 @@ export function AdminOrganizationsPage() {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewing, setViewing] = useState<OrganizationSummary | null>(null);
+  const [addingTo, setAddingTo] = useState<OrganizationSummary | null>(null);
   const [renaming, setRenaming] = useState<OrganizationSummary | null>(null);
   const [deactivating, setDeactivating] = useState<OrganizationSummary | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -99,6 +100,7 @@ export function AdminOrganizationsPage() {
           <OrganizationsTable
             organizations={visibleOrganizations}
             onViewMembers={setViewing}
+            onAddMembers={setAddingTo}
             onRename={setRenaming}
             onDeactivate={setDeactivating}
             onReactivate={handleReactivate}
@@ -125,8 +127,12 @@ export function AdminOrganizationsPage() {
       />
 
       <OrganizationMembersModal
-        organization={viewing}
-        onClose={() => setViewing(null)}
+        organization={viewing ?? addingTo}
+        initialStep={addingTo ? 'choose' : 'list'}
+        onClose={() => {
+          setViewing(null);
+          setAddingTo(null);
+        }}
         onChanged={reload}
       />
     </div>
