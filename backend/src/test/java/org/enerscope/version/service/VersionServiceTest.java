@@ -610,27 +610,45 @@ class VersionServiceTest {
                 when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
                 when(versionRepository.save(any(Version.class))).thenReturn(version);
 
+                var pipelineDto = new PipelineConnectionDTO();
+                pipelineDto.setType(new NodeTypeDataDTO(
+                        VerticalEnum.TRANSPORTATION,
+                        StructuralRoleEnum.INTERMEDIATE,
+                        NodeTypeEnum.PIPELINE_CONECTION));
+
+
+                var internalDto = new InternalConsumptionDTO();
+                internalDto.setType(new NodeTypeDataDTO(
+                        VerticalEnum.INTERNAL_CONSUMPTION,
+                        StructuralRoleEnum.SINK,
+                        NodeTypeEnum.INTERNAL_CONSUMPTION));
+
+
+                var industrialDto = new IndustrialConsumptionDTO();
+                industrialDto.setType(new NodeTypeDataDTO(
+                        VerticalEnum.INTERNAL_CONSUMPTION,
+                        StructuralRoleEnum.SINK,
+                        NodeTypeEnum.INDUSTRIAL_CONSUMPTION));
+
+
                 PipelineConnection pipelineConnection = mock(PipelineConnection.class);
                 when(pipelineConnection.getIdentityId()).thenReturn(UUID.randomUUID());
                 when(pipelineConnection.getType()).thenReturn(new NodeTypeData());
                 when(nodeService.savePipelineConnection(any(PipelineConnectionDTO.class))).thenReturn(pipelineConnection);
-                assertSame(pipelineConnection,
-                                versionService.addNodeToVersion(versionId, new PipelineConnectionDTO()));
+                assertSame(pipelineConnection, versionService.addNodeToVersion(versionId, pipelineDto));
 
                 InternalConsumption internalConsumption = mock(InternalConsumption.class);
                 when(internalConsumption.getIdentityId()).thenReturn(UUID.randomUUID());
                 when(internalConsumption.getType()).thenReturn(new NodeTypeData());
                 when(nodeService.saveInternalConsumption(any(InternalConsumptionDTO.class))).thenReturn(internalConsumption);
-                assertSame(internalConsumption,
-                                versionService.addNodeToVersion(versionId, new InternalConsumptionDTO()));
+                assertSame(internalConsumption, versionService.addNodeToVersion(versionId, internalDto));
 
                 IndustrialConsumption industrialConsumption = mock(IndustrialConsumption.class);
                 when(industrialConsumption.getIdentityId()).thenReturn(UUID.randomUUID());
                 when(industrialConsumption.getType()).thenReturn(new NodeTypeData());
                 when(nodeService.saveIndustrialConsumption(any(IndustrialConsumptionDTO.class)))
                                 .thenReturn(industrialConsumption);
-                assertSame(industrialConsumption,
-                                versionService.addNodeToVersion(versionId, new IndustrialConsumptionDTO()));
+                assertSame(industrialConsumption, versionService.addNodeToVersion(versionId, industrialDto));
 
                 assertEquals(3, version.getNodeSnapshot().size());
                 assertEquals(3, version.getNodeChanges().size());

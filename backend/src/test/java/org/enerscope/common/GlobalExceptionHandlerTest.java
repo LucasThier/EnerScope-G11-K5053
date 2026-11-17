@@ -17,12 +17,11 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void uploadAboveTheLimitAnswers413WithAClearMessage() {
-        var response = handler.handleUploadTooLarge(new MaxUploadSizeExceededException(1024 * 1024));
+        var response = handler.handleMaxUploadSizeExceeded(new MaxUploadSizeExceededException(1024 * 1024));
 
         assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, response.getStatusCode());
         assertFalse(response.getBody().success());
-        assertEquals("The uploaded file exceeds the maximum size of 1 MB", response.getBody().message());
-        assertEquals("Uploaded file exceeds the maximum allowed size", response.getBody().message());
+        assertEquals("The uploaded file exceeds the maximum size", response.getBody().message());
     }
 
     @Test
