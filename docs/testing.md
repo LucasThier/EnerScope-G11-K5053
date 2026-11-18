@@ -3237,18 +3237,19 @@ does not execute the migration; see `considerations.md`, 2026-11-15.
 | `removingARowFromAPercentileListDeletesItsPerNodeRow` | Removing an element from a percentile list deletes its `result_per_node` row (orphan removal). |
 | `deletingAVersionDeletesItsFinalResultsAndTheirRows` | Deleting the version deletes its results, the join rows and the per-node rows. |
 
-### 6. `413` for a CSV above 1 MB
+### 6. `413` for a CSV above 10 MB
 
-The limits are explicit now: `spring.servlet.multipart.max-file-size=1MB`,
-`max-request-size=2MB`; `GlobalExceptionHandler.handleUploadTooLarge` answers
-`413 The uploaded file exceeds the maximum size of 1 MB`.
+The limits are `spring.servlet.multipart.max-file-size=10MB` and
+`spring.servlet.multipart.max-request-size=11MB`. The integration test sends
+just over 10 MB, keeping the multipart request below 11 MB, and the handler
+answers `413 Uploaded file exceeds the maximum allowed size`.
 
 | Class | Case | Verifies |
 | --- | --- | --- |
 | `common.GlobalExceptionHandlerTest` (Unit) | `uploadAboveTheLimitAnswers413WithAClearMessage` | The handler returns `413`, `success=false` and the message. |
 | `organization.controller.OrganizationControllerTest` (Web) | `bulkRegisterUsersAnswers413WhenTheFileExceedsTheUploadLimit` | `POST /organizations/{id}/users/bulk` answers `413` with that body when the service throws `MaxUploadSizeExceededException` (mocked). |
-| `organization.controller.BulkUploadSizeLimitHttpTest` (Integration, real server on a random port) | `aCsvAboveOneMegabyteAnswers413InsteadOf500` | A real multipart upload of 1 MB + 1 byte, sent by a platform admin, answers `413` with the message. |
-| | `aCsvOfExactlyOneMegabyteIsNotRejectedForItsSize` | Exactly 1 MB is not answered `413` (the test only asserts the status is not `413`; it does not check what the endpoint answers instead). |
+| `organization.controller.BulkUploadSizeLimitHttpTest` (Integration, real server on a random port) | `aCsvAboveTenMegabytesAnswers413InsteadOf500` | A real multipart upload of 10 MB + 1 byte, sent by a platform admin, answers `413` with the message. |
+| | `aCsvOfExactlyTenMegabytesIsNotRejectedForItsSize` | Exactly 10 MB is not answered `413` (the test only asserts the status is not `413`; it does not check what the endpoint answers instead). |
 
 > **Not tested: `413` before `403`.** The `413` is raised while the multipart
 > request is parsed, before the request reaches the controller, so a caller who

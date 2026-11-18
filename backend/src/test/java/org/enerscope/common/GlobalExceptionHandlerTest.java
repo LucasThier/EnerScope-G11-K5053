@@ -21,7 +21,7 @@ class GlobalExceptionHandlerTest {
 
         assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, response.getStatusCode());
         assertFalse(response.getBody().success());
-        assertEquals("The uploaded file exceeds the maximum size", response.getBody().message());
+        assertEquals("Uploaded file exceeds the maximum allowed size", response.getBody().message());
     }
 
     @Test
