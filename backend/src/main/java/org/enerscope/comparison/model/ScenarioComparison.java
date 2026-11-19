@@ -11,7 +11,7 @@ import org.enerscope.project.model.Project;
 
 /**
  * A saved comparison of economic evaluations of one project. Only the definition
- * is stored: which evaluations, in which order (the first is the baseline) and the
+ * is stored: which evaluations, in which order (it decides their colour on screen) and the
  * relevance thresholds. Evaluations are immutable, so the result is recalculated
  * on every read and always matches what was saved. Deleting is a soft delete.
  */

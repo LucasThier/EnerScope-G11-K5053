@@ -97,6 +97,18 @@
      - hero-* is the sign-in plate, which is a dark panel in both themes.
      - sample-* are the swatches that picture each theme in Configuración, so
        they must not follow the theme being pictured. */
+  /* Chart series (scenario identity in comparisons). Validated categorical order:
+     adjacent-pair CVD and normal-vision separation pass in both themes (dataviz
+     validator). Three light steps sit under 3:1 on white, so every mark carries a
+     visible text label. Identity only: never for text, status or surfaces. */
+  --color-series-1: #2a78d6;
+  --color-series-2: #eb6834;
+  --color-series-3: #1baf7a;
+  --color-series-4: #eda100;
+  --color-series-5: #e87ba4;
+  --color-series-6: #008300;
+  --color-series-7: #6250d6;
+  --color-series-8: #e34948;
   --color-page: #f5f7f9;
   --color-surface: #ffffff;
   --color-raised: #ffffff;
@@ -287,6 +299,14 @@ html[data-theme='dark'] {
   --color-warn-700: #f0cf8a;
   --color-warn-800: #f7e2b4;
 
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+  --color-series-4: #c98500;
+  --color-series-5: #d55181;
+  --color-series-6: #008300;
+  --color-series-7: #9085e9;
+  --color-series-8: #e66767;
   --color-page: #0f141a;
   --color-surface: #181f26;
   --color-raised: #232c35;

@@ -9,7 +9,9 @@ import org.enerscope.auth.filter.AuthFilter;
 import org.enerscope.common.EntityNotFoundException;
 import org.enerscope.common.ForbiddenException;
 import org.enerscope.comparison.dto.*;
+import org.enerscope.comparison.model.enums.ScenarioStatus;
 import org.enerscope.comparison.service.ScenarioComparisonService;
+import org.enerscope.comparison.service.ScenarioStatusService;
 import org.enerscope.config.SecurityConfig;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.session.model.Session;
@@ -40,6 +42,9 @@ class ScenarioComparisonControllerTest {
     ScenarioComparisonService service;
 
     @MockitoBean
+    ScenarioStatusService statuses;
+
+    @MockitoBean
     SessionService sessions;
 
     @MockitoBean
@@ -50,8 +55,9 @@ class ScenarioComparisonControllerTest {
     final UUID evaluation = UUID.randomUUID();
     final UUID comparison = UUID.randomUUID();
     final String path = "/projects/" + project + "/comparisons";
+    final UUID otherVersion = UUID.randomUUID();
     final String body = "{\"name\":\"Base vs B\",\"relevanceThreshold\":0.1,\"items\":[{\"versionId\":\"" + version
-            + "\",\"evaluationId\":\"" + evaluation + "\"},{\"versionId\":\"" + version + "\"}]}";
+            + "\"},{\"versionId\":\"" + otherVersion + "\"}]}";
 
     @BeforeEach
     void authenticate() {
@@ -60,7 +66,7 @@ class ScenarioComparisonControllerTest {
     }
 
     ComparisonResultDTO emptyResult() {
-        return new ComparisonResultDTO(evaluation, new BigDecimal("0.1"), new BigDecimal("0.01"),
+        return new ComparisonResultDTO(new BigDecimal("0.1"), new BigDecimal("0.01"),
                 List.of(), List.of(), List.of(), List.of(), List.of(), List.of());
     }
 
@@ -72,9 +78,9 @@ class ScenarioComparisonControllerTest {
                         .contentType("application/json").content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.baselineEvaluationId").value(evaluation.toString()));
+                .andExpect(jsonPath("$.data.rateThreshold").value(0.01));
         verify(service).preview(project, new ComparisonRequestDTO("Base vs B", null, new BigDecimal("0.1"), null,
-                List.of(new ComparisonRequestDTO.Item(version, evaluation), new ComparisonRequestDTO.Item(version, null))));
+                List.of(new ComparisonRequestDTO.Item(version), new ComparisonRequestDTO.Item(otherVersion))));
     }
 
     @Test
@@ -83,12 +89,12 @@ class ScenarioComparisonControllerTest {
                 Instant.now(), List.of(), emptyResult());
         when(service.save(eq(project), any())).thenReturn(saved);
         when(service.get(project, comparison)).thenReturn(saved);
-        when(service.list(project)).thenReturn(List.of(new ComparisonSummaryDTO(comparison, "Base vs B", null, 2, Instant.now())));
+        when(service.list(project)).thenReturn(List.of(new ComparisonSummaryDTO(comparison, "Base vs B", null, List.of("Base", "B"), Instant.now())));
 
         mvc.perform(post(path).header("Authorization", "Bearer test").contentType("application/json").content(body))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.id").value(comparison.toString()));
         mvc.perform(get(path).header("Authorization", "Bearer test"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].scenarioCount").value(2));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data[0].scenarios[1]").value("B"));
         mvc.perform(get(path + "/" + comparison).header("Authorization", "Bearer test"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("Base vs B"));
         mvc.perform(delete(path + "/" + comparison).header("Authorization", "Bearer test"))
@@ -97,13 +103,26 @@ class ScenarioComparisonControllerTest {
     }
 
     @Test
+    void scenarioStatusesAreListedForThePicker() throws Exception {
+        when(statuses.list(project)).thenReturn(List.of(new ComparableScenarioDTO(project, "Proyecto", version, "Base",
+                ScenarioStatus.OUTDATED, evaluation, Instant.now(), null, null, true, List.of(), true, null)));
+
+        mvc.perform(get(path + "/scenarios").header("Authorization", "Bearer test"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").value("OUTDATED"))
+                .andExpect(jsonPath("$.data[0].canSimulate").value(true));
+        verify(statuses).list(project);
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void anonymousRequestsCannotCompareReadOrDelete() throws Exception {
-        for (var request : List.of(post(path + "/preview").contentType("application/json").content(body),
+        for (var request : List.of(get(path + "/scenarios"), post(path + "/preview").contentType("application/json").content(body),
                 post(path).contentType("application/json").content(body), get(path), get(path + "/" + comparison),
                 delete(path + "/" + comparison))) {
             mvc.perform(request).andExpect(status().isUnauthorized()).andExpect(jsonPath("$.success").value(false));
         }
-        verifyNoInteractions(service);
+        verifyNoInteractions(service, statuses);
     }
 
     @Test

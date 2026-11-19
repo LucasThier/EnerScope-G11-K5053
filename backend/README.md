@@ -317,15 +317,21 @@ and Hibernate validation and rolls back its example records.
 
 ## Scenario comparison API
 
-Compares the saved economic evaluations (results) of two or more scenarios of a
-project: financial indicators (NPV, IRR, ROI, ROE, paybacks), costs (CAPEX/OPEX),
-cash totals and physical flows, with deltas against the first (baseline) scenario
-and the relevant differences flagged. See [scenario comparison](../docs/scenario-comparison.md).
+Compares the latest, up-to-date simulations of two to eight scenarios — from one
+or several projects — with each other (no reference): financial indicators (NPV,
+IRR, ROI, ROE, paybacks), costs (CAPEX/OPEX), cash totals and physical flows, with
+each scenario's position and distance to the best, and the relevant differences
+flagged. See
+[scenario comparison](../docs/scenario-comparison.md).
 
-Routes use `/api/v1/projects/{projectId}/comparisons`: `POST /preview` (compare
-without saving, `VIEW_PROJECT`), `POST /` (save, `EDIT_PROJECT`), `GET /` and
-`GET /{comparisonId}` (`VIEW_PROJECT`), `DELETE /{comparisonId}` (soft delete,
-`EDIT_PROJECT`). V24 adds the `scenario_comparison` and `scenario_comparison_item` tables.
+Routes use `/api/v1/projects/{projectId}/comparisons`: `GET /scenarios` (each
+scenario's simulation status), `POST /preview`, `POST /` (compare and save the
+run), `GET /`, `GET /{comparisonId}` and `DELETE /{comparisonId}`. A scenario that
+changed since its last simulation is refused until it is simulated again. V24 adds
+the `scenario_comparison` and `scenario_comparison_item` tables.
+
+Demo data to try it (two projects, four scenarios ready to simulate): `node docs/examples/seed-comparison-demo.mjs [--simulate]`
+from the repository root against a local backend — see [demo data](../docs/scenario-comparison.md#demo-data).
 
 ## Backend structure
 

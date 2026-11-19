@@ -10,7 +10,9 @@ import org.enerscope.economic.model.results.EconomicRoundResult;
  * A loaded evaluation ready to be measured: the saved snapshot plus, for
  * probabilistic evaluations, every saved round (deterministic ones have none).
  */
-public record ScenarioSource(UUID versionId,
+public record ScenarioSource(UUID projectId,
+                             String projectName,
+                             UUID versionId,
                              String versionName,
                              UUID evaluationId,
                              Instant evaluatedAt,

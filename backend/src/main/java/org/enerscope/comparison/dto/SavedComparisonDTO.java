@@ -15,5 +15,9 @@ public record SavedComparisonDTO(UUID id,
                                  BigDecimal relevanceThreshold,
                                  BigDecimal rateThreshold,
                                  Instant createdAt,
-                                 List<ComparisonRequestDTO.Item> items,
-                                 ComparisonResultDTO result) {}
+                                 List<Item> items,
+                                 ComparisonResultDTO result) {
+
+    /** A compared scenario and the simulation the comparison was made with. */
+    public record Item(UUID versionId, UUID evaluationId) {}
+}

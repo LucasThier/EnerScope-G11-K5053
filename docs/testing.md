@@ -103,11 +103,12 @@ source on this branch. No class uses `@ParameterizedTest`, `@RepeatedTest` or
 | `version.service.VersionConflictServiceTest` | Unit | 17 | 
 | `version.service.VersionQueryServiceTest` | Unit | 10 |
 | `version.service.VersionServiceTest` | Unit | 15 |
-| `comparison.controller.ScenarioComparisonControllerTest` | Web | 4 |
+| `comparison.controller.ScenarioComparisonControllerTest` | Web | 5 |
 | `comparison.repository.ScenarioComparisonMigrationTest` | Data (JDBC/H2) | 3 |
-| `comparison.service.ScenarioComparisonCalculatorTest` | Unit | 14 |
-| `comparison.service.ScenarioComparisonServiceTest` | Unit | 10 |
+| `comparison.service.ScenarioComparisonCalculatorTest` | Unit | 15 |
+| `comparison.service.ScenarioComparisonServiceTest` | Unit | 12 |
 | `comparison.service.ScenarioMetricsExtractorTest` | Unit | 6 |
+| `comparison.service.ScenarioStatusServiceTest` | Unit | 6 |
 | **Total** | | **-** |
 
 > **Reconciled on 2026-10-18, by reading the sources rather than by running the
@@ -1288,7 +1289,7 @@ do not infer a pass from the fact that the feature was built.
 | M28 | Field errors are announced | Submit an invalid form and check with a screen reader that the error is tied to its input (`aria-describedby`) and the input is marked `aria-invalid` | None | Pendiente de verificación |
 | M29 | The sign-in hero's subtitle contrast | Measure it in the **light** theme at 1440px and wider; it currently reads 4.21:1 against a 4.5:1 bar (known debt) | None | Pendiente de verificación |
 | M30 | A dropped connection mid-import is survivable | Start an import, kill the backend halfway, and check the warning about partially created accounts appears and the member list reflects whatever was created | Real backend | Pendiente de verificación |
-| M31 | Scenario comparison against real evaluations | Simulate two scenarios of a project (one deterministic, one probabilistic), open *Comparaciones*, compare them, save, reopen by URL and delete; the values must match each scenario's results screen and nothing may show `0` where the results screen says unavailable | Real backend (PostgreSQL, V24 applied) | Pendiente de verificación — 2026-11-12 checked only against a mock API serving a real calculator result |
+| M31 | Scenario comparison against real evaluations | Simulate two scenarios of a project (one deterministic, one probabilistic), open *Comparaciones*, compare them, save, reopen by URL and delete; the values must match each scenario's results screen and nothing may show `0` where the results screen says unavailable | Real backend (PostgreSQL, V24 applied) | API verified 2026-11-12 on PostgreSQL 16 with `seed-comparison-demo.mjs --simulate` (preview, save, read, delete, cross-project 404); the screen itself was only checked against a mock API — UI pass on the real backend pending |
 
 ## `economic.controller.EconomicControllerTest` — Web
 
@@ -1994,7 +1995,7 @@ Validation: **79 frontend unit/component cases** (73 + 6) and the 9 deployment-s
 
 ## Scenario comparison — 2026-11-12
 
-Module documented in [`scenario-comparison.md`](scenario-comparison.md). 37 new backend cases; `node.migration.MigrationCatalogTest.executableCatalogUsesOnlyVersionedMigrations` now expects **24** migrations (V24 added). Validation: `mvn clean test` — **880 tests**, zero failures/errors/skips. Run from `clean`: stale migrations from other branches left in `target/classes` make `MigrationCatalogTest` fail.
+Module documented in [`scenario-comparison.md`](scenario-comparison.md). 37 new backend cases; `node.migration.MigrationCatalogTest.executableCatalogUsesOnlyVersionedMigrations` now expects **24** migrations (V24 added). Validation: `mvn clean test` — **880 tests** at first delivery; **890** after the cross-project / latest-simulation redesign (same day), zero failures/errors/skips. Run from `clean`: stale migrations from other branches left in `target/classes` make `MigrationCatalogTest` fail.
 
 ### `comparison.service.ScenarioMetricsExtractorTest` — Unit (6)
 
@@ -2007,47 +2008,64 @@ Module documented in [`scenario-comparison.md`](scenario-comparison.md). 37 new 
 | `probabilisticEvaluationUsesMeansOverRoundsAndKeepsConditionalDenominators` | Probabilistic evaluations use the mean over rounds with a distribution; IRR defined in 1 of 2 rounds reports `availableRounds` 1 of `totalRounds` 2. |
 | `probabilisticEvaluationWithoutRoundsIsReportedAsIncomplete` | A probabilistic evaluation with no saved rounds is reported as incomplete instead of failing. |
 
-### `comparison.service.ScenarioComparisonCalculatorTest` — Unit (14)
+### `comparison.service.ScenarioComparisonCalculatorTest` — Unit (15)
+
+Scenarios are compared with each other; there is no reference scenario.
 
 | Case | Verifies |
 | --- | --- |
-| `comparesEveryIndicatorAgainstTheBaselineWithDeltasAndBestScenario` | Every indicator gets absolute/relative deltas against the baseline, a BETTER/WORSE assessment by preference, the best scenario per row and `bestIn` per scenario. |
-| `signalsRelevantImprovementsAndDeteriorationsAsFindings` | Changes over the threshold become `SIGNIFICANT_IMPROVEMENT` / `SIGNIFICANT_DETERIORATION` findings with a Spanish message. |
-| `differencesBelowTheRelevanceThresholdAreNotFlagged` | A 4 % change is not relevant with the default 5 % threshold, and is with a custom 3 % one. |
-| `ratesUsePercentagePointsAndPaybacksWholeYears` | IRR/ROI relevance uses percentage points; a payback one year shorter is better and relevant. |
-| `npvSignChangeIsTheMostRelevantFinding` | NPV going from positive to negative is a `NPV_SIGN_CHANGE` listed first. |
-| `paybackNeverRecoveredIsWorseAndReportedAsAvailabilityChange` | A payback never recovered against a recovered baseline is WORSE, relevant and an `AVAILABILITY_CHANGE`. |
-| `missingDataIsNotComparableAndNeverAFinding` | Missing saved data is `NOT_COMPARABLE`, not a finding, and raises `INCOMPLETE_RESULTS`. |
-| `amountsInAnotherCurrencyAreNotComparedButRatesStillAre` | Amounts in another currency are `NOT_COMPARABLE` with a `DIFFERENT_CURRENCY` warning; rates are still compared. |
-| `neutralIndicatorsChangeWithoutWinner` | Neutral indicators (taxes) are `CHANGED` with no best scenario. |
-| `equalValuesHaveNoWinnerAndNoFinding` | Identical scenarios produce no winner, finding or warning. |
-| `comparesThreeScenariosEachAgainstTheBaseline` | With three scenarios each is compared with the baseline and findings are ordered by size. |
-| `nodesAreMatchedByIdentityAndAddedRemovedOrChangedNodesAreSignalled` | Nodes are matched by identity; added, removed and changed-output nodes are findings. |
-| `differentHorizonsAndModesProduceComparabilityWarnings` | Different horizons and deterministic vs probabilistic raise warnings. |
+| `ranksEveryScenarioAndMeasuresItsDistanceToTheBest` | Every value gets its rank, its distance to the best (absolute and relative) and BEST / MIDDLE / WORST; the row lists best and worst; `bestIn` counts per scenario. |
+| `lowerIsBetterIndicatorsRankTheSmallestFirstAndTiesShareTheRank` | CAPEX ranks the smallest first; equal values share rank 1 and are both best. |
+| `aRelevantGapIsAFindingThatNamesTheBestAndTheWorst` | A gap over the threshold is a `LARGE_GAP` finding naming the best and the worst, never a reference. |
+| `smallGapsAreNotRelevantUnlessTheThresholdIsLower` | A 4 % gap is not relevant with the 5 % default and is with 3 %. |
+| `ratesUsePercentagePointsAndPaybacksWholeYears` | Rates use percentage points (0.5 p.p. is not relevant), paybacks whole years (shorter is best). |
+| `npvPositiveForSomeAndNotForOthersIsTheFirstFinding` | NPV positive for some and negative for others is an `NPV_SIGN_SPLIT` listed first ("genera valor" / "pierde valor"). |
+| `paybackNeverRecoveredByOneScenarioIsAnAvailabilitySplit` | A payback never recovered is an `AVAILABILITY_SPLIT` naming that scenario and the range of the others; it is not ranked. |
+| `missingDataIsNeverAFindingButIsWarned` | Missing saved data is unranked, not a finding, and raises `INCOMPLETE_RESULTS`. |
+| `amountsInDifferentCurrenciesAreNotRankedButRatesAre` | With mixed currencies no amount is ranked (NOT_COMPARABLE), rates still are; the warning names every scenario. |
+| `neutralIndicatorsAreReportedWithoutAWinner` | Neutral indicators (taxes) are unranked and their spread is reported as "va de … a …". |
+| `identicalScenariosTieWithoutWinnerFindingOrWarning` | Identical scenarios are TIED everywhere, with no winner, finding or warning. |
+| `nodesInSomeScenariosOnlyAndBigOutputGapsAreSignalled` | Nodes present in some scenarios only (`NODE_PARTIAL`) and big output gaps (`NODE_FLOW_GAP`) are findings. |
+| `scenariosThatDisagreeOnHorizonOrModeAreWarnedNamingAllOfThem` | Different horizons or deterministic/probabilistic mixes raise warnings naming every scenario. |
+| `scenariosFromDifferentProjectsAreNamedWithTheirProject` | Mixed projects name scenarios "Base (Cuenca Austral)" in the findings. |
 | `fewerThanTwoScenariosAreRejected` | Fewer than two scenarios throw `IllegalArgumentException`. |
 
-### `comparison.service.ScenarioComparisonServiceTest` — Unit (10)
+### `comparison.service.ScenarioComparisonServiceTest` — Unit (12)
 
 | Case | Verifies |
 | --- | --- |
-| `previewChecksViewPermissionAndUsesTheLatestEvaluationWhenNoneIsGiven` | Preview needs `VIEW_PROJECT`, resolves the latest evaluation when none is given and saves nothing. |
-| `versionOfAnotherProjectIsRejectedBeforeReadingAnyEvaluation` | A version outside the project is a 404 before any evaluation is read. |
-| `evaluationOfAnotherVersionIsRejected` | An evaluation that does not belong to its version is a 404. |
-| `versionWithoutEvaluationsCannotBeCompared` | A version with no evaluation answers a clear 400. |
-| `fewerThanTwoItemsDuplicatesAndInvalidThresholdsAreRejected` | One item, no body, the same evaluation twice, a zero threshold, an item without version and more than 10 items are rejected. |
-| `saveNeedsEditPermissionAndANameAndStoresResolvedEvaluationsInOrder` | Saving needs a name and `EDIT_PROJECT`, trims the name, applies default thresholds and stores the resolved evaluations in order. |
+| `previewChecksViewPermissionAndComparesEachScenarioThroughItsLatestSimulation` | Preview needs `VIEW_PROJECT`, uses each scenario's latest simulation and saves nothing. |
+| `scenarioThatChangedSinceItsLastSimulationMustBeSimulatedAgain` | An outdated scenario is refused (`Scenario changed since its last simulation: …`) by preview and save; nothing is stored. |
+| `scenarioNeverSimulatedCannotBeCompared` | A scenario with no simulation answers `Scenario has never been simulated: …`. |
+| `unknownVersionIsNotFoundBeforeReadingAnyEvaluation` | An unknown or deleted version is a 404 before any evaluation is read. |
+| `scenariosOfAnotherProjectAreComparedWhenTheCallerCanViewIt` | A version of another project is compared after `VIEW_PROJECT` is checked on that project, read through its own project, and the result carries each project's name. |
+| `scenarioOfAProjectTheCallerCannotViewIsForbidden` | A version of a project the caller cannot see is a 403 and its evaluations are never read. |
+| `fewerThanTwoItemsTheSameScenarioTwiceAndInvalidThresholdsAreRejected` | One item, no body, the same scenario twice, a zero threshold, an item without version and more than 8 items are rejected. |
+| `saveNeedsEditPermissionNamesItAfterItsScenariosAndStoresTheSimulationsCompared` | Saving needs `EDIT_PROJECT`, is named after its scenarios ("Base vs Ampliación") unless given a name (trimmed), applies default thresholds and stores the simulations compared, in order. |
 | `userWithoutEditPermissionCannotSave` | A 403 from the permission check stores nothing. |
-| `probabilisticEvaluationsAreComparedFromTheirSavedRounds` | Probabilistic evaluations are read from their completed job's saved rounds and compared by their mean. |
-| `savedComparisonIsRecalculatedOnReadAndUnknownIdsAreNotFound` | Reading a saved comparison recalculates it; listing counts its scenarios; unknown ids are 404. |
+| `probabilisticSimulationsAreComparedFromTheirSavedRounds` | Probabilistic simulations are read from their completed job's saved rounds and compared by their mean. |
+| `savedComparisonShowsItsOwnSimulationsEvenIfTheScenariosChangedLater` | Reading a saved run recalculates it from its own simulations even if the scenarios are outdated now; listing returns scenario names; unknown ids are 404. |
 | `deleteIsASoftDeleteThatNeedsEditPermission` | Delete needs `EDIT_PROJECT` and deactivates instead of deleting the row. |
 
-### `comparison.controller.ScenarioComparisonControllerTest` — Web (4)
+### `comparison.service.ScenarioStatusServiceTest` — Unit (6)
 
 | Case | Verifies |
 | --- | --- |
-| `previewBindsTheRequestAndAnswersInTheEnvelope` | `POST /projects/{id}/comparisons/preview` binds the request (items, optional evaluation, thresholds) and answers `200` in the envelope. |
-| `saveAnswers201AndReadRoutesKeepTheScopedIdentifiers` | Save answers `201`; list, get and delete pass the project and comparison ids through. |
-| `anonymousRequestsCannotCompareReadOrDelete` | Every route answers `401` without a token and never reaches the service. |
+| `scenarioUnchangedSinceItsSimulationIsUpToDate` | A snapshot frozen from the current configuration and nodes (read back through JSON) is up to date. |
+| `changingTheEconomicConfigurationMakesItOutdated` | A configuration change (WACC) makes the scenario outdated. |
+| `changingAPhysicalNodeMakesItOutdated` | A physical change (a well's capacity) makes it outdated. |
+| `auditTimestampsDoNotCountAsAChange` | A node's `lastModified` changing alone keeps it up to date. |
+| `scenarioWithoutConfigurationOrSnapshotDataIsNotUpToDate` | No current configuration, no snapshot or a snapshot without inputs is never up to date. |
+| `listReportsEachScenarioStatusReadinessAndWhetherTheCallerCanSimulate` | The picker list reports UP_TO_DATE / NEVER_SIMULATED / SIMULATING (with progress), the readiness errors, the project name and `canSimulate` (false without a session, true for a platform admin). |
+
+### `comparison.controller.ScenarioComparisonControllerTest` — Web (5)
+
+| Case | Verifies |
+| --- | --- |
+| `previewBindsTheRequestAndAnswersInTheEnvelope` | `POST /projects/{id}/comparisons/preview` binds the request (scenario ids in order) and answers `200` in the envelope. |
+| `saveAnswers201AndReadRoutesKeepTheScopedIdentifiers` | Save answers `201`; list (with scenario names), get and delete pass the project and comparison ids through. |
+| `scenarioStatusesAreListedForThePicker` | `GET /projects/{id}/comparisons/scenarios` returns each scenario's status and `canSimulate`. |
+| `anonymousRequestsCannotCompareReadOrDelete` | Every route, including `/scenarios`, answers `401` without a token and never reaches the services. |
 | `serviceErrorsMapToTheGlobalStatusCodes` | Validation, permission and not-found errors become `400`, `403` and `404`. |
 
 ### `comparison.repository.ScenarioComparisonMigrationTest` — Data (JDBC/H2) (3)
@@ -2058,24 +2076,32 @@ Module documented in [`scenario-comparison.md`](scenario-comparison.md). 37 new 
 | `rejectsRepeatedPositionsAndRepeatedEvaluationsInOneComparison` | Repeated position, repeated evaluation and negative position are rejected. |
 | `rejectsUnknownReferencesAndNonPositiveThresholds` | Unknown evaluation/project references and a zero threshold are rejected. |
 
-### Scenario comparison frontend — 2026-11-12
+### Scenario comparison frontend — 2026-11-12 (redesign)
 
-`frontend/tests/comparison.test.mjs` — unit, **11 cases**, for `src/utils/comparison.ts`:
+`frontend/tests/comparison.test.mjs` — unit, **19 cases**, for `src/utils/comparison.ts` (updated 2026-11-13: no reference scenario):
 
 | Case | Verifies |
 | --- | --- |
 | `values are formatted by unit and missing values are never shown as zero` | Currency, %, years, hours and simulator units are formatted in es-AR; `null`/`NaN` and unavailable statuses become text, never `0`. |
 | `probabilistic means say how many rounds they cover` | "Media de N rondas" / "Media de N de M rondas" only for probabilistic values. |
-| `deltas use percentage points for rates, years for paybacks and percent otherwise` | Delta chips use p.p., years, %, "desde 0" and "Sin cambios"; none for the baseline or non-comparable cells. |
-| `assessments and findings map to tones` | Better/worse/changed/not comparable and finding types map to good/bad/neutral/muted. |
+| `the distance to the best reads in plain words and in the indicator unit` | "USD 514 menos que el mejor", "1 año más que el mejor", "8,73 p.p. menos que el mejor", "El mejor", "Igual en todos"; nothing for unranked values. |
+| `ranks read as ordinals and cells sort best first, unranked last` | "1.º" labels and best-first ordering of bars. |
+| `positions and findings map to tones` | Best/worst/middle and finding types (losing value and never recovering are warnings) map to tones. |
 | `indicators are grouped in a fixed category order and can be limited to relevant ones` | Financial → costs → cash flow → physical; the relevant-only filter drops empty groups. |
 | `two evaluations of the same version get distinguishable names` | Repeated version names get `#position`. |
+| `scenarios from several projects are named with their project` | Mixed projects give "Base (Neuquina)" / "Base (Austral)", like the backend. |
 | `chart lines break at missing years instead of drawing zero` | Missing or skipped years split the line. |
 | `chart scale includes zero and every series, and is null without data` | The axis covers all series and zero; flat data still has a range; no data → no chart. |
-| `the draft needs two to ten distinct results and positive thresholds` | Too few/many rows, empty rows, repeated results and non-positive thresholds are reported. |
-| `the request converts % and p.p. to fractions and blank to the server default` | `7,5` % → `0.075`, blank → `null`, latest → `evaluationId: null`, trimmed name; saved thresholds go back to form values. |
 | `node types are shown in Spanish and unknown ones as they come` | Backend node types get Spanish labels. |
+| `the headline is the highest comparable NPV and its margin over the second one` | The conclusion picks the highest comparable NPV and its lead over the second scenario. |
+| `the headline says when two scenarios tie, when every NPV is negative, and when there is none` | Ties, all-negative NPVs, a single NPV and no NPV at all. |
+| `bar scales always include zero so negative values grow to the left` | Shared bar scale with zero inside it; no values → no scale. |
+| `headline numbers are compact but rates and years keep their full form` | "USD 1,3 M" from a million, "USD 1.233" / "USD -418" / "USD 42,5" below; rates and years unchanged. |
+| `scenario colours follow the position and never cycle past the palette` | Position → `series-n` classes; the cap is 8. |
+| `comparing needs two to eight scenarios, all simulated and up to date` | The Compare button's rule and its reason; which pending scenarios can be simulated from the screen and which are blocked. |
+| `scenario status reads in plain words, with progress and failed runs` | Tile labels for up to date / changed / never simulated / simulating (with rounds) and a failed last run. |
+| `the selection round-trips through the URL and the request keeps its order` | `?escenarios=project:version,…` round trip (duplicates and broken parts dropped) and the request order. |
 
-Also updated: `economicNavigation.test.mjs` (Comparaciones links to `/projects/{id}/comparisons`, falls back to `/projects` without a project, and has its title/breadcrumbs) and `workspaceRoutes.test.mjs` (+1 case: comparison routes match only their module and switching projects drops the comparison id).
+Also updated: `economicNavigation.test.mjs` and `workspaceRoutes.test.mjs` (Comparaciones links to `/projects/{id}/comparisons`; comparison routes keep their title and drop the run id when switching projects).
 
-Validation: **91 frontend cases** (`npm test`), `npm run build` and `npm run lint` pass. Manual check in the built-in browser against a throwaway mock API serving a comparison result produced by the real backend calculator: compare 2–3 scenarios (deterministic + probabilistic), empty-scenario message, findings, indicator table, chart, node flows, save → reopen by URL (stored evaluations resolved, no stale warning) → delete, sidebar link, and 375 px width (tables scroll inside their cards).
+Validation: **99 frontend cases** (`npm test`; 98 before the no-reference change), `npm run build` and `npm run lint` pass. Checked end to end against this backend on a throwaway PostgreSQL 16 with the demo data: statuses (all up to date → one outdated after a WACC change), re-simulating from the tile, comparing three scenarios from two projects, the result screen top to bottom, earlier runs listed, and 375 px width (no horizontal overflow, single scroll).

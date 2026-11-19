@@ -18,6 +18,8 @@ import org.enerscope.comparison.model.enums.EvaluationMode;
  * @param nodes physical nodes keyed by identity (stable across version copies), in snapshot order
  */
 public record ScenarioMetrics(UUID evaluationId,
+                              UUID projectId,
+                              String projectName,
                               UUID versionId,
                               String versionName,
                               Instant evaluatedAt,

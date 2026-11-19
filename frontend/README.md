@@ -233,24 +233,23 @@ Configuration is at `/projects/:projectId/scenario-configurations`; scenario for
 
 ## Scenario comparison
 
-**Análisis → Comparaciones** opens `/projects/:projectId/comparisons` (a saved one at
-`/projects/:projectId/comparisons/:comparisonId`). Pick 2–10 results — a scenario
-(version) and one of its saved evaluations, or its latest; the first row is the
-baseline — and the relevance thresholds (% for amounts/volumes, percentage points
-for rates), then **Comparar**. The result shows:
+**Análisis → Comparaciones** has two screens. Step 1, `/projects/:projectId/comparisons`:
+pick 2–8 scenarios from any project (project selector + search over scenario
+tiles). Each tile says whether its latest simulation is usable ("al día"), changed
+since ("cambió"), was never run or is running, and can be simulated right there
+(10 rounds) — the panel "Tu comparación" lists the choice, can simulate everything
+pending at once and enables **Comparar escenarios** only
+when every scenario is up to date. Earlier runs are listed below. Comparing saves
+the run and opens step 2, `/projects/:projectId/comparisons/:comparisonId`.
+Scenarios are compared with each other — there is no reference — : a conclusion
+(the scenario with the highest NPV, big, and its lead over the second) with every
+scenario ranked by value, the four key indicators as bars ordered best first with
+each one's distance to the best, the most important differences in plain words, the yearly chart
+with a hover crosshair, more indicators in smaller cards and, collapsed, the full
+detail tables. Scenario colours are the `series-1…8` tokens in `src/index.css`.
 
-- the compared scenarios and how many indicators each one leads;
-- comparability warnings (currency, horizon, WACC, deterministic vs probabilistic…);
-- the relevant differences against the baseline, most important first;
-- an indicator table (financial, CAPEX/OPEX, cash flow, physical) with the delta
-  of each scenario, the best value marked with ★ and a "only relevant" filter;
-- an annual chart (cumulative/annual cash flow, produced/exported volume) with
-  the exact values in a table;
-- per-node flows matched across scenarios.
-
-Users who can edit the project can save a comparison (name + description) and
-delete saved ones. Code: `src/pages/ComparisonsPage.tsx`,
+Code: `src/pages/ComparisonsPage.tsx`, `src/pages/ComparisonResultPage.tsx`,
 `src/components/comparison/*`, `src/api/comparisons.ts`, `src/types/comparison.ts`
 (keep in sync with the backend DTOs) and the pure helpers in
-`src/utils/comparison.ts` (covered by `tests/comparison.test.mjs`). Backend and
-definitions: [scenario comparison](../docs/scenario-comparison.md).
+`src/utils/comparison.ts` (covered by `tests/comparison.test.mjs`). Rules and API:
+[scenario comparison](../docs/scenario-comparison.md).

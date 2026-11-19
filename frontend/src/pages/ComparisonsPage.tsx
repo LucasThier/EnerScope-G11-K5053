@@ -1,155 +1,188 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { comparisonsApi } from '../api/comparisons';
 import { economicsApi } from '../api/economics';
 import { getErrorMessage, getErrorStatus } from '../api/errors';
-import { ComparisonBuilder, type ComparisonDraft } from '../components/comparison/ComparisonBuilder';
-import { ComparisonResults } from '../components/comparison/ComparisonResults';
+import { PreviousComparisons } from '../components/comparison/PreviousComparisons';
+import { ScenarioTile } from '../components/comparison/ScenarioTile';
+import { SelectionPanel } from '../components/comparison/SelectionPanel';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Modal, ModalFooter } from '../components/ui/Modal';
-import { TextArea } from '../components/ui/TextArea';
-import { TextField } from '../components/ui/TextField';
+import { SearchField } from '../components/ui/SearchField';
+import { SelectField } from '../components/ui/SelectField';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useAuth } from '../hooks/useAuth';
-import type { ComparisonResult, ComparisonSummary, SavedComparison } from '../types/comparison';
-import type { Scenario } from '../types/economics';
-import { DEFAULT_RATE_POINTS, DEFAULT_RELEVANCE_PERCENT, thresholdsForForm, toRequest } from '../utils/comparison';
+import type { ComparableScenario, ComparisonSummary } from '../types/comparison';
+import { MAX_SCENARIOS, selectionFromQuery, toRequest, type SelectionRef } from '../utils/comparison';
 
-const EMPTY_DRAFT: ComparisonDraft = {
-  items: [{ versionId: '', evaluationId: '' }, { versionId: '', evaluationId: '' }],
-  relevancePercent: String(DEFAULT_RELEVANCE_PERCENT),
-  ratePoints: String(DEFAULT_RATE_POINTS),
-};
+/** Rounds used when a scenario is simulated from the comparison screen. */
+const ROUNDS = 10;
+const POLL_MS = 2500;
 
-const draftKey = (draft: ComparisonDraft) => JSON.stringify(toRequest(draft.items, draft.relevancePercent, draft.ratePoints));
+type Catalog = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; scenarios: ComparableScenario[] };
 
 export function ComparisonsPage() {
-  const { projectId = '', comparisonId } = useParams();
-  // Remount per project so no state of one project leaks into another.
-  return <ComparisonsWorkspace key={projectId} projectId={projectId} comparisonId={comparisonId ?? null} />;
+  const { projectId = '' } = useParams();
+  // Remount per project so nothing of one project leaks into another.
+  return <ComparisonSelection key={projectId} projectId={projectId} />;
 }
 
-function ComparisonsWorkspace({ projectId, comparisonId }: { projectId: string; comparisonId: string | null }) {
+/**
+ * Step 1 of a comparison: pick the scenarios (from any project the user can see), make
+ * sure each one has an up-to-date simulation — simulating it here if needed — and
+ * compare. The result opens in its own screen. Earlier comparisons are listed below.
+ */
+function ComparisonSelection({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
+  const [search] = useSearchParams();
   const { user } = useAuth();
-  const { activeProject } = useActiveProject();
+  const { projects, activeProject } = useActiveProject();
   const canEdit = user?.platformRole === 'ADMIN' || (activeProject?.id === projectId && activeProject.myRole != null);
 
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [saved, setSaved] = useState<ComparisonSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [retry, setRetry] = useState(0);
-
-  const [draft, setDraft] = useState<ComparisonDraft>(EMPTY_DRAFT);
-  const [result, setResult] = useState<ComparisonResult | null>(null);
-  const [comparedKey, setComparedKey] = useState('');
-  const [open, setOpen] = useState<SavedComparison | null>(null);
+  const [browsing, setBrowsing] = useState(projectId);
+  const [filter, setFilter] = useState('');
+  const [catalogs, setCatalogs] = useState<Record<string, Catalog>>({});
+  const [selection, setSelection] = useState<SelectionRef[]>(() => selectionFromQuery(search.get('escenarios')));
+  const [starting, setStarting] = useState<Record<string, boolean>>({});
+  const [simulationErrors, setSimulationErrors] = useState<Record<string, string>>({});
   const [comparing, setComparing] = useState(false);
   const [compareError, setCompareError] = useState('');
-
-  const [saving, setSaving] = useState(false);
+  const [history, setHistory] = useState<ComparisonSummary[] | null>(null);
   const [deleting, setDeleting] = useState<ComparisonSummary | null>(null);
 
-  const reloadSaved = useCallback(() => comparisonsApi.list(projectId).then(setSaved), [projectId]);
+  const loadCatalog = useCallback(async (project: string, quiet = false) => {
+    if (!quiet) setCatalogs(current => current[project]?.status === 'ready' ? current : { ...current, [project]: { status: 'loading' } });
+    try {
+      const scenarios = await comparisonsApi.scenarios(project);
+      setCatalogs(current => ({ ...current, [project]: { status: 'ready', scenarios } }));
+    } catch (error) {
+      if (!quiet) setCatalogs(current => ({ ...current, [project]: { status: 'error', message: getErrorMessage(error, 'No se pudieron cargar los escenarios.') } }));
+    }
+  }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([economicsApi.scenarios(projectId), comparisonsApi.list(projectId)])
-      .then(([versions, comparisons]) => {
-        if (cancelled) return;
-        setScenarios(versions); setSaved(comparisons); setLoadError(''); setLoading(false);
-      })
-      .catch(error => {
-        if (cancelled) return;
-        setLoadError(getErrorMessage(error, 'No se pudieron cargar los escenarios del proyecto.')); setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [projectId, retry]);
+  const reloadHistory = useCallback(() => comparisonsApi.list(projectId).then(setHistory).catch(() => setHistory([])), [projectId]);
 
-  // Opening a saved comparison shows its stored definition and its recalculated result.
+  // The project being browsed, plus every project a selected scenario belongs to.
+  const involved = useMemo(() => [...new Set([browsing, ...selection.map(s => s.projectId)])], [browsing, selection]);
   useEffect(() => {
-    if (!comparisonId) { setOpen(null); return; }
-    let cancelled = false;
-    setComparing(true); setCompareError('');
-    comparisonsApi.get(projectId, comparisonId).then(comparison => {
-      if (cancelled) return;
-      const next: ComparisonDraft = {
-        items: comparison.items.map(item => ({ versionId: item.versionId, evaluationId: item.evaluationId ?? '' })),
-        ...thresholdsForForm(comparison.relevanceThreshold, comparison.rateThreshold),
-      };
-      setOpen(comparison); setDraft(next); setResult(comparison.result); setComparedKey(draftKey(next));
-    }).catch(error => {
-      if (!cancelled) { setOpen(null); setResult(null); setCompareError(getErrorMessage(error, 'No se pudo abrir la comparación.')); }
-    }).finally(() => { if (!cancelled) setComparing(false); });
-    return () => { cancelled = true; };
-  }, [projectId, comparisonId]);
+    involved.filter(project => !catalogs[project]).forEach(project => { void loadCatalog(project); });
+  }, [involved, catalogs, loadCatalog]);
+  useEffect(() => { void reloadHistory(); }, [reloadHistory]);
+
+  const known = useMemo(() => {
+    const map = new Map<string, ComparableScenario>();
+    Object.values(catalogs).forEach(catalog => { if (catalog.status === 'ready') catalog.scenarios.forEach(s => map.set(s.versionId, s)); });
+    return map;
+  }, [catalogs]);
+  const selected = selection.map(ref => known.get(ref.versionId)).filter((s): s is ComparableScenario => !!s);
+
+  // While anything involved is simulating, refresh those projects until it finishes.
+  const busyKey = useMemo(() => {
+    const busy = new Set<string>();
+    known.forEach(s => { if ((s.status === 'SIMULATING' || starting[s.versionId]) && involved.includes(s.projectId)) busy.add(s.projectId); });
+    return [...busy].sort().join(',');
+  }, [known, starting, involved]);
+  const timer = useRef<number | null>(null);
+  useEffect(() => {
+    if (!busyKey) return;
+    timer.current = window.setInterval(() => {
+      if (document.visibilityState === 'visible') busyKey.split(',').forEach(project => { void loadCatalog(project, true); });
+    }, POLL_MS);
+    return () => { if (timer.current) window.clearInterval(timer.current); };
+  }, [busyKey, loadCatalog]);
+
+  function toggle(scenario: ComparableScenario) {
+    setCompareError('');
+    setSelection(current => current.some(s => s.versionId === scenario.versionId)
+      ? current.filter(s => s.versionId !== scenario.versionId)
+      : current.length >= MAX_SCENARIOS ? current : [...current, { projectId: scenario.projectId, versionId: scenario.versionId }]);
+  }
+
+  async function simulate(scenario: ComparableScenario) {
+    setStarting(current => ({ ...current, [scenario.versionId]: true }));
+    setSimulationErrors(current => { const next = { ...current }; delete next[scenario.versionId]; return next; });
+    try {
+      await economicsApi.submitJob(scenario.projectId, scenario.versionId, ROUNDS, '');
+      await loadCatalog(scenario.projectId, true);
+    } catch (error) {
+      setSimulationErrors(current => ({ ...current, [scenario.versionId]: getErrorMessage(error, 'No se pudo iniciar la simulación.') }));
+    } finally {
+      setStarting(current => { const next = { ...current }; delete next[scenario.versionId]; return next; });
+    }
+  }
 
   async function compare() {
     setComparing(true); setCompareError('');
     try {
-      const next = await comparisonsApi.preview(projectId, toRequest(draft.items, draft.relevancePercent, draft.ratePoints));
-      setResult(next); setComparedKey(draftKey(draft));
-      if (comparisonId) { setOpen(null); navigate(`/projects/${projectId}/comparisons`, { replace: true }); }
+      const run = await comparisonsApi.save(projectId, toRequest(selection.map(s => s.versionId)));
+      navigate(`/projects/${projectId}/comparisons/${run.id}`);
     } catch (error) {
-      setCompareError(getErrorMessage(error, 'No se pudo comparar los escenarios.'));
+      setCompareError(getErrorMessage(error, 'No se pudieron comparar los escenarios.'));
+      selection.forEach(s => { void loadCatalog(s.projectId, true); });
     } finally {
       setComparing(false);
     }
   }
 
-  function startNew() {
-    setDraft(EMPTY_DRAFT); setResult(null); setComparedKey(''); setCompareError(''); setOpen(null);
-    if (comparisonId) navigate(`/projects/${projectId}/comparisons`);
-  }
+  const catalog = catalogs[browsing];
+  const visible = catalog?.status === 'ready'
+    ? catalog.scenarios.filter(s => s.versionName.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase()))
+    : [];
+  const browsingName = projects.find(p => p.id === browsing)?.name;
 
-  const stale = result !== null && comparedKey !== draftKey(draft);
-
-  return <div className="space-y-6">
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink-800">Comparación de Escenarios</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Contrastá los resultados guardados de dos o más escenarios del proyecto: indicadores financieros, costos y resultados físicos.
-        </p>
-      </div>
-      {(result || comparisonId) && <Button variant="ghost" onClick={startNew}>Nueva comparación</Button>}
+  return <div className="relative space-y-10">
+    <header className="max-w-3xl">
+      <p className="text-sm font-semibold text-brand-800">Paso 1 de 2</p>
+      <h1 className="mt-1 text-3xl font-semibold text-ink-800">Comparar escenarios</h1>
+      <p className="mt-2 text-base text-ink-600">
+        Elegí qué escenarios querés poner lado a lado. Se usa la última simulación de cada uno; si un escenario cambió
+        o nunca se simuló, lo podés simular acá mismo.
+      </p>
     </header>
 
-    {loading ? <p role="status">Cargando escenarios…</p> : loadError ? <Alert tone="error">{loadError}{' '}
-      <Button variant="ghost" onClick={() => { setLoading(true); setRetry(n => n + 1); }}>Reintentar</Button></Alert> : <>
-      <SavedComparisons projectId={projectId} saved={saved} openId={comparisonId} canEdit={canEdit} onDelete={setDeleting} />
-
-      {open && <Card>
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">Comparación guardada</p>
-        <h2 className="mt-1 text-lg font-semibold text-ink-800">{open.name}</h2>
-        {open.description && <p className="mt-1 text-sm text-ink-600">{open.description}</p>}
-        <p className="mt-2 text-xs text-ink-500">Guardada el {new Date(open.createdAt).toLocaleString('es-AR')}. El resultado se recalcula a partir de las evaluaciones guardadas, que no cambian.</p>
-      </Card>}
-
-      <ComparisonBuilder projectId={projectId} scenarios={scenarios} draft={draft} onChange={setDraft}
-        onCompare={compare} comparing={comparing} />
-
-      {compareError && <Alert tone="error">{compareError}</Alert>}
-      {stale && <Alert tone="info">Cambiaste la selección. Volvé a comparar para actualizar el resultado.</Alert>}
-
-      {result && <>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-ink-800">Resultado</h2>
-          {canEdit && !open && <Button onClick={() => setSaving(true)} disabled={stale}>Guardar comparación</Button>}
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+      <section aria-labelledby="scenario-catalog" className="flex min-w-0 flex-col gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <div className="sm:w-72">
+            <SelectField label="Proyecto" value={browsing} onChange={event => { setBrowsing(event.target.value); setFilter(''); }}>
+              {!projects.some(p => p.id === projectId) && <option value={projectId}>Proyecto actual</option>}
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </SelectField>
+          </div>
+          <div className="sm:flex-1">
+            <SearchField label="Buscar escenario" value={filter} onChange={event => setFilter(event.target.value)} />
+          </div>
         </div>
-        <ComparisonResults result={result} />
-      </>}
-    </>}
+        <h2 id="scenario-catalog" className="sr-only">Escenarios de {browsingName ?? 'este proyecto'}</h2>
 
-    <SaveComparisonDialog open={saving} onClose={() => setSaving(false)} onSave={async (name, description) => {
-      const stored = await comparisonsApi.save(projectId, toRequest(draft.items, draft.relevancePercent, draft.ratePoints, name, description));
-      await reloadSaved();
-      setSaving(false);
-      navigate(`/projects/${projectId}/comparisons/${stored.id}`);
-    }} />
+        {!catalog || catalog.status === 'loading' ? <p role="status" className="text-sm text-ink-500">Cargando escenarios…</p>
+          : catalog.status === 'error' ? <Alert tone="error">{catalog.message}{' '}
+              <Button variant="ghost" size="compact" onClick={() => loadCatalog(browsing)}>Reintentar</Button></Alert>
+          : !catalog.scenarios.length ? <Card><p className="text-sm text-ink-500">Este proyecto todavía no tiene escenarios.</p></Card>
+          : !visible.length ? <p className="text-sm text-ink-500">Ningún escenario coincide con la búsqueda.</p>
+          : <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {visible.map(scenario => {
+                const position = selection.findIndex(s => s.versionId === scenario.versionId);
+                return <ScenarioTile key={scenario.versionId} scenario={scenario} position={position}
+                  disabled={selection.length >= MAX_SCENARIOS} starting={!!starting[scenario.versionId]}
+                  error={simulationErrors[scenario.versionId] ?? null}
+                  onToggle={() => toggle(scenario)} onSimulate={() => simulate(scenario)} />;
+              })}
+            </ul>}
+      </section>
+
+      <aside className="lg:sticky lg:top-4">
+        <SelectionPanel selected={selected} starting={starting} comparing={comparing}
+          onRemove={versionId => setSelection(current => current.filter(s => s.versionId !== versionId))}
+          onSimulatePending={pending => pending.forEach(scenario => { void simulate(scenario); })}
+          onCompare={compare} />
+        {compareError && <Alert className="mt-3" tone="error">{compareError}</Alert>}
+      </aside>
+    </div>
+
+    {history && <PreviousComparisons projectId={projectId} comparisons={history} canDelete={canEdit} onDelete={setDeleting} />}
 
     <DeleteComparisonDialog comparison={deleting} onClose={() => setDeleting(null)} onDelete={async id => {
       try {
@@ -157,77 +190,10 @@ function ComparisonsWorkspace({ projectId, comparisonId }: { projectId: string; 
       } catch (error) {
         if (getErrorStatus(error) !== 404) throw error;
       }
-      await reloadSaved();
+      await reloadHistory();
       setDeleting(null);
-      if (comparisonId === id) startNew();
     }} />
   </div>;
-}
-
-function SavedComparisons({ projectId, saved, openId, canEdit, onDelete }: {
-  projectId: string; saved: ComparisonSummary[]; openId: string | null; canEdit: boolean;
-  onDelete: (comparison: ComparisonSummary) => void;
-}) {
-  if (!saved.length) return null;
-  return <Card padded={false}>
-    <h2 className="p-6 pb-3 text-lg font-semibold text-ink-800">Comparaciones guardadas</h2>
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <thead><tr className="border-y border-ink-200 bg-ink-50">
-          <th scope="col" className="p-3">Nombre</th><th scope="col" className="p-3">Escenarios</th>
-          <th scope="col" className="p-3">Guardada</th><th scope="col" className="p-3"><span className="sr-only">Acciones</span></th>
-        </tr></thead>
-        <tbody>{saved.map(c => <tr key={c.id} className={`border-b border-ink-100 ${c.id === openId ? 'bg-brand-50' : ''}`}>
-          <td className="p-3 font-medium">
-            <Link className="text-brand-800 underline" to={`/projects/${projectId}/comparisons/${c.id}`}
-              aria-current={c.id === openId ? 'page' : undefined}>{c.name}</Link>
-            {c.description && <p className="mt-1 text-xs text-ink-500">{c.description}</p>}
-          </td>
-          <td className="p-3">{c.scenarioCount}</td>
-          <td className="p-3">{new Date(c.createdAt).toLocaleDateString('es-AR')}</td>
-          <td className="p-3 text-right">{canEdit && <Button variant="ghost" size="compact" onClick={() => onDelete(c)}
-            aria-label={`Eliminar ${c.name}`}>Eliminar</Button>}</td>
-        </tr>)}</tbody>
-      </table>
-    </div>
-  </Card>;
-}
-
-function SaveComparisonDialog({ open, onClose, onSave }: {
-  open: boolean; onClose: () => void; onSave: (name: string, description: string) => Promise<void>;
-}) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => { if (open) { setName(''); setDescription(''); setError(''); } }, [open]);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!name.trim()) { setError('Poné un nombre para guardar la comparación.'); return; }
-    setBusy(true); setError('');
-    try {
-      await onSave(name, description);
-    } catch (failure) {
-      setError(getErrorMessage(failure, 'No se pudo guardar la comparación.'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return <Modal open={open} onClose={onClose} title="Guardar comparación"
-    subtitle="Se guarda qué resultados se comparan y los umbrales, para volver a abrirla después.">
-    <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
-      {error && <Alert tone="error">{error}</Alert>}
-      <TextField label="Nombre" value={name} maxLength={120} required onChange={event => setName(event.target.value)} />
-      <TextArea label="Descripción (opcional)" value={description} rows={3} onChange={event => setDescription(event.target.value)} />
-      <ModalFooter>
-        <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-        <Button type="submit" loading={busy}>Guardar</Button>
-      </ModalFooter>
-    </form>
-  </Modal>;
 }
 
 function DeleteComparisonDialog({ comparison, onClose, onDelete }: {
@@ -252,7 +218,8 @@ function DeleteComparisonDialog({ comparison, onClose, onDelete }: {
   return <Modal open={comparison !== null} onClose={onClose} title="Eliminar comparación">
     <div className="flex flex-col gap-4">
       {error && <Alert tone="error">{error}</Alert>}
-      <p className="text-sm text-ink-700">Se va a eliminar la comparación <span className="font-semibold text-ink-800">{comparison?.name}</span>. Los escenarios y sus evaluaciones no se modifican.</p>
+      <p className="text-sm text-ink-700">Se va a eliminar la comparación <span className="font-semibold text-ink-800">{comparison?.name}</span>.
+        Los escenarios y sus simulaciones no se modifican.</p>
       <ModalFooter>
         <Button variant="ghost" onClick={onClose}>Cancelar</Button>
         <Button variant="danger" onClick={confirm} loading={busy}>Eliminar</Button>

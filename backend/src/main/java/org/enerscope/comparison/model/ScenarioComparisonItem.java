@@ -8,7 +8,7 @@ import org.enerscope.economic.model.EconomicEvaluation;
 import org.enerscope.version.model.Version;
 
 /**
- * One evaluation inside a saved comparison. {@code position} 0 is the baseline.
+ * One evaluation inside a saved comparison. {@code position} is the order it was picked in.
  * The version is stored next to the evaluation so the comparison keeps pointing
  * at the scenario even when it is listed without loading the snapshot.
  */

@@ -1,6 +1,6 @@
 import { client } from './client';
 import type { ApiResponse } from '../types/auth';
-import type { ComparisonRequest, ComparisonResult, ComparisonSummary, SavedComparison } from '../types/comparison';
+import type { ComparableScenario, ComparisonRequest, ComparisonResult, ComparisonSummary, SavedComparison } from '../types/comparison';
 
 const base = (project: string) => `/projects/${encodeURIComponent(project)}/comparisons`;
 
@@ -11,6 +11,7 @@ function data<T>(response: { data: ApiResponse<T> }): T {
 
 /** Scenario comparison endpoints (`/projects/{projectId}/comparisons`). */
 export const comparisonsApi = {
+  scenarios: (project: string) => client.get<ApiResponse<ComparableScenario[]>>(base(project) + '/scenarios').then(data),
   preview: (project: string, request: ComparisonRequest) =>
     client.post<ApiResponse<ComparisonResult>>(base(project) + '/preview', request).then(data),
   save: (project: string, request: ComparisonRequest) =>

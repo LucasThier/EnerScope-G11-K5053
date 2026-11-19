@@ -499,13 +499,13 @@ none. FrozenEconomicInput and ProbabilisticSummary are value records, not shared
 
 ## ScenarioComparison
 
-A saved comparison of the results of two or more scenarios of one Project
+A saved comparison run of two to eight scenarios, saved under one Project but able to include scenarios of other projects
 (`scenario_comparison`, V24). It holds a `name`, an optional `description` and
 two relevance thresholds (`relevanceThreshold`, relative; `rateThreshold`,
-absolute in fraction points). It owns 2–10 ordered `ScenarioComparisonItem`s
+absolute in fraction points). It owns 2–8 ordered `ScenarioComparisonItem`s
 (`scenario_comparison_item`), each pointing at a `Version` and one of its
 `EconomicEvaluation`s, unique by (comparison, position) and (comparison,
-evaluation). Position 0 is the baseline. Only the definition is stored: the
+evaluation). Positions keep the order the scenarios were picked in (it only decides their colour); scenarios are compared with each other. Only the definition is stored: the
 result is recalculated from the immutable evaluations on every read. Deleting is
 a soft delete. See [`scenario-comparison.md`](scenario-comparison.md).
 

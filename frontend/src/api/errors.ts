@@ -47,14 +47,13 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
   'Internal error': 'El servidor tuvo un problema y no pudo completar la operación.',
   'Malformed request body': 'No se pudo interpretar el pedido.',
   'Pick at least 2 evaluations to compare': 'Elegí al menos dos escenarios para comparar.',
-  'At most 10 evaluations can be compared at once': 'Se pueden comparar hasta 10 escenarios a la vez.',
-  'The same evaluation cannot be compared with itself':
-    'Hay dos filas con el mismo resultado. Elegí otra evaluación o quitá una fila.',
+  'At most 8 evaluations can be compared at once': 'Se pueden comparar hasta 8 escenarios a la vez.',
+  'The same scenario cannot be compared with itself': 'Elegiste el mismo escenario dos veces.',
   'Every compared item needs a version': 'Elegí un escenario en cada fila.',
   'A saved comparison needs a name': 'Poné un nombre para guardar la comparación.',
   'Comparison name must be at most 120 characters': 'El nombre puede tener hasta 120 caracteres.',
   'Comparison not found': 'La comparación no existe o fue eliminada.',
-  'Version does not belong to project': 'El escenario no pertenece a este proyecto o fue eliminado.',
+  'Version not found': 'El escenario no existe o fue eliminado.',
   'Economic evaluation not found': 'La evaluación no existe o ya no está disponible.',
 };
 
@@ -63,6 +62,8 @@ const KNOWN_BACKEND_PREFIXES: [string, string][] = [
   ['Version conflict not found with id:', 'El conflicto no existe o ya fue resuelto.'],
   ['Node with id', 'El nodo ya no existe en esta versión.'],
   ['Project permission required', 'No tenés permiso para realizar esta acción en el proyecto.'],
+  ['Scenario changed since its last simulation:', 'Un escenario cambió desde su última simulación. Volvé a simularlo antes de comparar.'],
+  ['Scenario has never been simulated:', 'Un escenario nunca se simuló. Simulalo antes de comparar.'],
   ['Relevance threshold must be', 'El umbral de relevancia tiene que ser mayor que 0.'],
   ['Rate threshold must be', 'El umbral para tasas tiene que ser mayor que 0.'],
   [

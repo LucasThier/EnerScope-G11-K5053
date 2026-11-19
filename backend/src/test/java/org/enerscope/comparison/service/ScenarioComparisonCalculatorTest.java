@@ -2,6 +2,7 @@ package org.enerscope.comparison.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.enerscope.comparison.dto.ComparisonResultDTO;
 import org.enerscope.comparison.dto.ComparisonResultDTO.MetricCell;
 import org.enerscope.comparison.dto.ComparisonResultDTO.MetricRow;
@@ -9,7 +10,7 @@ import org.enerscope.comparison.model.enums.*;
 import org.junit.jupiter.api.Test;
 
 import static org.enerscope.comparison.model.enums.ComparisonMetric.*;
-import static org.enerscope.comparison.model.enums.DifferenceAssessment.*;
+import static org.enerscope.comparison.model.enums.Standing.*;
 import static org.enerscope.comparison.service.ComparisonFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -31,54 +32,64 @@ class ScenarioComparisonCalculatorTest {
     }
 
     @Test
-    void comparesEveryIndicatorAgainstTheBaselineWithDeltasAndBestScenario() {
-        var base = scenario("Base", Map.of(NPV, "1000", CAPEX, "500"));
-        var expansion = scenario("Ampliación", Map.of(NPV, "1500", CAPEX, "800"));
-        var result = compare(base, expansion);
+    void ranksEveryScenarioAndMeasuresItsDistanceToTheBest() {
+        var austral = scenario("Austral", Map.of(NPV, "300"));
+        var expansion = scenario("Ampliación", Map.of(NPV, "800"));
+        var base = scenario("Base", Map.of(NPV, "500"));
+        var result = compare(austral, expansion, base);
 
-        assertEquals(base.evaluationId(), result.baselineEvaluationId());
         assertEquals(ComparisonMetric.values().length, result.metrics().size());
-        assertEquals(BASELINE, cell(result, NPV, base).assessment());
-        var npv = cell(result, NPV, expansion);
-        assertEquals(0, bd("500").compareTo(npv.absoluteDelta()));
-        assertEquals(0, bd("0.5").compareTo(npv.relativeDelta()));
-        assertEquals(BETTER, npv.assessment());
-        assertTrue(npv.relevant());
-        assertEquals(WORSE, cell(result, CAPEX, expansion).assessment());
+        assertEquals(BEST, cell(result, NPV, expansion).standing());
+        assertEquals(1, cell(result, NPV, expansion).rank());
+        assertEquals(0, bd("0").compareTo(cell(result, NPV, expansion).gapToBest()));
+        assertEquals(MIDDLE, cell(result, NPV, base).standing());
+        assertEquals(2, cell(result, NPV, base).rank());
+        assertEquals(0, bd("300").compareTo(cell(result, NPV, base).gapToBest()));
+        assertEquals(WORST, cell(result, NPV, austral).standing());
+        assertEquals(3, cell(result, NPV, austral).rank());
+        assertEquals(0, bd("0.625").compareTo(cell(result, NPV, austral).relativeGapToBest()));
         assertEquals(List.of(expansion.evaluationId()), row(result, NPV).bestEvaluationIds());
-        assertEquals(List.of(base.evaluationId()), row(result, CAPEX).bestEvaluationIds());
+        assertEquals(List.of(austral.evaluationId()), row(result, NPV).worstEvaluationIds());
         assertTrue(result.scenarios().get(1).bestIn().contains(NPV));
-        assertTrue(result.scenarios().get(0).baseline());
     }
 
     @Test
-    void signalsRelevantImprovementsAndDeteriorationsAsFindings() {
-        var base = scenario("Base", Map.of(NPV, "1000", OPEX, "200"));
-        var other = scenario("Alternativa", Map.of(NPV, "1300", OPEX, "260"));
+    void lowerIsBetterIndicatorsRankTheSmallestFirstAndTiesShareTheRank() {
+        var a = scenario("A", Map.of(CAPEX, "1000"));
+        var b = scenario("B", Map.of(CAPEX, "1800"));
+        var c = scenario("C", Map.of(CAPEX, "1000"));
+        var result = compare(a, b, c);
+
+        assertEquals(1, cell(result, CAPEX, a).rank());
+        assertEquals(1, cell(result, CAPEX, c).rank());
+        assertEquals(3, cell(result, CAPEX, b).rank());
+        assertEquals(List.of(a.evaluationId(), c.evaluationId()), row(result, CAPEX).bestEvaluationIds());
+        assertEquals(0, bd("0.8").compareTo(cell(result, CAPEX, b).relativeGapToBest()));
+    }
+
+    @Test
+    void aRelevantGapIsAFindingThatNamesTheBestAndTheWorst() {
+        var base = scenario("Base", Map.of(NPV, "1000"));
+        var other = scenario("Alternativa", Map.of(NPV, "1300"));
         var result = compare(base, other);
 
-        var improvement = result.findings().stream().filter(f -> f.metric() == NPV).findFirst().orElseThrow();
-        assertEquals(FindingType.SIGNIFICANT_IMPROVEMENT, improvement.type());
-        assertEquals(other.evaluationId(), improvement.evaluationId());
-        assertTrue(improvement.message().contains("VAN"), improvement.message());
-        assertTrue(improvement.message().contains("mejora"), improvement.message());
-        var deterioration = result.findings().stream().filter(f -> f.metric() == OPEX).findFirst().orElseThrow();
-        assertEquals(FindingType.SIGNIFICANT_DETERIORATION, deterioration.type());
+        var finding = result.findings().stream().filter(f -> f.metric() == NPV).findFirst().orElseThrow();
+        assertEquals(FindingType.LARGE_GAP, finding.type());
+        assertEquals(List.of(other.evaluationId(), base.evaluationId()), finding.evaluationIds());
+        assertTrue(finding.message().contains("«Alternativa» es el mejor"), finding.message());
+        assertTrue(finding.message().contains("«Base» el peor"), finding.message());
+        assertFalse(finding.message().contains("referencia"), finding.message());
+        assertTrue(row(result, NPV).relevant());
     }
 
     @Test
-    void differencesBelowTheRelevanceThresholdAreNotFlagged() {
+    void smallGapsAreNotRelevantUnlessTheThresholdIsLower() {
         var base = scenario("Base", Map.of(NPV, "1000"));
         var other = scenario("Alternativa", Map.of(NPV, "1040"));
-        var result = compare(base, other);
 
-        var npv = cell(result, NPV, other);
-        assertEquals(BETTER, npv.assessment());
-        assertFalse(npv.relevant());
-        assertTrue(result.findings().stream().noneMatch(f -> f.metric() == NPV));
-        // A custom threshold makes the same 4% difference relevant.
-        var strict = calculator.compare(List.of(base, other), bd("0.03"), null);
-        assertTrue(cell(strict, NPV, other).relevant());
+        assertFalse(row(compare(base, other), NPV).relevant());
+        assertTrue(compare(base, other).findings().stream().noneMatch(f -> f.metric() == NPV));
+        assertTrue(row(calculator.compare(List.of(base, other), bd("0.03"), null), NPV).relevant());
     }
 
     @Test
@@ -87,107 +98,94 @@ class ScenarioComparisonCalculatorTest {
         var other = scenario("Alternativa", Map.of(IRR, "0.105", ROI, "0.23", SIMPLE_PAYBACK, "3"));
         var result = compare(base, other);
 
-        // IRR moves 0.5 p.p. (5% relative) — below the 1 p.p. default.
-        assertFalse(cell(result, IRR, other).relevant());
-        assertTrue(cell(result, ROI, other).relevant());
-        var payback = cell(result, SIMPLE_PAYBACK, other);
-        assertEquals(BETTER, payback.assessment());
-        assertTrue(payback.relevant());
-        var roiFinding = result.findings().stream().filter(f -> f.metric() == ROI).findFirst().orElseThrow();
-        assertTrue(roiFinding.message().contains("p.p."), roiFinding.message());
+        assertFalse(row(result, IRR).relevant(), "0.5 p.p. is under the 1 p.p. default");
+        assertTrue(row(result, ROI).relevant());
+        assertEquals(BEST, cell(result, SIMPLE_PAYBACK, other).standing());
+        assertTrue(row(result, SIMPLE_PAYBACK).relevant());
+        var roi = result.findings().stream().filter(f -> f.metric() == ROI).findFirst().orElseThrow();
+        assertTrue(roi.message().contains("p.p."), roi.message());
     }
 
     @Test
-    void npvSignChangeIsTheMostRelevantFinding() {
+    void npvPositiveForSomeAndNotForOthersIsTheFirstFinding() {
         var base = scenario("Base", Map.of(NPV, "100", OPEX, "100"));
-        var other = scenario("Alternativa", Map.of(NPV, "-20", OPEX, "900"));
+        var other = scenario("Conservador", Map.of(NPV, "-20", OPEX, "900"));
         var result = compare(base, other);
 
-        assertEquals(FindingType.NPV_SIGN_CHANGE, result.findings().getFirst().type());
-        assertTrue(cell(result, NPV, other).relevant());
-        assertEquals(WORSE, cell(result, NPV, other).assessment());
+        var first = result.findings().getFirst();
+        assertEquals(FindingType.NPV_SIGN_SPLIT, first.type());
+        assertTrue(first.message().contains("«Base» genera valor"), first.message());
+        assertTrue(first.message().contains("«Conservador» pierde valor"), first.message());
+        assertEquals(WORST, cell(result, NPV, other).standing());
     }
 
     @Test
-    void paybackNeverRecoveredIsWorseAndReportedAsAvailabilityChange() {
+    void paybackNeverRecoveredByOneScenarioIsAnAvailabilitySplit() {
         var base = scenario("Base", Map.of(SIMPLE_PAYBACK, "3"));
-        var other = scenario("Alternativa", Map.of(SIMPLE_PAYBACK, "NOT_RECOVERED_WITHIN_HORIZON"));
+        var other = scenario("Conservador", Map.of(SIMPLE_PAYBACK, "NOT_RECOVERED_WITHIN_HORIZON"));
         var result = compare(base, other);
 
-        var payback = cell(result, SIMPLE_PAYBACK, other);
-        assertEquals(WORSE, payback.assessment());
-        assertTrue(payback.relevant());
-        assertNull(payback.absoluteDelta());
         var finding = result.findings().stream().filter(f -> f.metric() == SIMPLE_PAYBACK).findFirst().orElseThrow();
-        assertEquals(FindingType.AVAILABILITY_CHANGE, finding.type());
-        assertTrue(finding.message().contains("no se recupera"), finding.message());
-        assertEquals(List.of(), row(result, SIMPLE_PAYBACK).bestEvaluationIds());
+        assertEquals(FindingType.AVAILABILITY_SPLIT, finding.type());
+        assertEquals(List.of(other.evaluationId()), finding.evaluationIds());
+        assertTrue(finding.message().contains("no se recupera dentro del horizonte en «Conservador»"), finding.message());
+        assertEquals(UNRANKED, cell(result, SIMPLE_PAYBACK, other).standing());
+        assertTrue(row(result, SIMPLE_PAYBACK).relevant());
     }
 
     @Test
-    void missingDataIsNotComparableAndNeverAFinding() {
+    void missingDataIsNeverAFindingButIsWarned() {
         var base = scenario("Base", Map.of(CAPEX, "100"));
         var other = scenario("Alternativa", Map.of(CAPEX, "NOT_AVAILABLE"));
         var result = compare(base, other);
 
-        assertEquals(NOT_COMPARABLE, cell(result, CAPEX, other).assessment());
-        assertFalse(cell(result, CAPEX, other).relevant());
+        assertEquals(UNRANKED, cell(result, CAPEX, other).standing());
+        assertFalse(row(result, CAPEX).relevant());
         assertTrue(result.findings().stream().noneMatch(f -> f.metric() == CAPEX));
         assertTrue(result.warnings().stream().anyMatch(w -> w.code() == ComparabilityWarning.INCOMPLETE_RESULTS
                 && w.evaluationIds().equals(List.of(other.evaluationId()))));
     }
 
     @Test
-    void amountsInAnotherCurrencyAreNotComparedButRatesStillAre() {
+    void amountsInDifferentCurrenciesAreNotRankedButRatesAre() {
         var base = scenario("Base", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(NPV, "100", IRR, "0.10"), Map.of());
         var other = scenario("Alternativa", "ARS", 10, EvaluationMode.DETERMINISTIC, Map.of(NPV, "90000", IRR, "0.20"), Map.of());
         var result = compare(base, other);
 
-        assertEquals(NOT_COMPARABLE, cell(result, NPV, other).assessment());
-        assertNull(cell(result, NPV, other).absoluteDelta());
-        assertEquals(BETTER, cell(result, IRR, other).assessment());
-        assertTrue(result.warnings().stream().anyMatch(w -> w.code() == ComparabilityWarning.DIFFERENT_CURRENCY));
+        assertEquals(NOT_COMPARABLE, cell(result, NPV, other).standing());
+        assertNull(cell(result, NPV, other).gapToBest());
+        assertTrue(row(result, NPV).bestEvaluationIds().isEmpty());
+        assertEquals(BEST, cell(result, IRR, other).standing());
+        var warning = result.warnings().stream().filter(w -> w.code() == ComparabilityWarning.DIFFERENT_CURRENCY).findFirst().orElseThrow();
+        assertEquals(List.of(base.evaluationId(), other.evaluationId()), warning.evaluationIds());
     }
 
     @Test
-    void neutralIndicatorsChangeWithoutWinner() {
+    void neutralIndicatorsAreReportedWithoutAWinner() {
         var base = scenario("Base", Map.of(TAXES, "100"));
         var other = scenario("Alternativa", Map.of(TAXES, "300"));
         var result = compare(base, other);
 
-        assertEquals(CHANGED, cell(result, TAXES, other).assessment());
+        assertEquals(UNRANKED, cell(result, TAXES, other).standing());
         assertTrue(row(result, TAXES).bestEvaluationIds().isEmpty());
         var finding = result.findings().stream().filter(f -> f.metric() == TAXES).findFirst().orElseThrow();
-        assertEquals(FindingType.SIGNIFICANT_CHANGE, finding.type());
+        assertEquals(FindingType.LARGE_GAP, finding.type());
+        assertTrue(finding.message().contains("va de 100,00 en «Base» a 300,00 en «Alternativa»"), finding.message());
     }
 
     @Test
-    void equalValuesHaveNoWinnerAndNoFinding() {
+    void identicalScenariosTieWithoutWinnerFindingOrWarning() {
         var result = compare(scenario("A", Map.of()), scenario("B", Map.of()));
 
         assertTrue(result.metrics().stream().allMatch(r -> r.bestEvaluationIds().isEmpty() && !r.relevant()));
+        assertTrue(result.metrics().stream().filter(r -> r.preference() != MetricPreference.NEUTRAL)
+                .allMatch(r -> r.values().stream().allMatch(c -> c.standing() == TIED)));
         assertTrue(result.findings().isEmpty());
         assertTrue(result.warnings().isEmpty());
     }
 
     @Test
-    void comparesThreeScenariosEachAgainstTheBaseline() {
-        var base = scenario("Base", Map.of(NPV, "100"));
-        var second = scenario("Segundo", Map.of(NPV, "200"));
-        var third = scenario("Tercero", Map.of(NPV, "50"));
-        var result = compare(base, second, third);
-
-        assertEquals(3, row(result, NPV).values().size());
-        assertEquals(0, bd("1").compareTo(cell(result, NPV, second).relativeDelta()));
-        assertEquals(0, bd("-0.5").compareTo(cell(result, NPV, third).relativeDelta()));
-        assertEquals(List.of(second.evaluationId()), row(result, NPV).bestEvaluationIds());
-        // Bigger relative change first.
-        var npvFindings = result.findings().stream().filter(f -> f.metric() == NPV).toList();
-        assertEquals(second.evaluationId(), npvFindings.getFirst().evaluationId());
-    }
-
-    @Test
-    void nodesAreMatchedByIdentityAndAddedRemovedOrChangedNodesAreSignalled() {
+    void nodesInSomeScenariosOnlyAndBigOutputGapsAreSignalled() {
         var base = scenario("Base", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(),
                 Map.of("w1", node("w1", "Pozo 1", "100"), "w2", node("w2", "Pozo 2", "50")));
         var other = scenario("Alternativa", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(),
@@ -195,25 +193,39 @@ class ScenarioComparisonCalculatorTest {
         var result = compare(base, other);
 
         assertEquals(3, result.nodes().size());
-        var w1 = result.nodes().stream().filter(n -> n.nodeKey().equals("w1")).findFirst().orElseThrow();
-        assertTrue(w1.relevant());
-        assertEquals(0, bd("30").compareTo(w1.values().get(1).outputDelta()));
-        var types = result.findings().stream().map(ComparisonResultDTO.Finding::type).toList();
-        assertTrue(types.containsAll(List.of(FindingType.NODE_ADDED, FindingType.NODE_REMOVED, FindingType.NODE_FLOW_CHANGE)));
-        var w3 = result.nodes().stream().filter(n -> n.nodeKey().equals("w3")).findFirst().orElseThrow();
-        assertFalse(w3.values().get(0).present());
-        assertTrue(w3.values().get(1).present());
+        assertTrue(result.nodes().stream().allMatch(ComparisonResultDTO.NodeRow::relevant));
+        var w3 = result.findings().stream().filter(f -> "w3".equals(f.nodeKey())).findFirst().orElseThrow();
+        assertEquals(FindingType.NODE_PARTIAL, w3.type());
+        assertTrue(w3.message().contains("solo está en «Alternativa»"), w3.message());
+        var w1 = result.findings().stream().filter(f -> "w1".equals(f.nodeKey())).findFirst().orElseThrow();
+        assertEquals(FindingType.NODE_FLOW_GAP, w1.type());
+        assertTrue(w1.message().contains("va de 100,00 en «Base» a 130,00 en «Alternativa»"), w1.message());
     }
 
     @Test
-    void differentHorizonsAndModesProduceComparabilityWarnings() {
+    void scenariosThatDisagreeOnHorizonOrModeAreWarnedNamingAllOfThem() {
         var base = scenario("Base", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(), Map.of());
         var other = scenario("Alternativa", "USD", 15, EvaluationMode.PROBABILISTIC, Map.of(), Map.of());
-        var codes = compare(base, other).warnings().stream().map(ComparisonResultDTO.Warning::code).toList();
+        var warnings = compare(base, other).warnings();
 
+        var codes = warnings.stream().map(ComparisonResultDTO.Warning::code).toList();
         assertTrue(codes.contains(ComparabilityWarning.DIFFERENT_HORIZON));
         assertTrue(codes.contains(ComparabilityWarning.MIXED_EVALUATION_MODES));
         assertFalse(codes.contains(ComparabilityWarning.DIFFERENT_CURRENCY));
+        assertTrue(warnings.stream().allMatch(w -> w.evaluationIds().size() == 2));
+    }
+
+    @Test
+    void scenariosFromDifferentProjectsAreNamedWithTheirProject() {
+        var base = scenario(PROJECT, "Cuenca Neuquina", "Base", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(NPV, "100"), Map.of());
+        var other = scenario(UUID.randomUUID(), "Cuenca Austral", "Base", "USD", 10, EvaluationMode.DETERMINISTIC,
+                Map.of(NPV, "300"), Map.of());
+        var result = compare(base, other);
+
+        assertEquals("Cuenca Austral", result.scenarios().get(1).projectName());
+        var finding = result.findings().stream().filter(f -> f.metric() == NPV).findFirst().orElseThrow();
+        assertTrue(finding.message().contains("«Base (Cuenca Austral)» es el mejor"), finding.message());
+        assertTrue(finding.message().contains("«Base (Cuenca Neuquina)» el peor"), finding.message());
     }
 
     @Test

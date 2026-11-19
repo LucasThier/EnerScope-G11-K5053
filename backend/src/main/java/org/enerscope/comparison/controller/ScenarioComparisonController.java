@@ -9,7 +9,9 @@ import org.enerscope.comparison.dto.ComparisonRequestDTO;
 import org.enerscope.comparison.dto.ComparisonResultDTO;
 import org.enerscope.comparison.dto.ComparisonSummaryDTO;
 import org.enerscope.comparison.dto.SavedComparisonDTO;
+import org.enerscope.comparison.dto.ComparableScenarioDTO;
 import org.enerscope.comparison.service.ScenarioComparisonService;
+import org.enerscope.comparison.service.ScenarioStatusService;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.springframework.http.ResponseEntity;
@@ -27,18 +29,29 @@ import org.springframework.web.bind.annotation.*;
 public class ScenarioComparisonController {
 
     private final ScenarioComparisonService service;
+    private final ScenarioStatusService statuses;
+
+    @GetMapping("/scenarios")
+    @Operation(summary = "Scenarios that can be compared",
+            description = "Every scenario of the project with the status of its latest simulation "
+                    + "(up to date, outdated, never simulated, simulating) and whether the caller can simulate it.")
+    public ResponseEntity<ApiResponse<List<ComparableScenarioDTO>>> scenarios(@PathVariable UUID projectId) {
+        return Responses.ok("Comparable scenarios", statuses.list(projectId));
+    }
 
     @PostMapping("/preview")
     @Operation(summary = "Compare evaluations without saving",
-            description = "Two to " + ScenarioComparisonService.MAX_SCENARIOS + " evaluations; the first is the baseline. "
-                    + "An item without evaluationId uses the version's latest evaluation.")
+            description = "Two to " + ScenarioComparisonService.MAX_SCENARIOS + " scenarios from any project the caller "
+                    + "can see, compared with each other. Each one uses its latest simulation, which must be up to date.")
     public ResponseEntity<ApiResponse<ComparisonResultDTO>> preview(@PathVariable UUID projectId,
                                                                     @RequestBody ComparisonRequestDTO request) {
         return Responses.ok("Comparison calculated", service.preview(projectId, request));
     }
 
     @PostMapping
-    @Operation(summary = "Save a comparison", description = "Stores the definition and returns it with its result.")
+    @Operation(summary = "Run and save a comparison",
+            description = "Compares like /preview, stores which simulations were compared and returns the result. "
+                    + "Without a name, it is named after its scenarios.")
     public ResponseEntity<ApiResponse<SavedComparisonDTO>> save(@PathVariable UUID projectId,
                                                                 @RequestBody ComparisonRequestDTO request) {
         return Responses.created("Comparison saved", service.save(projectId, request));

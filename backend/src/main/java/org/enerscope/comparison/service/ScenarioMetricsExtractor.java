@@ -98,7 +98,7 @@ public class ScenarioMetricsExtractor {
         }
 
         var simulation = snapshot.simulation();
-        return new ScenarioMetrics(source.evaluationId(), source.versionId(), source.versionName(), source.evaluatedAt(),
+        return new ScenarioMetrics(source.evaluationId(), source.projectId(), source.projectName(), source.versionId(), source.versionName(), source.evaluatedAt(),
                 probabilistic ? EvaluationMode.PROBABILISTIC : EvaluationMode.DETERMINISTIC, realizations.size(),
                 configuration == null ? null : configuration.currency(),
                 configuration == null ? null : configuration.startYear(),

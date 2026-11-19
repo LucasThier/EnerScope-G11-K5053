@@ -8,16 +8,35 @@ export type ComparisonMetric =
 export type MetricCategory = 'FINANCIAL' | 'COST' | 'CASH_FLOW' | 'PHYSICAL';
 export type MetricUnit = 'CURRENCY' | 'FRACTION' | 'YEARS' | 'SIMULATOR_UNIT' | 'HOURS' | 'COUNT';
 export type MetricPreference = 'HIGHER_IS_BETTER' | 'LOWER_IS_BETTER' | 'NEUTRAL';
-export type DifferenceAssessment = 'BASELINE' | 'EQUAL' | 'BETTER' | 'WORSE' | 'CHANGED' | 'NOT_COMPARABLE';
-export type FindingType =
-  | 'SIGNIFICANT_IMPROVEMENT' | 'SIGNIFICANT_DETERIORATION' | 'SIGNIFICANT_CHANGE' | 'NPV_SIGN_CHANGE'
-  | 'AVAILABILITY_CHANGE' | 'NODE_ADDED' | 'NODE_REMOVED' | 'NODE_FLOW_CHANGE';
+/** Where a value stands among all compared scenarios. There is no reference scenario. */
+export type Standing = 'BEST' | 'MIDDLE' | 'WORST' | 'TIED' | 'UNRANKED' | 'NOT_COMPARABLE';
+export type FindingType = 'NPV_SIGN_SPLIT' | 'AVAILABILITY_SPLIT' | 'LARGE_GAP' | 'NODE_PARTIAL' | 'NODE_FLOW_GAP';
 export type ComparabilityWarning =
   | 'DIFFERENT_CURRENCY' | 'DIFFERENT_START_YEAR' | 'DIFFERENT_HORIZON' | 'DIFFERENT_WACC'
   | 'MIXED_EVALUATION_MODES' | 'DIFFERENT_SIMULATION_VERSION' | 'INCOMPLETE_RESULTS';
 export type EvaluationMode = 'DETERMINISTIC' | 'PROBABILISTIC';
 
-export interface ComparisonItem { versionId: string; evaluationId: string | null }
+export type ScenarioStatus = 'UP_TO_DATE' | 'OUTDATED' | 'NEVER_SIMULATED' | 'SIMULATING';
+
+/** A scenario as the picker shows it (`GET /projects/{id}/comparisons/scenarios`). */
+export interface ComparableScenario {
+  projectId: string;
+  projectName: string;
+  versionId: string;
+  versionName: string;
+  status: ScenarioStatus;
+  latestEvaluationId: string | null;
+  latestEvaluatedAt: string | null;
+  mode: EvaluationMode | null;
+  rounds: number | null;
+  ready: boolean;
+  readinessErrors: string[];
+  canSimulate: boolean;
+  job: { id: string; status: string; completedRounds: number; rounds: number; errorMessage: string | null } | null;
+}
+
+/** A compared scenario: always through its latest, up-to-date simulation. */
+export interface ComparisonItem { versionId: string }
 
 export interface ComparisonRequest {
   name?: string | null;
@@ -42,10 +61,11 @@ export interface NodeFlow {
 
 export interface ComparedScenario {
   evaluationId: string;
+  projectId: string;
+  projectName: string;
   versionId: string;
   versionName: string;
   evaluatedAt: string;
-  baseline: boolean;
   mode: EvaluationMode;
   rounds: number;
   currency: string | null;
@@ -58,10 +78,12 @@ export interface ComparedScenario {
 export interface MetricCell {
   evaluationId: string;
   value: MetricValue;
-  absoluteDelta: number | null;
-  relativeDelta: number | null;
-  assessment: DifferenceAssessment;
-  relevant: boolean;
+  /** 1 = best; equal values share a rank; null when unranked. */
+  rank: number | null;
+  /** Distance to the best value (≥ 0) in the indicator's unit; null when unranked. */
+  gapToBest: number | null;
+  relativeGapToBest: number | null;
+  standing: Standing;
 }
 
 export interface MetricRow {
@@ -71,6 +93,7 @@ export interface MetricRow {
   unit: MetricUnit;
   preference: MetricPreference;
   bestEvaluationIds: string[];
+  worstEvaluationIds: string[];
   relevant: boolean;
   values: MetricCell[];
 }
@@ -79,9 +102,6 @@ export interface NodeCell {
   evaluationId: string;
   present: boolean;
   flows: NodeFlow | null;
-  outputDelta: number | null;
-  outputRelativeDelta: number | null;
-  relevant: boolean;
 }
 
 export interface NodeRow { nodeKey: string; name: string; nodeType: string | null; relevant: boolean; values: NodeCell[] }
@@ -100,15 +120,14 @@ export interface Warning { code: ComparabilityWarning; message: string; evaluati
 
 export interface Finding {
   type: FindingType;
-  evaluationId: string;
+  evaluationIds: string[];
   metric: ComparisonMetric | null;
   nodeKey: string | null;
-  relativeDelta: number | null;
+  relativeGap: number | null;
   message: string;
 }
 
 export interface ComparisonResult {
-  baselineEvaluationId: string;
   relevanceThreshold: number;
   rateThreshold: number;
   scenarios: ComparedScenario[];
@@ -119,7 +138,7 @@ export interface ComparisonResult {
   findings: Finding[];
 }
 
-export interface ComparisonSummary { id: string; name: string; description: string | null; scenarioCount: number; createdAt: string }
+export interface ComparisonSummary { id: string; name: string; description: string | null; scenarios: string[]; createdAt: string }
 
 export interface SavedComparison {
   id: string;
@@ -128,6 +147,6 @@ export interface SavedComparison {
   relevanceThreshold: number;
   rateThreshold: number;
   createdAt: string;
-  items: ComparisonItem[];
+  items: { versionId: string; evaluationId: string }[];
   result: ComparisonResult;
 }

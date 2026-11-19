@@ -7,13 +7,14 @@ import java.util.UUID;
 import org.enerscope.comparison.model.enums.*;
 
 /**
- * Two or more economic evaluations side by side. Every scenario is keyed by its
- * evaluation id, since two evaluations of the same version can be compared.
+ * Two or more scenarios compared with each other — none is a reference. For every
+ * indicator each scenario gets its position (best, middle, worst) and its distance to
+ * the best. Scenarios are keyed by evaluation id and keep the order they were picked in,
+ * which only decides their colour on screen.
  *
- * @param findings relevant differences against the baseline, most significant first
+ * @param findings relevant differences among the scenarios, most significant first
  */
-public record ComparisonResultDTO(UUID baselineEvaluationId,
-                                  BigDecimal relevanceThreshold,
+public record ComparisonResultDTO(BigDecimal relevanceThreshold,
                                   BigDecimal rateThreshold,
                                   List<Scenario> scenarios,
                                   List<MetricRow> metrics,
@@ -23,15 +24,16 @@ public record ComparisonResultDTO(UUID baselineEvaluationId,
                                   List<Finding> findings) {
 
     /**
-     * One compared evaluation.
+     * One compared scenario.
      *
      * @param bestIn indicators where this scenario has the most favorable value
      */
     public record Scenario(UUID evaluationId,
+                           UUID projectId,
+                           String projectName,
                            UUID versionId,
                            String versionName,
                            Instant evaluatedAt,
-                           boolean baseline,
                            EvaluationMode mode,
                            int rounds,
                            String currency,
@@ -40,28 +42,35 @@ public record ComparisonResultDTO(UUID baselineEvaluationId,
                            BigDecimal wacc,
                            List<ComparisonMetric> bestIn) {}
 
-    /** One indicator across all scenarios. {@code bestEvaluationIds} is empty for neutral indicators. */
+    /**
+     * One indicator across all scenarios. Best and worst are empty when the indicator is
+     * not ranked (neutral, not comparable, fewer than two values) or every value ties.
+     *
+     * @param relevant the scenarios differ enough here to matter
+     */
     public record MetricRow(ComparisonMetric metric,
                            String label,
                            MetricCategory category,
                            MetricUnit unit,
                            MetricPreference preference,
                            List<UUID> bestEvaluationIds,
+                           List<UUID> worstEvaluationIds,
                            boolean relevant,
                            List<MetricCell> values) {}
 
     /**
      * One scenario's value of an indicator.
      *
-     * @param absoluteDelta value minus the baseline's; {@code null} for the baseline or when not comparable
-     * @param relativeDelta absoluteDelta over |baseline| (fraction); {@code null} when the baseline is zero
+     * @param rank              1 for the best; scenarios with equal values share a rank; {@code null} when unranked
+     * @param gapToBest         how far from the best value, always ≥ 0, in the indicator's unit; {@code null} when unranked
+     * @param relativeGapToBest gapToBest over |best| (fraction); {@code null} when unranked or the best is zero
      */
     public record MetricCell(UUID evaluationId,
                              MetricValueDTO value,
-                             BigDecimal absoluteDelta,
-                             BigDecimal relativeDelta,
-                             DifferenceAssessment assessment,
-                             boolean relevant) {}
+                             Integer rank,
+                             BigDecimal gapToBest,
+                             BigDecimal relativeGapToBest,
+                             Standing standing) {}
 
     /** One physical node, matched across scenarios by its identity (stable across version copies). */
     public record NodeRow(String nodeKey,
@@ -70,18 +79,8 @@ public record ComparisonResultDTO(UUID baselineEvaluationId,
                           boolean relevant,
                           List<NodeCell> values) {}
 
-    /**
-     * One scenario's flows at a node. {@code flows} is {@code null} when the node is not in the scenario.
-     *
-     * @param outputDelta         output minus the baseline node's output
-     * @param outputRelativeDelta outputDelta over the baseline output (fraction)
-     */
-    public record NodeCell(UUID evaluationId,
-                           boolean present,
-                           NodeFlowDTO flows,
-                           BigDecimal outputDelta,
-                           BigDecimal outputRelativeDelta,
-                           boolean relevant) {}
+    /** One scenario's flows at a node. {@code flows} is {@code null} when the node is not in the scenario. */
+    public record NodeCell(UUID evaluationId, boolean present, NodeFlowDTO flows) {}
 
     /** Year-by-year flows of one scenario, for charts. */
     public record Series(UUID evaluationId, List<SeriesPoint> points) {}
@@ -93,19 +92,22 @@ public record ComparisonResultDTO(UUID baselineEvaluationId,
                               BigDecimal producedVolume,
                               BigDecimal exportedVolume) {}
 
+    /** @param evaluationIds every scenario involved (all of them when the scenarios disagree on a setting) */
     public record Warning(ComparabilityWarning code, String message, List<UUID> evaluationIds) {}
 
     /**
-     * A relevant difference of one scenario against the baseline.
+     * A relevant difference among the scenarios.
      *
-     * @param metric  {@code null} for node findings
-     * @param nodeKey {@code null} for indicator findings
-     * @param message Spanish, ready to show
+     * @param evaluationIds the scenarios it is about (e.g. best and worst, or those missing a value)
+     * @param metric        {@code null} for node findings
+     * @param nodeKey       {@code null} for indicator findings
+     * @param relativeGap   size of the difference, for ordering; {@code null} when it has no relative size
+     * @param message       Spanish, ready to show
      */
     public record Finding(FindingType type,
-                          UUID evaluationId,
+                          List<UUID> evaluationIds,
                           ComparisonMetric metric,
                           String nodeKey,
-                          BigDecimal relativeDelta,
+                          BigDecimal relativeGap,
                           String message) {}
 }

@@ -26,6 +26,7 @@ final class ComparisonFixtures {
     static final UUID PLANT = UUID.fromString("22222222-2222-2222-2222-222222222222");
     static final UUID WELL_IDENTITY = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     static final UUID PLANT_IDENTITY = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    static final UUID PROJECT = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     private ComparisonFixtures() {}
 
@@ -124,6 +125,12 @@ final class ComparisonFixtures {
 
     static ScenarioMetrics scenario(String name, String currency, int years, EvaluationMode mode,
                                     Map<ComparisonMetric, String> values, Map<String, ScenarioMetrics.Node> nodes) {
+        return scenario(PROJECT, "Proyecto", name, currency, years, mode, values, nodes);
+    }
+
+    static ScenarioMetrics scenario(UUID projectId, String projectName, String name, String currency, int years,
+                                    EvaluationMode mode, Map<ComparisonMetric, String> values,
+                                    Map<String, ScenarioMetrics.Node> nodes) {
         Map<ComparisonMetric, MetricValueDTO> metrics = new EnumMap<>(ComparisonMetric.class);
         for (ComparisonMetric metric : ComparisonMetric.values()) {
             String raw = values.getOrDefault(metric, "100");
@@ -131,7 +138,7 @@ final class ComparisonFixtures {
                     ? new MetricValueDTO(bd(raw), MetricValueDTO.AVAILABLE, 1, 1, null)
                     : new MetricValueDTO(null, raw, 0, 1, null));
         }
-        return new ScenarioMetrics(UUID.randomUUID(), UUID.randomUUID(), name, Instant.parse("2026-11-01T00:00:00Z"),
+        return new ScenarioMetrics(UUID.randomUUID(), projectId, projectName, UUID.randomUUID(), name, Instant.parse("2026-11-01T00:00:00Z"),
                 mode, 1, currency, 2030, years, bd("0.1"), "ALGO", 1, metrics, new LinkedHashMap<>(nodes), List.of());
     }
 

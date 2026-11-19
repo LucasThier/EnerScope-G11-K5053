@@ -22,16 +22,25 @@ import org.enerscope.economic.service.EconomicService;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
+import org.enerscope.project.repository.ProjectRepository;
 import org.enerscope.version.model.Version;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Compares saved economic evaluations of one project and stores comparison
- * definitions. Reading needs {@code VIEW_PROJECT}; saving and deleting need
- * {@code EDIT_PROJECT}. Every compared version must belong to the project in the
- * path and every evaluation to its version, so a caller cannot read results of a
- * project they do not belong to by naming them.
+ * Compares saved economic evaluations and stores comparison definitions.
+ *
+ * <p>A comparison lives in the project of the path (where it is saved and listed),
+ * but its scenarios may come from any project: each version is resolved to its own
+ * project and the caller needs {@code VIEW_PROJECT} on every one of them, so naming
+ * a version is never enough to read results of a project the caller cannot see.
+ * Saving and deleting also need {@code EDIT_PROJECT} on the path project. Every
+ * evaluation must belong to its version.</p>
+ *
+ * <p>A new comparison always uses each scenario's <em>latest</em> simulation, and only
+ * while it is up to date ({@link ScenarioStatusService#isUpToDate}): a scenario that
+ * changed since must be simulated again first. Reopening a saved comparison shows the
+ * simulations it was made with, even if the scenarios changed afterwards.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -39,44 +48,50 @@ import org.springframework.transaction.annotation.Transactional;
 public class ScenarioComparisonService {
 
     public static final int MIN_SCENARIOS = 2;
-    public static final int MAX_SCENARIOS = 10;
+    /** The categorical palette identifies at most eight scenarios without repeating a colour. */
+    public static final int MAX_SCENARIOS = 8;
     private static final BigDecimal MAX_THRESHOLD = new BigDecimal("1000");
 
     private final EconomicService economics;
+    private final ProjectRepository projects;
     private final EconomicEvaluationRepository evaluations;
     private final EconomicJobRepository jobs;
     private final EconomicRoundRepository rounds;
     private final ScenarioComparisonRepository comparisons;
     private final ScenarioMetricsExtractor extractor;
     private final ScenarioComparisonCalculator calculator;
+    private final ScenarioStatusService status;
     private final ObjectMapper mapper;
     private final AppLogger logger;
 
-    /** A resolved item: the version and the evaluation actually compared. */
-    private record Resolved(Version version, EconomicEvaluation evaluation) {}
+    /** A resolved item: the project that owns the version, the version and the simulation actually compared. */
+    private record Resolved(Project project, Version version, EvaluationDTO evaluation) {}
 
     @Transactional(readOnly = true)
     public ComparisonResultDTO preview(UUID projectId, ComparisonRequestDTO request) {
         Project project = economics.authorizeProject(projectId, ProjectMemberPermission.VIEW_PROJECT);
-        validate(request, false);
+        validate(request);
         List<Resolved> resolved = resolve(project, request.items());
-        ComparisonResultDTO result = calculate(projectId, resolved, request.relevanceThreshold(), request.rateThreshold());
+        ComparisonResultDTO result = calculate(resolved, request.relevanceThreshold(), request.rateThreshold());
         logger.debug("Previewed comparison of {} evaluations in project {}", resolved.size(), projectId);
         return result;
     }
 
     public SavedComparisonDTO save(UUID projectId, ComparisonRequestDTO request) {
         Project project = economics.authorizeProject(projectId, ProjectMemberPermission.EDIT_PROJECT);
-        validate(request, true);
+        validate(request);
         List<Resolved> resolved = resolve(project, request.items());
         BigDecimal relevance = orDefault(request.relevanceThreshold(), ScenarioComparisonCalculator.DEFAULT_RELEVANCE_THRESHOLD);
         BigDecimal rate = orDefault(request.rateThreshold(), ScenarioComparisonCalculator.DEFAULT_RATE_THRESHOLD);
-        ComparisonResultDTO result = calculate(projectId, resolved, relevance, rate);
+        ComparisonResultDTO result = calculate(resolved, relevance, rate);
 
         String description = request.description() == null || request.description().isBlank() ? null : request.description().trim();
-        ScenarioComparison comparison = new ScenarioComparison(project, request.name().trim(), description, relevance, rate);
+        ScenarioComparison comparison = new ScenarioComparison(project, name(request.name(), resolved), description, relevance, rate);
         for (int i = 0; i < resolved.size(); i++) {
-            comparison.addItem(new ScenarioComparisonItem(comparison, resolved.get(i).version(), resolved.get(i).evaluation(), i));
+            Resolved item = resolved.get(i);
+            EconomicEvaluation evaluation = evaluations.findByIdAndVersionId(item.evaluation().id(), item.version().getId())
+                    .orElseThrow(() -> new EntityNotFoundException("Economic evaluation not found"));
+            comparison.addItem(new ScenarioComparisonItem(comparison, item.version(), evaluation, i));
         }
         ScenarioComparison stored = comparisons.saveAndFlush(comparison);
         logger.info("Scenario comparison {} saved in project {} with {} evaluations", stored.getId(), projectId, resolved.size());
@@ -87,17 +102,23 @@ public class ScenarioComparisonService {
     public List<ComparisonSummaryDTO> list(UUID projectId) {
         economics.authorizeProject(projectId, ProjectMemberPermission.VIEW_PROJECT);
         return comparisons.findByProjectIdAndActiveTrueOrderByCreatedAtDesc(projectId).stream()
-                .map(c -> new ComparisonSummaryDTO(c.getId(), c.getName(), c.getDescription(), c.getItems().size(), c.getCreatedAt()))
+                .map(c -> new ComparisonSummaryDTO(c.getId(), c.getName(), c.getDescription(),
+                        c.getItems().stream().map(item -> item.getVersion().getName()).toList(), c.getCreatedAt()))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public SavedComparisonDTO get(UUID projectId, UUID comparisonId) {
-        economics.authorizeProject(projectId, ProjectMemberPermission.VIEW_PROJECT);
+        Project project = economics.authorizeProject(projectId, ProjectMemberPermission.VIEW_PROJECT);
         ScenarioComparison comparison = find(projectId, comparisonId);
         List<Resolved> resolved = comparison.getItems().stream()
-                .map(item -> new Resolved(item.getVersion(), item.getEvaluation())).toList();
-        return dto(comparison, calculate(projectId, resolved, comparison.getRelevanceThreshold(), comparison.getRateThreshold()));
+                .map(item -> {
+                    Project owner = owner(project, item.getVersion().getId());
+                    return new Resolved(owner, item.getVersion(),
+                            economics.getEvaluation(owner.getId(), item.getVersion().getId(), item.getEvaluation().getId()));
+                })
+                .toList();
+        return dto(comparison, calculate(resolved, comparison.getRelevanceThreshold(), comparison.getRateThreshold()));
     }
 
     public void delete(UUID projectId, UUID comparisonId) {
@@ -110,7 +131,7 @@ public class ScenarioComparisonService {
 
     // ---------------------------------------------------------------- internals
 
-    private void validate(ComparisonRequestDTO request, boolean saving) {
+    private void validate(ComparisonRequestDTO request) {
         if (request == null || request.items() == null) {
             throw new IllegalArgumentException("Pick at least " + MIN_SCENARIOS + " evaluations to compare");
         }
@@ -127,14 +148,16 @@ public class ScenarioComparisonService {
         }
         threshold(request.relevanceThreshold(), "Relevance threshold");
         threshold(request.rateThreshold(), "Rate threshold");
-        if (saving) {
-            if (request.name() == null || request.name().isBlank()) {
-                throw new IllegalArgumentException("A saved comparison needs a name");
-            }
-            if (request.name().trim().length() > 120) {
-                throw new IllegalArgumentException("Comparison name must be at most 120 characters");
-            }
+        if (request.name() != null && request.name().trim().length() > 120) {
+            throw new IllegalArgumentException("Comparison name must be at most 120 characters");
         }
+    }
+
+    /** The given name, or the scenario names joined ("Base vs Ampliación"), cut to the column size. */
+    private static String name(String requested, List<Resolved> resolved) {
+        if (requested != null && !requested.isBlank()) return requested.trim();
+        String joined = String.join(" vs ", resolved.stream().map(r -> r.version().getName()).toList());
+        return joined.length() <= 120 ? joined : joined.substring(0, 119) + "…";
     }
 
     private static void threshold(BigDecimal value, String name) {
@@ -147,40 +170,54 @@ public class ScenarioComparisonService {
         return value == null ? fallback : value;
     }
 
-    private List<Resolved> resolve(Project project, List<ComparisonRequestDTO.Item> items) {
+    /**
+     * The project that owns a version, checked for {@code VIEW_PROJECT}. The path project
+     * is already authorized; any other one is authorized here, so a version of a project
+     * the caller cannot see answers 403 and an unknown or deleted version 404.
+     */
+    private Project owner(Project pathProject, UUID versionId) {
+        UUID ownerId = projects.findIdByVersionId(versionId).orElseThrow(() -> {
+            logger.warn("Version {} was compared but does not exist or is not active", versionId);
+            return new EntityNotFoundException("Version not found");
+        });
+        return ownerId.equals(pathProject.getId()) ? pathProject
+                : economics.authorizeProject(ownerId, ProjectMemberPermission.VIEW_PROJECT);
+    }
+
+    private List<Resolved> resolve(Project pathProject, List<ComparisonRequestDTO.Item> items) {
         List<Resolved> resolved = new ArrayList<>();
         Set<UUID> seen = new HashSet<>();
         for (ComparisonRequestDTO.Item item : items) {
+            Project project = owner(pathProject, item.versionId());
             Version version = project.getVersions().stream()
                     .filter(v -> v.getId().equals(item.versionId()) && v.isActive())
                     .findFirst()
-                    .orElseThrow(() -> {
-                        logger.warn("Version {} was compared under project {}, which does not own it", item.versionId(), project.getId());
-                        return new EntityNotFoundException("Version does not belong to project");
-                    });
-            EconomicEvaluation evaluation = item.evaluationId() == null
-                    ? evaluations.findByVersionIdOrderByCreatedAtDesc(version.getId()).stream().findFirst()
-                            .orElseThrow(() -> new IllegalArgumentException(
-                                    "Version " + version.getName() + " has no economic evaluation to compare"))
-                    : evaluations.findByIdAndVersionId(item.evaluationId(), version.getId())
-                            .orElseThrow(() -> new EntityNotFoundException("Economic evaluation not found"));
-            if (!seen.add(evaluation.getId())) {
-                throw new IllegalArgumentException("The same evaluation cannot be compared with itself");
+                    .orElseThrow(() -> new EntityNotFoundException("Version not found"));
+            if (!seen.add(version.getId())) {
+                throw new IllegalArgumentException("The same scenario cannot be compared with itself");
             }
-            resolved.add(new Resolved(version, evaluation));
+            EconomicEvaluation latest = evaluations.findByVersionIdOrderByCreatedAtDesc(version.getId()).stream().findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Scenario has never been simulated: " + version.getName()));
+            // Reuses the economic module's read, which also enriches historical snapshots saved without indicators.
+            EvaluationDTO evaluation = economics.getEvaluation(project.getId(), version.getId(), latest.getId());
+            if (!status.isUpToDate(version, evaluation.snapshot())) {
+                logger.info("Scenario {} changed since its latest simulation {}; comparison refused", version.getId(), latest.getId());
+                throw new IllegalArgumentException("Scenario changed since its last simulation: " + version.getName());
+            }
+            resolved.add(new Resolved(project, version, evaluation));
         }
         return resolved;
     }
 
-    private ComparisonResultDTO calculate(UUID projectId, List<Resolved> resolved, BigDecimal relevance, BigDecimal rate) {
-        List<ScenarioMetrics> measured = resolved.stream().map(r -> extractor.extract(source(projectId, r))).toList();
+    private ComparisonResultDTO calculate(List<Resolved> resolved, BigDecimal relevance, BigDecimal rate) {
+        List<ScenarioMetrics> measured = resolved.stream().map(r -> extractor.extract(source(r))).toList();
         return calculator.compare(measured, relevance, rate);
     }
 
-    private ScenarioSource source(UUID projectId, Resolved resolved) {
+    private ScenarioSource source(Resolved resolved) {
         Version version = resolved.version();
-        // Reuses the economic module's read, which also enriches historical snapshots saved without indicators.
-        EvaluationDTO evaluation = economics.getEvaluation(projectId, version.getId(), resolved.evaluation().getId());
+        Project project = resolved.project();
+        EvaluationDTO evaluation = resolved.evaluation();
         List<EconomicRoundResult> roundResults = List.of();
         if (evaluation.snapshot().schemaVersion() >= 3) {
             roundResults = jobs.findByEvaluationId(evaluation.id())
@@ -191,8 +228,8 @@ public class ScenarioComparisonService {
                         return List.of();
                     });
         }
-        return new ScenarioSource(version.getId(), version.getName(), evaluation.id(), evaluation.createdAt(),
-                evaluation.snapshot(), roundResults);
+        return new ScenarioSource(project.getId(), project.getName(), version.getId(), version.getName(), evaluation.id(),
+                evaluation.createdAt(), evaluation.snapshot(), roundResults);
     }
 
     private EconomicRoundResult round(EconomicRound round) {
@@ -210,8 +247,8 @@ public class ScenarioComparisonService {
     }
 
     private static SavedComparisonDTO dto(ScenarioComparison comparison, ComparisonResultDTO result) {
-        List<ComparisonRequestDTO.Item> items = comparison.getItems().stream()
-                .map(item -> new ComparisonRequestDTO.Item(item.getVersion().getId(), item.getEvaluation().getId()))
+        List<SavedComparisonDTO.Item> items = comparison.getItems().stream()
+                .map(item -> new SavedComparisonDTO.Item(item.getVersion().getId(), item.getEvaluation().getId()))
                 .toList();
         return new SavedComparisonDTO(comparison.getId(), comparison.getName(), comparison.getDescription(),
                 comparison.getRelevanceThreshold(), comparison.getRateThreshold(), comparison.getCreatedAt(), items, result);
