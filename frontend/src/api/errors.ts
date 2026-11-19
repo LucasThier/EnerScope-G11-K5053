@@ -79,6 +79,15 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
   'Subversion does not have the specified parent version':
     'La subversión no deriva de la versión padre indicada.',
   'Invalid job title (120 characters max)': 'El cargo puede tener hasta 120 caracteres.',
+  'Pick at least 2 evaluations to compare': 'Elegí al menos dos escenarios para comparar.',
+  'At most 8 evaluations can be compared at once': 'Se pueden comparar hasta 8 escenarios a la vez.',
+  'The same scenario cannot be compared with itself': 'Elegiste el mismo escenario dos veces.',
+  'Every compared item needs a version': 'Elegí un escenario en cada fila.',
+  'A saved comparison needs a name': 'Poné un nombre para guardar la comparación.',
+  'Comparison name must be at most 120 characters': 'El nombre puede tener hasta 120 caracteres.',
+  'Comparison not found': 'La comparación no existe o fue eliminada.',
+  'Version not found': 'El escenario no existe o fue eliminado.',
+  'Economic evaluation not found': 'La evaluación no existe o ya no está disponible.',
 };
 
 const KNOWN_BACKEND_PREFIXES: [string, string][] = [
@@ -95,6 +104,11 @@ const KNOWN_BACKEND_PREFIXES: [string, string][] = [
     'SIMULATOR roles apply to the whole version',
     'Ese rol aplica a toda la versión, no a una vertical.',
   ],
+  ['Project permission required', 'No tenés permiso para realizar esta acción en el proyecto.'],
+  ['Scenario changed since its last simulation:', 'Un escenario cambió desde su última simulación. Volvé a simularlo antes de comparar.'],
+  ['Scenario has never been simulated:', 'Un escenario nunca se simuló. Simulalo antes de comparar.'],
+  ['Relevance threshold must be', 'El umbral de relevancia tiene que ser mayor que 0.'],
+  ['Rate threshold must be', 'El umbral para tasas tiene que ser mayor que 0.'],
   [
     'CSV header is missing required column(s):',
     'Al archivo le faltan columnas obligatorias. Descargá la plantilla para ver los nombres que acepta.',
