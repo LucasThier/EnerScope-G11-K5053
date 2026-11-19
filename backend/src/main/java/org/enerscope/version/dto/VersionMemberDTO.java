@@ -1,5 +1,8 @@
 package org.enerscope.version.dto;
 
+import org.enerscope.user.model.User;
+import org.enerscope.version.model.VersionMember;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -18,4 +21,18 @@ public record VersionMemberDTO(
         String jobTitle,
         boolean active,
         List<VersionMemberRoleDTO> roles
-) {}
+) {
+    /** The one mapping used by the per-version listing and the project matrix, so both return the same shape. */
+    public static VersionMemberDTO from(VersionMember member) {
+        User user = member.getUser();
+        return new VersionMemberDTO(
+                member.getId(),
+                user.getId(),
+                user.getMail(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getJobTitle(),
+                user.isActive(),
+                member.getRoles().stream().map(VersionMemberRoleDTO::from).toList());
+    }
+}

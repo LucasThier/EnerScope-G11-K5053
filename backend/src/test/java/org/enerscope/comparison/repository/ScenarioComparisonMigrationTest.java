@@ -14,7 +14,7 @@ import org.springframework.jdbc.datasource.init.ScriptUtils;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Runs V24 against an in-memory database in PostgreSQL mode, on top of minimal
+ * Runs V25 against an in-memory database in PostgreSQL mode, on top of minimal
  * stand-ins for the tables it references, and checks its constraints.
  */
 class ScenarioComparisonMigrationTest {
@@ -37,7 +37,7 @@ class ScenarioComparisonMigrationTest {
         statement.execute("INSERT INTO project VALUES('" + project + "')");
         statement.execute("INSERT INTO version VALUES('" + version + "')");
         statement.execute("INSERT INTO economic_evaluation VALUES('" + evaluation + "'),('" + otherEvaluation + "')");
-        ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/migration/V24__scenario_comparisons.sql"));
+        ScriptUtils.executeSqlScript(connection, new ClassPathResource("db/migration/V25__scenario_comparisons.sql"));
         statement.execute("INSERT INTO scenario_comparison(id, created_at, last_modified, project_id, name, relevance_threshold, rate_threshold) "
                 + "VALUES('" + comparison + "', NOW(), NOW(), '" + project + "', 'Base vs B', 0.05, 0.01)");
     }

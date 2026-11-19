@@ -77,7 +77,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
       if (request !== requestId.current) return;
       setDiagram(visibleDiagram(res.data.data ?? { versionId, nodes: [], connections: [] }));
     } catch (err) {
-      if (request === requestId.current) setError(getErrorMessage(err, 'Could not load the diagram'));
+      if (request === requestId.current) setError(getErrorMessage(err, 'No se pudo cargar el diagrama'));
     } finally {
       if (request === requestId.current) setLoading(false);
     }
@@ -105,7 +105,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
         await diagramApi.addNode(versionId, payload);
         await reload();
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not create the node'));
+        setError(getErrorMessage(err, 'No se pudo crear el nodo'));
         throw err;
       } finally {
         setBusy(false);
@@ -131,7 +131,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
         await diagramApi.deleteNode(versionId, nodeId);
         await reload();
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not delete the node'));
+        setError(getErrorMessage(err, 'No se pudo eliminar el nodo'));
         throw err;
       } finally {
         setBusy(false);
@@ -162,12 +162,12 @@ export function useDiagram(versionId: string | null): UseDiagram {
   // state is only ever set as the consequence of a delete, and the node stays in
   // the version's history so it can be restored.
   const removeNode = useCallback(
-    (nodeId: string) => setNodeState(nodeId, 'REMOVED', 'Could not remove the node'),
+    (nodeId: string) => setNodeState(nodeId, 'REMOVED', 'No se pudo eliminar el nodo'),
     [setNodeState],
   );
 
   const restoreNode = useCallback(
-    (nodeId: string) => setNodeState(nodeId, 'PROPOSED', 'Could not restore the node'),
+    (nodeId: string) => setNodeState(nodeId, 'PROPOSED', 'No se pudo restaurar el nodo'),
     [setNodeState],
   );
 
@@ -180,7 +180,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
         await diagramApi.updateBasics(versionId, nodeId, basics);
         await reload();
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not update the node'));
+        setError(getErrorMessage(err, 'No se pudo actualizar el nodo'));
         throw err;
       } finally {
         setBusy(false);
@@ -199,7 +199,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
         return res.data.data ?? null;
       } catch (err) {
         if (currentVersionIdRef.current !== requestedVersionId) return null;
-        setError(getErrorMessage(err, 'Could not load the node detail'));
+        setError(getErrorMessage(err, 'No se pudieron cargar los datos del nodo'));
         return null;
       }
     },
@@ -223,7 +223,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
         await diagramApi.editNode(versionId, nodeId, payload);
         await reload();
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not save the node'));
+        setError(getErrorMessage(err, 'No se pudo guardar el nodo'));
         throw err;
       } finally {
         setBusy(false);
@@ -241,7 +241,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
         await diagramApi.addConnection(versionId, { fromNodeId, toNodeId });
         await reload();
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not create the connection'));
+        setError(getErrorMessage(err, 'No se pudo crear la conexión'));
         throw err;
       } finally {
         setBusy(false);
@@ -259,7 +259,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
         await diagramApi.deleteConnection(versionId, connectionId);
         await reload();
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not delete the connection'));
+        setError(getErrorMessage(err, 'No se pudo eliminar la conexión'));
         throw err;
       } finally {
         setBusy(false);
@@ -292,7 +292,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
           geographicalPosition: null,
         });
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not save the new position'));
+        setError(getErrorMessage(err, 'No se pudo guardar la nueva posición'));
       }
     },
     [versionId, patchNodeLocally],
@@ -314,7 +314,7 @@ export function useDiagram(versionId: string | null): UseDiagram {
           geographicalPosition: { longitude, latitude },
         });
       } catch (err) {
-        setError(getErrorMessage(err, 'Could not save the new position'));
+        setError(getErrorMessage(err, 'No se pudo guardar la nueva posición'));
       }
     },
     [versionId, patchNodeLocally],

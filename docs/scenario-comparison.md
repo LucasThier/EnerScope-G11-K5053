@@ -33,7 +33,7 @@ Package: `org.enerscope.comparison` (`controller`, `service`, `repository`,
   `SIMULATING` (a job queued or running, with its progress), plus whether the
   scenario can be simulated now (`ready` + `readinessErrors`, from the scenario
   configuration's readiness check) and whether the caller may (`canSimulate`,
-  `EDIT_PROJECT` on its project). A job that failed after the latest result is
+  the per-version rule that authorizes submitting a simulation, from `VersionAccessService`). A job that failed after the latest result is
   reported too.
 - 2–8 scenarios, the same one only once. Eight is the size of the validated
   categorical palette that identifies scenarios on screen.
@@ -123,6 +123,11 @@ every 2.5 s while something is simulating. Below: **Comparaciones anteriores**
 (open or delete earlier runs). Comparing saves the run (named after its scenarios)
 and opens step 2. `?escenarios=project:version,…` preselects scenarios.
 
+Saving a run needs `EDIT_PROJECT` (read from `/access`, like the other project
+screens). **Read-only members** (e.g. the Ejecutivo type) still compare: the result
+opens at `/projects/:projectId/comparisons/sin-guardar` from the preview, without
+being saved, and the earlier runs list hides "Eliminar" for them.
+
 **Step 2 — result** (`/projects/:projectId/comparisons/:comparisonId`), from most
 to least important, getting denser as it goes down:
 
@@ -166,7 +171,7 @@ All routes are under `/api/v1/projects/{projectId}/comparisons`, use the
 Simulating from the screen uses the existing
 `POST /projects/{projectId}/versions/{versionId}/economics/evaluation-jobs`.
 
-## Persistence (V24)
+## Persistence (V25)
 
 Only the **definition** of a run is stored; simulations are immutable, so the
 result is recalculated on read and always matches.
@@ -288,7 +293,7 @@ node docs/examples/seed-comparison-demo.mjs --simulate       # also runs 10 roun
 node docs/examples/seed-comparison-demo.mjs --api http://localhost:8081/api/v1 --mail … --password …
 ```
 
-It needs a backend from this branch (migrations through V24) and signs in as the
+It needs a backend from this branch (migrations through V25) and signs in as the
 dev seed admin unless `--mail/--password` (or `ENERSCOPE_ADMIN_MAIL` /
 `ENERSCOPE_ADMIN_PASSWORD`) say otherwise. It refuses to run twice and must never
 target production.

@@ -36,19 +36,36 @@ export function AdminUsersPage() {
   const [role, setRole] = useState(ALL);
   const [status, setStatus] = useState(ALL);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [viewing, setViewing] = useState<UserListItem | null>(null);
-  const [changingRole, setChangingRole] = useState<UserListItem | null>(null);
-  const [deactivating, setDeactivating] = useState<UserListItem | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const [action, setAction] = useState<{ kind: 'role' | 'deactivate'; id: string } | null>(null);
+  const [detailRefresh, setDetailRefresh] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // The modals follow the list, so after an action they show the new role and state.
+  const userById = (id: string | null) => users.find((candidate) => candidate.id === id) ?? null;
+  const viewing = userById(viewingId);
+  const changingRole = action?.kind === 'role' ? userById(action.id) : null;
+  const deactivating = action?.kind === 'deactivate' ? userById(action.id) : null;
+
+  async function reactivate(user: UserListItem) {
+    await usersApi.reactivate(user.id);
+    await reload();
+    setDetailRefresh((n) => n + 1);
+  }
 
   async function handleReactivate(user: UserListItem) {
     setActionError(null);
     try {
-      await usersApi.reactivate(user.id);
-      await reload();
+      await reactivate(user);
     } catch (err) {
       setActionError(getErrorMessage(err, 'No se pudo reactivar la cuenta'));
     }
+  }
+
+  // Back from an action to the detail it was opened from (if any), read again.
+  function closeAction() {
+    setAction(null);
+    setDetailRefresh((n) => n + 1);
   }
 
   const hasActiveFilters = search.trim() !== '' || role !== ALL || status !== ALL;
@@ -151,9 +168,9 @@ export function AdminUsersPage() {
         ) : (
           <UsersTable
             users={visibleUsers}
-            onViewDetail={setViewing}
-            onChangeRole={setChangingRole}
-            onDeactivate={setDeactivating}
+            onViewDetail={(user) => setViewingId(user.id)}
+            onChangeRole={(user) => setAction({ kind: 'role', id: user.id })}
+            onDeactivate={(user) => setAction({ kind: 'deactivate', id: user.id })}
             onReactivate={handleReactivate}
           />
         )}
@@ -165,19 +182,19 @@ export function AdminUsersPage() {
         onCreated={reload}
       />
 
-      <UserDetailModal user={viewing} onClose={() => setViewing(null)} />
-
-      <ChangeRoleModal
-        user={changingRole}
-        onClose={() => setChangingRole(null)}
-        onChanged={reload}
+      {/* Hidden while an action is open: two stacked modals would fight over focus and Escape. */}
+      <UserDetailModal
+        user={action ? null : viewing}
+        refreshToken={detailRefresh}
+        onClose={() => setViewingId(null)}
+        onChangeRole={(user) => setAction({ kind: 'role', id: user.id })}
+        onDeactivate={(user) => setAction({ kind: 'deactivate', id: user.id })}
+        onReactivate={reactivate}
       />
 
-      <DeactivateUserDialog
-        user={deactivating}
-        onClose={() => setDeactivating(null)}
-        onDeactivated={reload}
-      />
+      <ChangeRoleModal user={changingRole} onClose={closeAction} onChanged={reload} />
+
+      <DeactivateUserDialog user={deactivating} onClose={closeAction} onDeactivated={reload} />
     </div>
   );
 }

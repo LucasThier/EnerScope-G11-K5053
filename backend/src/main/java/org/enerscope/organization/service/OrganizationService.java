@@ -25,6 +25,8 @@ import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.user.repository.UserRepository;
 import org.enerscope.user.service.UserService;
 import org.enerscope.util.AuthUtil;
+import org.enerscope.version.model.VersionMember;
+import org.enerscope.version.repository.VersionMemberRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,6 +56,7 @@ public class OrganizationService {
     private final UserRepository userRepository;
     private final UserService userService;
     private final ProjectMemberRepository projectMemberRepository;
+    private final VersionMemberRepository versionMemberRepository;
     private final AppLogger logger;
 
     public OrganizationService(OrganizationRepository organizationRepository,
@@ -61,12 +64,14 @@ public class OrganizationService {
                                 UserRepository userRepository,
                                 UserService userService,
                                 ProjectMemberRepository projectMemberRepository,
+                                VersionMemberRepository versionMemberRepository,
                                 AppLogger logger) {
         this.organizationRepository = organizationRepository;
         this.organizationMemberRepository = organizationMemberRepository;
         this.userRepository = userRepository;
         this.userService = userService;
         this.projectMemberRepository = projectMemberRepository;
+        this.versionMemberRepository = versionMemberRepository;
         this.logger = logger;
     }
 
@@ -199,12 +204,12 @@ public class OrganizationService {
     @Transactional
     public OrganizationMember changeMemberRole(UUID organizationId, UUID memberId,
                                                UpdateOrganizationMemberRoleRequestDTO data) {
-        if (data == null || data.memberType() == null) {
-            throw new IllegalArgumentException("memberType cannot be null");
-        }
         organizationRepository.findByIdAndActiveTrue(organizationId)
                 .orElseThrow(() -> new IllegalArgumentException("Organization not found"));
         assertCanManageUsers(organizationId);
+        if (data == null || data.memberType() == null) {
+            throw new IllegalArgumentException("memberType cannot be null");
+        }
 
         OrganizationMember member = organizationMemberRepository
                 .findByIdAndOrganizationId(memberId, organizationId)
@@ -269,6 +274,13 @@ public class OrganizationService {
 
         List<ProjectMember> projectMemberships =
                 projectMemberRepository.findByUserInOrganization(user.getId(), organizationId);
+        List<VersionMember> versionMemberships = projectMemberships.isEmpty()
+                ? List.of()
+                : versionMemberRepository.findByUserIdAndProjectIdIn(user.getId(),
+                        projectMemberships.stream().map(pm -> pm.getProject().getId()).toList());
+        if (!versionMemberships.isEmpty()) {
+            versionMemberRepository.deleteAll(versionMemberships);
+        }
         if (!projectMemberships.isEmpty()) {
             projectMemberRepository.deleteAll(projectMemberships);
         }
@@ -276,8 +288,8 @@ public class OrganizationService {
         organization.removeMember(member);
         organizationMemberRepository.delete(member);
 
-        logger.info("Removed user {} from organization {} along with {} project memberships",
-                user.getMail(), organization.getName(), projectMemberships.size());
+        logger.info("Removed user {} from organization {} along with {} project memberships and {} version memberships",
+                user.getMail(), organization.getName(), projectMemberships.size(), versionMemberships.size());
     }
 
     @Transactional

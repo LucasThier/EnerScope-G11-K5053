@@ -14,6 +14,7 @@ public final class NodeRequestDeserializer extends StdDeserializer<BaseNodeDTO> 
         Map.entry("GATHERING_NETWORK", GatheringNetworkDTO.class),
         Map.entry("TREATMENT_PLANT", TreatmentPlantDTO.class),
         Map.entry("PIPELINE", PipelineDTO.class),
+        Map.entry("PIPELINE_CONECTION", PipelineConnectionDTO.class),
         Map.entry("COMPRESSING_PLANT", CompressingPlantDTO.class),
         Map.entry("GROUND_LIQUEFACTION_PLANT", GroundBasedLiquefactionPlantDTO.class),
         Map.entry("FLNG_UNIT", FLNGUnitDTO.class),

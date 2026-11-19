@@ -28,7 +28,7 @@ public class EconomicJobService {
     private final AppLogger logger;
 
     public EconomicJobDTO submit(UUID projectId,UUID versionId,EconomicJobRequest request) {
-        var version=economics.authorize(projectId,versionId,ProjectMemberPermission.EDIT_PROJECT);
+        var version=economics.authorizeSimulation(projectId,versionId);
         economics.assertNoDraft(version);
         var configuration=economics.configuration(versionId);
         validator.validate(configuration,economics.nodeIds(version));
@@ -53,7 +53,7 @@ public class EconomicJobService {
     }
 
     public EconomicJobDTO retry(UUID projectId,UUID versionId,UUID id) {
-        var version=economics.authorize(projectId,versionId,ProjectMemberPermission.EDIT_PROJECT);
+        var version=economics.authorizeSimulation(projectId,versionId);
         var old=find(versionId,id);
         if(old.getStatus()!=FAILED && old.getStatus()!=INTERRUPTED)
             throw new IllegalArgumentException("Only failed or interrupted jobs can be repeated");

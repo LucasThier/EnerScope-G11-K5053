@@ -4,6 +4,7 @@ import { ThemeProvider } from './hooks/ThemeProvider';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { RoleRoute } from './routes/RoleRoute';
 import { DashboardRedirect } from './routes/DashboardRedirect';
+import { ProjectRouteGuard } from './routes/ProjectRouteGuard';
 import { AppLayout } from './components/layout/AppLayout';
 import { PaddedMain } from './components/layout/PaddedMain';
 import { LoginPage } from './pages/LoginPage';
@@ -37,15 +38,17 @@ const router = createBrowserRouter(createRoutesFromElements(<>
                   <Route path="/" element={<DashboardRedirect />} />
                   <Route path="/app" element={<WorkspacePage />} />
                   <Route path="/projects" element={<ProjectsPage />} />
-                  <Route path="/projects/:projectId/team" element={<ProjectTeamPage />} />
-                  <Route path="/projects/:projectId/scenario-configurations" element={<ScenariosPage configuration />} />
-                  <Route path="/projects/:projectId/simulations" element={<ScenariosPage />} />
-                  <Route path="/projects/:projectId/versions" element={<VersionsPage />} />
-                  <Route path="/projects/:projectId/comparisons" element={<ComparisonsPage />} />
-                  <Route path="/projects/:projectId/comparisons/:comparisonId" element={<ComparisonResultPage />} />
-                  <Route path="/projects/:projectId/versions/:versionId/economics" element={<ScenarioConfigurationPage />} />
-                  <Route path="/projects/:projectId/versions/:versionId/economics/configuration" element={<ScenarioConfigurationPage />} />
-                  <Route path="/projects/:projectId/versions/:versionId/economics/:tab/:evaluationId?" element={<EconomicsPage />} />
+                  <Route element={<ProjectRouteGuard />}>
+                    <Route path="/projects/:projectId/team" element={<ProjectTeamPage />} />
+                    <Route path="/projects/:projectId/scenario-configurations" element={<ScenariosPage configuration />} />
+                    <Route path="/projects/:projectId/simulations" element={<ScenariosPage />} />
+                    <Route path="/projects/:projectId/versions" element={<VersionsPage />} />
+                    <Route path="/projects/:projectId/comparisons" element={<ComparisonsPage />} />
+                    <Route path="/projects/:projectId/comparisons/:comparisonId" element={<ComparisonResultPage />} />
+                    <Route path="/projects/:projectId/versions/:versionId/economics" element={<ScenarioConfigurationPage />} />
+                    <Route path="/projects/:projectId/versions/:versionId/economics/configuration" element={<ScenarioConfigurationPage />} />
+                    <Route path="/projects/:projectId/versions/:versionId/economics/:tab/:evaluationId?" element={<EconomicsPage />} />
+                  </Route>
                   <Route path="/versions" element={<VersionsIndexPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route

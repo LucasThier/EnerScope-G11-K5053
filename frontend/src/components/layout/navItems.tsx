@@ -9,6 +9,7 @@ import {
   FolderIcon,
   HomeIcon,
   ReportIcon,
+  SettingsIcon,
   UsersIcon,
   ValueChainIcon,
 } from '../ui/icons';
@@ -16,7 +17,7 @@ import {
 export const VERSIONS_PATH_PATTERN = VERSION_MANAGEMENT_PATTERN;
 export const PROJECTS_PATH_PATTERN = /^\/projects\/?$/;
 export const PROJECT_TEAM_PATH_PATTERN = /^\/projects\/[^/]+\/team(\/|$)/;
-export const VERSIONS_INDEX_PATH_PATTERN = /^\/versions\/?$/;
+export const VERSIONING_PATH_PATTERN = /^\/(?:versions|projects\/[^/]+\/versions)\/?$/;
 export const ORGANIZATION_PATH_PATTERN = /^\/organizations\/[^/]+/;
 export const MY_ORGANIZATIONS_PATH_PATTERN = /^\/organizations(\/|$)/;
 
@@ -29,7 +30,7 @@ export const MY_ORGANIZATIONS = {
 export type NavRequirement =
   | 'platformAdmin'
   | 'organizationMember'
-  | 'manageableProject'
+  | 'projectTeam'
   | 'activeProject'
   | 'scenarioConfiguration'
   | 'scenarioSimulation'
@@ -43,7 +44,8 @@ export interface NavItem {
   to?: string;
   matchPattern?: RegExp;
   fullLabel?: string;
-  availability?: 'soon';
+  availability?: 'soon' | 'unavailable';
+  reason?: string;
   requires?: NavRequirement;
   keepsOwnName?: boolean;
   children?: NavItem[];
@@ -77,7 +79,7 @@ export const NAV_GROUPS: NavGroup[] = [
           {
             label: 'Equipo del proyecto',
             matchPattern: PROJECT_TEAM_PATH_PATTERN,
-            requires: 'manageableProject',
+            requires: 'projectTeam',
           },
         ],
       },
@@ -91,18 +93,9 @@ export const NAV_GROUPS: NavGroup[] = [
         id: 'versions',
         label: 'Versionado',
         icon: <BranchIcon />,
-        children: [
-          {
-            label: 'Todas las versiones',
-            to: '/versions',
-            matchPattern: VERSIONS_INDEX_PATH_PATTERN,
-          },
-          {
-            label: 'Versiones del proyecto',
-            matchPattern: VERSIONS_PATH_PATTERN,
-            requires: 'activeProject',
-          },
-        ],
+        to: '/versions',
+        matchPattern: VERSIONING_PATH_PATTERN,
+        requires: 'activeProject',
       },
     ],
   },
@@ -110,8 +103,9 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Análisis',
     items: [
       {
-        label: 'Configuración del Escenario',
-        icon: <FolderIcon />,
+        label: 'Configuración',
+        fullLabel: 'Configuración del Escenario',
+        icon: <SettingsIcon />,
         matchPattern: CONFIGURATION_PATTERN,
         requires: 'scenarioConfiguration',
       },
@@ -166,6 +160,33 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+function leavesOf(groups: NavGroup[]): NavItem[] {
+  return groups.flatMap((group) => group.items.flatMap((item) => item.children ?? [item]));
+}
+
+function matchScore(item: NavItem, pathname: string): number {
+  if (item.to === undefined) {
+    return -1;
+  }
+  if (item.matchPattern) {
+    return item.matchPattern.test(pathname) ? pathname.length : -1;
+  }
+  return pathname === item.to || pathname.startsWith(`${item.to}/`) ? item.to.length : -1;
+}
+
+export function activeLeaf(groups: NavGroup[], pathname: string): NavItem | null {
+  let best: NavItem | null = null;
+  let bestScore = -1;
+  for (const leaf of leavesOf(groups)) {
+    const score = matchScore(leaf, pathname);
+    if (score > bestScore) {
+      best = leaf;
+      bestScore = score;
+    }
+  }
+  return best;
+}
 
 const MODULE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/app\/?$/, title: 'Inicio' },

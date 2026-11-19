@@ -22,14 +22,11 @@ import org.enerscope.node.model.extraction.Well;
 import org.enerscope.project.model.Project;
 import org.enerscope.scenario.dto.ScenarioConfigurationDTO.Readiness;
 import org.enerscope.scenario.service.ScenarioConfigurationService;
-import org.enerscope.session.model.Session;
-import org.enerscope.user.model.User;
-import org.enerscope.user.model.enums.PlatformRole;
+import org.enerscope.version.dto.ProjectAccessDTO;
+import org.enerscope.version.dto.VersionAccessDTO;
+import org.enerscope.version.service.VersionAccessService;
 import org.enerscope.version.model.Version;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.enerscope.economic.service.EconomicExample.MAPPER;
@@ -42,16 +39,12 @@ class ScenarioStatusServiceTest {
 
     final EconomicService economics = mock(EconomicService.class);
     final ScenarioConfigurationService scenarios = mock(ScenarioConfigurationService.class);
+    final VersionAccessService access = mock(VersionAccessService.class);
     final EconomicInputCodec codec = new EconomicInputCodec(MAPPER);
     final EconomicEvaluationRepository evaluations = mock(EconomicEvaluationRepository.class);
     final EconomicJobRepository jobs = mock(EconomicJobRepository.class);
-    final ScenarioStatusService service = new ScenarioStatusService(economics, scenarios, codec, evaluations, jobs, MAPPER,
+    final ScenarioStatusService service = new ScenarioStatusService(economics, scenarios, access, codec, evaluations, jobs, MAPPER,
             mock(AppLogger.class));
-
-    @AfterEach
-    void clearSession() {
-        SecurityContextHolder.clearContext();
-    }
 
     /** What a simulation of {@code version} with {@code configuration} freezes, as the economic module stores it. */
     EvaluationDTO.Snapshot simulated(Version version, EconomicConfiguration configuration) throws Exception {
@@ -142,6 +135,9 @@ class ScenarioStatusServiceTest {
         when(jobs.findByVersionIdOrderByCreatedAtDesc(any())).thenReturn(List.of());
         when(jobs.findByVersionIdOrderByCreatedAtDesc(running.getId())).thenReturn(List.of(job));
 
+        when(access.resolveForProject(project.getId())).thenReturn(new ProjectAccessDTO(project.getId(), false, null,
+                List.of(), false, false, List.of(versionAccess(simulated.getId(), true), versionAccess(never.getId(), false))));
+
         var statuses = service.list(project.getId());
 
         var first = statuses.stream().filter(s -> s.versionId().equals(simulated.getId())).findFirst().orElseThrow();
@@ -149,7 +145,7 @@ class ScenarioStatusServiceTest {
         assertEquals(evaluation.getId(), first.latestEvaluationId());
         assertEquals(EvaluationMode.DETERMINISTIC, first.mode());
         assertEquals("Proyecto", first.projectName());
-        assertFalse(first.canSimulate(), "no session, no simulation");
+        assertTrue(first.canSimulate(), "the version access says it can be simulated");
         var unsimulated = statuses.stream().filter(s -> s.versionId().equals(never.getId())).findFirst().orElseThrow();
         assertEquals(ScenarioStatus.NEVER_SIMULATED, unsimulated.status());
         assertFalse(unsimulated.ready());
@@ -159,8 +155,8 @@ class ScenarioStatusServiceTest {
         assertEquals(4, simulating.job().completedRounds());
         assertEquals(10, simulating.job().rounds());
 
-        authenticate(PlatformRole.ADMIN);
-        assertTrue(service.list(project.getId()).stream().allMatch(s -> s.canSimulate()));
+        assertFalse(unsimulated.canSimulate(), "no SIMULATE on that version");
+        assertFalse(simulating.canSimulate(), "versions missing from the access answer cannot be simulated");
     }
 
     static Version version(String name) {
@@ -169,10 +165,9 @@ class ScenarioStatusServiceTest {
         return version;
     }
 
-    static void authenticate(PlatformRole role) {
-        User caller = User.fromJwtClaims(UUID.randomUUID(), "user@example.com", "Test", "User", role);
-        var auth = new UsernamePasswordAuthenticationToken(caller, null, List.of());
-        auth.setDetails(new Session("token", caller, Instant.now().plusSeconds(3600)));
-        SecurityContextHolder.getContext().setAuthentication(auth);
+    /** Per-version access as {@code VersionAccessService} answers it; only {@code canSimulate} matters here. */
+    static VersionAccessDTO versionAccess(UUID versionId, boolean canSimulate) {
+        return new VersionAccessDTO(versionId, "v", null, List.of(), null, List.of(),
+                true, false, false, canSimulate, false, false, true, true, false);
     }
 }

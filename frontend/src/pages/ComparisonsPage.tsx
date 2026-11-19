@@ -13,9 +13,9 @@ import { Modal, ModalFooter } from '../components/ui/Modal';
 import { SearchField } from '../components/ui/SearchField';
 import { SelectField } from '../components/ui/SelectField';
 import { useActiveProject } from '../hooks/useActiveProject';
-import { useAuth } from '../hooks/useAuth';
+import { useGuardedProjectAccess } from '../hooks/useGuardedProjectAccess';
 import type { ComparableScenario, ComparisonSummary } from '../types/comparison';
-import { MAX_SCENARIOS, selectionFromQuery, toRequest, type SelectionRef } from '../utils/comparison';
+import { MAX_SCENARIOS, PREVIEW_ID, selectionFromQuery, toRequest, type SelectionRef } from '../utils/comparison';
 
 /** Rounds used when a scenario is simulated from the comparison screen. */
 const ROUNDS = 10;
@@ -37,9 +37,11 @@ export function ComparisonsPage() {
 function ComparisonSelection({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
   const [search] = useSearchParams();
-  const { user } = useAuth();
-  const { projects, activeProject } = useActiveProject();
-  const canEdit = user?.platformRole === 'ADMIN' || (activeProject?.id === projectId && activeProject.myRole != null);
+  const { projects } = useActiveProject();
+  // Saving and deleting runs needs EDIT_PROJECT (from /access, like every project screen); a read-only
+  // member (e.g. Ejecutivo) still compares, and sees the result without it being saved.
+  const { access } = useGuardedProjectAccess(projectId);
+  const canEdit = !!access && (access.platformAdmin || access.projectPermissions.includes('EDIT_PROJECT'));
 
   const [browsing, setBrowsing] = useState(projectId);
   const [filter, setFilter] = useState('');
@@ -116,8 +118,14 @@ function ComparisonSelection({ projectId }: { projectId: string }) {
   async function compare() {
     setComparing(true); setCompareError('');
     try {
-      const run = await comparisonsApi.save(projectId, toRequest(selection.map(s => s.versionId)));
-      navigate(`/projects/${projectId}/comparisons/${run.id}`);
+      const request = toRequest(selection.map(s => s.versionId));
+      if (canEdit) {
+        const run = await comparisonsApi.save(projectId, request);
+        navigate(`/projects/${projectId}/comparisons/${run.id}`);
+      } else {
+        const result = await comparisonsApi.preview(projectId, request);
+        navigate(`/projects/${projectId}/comparisons/${PREVIEW_ID}`, { state: { result, selection } });
+      }
     } catch (error) {
       setCompareError(getErrorMessage(error, 'No se pudieron comparar los escenarios.'));
       selection.forEach(s => { void loadCatalog(s.projectId, true); });

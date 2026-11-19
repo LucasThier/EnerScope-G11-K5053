@@ -263,6 +263,18 @@ class ProjectRepositoryTest {
         assertEquals(ProjectMemberType.ADMIN, summaries.get(0).myRole());
     }
 
+    @Test
+    void findSummariesAndForMemberReportExecutiveAsMyRole() {
+        Project project = project("Grid Expansion");
+        attachAs(project, member, ProjectMemberType.EXECUTIVE);
+        sync();
+
+        assertEquals(ProjectMemberType.EXECUTIVE,
+                projectRepository.findSummaries(member.getId(), null).get(0).myRole());
+        assertEquals(ProjectMemberType.EXECUTIVE,
+                projectRepository.findSummariesForMember(member.getId(), null).get(0).myRole());
+    }
+
     private ProjectMemberType roleOf(List<ProjectSummaryDTO> summaries, String name) {
         return summaries.stream()
                 .filter(summary -> summary.name().equals(name))

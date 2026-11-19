@@ -1,4 +1,4 @@
--- V24: saved scenario comparisons. Only the definition is stored (which
+-- V25: saved scenario comparisons. Only the definition is stored (which
 -- immutable economic evaluations, in which order, and the relevance
 -- thresholds); the result is recalculated on read. Position 0 is the baseline.
 CREATE TABLE scenario_comparison (

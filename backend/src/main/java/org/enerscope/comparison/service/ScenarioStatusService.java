@@ -27,8 +27,7 @@ import org.enerscope.project.model.Project;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.scenario.dto.ScenarioConfigurationDTO.Readiness;
 import org.enerscope.scenario.service.ScenarioConfigurationService;
-import org.enerscope.user.model.enums.PlatformRole;
-import org.enerscope.util.AuthUtil;
+import org.enerscope.version.service.VersionAccessService;
 import org.enerscope.version.model.Version;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +52,7 @@ public class ScenarioStatusService {
 
     private final EconomicService economics;
     private final ScenarioConfigurationService scenarios;
+    private final VersionAccessService access;
     private final EconomicInputCodec codec;
     private final EconomicEvaluationRepository evaluations;
     private final EconomicJobRepository jobs;
@@ -62,13 +62,16 @@ public class ScenarioStatusService {
     /** Every active scenario of a project with its comparison status. Needs {@code VIEW_PROJECT}. */
     public List<ComparableScenarioDTO> list(UUID projectId) {
         Project project = economics.authorizeProject(projectId, ProjectMemberPermission.VIEW_PROJECT);
-        boolean canSimulate = canEdit(project);
+        // The same per-version rule that authorizes submitting a simulation (version roles, then project).
+        Map<UUID, Boolean> canSimulate = new HashMap<>();
+        access.resolveForProject(projectId).versions().forEach(v -> canSimulate.put(v.versionId(), v.canSimulate()));
         Map<UUID, Readiness> readiness = new HashMap<>();
         scenarios.readiness(projectId).forEach(r -> readiness.put(r.versionId(), r));
         return project.getVersions().stream()
                 .filter(Version::isActive)
                 .sorted(Comparator.comparing(BaseEntity::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
-                .map(version -> describe(project, version, readiness.get(version.getId()), canSimulate))
+                .map(version -> describe(project, version, readiness.get(version.getId()),
+                        canSimulate.getOrDefault(version.getId(), false)))
                 .toList();
     }
 
@@ -113,17 +116,6 @@ public class ScenarioStatusService {
                 snapshot == null ? null : probabilistic ? EvaluationMode.PROBABILISTIC : EvaluationMode.DETERMINISTIC,
                 snapshot == null || snapshot.simulation() == null ? null : snapshot.simulation().rounds(),
                 readiness != null && readiness.ready(), readiness == null ? List.of() : readiness.errors(), canSimulate, job);
-    }
-
-    /** Same rule as {@code EconomicService.authorizeProject} for EDIT_PROJECT, without throwing inside a transaction. */
-    private boolean canEdit(Project project) {
-        var session = AuthUtil.currentSession();
-        if (session == null || session.getUser() == null) return false;
-        if (session.getUser().getPlatformRole() == PlatformRole.ADMIN) return true;
-        return project.getMembers().stream()
-                .filter(m -> m.isActive() && m.getUser().getId().equals(session.getUser().getId()))
-                .flatMap(m -> m.getRoles().stream()).filter(BaseEntity::isActive)
-                .anyMatch(r -> r.getPermissions().contains(ProjectMemberPermission.EDIT_PROJECT));
     }
 
     /** JSON text round trip, then volatile keys dropped and arrays of entities sorted by id. */

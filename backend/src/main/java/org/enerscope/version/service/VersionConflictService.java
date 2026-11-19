@@ -1,8 +1,10 @@
 package org.enerscope.version.service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -41,6 +43,7 @@ public class VersionConflictService {
     private final NodeConnectionRepository connectionRepository;
     private final AppLogger logger;
     private final VersionAccessGuard accessGuard;
+    private final VersionLineage lineage;
 
     /**
      * Called right after {@code sourceVersion} was merged into
@@ -70,6 +73,11 @@ public class VersionConflictService {
 
         for (Version sibling : versionRepository.findByParentVersionId(mergedVersion.getId())) {
             if (Objects.equals(sibling.getId(), sourceVersion.getId())) {
+                continue;
+            }
+            if (!lineage.isSameProject(mergedVersion.getId(), sibling.getId())) {
+                logger.warn("Skipped conflict detection for version {}: it belongs to another project than {}",
+                        sibling.getId(), mergedVersion.getId());
                 continue;
             }
 
@@ -122,19 +130,30 @@ public class VersionConflictService {
     }
 
     /** Conflicts that affect the given version (it is the conflicting sibling). */
+    @Transactional(readOnly = true)
     public List<VersionConflictDTO> getConflictsForVersion(UUID versionId) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
         if (!versionRepository.existsById(versionId)) {
             throw new VersionNotFoundException(versionId);
         }
         accessGuard.assertCanViewVersion(versionId);
-        return conflictRepository.findByConflictingVersionId(versionId).stream()
+        Map<UUID, Boolean> sameProject = new HashMap<>();
+        List<VersionConflict> conflicts = conflictRepository.findByConflictingVersionId(versionId);
+        List<VersionConflictDTO> visible = conflicts.stream()
+                .filter(conflict -> sameProject.computeIfAbsent(conflict.getMergedVersion().getId(),
+                        merged -> lineage.isSameProject(versionId, merged)))
                 .map(VersionConflictDTO::from)
                 .toList();
+        if (visible.size() < conflicts.size()) {
+            logger.debug("Omitted {} conflict(s) of version {} recorded against another project",
+                    conflicts.size() - visible.size(), versionId);
+        }
+        return visible;
     }
 
     /** Every recorded conflict, regardless of version — for testing/debugging. */
     public List<VersionConflictDTO> getAllConflicts() {
+        accessGuard.assertIsPlatformAdmin("list every conflict");
         return conflictRepository.findAll().stream()
                 .map(VersionConflictDTO::from)
                 .toList();
@@ -152,7 +171,16 @@ public class VersionConflictService {
         Objects.requireNonNull(decision, "Resolution decision cannot be null");
         VersionConflict conflict = conflictRepository.findById(conflictId)
                 .orElseThrow(() -> new EntityNotFoundException("Version conflict not found with id: " + conflictId));
-        accessGuard.assertCanManageVersion(conflict.getConflictingVersion().getId());
+        UUID targetVersionId = conflict.getConflictingVersion().getId();
+        UUID mergedVersionId = conflict.getMergedVersion().getId();
+        accessGuard.assertCanManageVersion(targetVersionId);
+        accessGuard.assertCanViewVersion(mergedVersionId);
+        if (conflict.getEntityType() == ConflictEntityType.NODE) {
+            accessGuard.assertCanEditNodes(targetVersionId, conflictingNodes(conflict));
+        } else {
+            accessGuard.assertCanEditConnection(targetVersionId);
+        }
+        lineage.assertSameProject(targetVersionId, mergedVersionId);
 
         if (conflict.getEntityType() == ConflictEntityType.NODE) {
             resolveNodeConflict(conflict, decision);
@@ -212,6 +240,20 @@ public class VersionConflictService {
         }
 
         versionRepository.save(sibling);
+    }
+
+    private List<BaseNode> conflictingNodes(VersionConflict conflict) {
+        List<BaseNode> nodes = new ArrayList<>();
+        BaseNode parentNode = findNodeByIdentity(conflict.getMergedVersion().getNodeSnapshot(), conflict.getIdentityId());
+        BaseNode siblingNode = findNodeByIdentity(conflict.getConflictingVersion().getNodeSnapshot(),
+                conflict.getIdentityId());
+        if (parentNode != null) {
+            nodes.add(parentNode);
+        }
+        if (siblingNode != null) {
+            nodes.add(siblingNode);
+        }
+        return nodes;
     }
 
     private BaseNode findNodeByIdentity(List<BaseNode> nodes, UUID identityId) {

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { NAV_GROUPS, type NavGroup, type NavItem } from '../components/layout/navItems';
-import { canManageProject } from '../utils/projectPermissions';
+import { isPlatformAdmin as resolveIsPlatformAdmin } from '../permissions/access';
 import { useActiveProject } from './useActiveProject';
 import { useAuth } from './useAuth';
 import { useMyOrganizations } from './useMyOrganizations';
@@ -11,22 +11,28 @@ interface NavContext {
   teamProjectId: string | null;
   versionsProjectId: string | null;
   projectName: string | null;
+  noProjectReason: string | null;
   pending: boolean;
 }
 
 export function useNavigationTree(): NavGroup[] {
   const { user } = useAuth();
   const { belongsToOrganization: isMember, loading: loadingOwned } = useMyOrganizations();
-  const { activeProject, isLoading: loadingProjects } = useActiveProject();
+  const { activeProject, projects, error, isLoading: loadingProjects } = useActiveProject();
 
-  const isPlatformAdmin = user?.platformRole === 'ADMIN';
+  const isPlatformAdmin = resolveIsPlatformAdmin(user);
   const project = loadingProjects ? null : activeProject;
 
   const belongsToOrganization = !loadingOwned && isMember;
-  const teamProjectId =
-    project !== null && canManageProject(project.myRole, isPlatformAdmin) ? project.id : null;
+  const teamProjectId = project?.id ?? null;
   const versionsProjectId = project?.id ?? null;
   const projectName = project?.name ?? null;
+  const noProjectReason =
+    loadingProjects || error !== null || project !== null
+      ? null
+      : projects.length === 0
+        ? 'Sin proyectos'
+        : 'Elegí un proyecto';
   const pending = loadingOwned || loadingProjects;
 
   return useMemo(
@@ -37,6 +43,7 @@ export function useNavigationTree(): NavGroup[] {
         teamProjectId,
         versionsProjectId,
         projectName,
+        noProjectReason,
         pending,
       }),
     [
@@ -45,6 +52,7 @@ export function useNavigationTree(): NavGroup[] {
       teamProjectId,
       versionsProjectId,
       projectName,
+      noProjectReason,
       pending,
     ],
   );
@@ -92,7 +100,7 @@ function resolveLeaf(item: NavItem, context: NavContext): NavItem | null {
       return context.isPlatformAdmin ? item : null;
     case 'organizationMember':
       return context.belongsToOrganization ? item : null;
-    case 'manageableProject':
+    case 'projectTeam':
       return context.teamProjectId === null
         ? null
         : {
@@ -103,15 +111,21 @@ function resolveLeaf(item: NavItem, context: NavContext): NavItem | null {
     case 'scenarioConfiguration':
     case 'scenarioSimulation':
     case 'scenarioComparison':
-      return {
-        ...item,
-        to: context.versionsProjectId === null
-          ? '/projects'
-          : `/projects/${context.versionsProjectId}/${PROJECT_MODULE_PATHS[item.requires]}`,
-      };
+      return context.versionsProjectId === null
+        ? {
+            ...item,
+            to: undefined,
+            matchPattern: undefined,
+            availability: 'unavailable',
+            reason: context.noProjectReason ?? undefined,
+          }
+        : {
+            ...item,
+            to: `/projects/${context.versionsProjectId}/${PROJECT_MODULE_PATHS[item.requires]}`,
+          };
     case 'activeProject':
       return context.versionsProjectId === null
-        ? null
+        ? item
         : {
             ...item,
             to: `/projects/${context.versionsProjectId}/versions`,

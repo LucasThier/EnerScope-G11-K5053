@@ -18,6 +18,7 @@ test('switching projects preserves the module and drops foreign version and eval
  for(const suffix of ['simulations','versions/v1/economics/history','versions/v1/economics/results/e1'])assert.equal(projectDestination('p2',suffix),'/projects/p2/simulations');
  assert.equal(projectDestination('p2','versions'),'/projects/p2/versions');
  assert.equal(projectDestination('p2','team'),'/projects/p2/team');
+ assert.equal(projectDestination('p2',''),'/projects/p2');
 });
 test('comparison routes match their module only and switching projects drops the saved comparison id',()=>{
  for(const suffix of ['comparisons','comparisons/','comparisons/c1']){

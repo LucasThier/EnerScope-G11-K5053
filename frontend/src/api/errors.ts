@@ -17,12 +17,37 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
   'User not found': 'No se encontró la cuenta.',
   'Member not found': 'Esa persona ya no integra el proyecto.',
   'Project not found': 'El proyecto no existe o fue eliminado.',
-  'You are not allowed to manage this project':
-    'No tenés permiso para administrar los integrantes de este proyecto.',
+  'You are not allowed to manage this project': 'No tenés permiso para administrar este proyecto.',
   'You are not allowed to view this project': 'No tenés acceso a este proyecto.',
   'You are not allowed to edit this project':
     'No tenés permiso para editar las versiones de este proyecto.',
   'You are not allowed to access this version': 'No tenés acceso a esta versión.',
+  'You are not allowed to edit this version': 'No tenés permiso para editar esta versión.',
+  "You are not allowed to edit this vertical's nodes in this version":
+    'No tenés permiso para editar los nodos de esa vertical en esta versión.',
+  'You are not allowed to simulate this version': 'No tenés permiso para simular esta versión.',
+  'Project permission required: VIEW_PROJECT': 'No tenés acceso a este proyecto.',
+  'Resource not found': 'No se encontró el recurso pedido.',
+  'The versions belong to different projects':
+    'No se pueden relacionar versiones de proyectos distintos.',
+  'Parent version must belong to the same project':
+    'La versión padre debe pertenecer al mismo proyecto.',
+  'A version cannot be its own ancestor':
+    'Esa versión no puede ser su propia ancestra: el padre elegido deriva de ella.',
+  'Simulation graph contains a cycle':
+    'El diagrama tiene un ciclo: revisá las conexiones antes de simular.',
+  'You are not allowed to manage this version': 'No tenés permiso para administrar esta versión.',
+  'You are not allowed to delete one or more versions below this one':
+    'No podés eliminar esta versión porque tiene versiones derivadas que no tenés permiso para eliminar.',
+  'You are not allowed to manage the roles of this version':
+    'Solo los Administradores del proyecto pueden asignar, cambiar o quitar roles de versión.',
+  'User already has this role': 'Esa persona ya tiene ese rol en la versión.',
+  'EDITOR roles require a vertical': 'Elegí la vertical del Editor.',
+  "User is not a member of the version's project":
+    'Esa persona no integra el proyecto de esta versión.',
+  'Version is not attached to any project': 'La versión no pertenece a ningún proyecto.',
+  'Role not found': 'Ese rol ya no existe en esta versión.',
+  'memberType cannot be null': 'Elegí un rol.',
   'Version name cannot be null': 'El nombre de la versión es obligatorio.',
   'Version name cannot be blank or whitespace only': 'El nombre de la versión es obligatorio.',
   'Organization not found': 'La organización no existe o fue desactivada.',
@@ -30,6 +55,8 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
     'No tenés permiso para dar de alta personas en esta organización.',
   'An account with that email already exists': 'Ya existe una cuenta con ese email.',
   'The CSV file is empty': 'El archivo no tiene filas.',
+  'The CSV file has more than 500 rows':
+    'El archivo supera el máximo de 500 filas por importación.',
   'The uploaded file is empty': 'No se adjuntó ningún archivo.',
   'Could not read the uploaded file': 'No se pudo leer el archivo que subiste.',
   'Missing email': 'Falta el email.',
@@ -46,6 +73,12 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
     'Sólo un administrador de plataforma puede ver el listado de cuentas.',
   'Internal error': 'El servidor tuvo un problema y no pudo completar la operación.',
   'Malformed request body': 'No se pudo interpretar el pedido.',
+  'A supported type.nodeType is required': 'Elegí un tipo de nodo válido.',
+  'Version has no parent version to merge into':
+    'Esa versión no tiene una versión padre con la que combinarse.',
+  'Subversion does not have the specified parent version':
+    'La subversión no deriva de la versión padre indicada.',
+  'Invalid job title (120 characters max)': 'El cargo puede tener hasta 120 caracteres.',
   'Pick at least 2 evaluations to compare': 'Elegí al menos dos escenarios para comparar.',
   'At most 8 evaluations can be compared at once': 'Se pueden comparar hasta 8 escenarios a la vez.',
   'The same scenario cannot be compared with itself': 'Elegiste el mismo escenario dos veces.',
@@ -58,9 +91,19 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
 };
 
 const KNOWN_BACKEND_PREFIXES: [string, string][] = [
+  ['Node vertical does not match its type:', 'La vertical del nodo no corresponde a su tipo.'],
   ['Version not found with id:', 'La versión no existe o ya fue eliminada.'],
   ['Version conflict not found with id:', 'El conflicto no existe o ya fue resuelto.'],
   ['Node with id', 'El nodo ya no existe en esta versión.'],
+  ['Node not found with id:', 'El nodo no existe o ya fue eliminado.'],
+  ['Connection not found with id:', 'La conexión no existe o ya fue eliminada.'],
+  ['Connection with id', 'La conexión ya no existe en esta versión.'],
+  ['Node type mismatch: expected', 'El tipo de nodo no coincide con el esperado.'],
+  ['ADMIN roles apply to the whole version', 'Ese rol aplica a toda la versión, no a una vertical.'],
+  [
+    'SIMULATOR roles apply to the whole version',
+    'Ese rol aplica a toda la versión, no a una vertical.',
+  ],
   ['Project permission required', 'No tenés permiso para realizar esta acción en el proyecto.'],
   ['Scenario changed since its last simulation:', 'Un escenario cambió desde su última simulación. Volvé a simularlo antes de comparar.'],
   ['Scenario has never been simulated:', 'Un escenario nunca se simuló. Simulalo antes de comparar.'],
@@ -110,6 +153,16 @@ export function getErrorMessage(error: unknown, fallback = 'Algo salió mal'): s
     return error.message || fallback;
   }
   return fallback;
+}
+
+export function getVersionRoleErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof AxiosError) {
+    const data = error.response?.data as ApiResponse<unknown> | undefined;
+    if (data?.message === 'Member not found') {
+      return 'Esa persona ya no tiene roles en esta versión.';
+    }
+  }
+  return getErrorMessage(error, fallback);
 }
 
 export function getErrorStatus(error: unknown): number | null {

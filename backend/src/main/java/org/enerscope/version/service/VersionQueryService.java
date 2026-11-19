@@ -8,6 +8,7 @@ import org.enerscope.common.*;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.repository.ProjectRepository;
+import org.enerscope.project.service.ProjectAccessGuard;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.scenario.service.CurrentScenarioNodes;
 import org.enerscope.util.AuthUtil;
@@ -30,9 +31,8 @@ public class VersionQueryService {
         var user = session.getUser();
         if (user.getPlatformRole() != PlatformRole.ADMIN) {
             boolean allowed = project.getMembers().stream()
-                    .filter(m -> m.isActive() && m.getUser().getId().equals(user.getId()))
-                    .flatMap(m -> m.getRoles().stream()).filter(BaseEntity::isActive)
-                    .anyMatch(r -> r.getPermissions().contains(ProjectMemberPermission.VIEW_PROJECT));
+                    .filter(m -> m.getUser().getId().equals(user.getId()))
+                    .anyMatch(m -> ProjectAccessGuard.grants(m, ProjectMemberPermission.VIEW_PROJECT));
             if (!allowed) throw new ForbiddenException("Project permission required: VIEW_PROJECT");
         }
         logger.debug("Listing active versions for project {}", projectId);

@@ -1,17 +1,17 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { organizationsApi } from '../api/organizations';
 import { getErrorMessage, getErrorStatus } from '../api/errors';
 import {
   MAX_FILE_BYTES,
   MAX_ROWS,
-  buildNormalizedCsv,
   buildTemplateCsv,
   downloadTextFile,
   parseImportCsv,
   timestampedName,
   withBom,
 } from '../utils/csvImport';
-import type { ParsedImport } from '../utils/csvImport';
+import type { ImportRow, ParsedImport } from '../utils/csvImport';
+import { runImportBatches, type BatchRunStatus } from '../utils/csvImportBatches';
 import type { BulkRegistrationResult } from '../types/auth';
 
 export type ImportStage = 'pick' | 'preview' | 'sending' | 'result';
@@ -22,7 +22,31 @@ interface UseCsvUserImportOptions {
   onClose: () => void;
 }
 
+function rejectionCause(status: BatchRunStatus, error: unknown): string | null {
+  const http = getErrorStatus(error);
+  if (status !== 'failed' || http === null || http < 400 || http >= 500) {
+    return null;
+  }
+  return getErrorMessage(error, '');
+}
+
+export interface ImportProgress {
+  done: number;
+  total: number;
+}
+
+export interface ImportOutcome {
+  status: BatchRunStatus;
+  uncertainRows: ImportRow[];
+  notSentRows: ImportRow[];
+  /** Translated backend cause when a batch was rejected with a 4xx. */
+  cause: string | null;
+}
+
 export interface CsvUserImport {
+  progress: ImportProgress | null;
+  outcome: ImportOutcome | null;
+  cancel: () => void;
   stage: ImportStage;
   fileName: string | null;
   parsed: ParsedImport | null;
@@ -65,6 +89,9 @@ export function useCsvUserImport({
   const [mayHavePartialWrites, setMayHavePartialWrites] = useState(false);
   const [credentialsDownloaded, setCredentialsDownloaded] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
+  const controllerRef = useRef<AbortController | null>(null);
 
   const reset = useCallback(() => {
     setStage('pick');
@@ -77,6 +104,8 @@ export function useCsvUserImport({
     setMayHavePartialWrites(false);
     setCredentialsDownloaded(false);
     setConfirmingClose(false);
+    setProgress(null);
+    setOutcome(null);
   }, []);
 
   const selectFile = useCallback((file: File | null) => {
@@ -86,6 +115,8 @@ export function useCsvUserImport({
     setBlockedReason(null);
     setParsed(null);
     setResult(null);
+    setOutcome(null);
+    setProgress(null);
 
     if (!file) {
       setFileName(null);
@@ -112,8 +143,7 @@ export function useCsvUserImport({
         if (next.rows.length > MAX_ROWS) {
           setBlockedReason(
             `El archivo tiene ${next.rows.length} filas y el máximo por importación es ` +
-              `${MAX_ROWS}. Cada cuenta lleva unos segundos de procesamiento, así que ` +
-              'conviene dividirlo en varios archivos.',
+              `${MAX_ROWS}. Dividilo en varios archivos.`,
           );
         }
         setStage('preview');
@@ -132,41 +162,71 @@ export function useCsvUserImport({
     parsed.fileError === null &&
     parsed.validCount > 0;
 
+  const cancel = useCallback(() => {
+    controllerRef.current?.abort();
+  }, []);
+
   const submit = useCallback(async () => {
     if (!parsed || parsed.validCount === 0) {
       return;
     }
+    const controller = new AbortController();
+    controllerRef.current = controller;
     setStage('sending');
     setSendError(null);
     setMayHavePartialWrites(false);
-    try {
-      const csv = buildNormalizedCsv(parsed.rows);
-      const file = new File([csv], 'usuarios.csv', { type: 'text/csv' });
-      const res = await organizationsApi.bulkRegisterUsers(organizationId, file);
-      const data = res.data.data;
-      if (!data) {
-        setSendError('El servidor respondió sin datos. Revisá la lista de integrantes.');
-        setMayHavePartialWrites(true);
-        setStage('preview');
-        return;
-      }
-      setResult(data);
+    setOutcome(null);
+    setProgress({ done: 0, total: parsed.validCount });
+
+    const run = await runImportBatches(parsed.rows, {
+      signal: controller.signal,
+      send: async (csv, signal) => {
+        const file = new File([csv], 'usuarios.csv', { type: 'text/csv' });
+        const res = await organizationsApi.bulkRegisterUsers(organizationId, file, signal);
+        const data = res.data.data;
+        if (!data) {
+          throw new Error('Empty response');
+        }
+        return data;
+      },
+      isUncertain: (error) => {
+        const status = getErrorStatus(error);
+        return status === null || status >= 500;
+      },
+      onProgress: (done, total) => setProgress({ done, total }),
+    });
+    controllerRef.current = null;
+    setProgress(null);
+
+    if (run.result) {
+      setResult(run.result);
       setCredentialsDownloaded(false);
+      setOutcome({
+        status: run.status,
+        uncertainRows: run.uncertainRows,
+        notSentRows: run.notSentRows,
+        cause: rejectionCause(run.status, run.error),
+      });
       setStage('result');
-    } catch (err) {
-      const status = getErrorStatus(err);
+      return;
+    }
+
+    if (run.status === 'cancelled') {
+      setSendError('Cancelaste la importación.');
+    } else if (run.status === 'failed') {
+      const status = getErrorStatus(run.error);
       if (status === null) {
         setSendError('Se perdió la conexión con el servidor durante la importación.');
-        setMayHavePartialWrites(true);
+      } else if (status === 413) {
+        setSendError('El archivo supera el tamaño máximo de 1 MB.');
       } else if (status >= 500) {
         setSendError('El servidor no pudo completar la importación.');
-        setMayHavePartialWrites(true);
       } else {
-        setSendError(getErrorMessage(err, 'No se pudo completar la importación'));
-        setMayHavePartialWrites(false);
+        setSendError(getErrorMessage(run.error, 'No se pudo completar la importación'));
       }
-      setStage('preview');
     }
+    setMayHavePartialWrites(run.uncertainRows.length > 0);
+    setStage('preview');
   }, [organizationId, parsed]);
 
   const downloadTemplate = useCallback(() => {
@@ -204,6 +264,9 @@ export function useCsvUserImport({
   }, [credentialsDownloaded, finish, result, stage]);
 
   return {
+    progress,
+    outcome,
+    cancel,
     stage,
     fileName,
     parsed,

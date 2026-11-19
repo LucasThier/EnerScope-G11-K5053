@@ -1,11 +1,12 @@
 import type { OrganizationSummary } from '../../types/auth';
-import { EyeIcon, PencilIcon, TrashIcon, UndoIcon } from '../ui/icons';
+import { EyeIcon, PencilIcon, TrashIcon, UndoIcon, UserPlusIcon } from '../ui/icons';
 import { RowButton } from '../ui/RowButton';
 import { formatDate } from '../../utils/date';
 
 interface OrganizationsTableProps {
   organizations: OrganizationSummary[];
   onViewMembers: (organization: OrganizationSummary) => void;
+  onAddMembers: (organization: OrganizationSummary) => void;
   onRename: (organization: OrganizationSummary) => void;
   onDeactivate: (organization: OrganizationSummary) => void;
   onReactivate: (organization: OrganizationSummary) => Promise<void>;
@@ -17,6 +18,7 @@ const bodyCell = 'px-4 py-3 text-sm text-ink-700 align-top';
 export function OrganizationsTable({
   organizations,
   onViewMembers,
+  onAddMembers,
   onRename,
   onDeactivate,
   onReactivate,
@@ -72,6 +74,14 @@ export function OrganizationsTable({
                   >
                     <EyeIcon className="h-4 w-4" />
                   </RowButton>
+                  {organization.active && (
+                    <RowButton
+                      label={`Agregar integrantes a ${organization.name}`}
+                      onClick={() => onAddMembers(organization)}
+                    >
+                      <UserPlusIcon className="h-4 w-4" />
+                    </RowButton>
+                  )}
                   <RowButton
                     label={`Renombrar ${organization.name}`}
                     onClick={() => onRename(organization)}

@@ -14,13 +14,16 @@ import org.enerscope.economic.repository.*;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.repository.ProjectRepository;
+import org.enerscope.project.service.ProjectAccessGuard;
 import org.enerscope.scenario.dto.EconomicDraftDTO;
 import org.enerscope.scenario.model.EconomicDraftEntity;
 import org.enerscope.scenario.repository.EconomicDraftRepository;
 import org.enerscope.scenario.repository.ScenarioDraftRepository;
+import org.enerscope.scenario.service.ScenarioChangeScope;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.util.AuthUtil;
 import org.enerscope.version.model.Version;
+import org.enerscope.version.service.VersionAccessGuard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +42,8 @@ public class EconomicService {
     private final EconomicSimulationAdapter simulator;
     private final ObjectMapper mapper;
     private final AppLogger logger;
+    private final VersionAccessGuard versionAccessGuard;
+    private final ScenarioChangeScope changeScope;
 
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
@@ -59,10 +64,13 @@ public class EconomicService {
             throw new IllegalArgumentException("Hay un borrador pendiente. Completá o descartá los cambios en Configuración del Escenario.");
     }
     public EconomicConfiguration save(UUID projectId, UUID versionId, EconomicConfiguration configuration) {
-        Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        Version version = authorizeConfigurationEdit(projectId, versionId);
         lock(version);
+        var stored = configurations.findByVersionId(versionId);
+        changeScope.assertCanSave(version, null,
+                stored.map(e -> read(e.getConfigurationJson(), EconomicConfiguration.class)).orElse(null), configuration);
         validateConfiguration(configuration, version);
-        var entity = configurations.findByVersionId(versionId).orElseGet(() -> new EconomicConfigurationEntity(version, ""));
+        var entity = stored.orElseGet(() -> new EconomicConfigurationEntity(version, ""));
         entity.replace(json(configuration)); configurations.save(entity);
         drafts.deleteByVersionId(versionId);
         logger.info("Economic configuration saved for version {}", versionId);
@@ -82,9 +90,11 @@ public class EconomicService {
 
     public EconomicDraftDTO saveDraft(UUID projectId, UUID versionId,
                                       EconomicDraftDTO draft) {
-        Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        Version version = authorizeConfigurationEdit(projectId, versionId);
         lock(version);
         EconomicValidator.require(draft != null, "Draft is required");
+        changeScope.assertCanSaveDraft(version, drafts.findByVersionId(versionId)
+                .map(e -> read(e.getDraftJson(), EconomicDraftDTO.class).draft()).orElse(null), draft.draft());
         draft.validateStructure();
         var entity = drafts.findByVersionId(versionId).orElseGet(() -> new EconomicDraftEntity(version, ""));
         entity.replace(json(draft)); drafts.save(entity);
@@ -106,7 +116,7 @@ public class EconomicService {
     }
 
     public EvaluationDTO evaluate(UUID projectId, UUID versionId) {
-        Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        Version version = authorizeSimulation(projectId, versionId);
         assertNoDraft(version);
         EconomicConfiguration c = configuration(versionId); validator.validate(c, nodeIds(version));
         validateExportNodes(c, version);
@@ -182,11 +192,13 @@ public class EconomicService {
     public org.enerscope.project.model.Project authorizeProject(UUID projectId, ProjectMemberPermission permission) {
         var session = AuthUtil.currentSession();
         if (session == null || session.getUser() == null) throw new UnauthorizedException("Authentication required");
-        var project = projects.findById(projectId).orElseThrow(() -> new EntityNotFoundException("Project not found"));
-        if (session.getUser().getPlatformRole() != PlatformRole.ADMIN) {
-            boolean allowed = project.getMembers().stream().filter(m -> m.isActive() && m.getUser().getId().equals(session.getUser().getId()))
-                    .flatMap(m -> m.getRoles().stream()).filter(BaseEntity::isActive)
-                    .anyMatch(r -> r.getPermissions().contains(permission));
+        boolean platformAdmin = session.getUser().getPlatformRole() == PlatformRole.ADMIN;
+        var project = projects.findById(projectId).orElseThrow(() -> platformAdmin
+                ? new EntityNotFoundException("Project not found")
+                : new ForbiddenException("Project permission required: " + permission));
+        if (!platformAdmin) {
+            boolean allowed = project.getMembers().stream().filter(m -> m.getUser().getId().equals(session.getUser().getId()))
+                    .anyMatch(m -> ProjectAccessGuard.grants(m, permission));
             if (!allowed) throw new ForbiddenException("Project permission required: " + permission);
         }
         return project;
@@ -197,6 +209,18 @@ public class EconomicService {
         var project=authorizeProject(projectId,permission);
         return project.getVersions().stream().filter(v -> v.getId().equals(versionId) && v.isActive()).findFirst()
                 .orElseThrow(() -> new EntityNotFoundException("Version does not belong to project"));
+    }
+
+    public Version authorizeSimulation(UUID projectId, UUID versionId) {
+        Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        versionAccessGuard.assertCanSimulateVersion(versionId);
+        return version;
+    }
+
+    public Version authorizeConfigurationEdit(UUID projectId, UUID versionId) {
+        Version version = authorize(projectId, versionId, ProjectMemberPermission.EDIT_PROJECT);
+        versionAccessGuard.assertCanEditVersion(versionId);
+        return version;
     }
 
     // Structural validation already requires a conversion for every variable rule,

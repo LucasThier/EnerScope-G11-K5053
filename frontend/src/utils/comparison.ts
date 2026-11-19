@@ -20,6 +20,8 @@ import type {
  */
 
 export const MIN_SCENARIOS = 2;
+/** Route id of a result that was not saved (read-only members compare without saving). */
+export const PREVIEW_ID = 'sin-guardar';
 /** The categorical palette identifies eight scenarios; the backend enforces the same cap. */
 export const MAX_SCENARIOS = 8;
 

@@ -1,35 +1,43 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Alert } from '../ui/Alert';
-import { Modal } from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { Modal, ModalFooter } from '../ui/Modal';
 import { RoleBadge } from '../ui/RoleBadge';
 import { usersApi } from '../../api/users';
 import { getErrorMessage } from '../../api/errors';
-import type {
-  UserDetail,
-  UserListItem,
-  UserOrganizationMembership,
-  UserProjectMembership,
-} from '../../types/auth';
+import {
+  organizationRoleLabel,
+  projectRoleLabel,
+  userDetailActions,
+  userStatusLabel,
+} from '../../utils/userDetail';
+import type { UserDetail, UserListItem } from '../../types/auth';
 
 interface UserDetailModalProps {
   user: UserListItem | null;
+  /** Bumped by the page after something changed the account, so the detail is read again. */
+  refreshToken?: number;
   onClose: () => void;
+  onChangeRole: (user: UserListItem) => void;
+  onDeactivate: (user: UserListItem) => void;
+  /** Rejects when the account could not be reactivated; the error is shown inside the detail. */
+  onReactivate: (user: UserListItem) => Promise<void>;
 }
 
-const ORGANIZATION_ROLE_LABELS: Record<UserOrganizationMembership['memberType'], string> = {
-  OWNER: 'Propietario',
-  MEMBER: 'Miembro',
-};
-
-const PROJECT_ROLE_LABELS: Record<UserProjectMembership['memberType'], string> = {
-  ADMIN: 'Administrador',
-  EDITOR: 'Editor',
-};
-
-export function UserDetailModal({ user, onClose }: UserDetailModalProps) {
+export function UserDetailModal({
+  user,
+  refreshToken = 0,
+  onClose,
+  onChangeRole,
+  onDeactivate,
+  onReactivate,
+}: UserDetailModalProps) {
   const [detail, setDetail] = useState<UserDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [reactivating, setReactivating] = useState(false);
 
   const userId = user?.id ?? null;
 
@@ -37,6 +45,7 @@ export function UserDetailModal({ user, onClose }: UserDetailModalProps) {
     if (!userId) {
       setDetail(null);
       setError(null);
+      setActionError(null);
       return;
     }
 
@@ -65,7 +74,22 @@ export function UserDetailModal({ user, onClose }: UserDetailModalProps) {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, refreshToken, attempt]);
+
+  async function handleReactivate() {
+    if (!user) {
+      return;
+    }
+    setActionError(null);
+    setReactivating(true);
+    try {
+      await onReactivate(user);
+    } catch (err) {
+      setActionError(getErrorMessage(err, 'No se pudo reactivar la cuenta'));
+    } finally {
+      setReactivating(false);
+    }
+  }
 
   const title = user ? `${user.firstName} ${user.lastName}` : '';
 
@@ -77,10 +101,15 @@ export function UserDetailModal({ user, onClose }: UserDetailModalProps) {
       subtitle={detail?.mail ?? user?.mail}
       size="lg"
     >
-      {loading ? (
+      {loading && !detail ? (
         <p className="py-6 text-center text-sm text-ink-500">Cargando detalle…</p>
       ) : error ? (
-        <Alert tone="error">{error}</Alert>
+        <div className="flex flex-col items-start gap-3">
+          <Alert tone="error">{error}</Alert>
+          <Button variant="secondary" onClick={() => setAttempt((n) => n + 1)}>
+            Reintentar
+          </Button>
+        </div>
       ) : detail ? (
         <div className="space-y-6">
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -89,7 +118,7 @@ export function UserDetailModal({ user, onClose }: UserDetailModalProps) {
               <div className="flex flex-wrap items-center gap-2">
                 <RoleBadge role={detail.platformRole} />
                 <Badge tone={detail.active ? 'brand' : 'neutral'}>
-                  {detail.active ? 'Activo' : 'Inactivo'}
+                  {userStatusLabel(detail.active)}
                 </Badge>
               </div>
             </Field>
@@ -110,7 +139,7 @@ export function UserDetailModal({ user, onClose }: UserDetailModalProps) {
                     {membership.organizationName}
                     {!membership.organizationActive && <Badge tone="neutral">Inactiva</Badge>}
                   </span>
-                  <Badge tone="brand">{ORGANIZATION_ROLE_LABELS[membership.memberType]}</Badge>
+                  <Badge tone="brand">{organizationRoleLabel(membership.memberType)}</Badge>
                 </li>
               ))}
             </ul>
@@ -136,11 +165,38 @@ export function UserDetailModal({ user, onClose }: UserDetailModalProps) {
                       {membership.organizationName}
                     </span>
                   </div>
-                  <Badge tone="brand">{PROJECT_ROLE_LABELS[membership.memberType]}</Badge>
+                  <Badge tone="brand">{projectRoleLabel(membership.memberType)}</Badge>
                 </li>
               ))}
             </ul>
           </section>
+
+          {actionError && <Alert tone="error">{actionError}</Alert>}
+
+          {user && (
+            <ModalFooter>
+              {userDetailActions(user).map((action) =>
+                action === 'changeRole' ? (
+                  <Button key={action} variant="secondary" onClick={() => onChangeRole(user)}>
+                    Cambiar rol
+                  </Button>
+                ) : action === 'deactivate' ? (
+                  <Button key={action} variant="danger" onClick={() => onDeactivate(user)}>
+                    Dar de baja
+                  </Button>
+                ) : (
+                  <Button
+                    key={action}
+                    variant="secondary"
+                    loading={reactivating}
+                    onClick={() => void handleReactivate()}
+                  >
+                    Reactivar cuenta
+                  </Button>
+                ),
+              )}
+            </ModalFooter>
+          )}
         </div>
       ) : null}
     </Modal>

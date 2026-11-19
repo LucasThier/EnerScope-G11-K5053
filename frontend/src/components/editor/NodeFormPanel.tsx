@@ -6,6 +6,7 @@ import { TextField } from '../ui/TextField';
 import { NodeIcon } from './nodeIcons';
 import {
   NODE_STATES,
+  NODE_STATE_LABELS,
   NODE_TYPE_SPECS,
   verticalColor,
   defaultBaseValues,
@@ -98,16 +99,16 @@ export function NodeFormPanel({
           >
             <NodeIcon type={type} className="h-4 w-4" />
           </span>
-          {mode === 'create' ? 'Add node' : 'Edit node'}
+          {mode === 'create' ? 'Agregar nodo' : 'Editar nodo'}
         </h3>
         <Button variant="link" onClick={onClose} className="text-xs">
-          Close
+          Cerrar
         </Button>
       </div>
 
       <SelectField
         id="node-form-type"
-        label="Type"
+        label="Tipo"
         value={type}
         disabled={mode === 'edit'}
         onChange={(e) => {
@@ -123,21 +124,21 @@ export function NodeFormPanel({
       </SelectField>
 
       <TextField
-        label="Name"
+        label="Nombre"
         value={base.name}
         onChange={(e) => setBase((b) => ({ ...b, name: e.target.value }))}
-        placeholder="e.g. North Well 1"
+        placeholder="p. ej., Pozo Norte 1"
       />
 
       <SelectField
         id="node-form-state"
-        label="State"
+        label="Estado"
         value={base.state}
         onChange={(e) => setBase((b) => ({ ...b, state: e.target.value as NodeState }))}
       >
         {stateOptions.map((s) => (
           <option key={s} value={s}>
-            {s}
+            {NODE_STATE_LABELS[s]}
           </option>
         ))}
       </SelectField>
@@ -146,13 +147,13 @@ export function NodeFormPanel({
 
       <div className="grid grid-cols-2 gap-2">
         <TextField
-          label="Lifespan (months)"
+          label="Vida útil (meses)"
           type="number"
           value={numericBase.lifespanInMonths}
           onChange={(e) => setNumericBase((b) => ({ ...b, lifespanInMonths: e.target.value }))}
         />
         <TextField
-          label="Maint. interval (days)"
+          label="Intervalo de mantenimiento (días)"
           type="number"
           value={numericBase.maintenanceIntervalInDays}
           onChange={(e) => setNumericBase((b) => ({ ...b, maintenanceIntervalInDays: e.target.value }))}
@@ -162,7 +163,7 @@ export function NodeFormPanel({
       {spec && operationalFields(spec).length > 0 && (
         <div className="flex flex-col gap-2 border-t border-ink-100 pt-3">
           <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-            {spec.label} fields
+            Parámetros de {spec.label}
           </span>
           <div className="grid grid-cols-2 gap-2">
             {operationalFields(spec).filter(f => f.key !== 'declineCurve').map((f) => (
@@ -182,7 +183,7 @@ export function NodeFormPanel({
       )}
 
       {type === 'WELL' && <fieldset className="flex flex-col gap-2 border-t border-ink-100 pt-3">
-        <legend className="text-sm font-medium">Decline curve</legend>
+        <legend className="text-sm font-medium">Curva de declinación</legend>
         <SelectField label="Distribución de declinación" id="decline-type" value={declineType}
           onChange={e => setDeclineType(e.target.value as typeof declineType)}>
           <option value="CONSTANT">Constante</option><option value="NORMAL">Normal</option><option value="UNIFORM">Uniforme</option>
@@ -192,7 +193,7 @@ export function NodeFormPanel({
         {!validDecline && <p role="status" className="text-xs text-red-600">Completá los parámetros: constante entre 0 y 100; uniforme con mínimo menor al máximo entre 0 y 100; normal con desviación mayor a cero.</p>}
       </fieldset>}
       <Button variant="primary" loading={busy} disabled={!base.name.trim() || !validDecline} onClick={submit}>
-        {mode === 'create' ? 'Create node' : 'Save node'}
+        {mode === 'create' ? 'Crear nodo' : 'Guardar nodo'}
       </Button>
     </div>
   );
