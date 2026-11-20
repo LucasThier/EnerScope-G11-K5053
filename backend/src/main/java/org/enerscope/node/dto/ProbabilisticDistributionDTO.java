@@ -1,10 +1,12 @@
 package org.enerscope.node.dto;
 
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
+@NoArgsConstructor
 public class ProbabilisticDistributionDTO {
     public static ProbabilisticDistributionDTO from(org.enerscope.probabilistic.ProbabilisticDistribution value) {
         if (value == null) return null;

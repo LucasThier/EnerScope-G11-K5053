@@ -26,11 +26,12 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-        "spring.datasource.url=jdbc:h2:mem:bulk-upload-limit;MODE=PostgreSQL;NON_KEYWORDS=YEAR;DB_CLOSE_DELAY=-1"})
+        "spring.datasource.url=jdbc:h2:mem:bulk-upload-limit;MODE=PostgreSQL;NON_KEYWORDS=YEAR;DB_CLOSE_DELAY=-1",
+        "server.tomcat.max-swallow-size=12MB"})
 @ActiveProfiles("test")
 class BulkUploadSizeLimitHttpTest {
 
-    private static final int ONE_MB = 1024 * 1024;
+    private static final int MAX_FILE_SIZE = 10 * 1024 * 1024;
 
     @Autowired
     TestRestTemplate rest;
@@ -56,16 +57,16 @@ class BulkUploadSizeLimitHttpTest {
     }
 
     @Test
-    void aCsvAboveOneMegabyteAnswers413InsteadOf500() {
-        var response = upload(ONE_MB + 1);
+    void aCsvAboveTenMegabytesAnswers413InsteadOf500() {
+        var response = upload(MAX_FILE_SIZE + 1);
 
         assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, response.getStatusCode());
-        assertTrue(response.getBody().contains("The uploaded file exceeds the maximum size of 1 MB"));
+        assertTrue(response.getBody().contains("Uploaded file exceeds the maximum allowed size"));
     }
 
     @Test
-    void aCsvOfExactlyOneMegabyteIsNotRejectedForItsSize() {
-        var response = upload(ONE_MB);
+    void aCsvOfExactlyTenMegabytesIsNotRejectedForItsSize() {
+        var response = upload(MAX_FILE_SIZE);
 
         assertNotEquals(HttpStatus.PAYLOAD_TOO_LARGE, response.getStatusCode());
     }

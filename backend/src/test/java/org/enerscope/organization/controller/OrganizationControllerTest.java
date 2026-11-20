@@ -474,7 +474,7 @@ class OrganizationControllerTest {
                         .header("Authorization", "Bearer " + ACCESS_TOKEN))
                 .andExpect(status().isPayloadTooLarge())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("The uploaded file exceeds the maximum size of 1 MB"));
+                .andExpect(jsonPath("$.message").value("Uploaded file exceeds the maximum allowed size"));
     }
 
     @Test

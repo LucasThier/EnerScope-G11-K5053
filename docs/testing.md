@@ -213,6 +213,8 @@ executions differ; for every other class they are the same number. No class uses
 > [*FLNG unit: ship capacity and gas consumption*](#flng-unit-ship-capacity-and-gas-consumption--2026-11-15).
 
 ### PostgreSQL classes (`*IT`, by hand)
+Counts below treat each JUnit test method as one case; parameterized methods
+are counted once in the table, with their extra executions explained below.
 
 Not run by `mvn test`; they need a PostgreSQL the test connects to (see each
 class). **49 executions in total**, read from the `tests` attribute of the five
@@ -226,6 +228,55 @@ added in `b4dfa71`.
 
 | Test class | Cases | Executions |
 | --- | --- | --- |
+| `ApplicationContextTest` | Integration | 1 |
+| `node.migration.ExportVerticalMigrationTest` | Data (JDBC/H2) | 2 |
+| `auth.controller.AuthControllerTest` | Web | 16 |
+| `common.CsvUtilTest` | Unit | 8 |
+| `common.GlobalExceptionHandlerTest` | Unit | 3 |
+| `jwt.JwtServiceTest` | Unit | 5 |
+| `util.AuthUtilTest` | Unit | 7 |
+| `logging.ConsoleAppLoggerTest` | Unit | 1 |
+| `money.MoneyAmountTest` | Unit | 7 |
+| `node.controller.NodeControllerTest` | Unit | 1 |
+| `node.service.NodeServiceTest` | Unit | 2 |
+| `organization.controller.OrganizationControllerTest` | Web | 39 |
+| `organization.repository.OrganizationMemberRepositoryTest` | Data | 11 |
+| `organization.repository.OrganizationRepositoryTest` | Data | 16 |
+| `user.service.UserServiceTest` | Unit | 58 |
+| `user.service.PasswordGeneratorTest` | Unit | 4 |
+| `user.controller.UserControllerTest` | Web | 30 |
+| `user.repository.UserRepositoryTest` | Data | 22 |
+| `organization.service.OrganizationServiceTest` | Unit | 77 |
+| `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 13 |
+| `organization.controller.OrganizationControllerTest` | Web | 41 |
+| `organization.repository.OrganizationRepositoryTest` | Data | 16 |
+| `project.service.ProjectAccessGuardTest` | Unit | 22 |
+| `project.service.ProjectServiceTest` | Unit | 49 |
+| `project.controller.ProjectControllerTest` | Web | 27 |
+| `project.repository.ProjectRepositoryTest` | Data | 13 |
+| `project.repository.ProjectMemberRepositoryTest` | Data | 5 |
+| `version.service.VersionServiceTest` | Unit | 22 [^p] |
+| `version.service.VersionNodeCsvImportServiceTest` | Unit | 27 [^p] |
+| `version.controller.VersionControllerTest` | Web | 10 |
+| `node.service.NodeServiceTest` | Unit | 1 |
+| `node.controller.NodeControllerTest` | Unit | 1 |
+| `simulator.ResultPerRoundTest` | Unit | 12 |
+| `simulator.SimulatorTest` | Unit | 15 |
+| `organization.service.OrganizationServiceTest` | Unit | 68 |
+| `project.controller.ProjectControllerTest` | Web | 43 |
+| `project.repository.ProjectMemberRepositoryTest` | Data | 16 |
+| `project.repository.ProjectRepositoryTest` | Data | 17 |
+| `project.service.ProjectAccessGuardTest` | Unit | 26 |
+| `project.service.ProjectServiceTest` | Unit | 83 |
+| `simulator.EconomicMetricsTest` | Unit | 7 |
+| `simulator.ResultMappingTest` | Data | 7 |
+| `simulator.ResultTest` | Unit | 10 |
+| `simulator.SimulatorTest` | Unit | 12 |
+| `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
+| `strategyCost.CostTest` | Unit | 8 |
+| `strategyCost.InvestmentCostTest` | Unit | 2 |
+| `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
+| **Total** | | **460 [^p]** |
 | `economic.service.PostgreSqlEconomicIT` | 4 | 4 |
 | `economic.service.ScenarioConfigurationPostgreSqlIT` | 1 own + 14 inherited from `ScenarioConfigurationTest` | 15 |
 | `project.repository.ProjectRepositoryPostgreSqlIT` | 7 | 7 |
@@ -240,6 +291,20 @@ cases are in the section after it. **Three of the 52 were never run**: those two
 `ProjectRepositoryPostgreSqlIT` for `EXECUTIVE`
 (`summariesReportExecutiveAsMyRoleOnPostgreSql`); the other 49 are as read from
 the earlier manual run.
+[^p]: Two methods in `version.service.VersionServiceTest` are
+`@ParameterizedTest`s running over the eight mutating version entry points;
+`VersionNodeCsvImportServiceTest` has one parameterized method for the 12 node
+kinds. The 460 catalogued cases therefore make 485 executions.
+
+> **This catalog has drifted from the code.** On 2026-10-05 `mvn test` ran
+> **587** executions, against the 447 above. The gap is not a mistake in the
+> rows: it is tests merged since the catalog was last reconciled. Three classes
+> have no entry (`organization.repository.OrganizationMemberRepositoryTest`,
+> `simulator.ResultTest` and `simulator.SimulatorTest`: 33 executions) and
+> eleven have grown past their recorded count (`user.*`, `organization.*`,
+> `project.*` and `version.service.VersionServiceTest`: 107 executions in
+> total). Reconciling them is its own task. `simulator.ResultMappingTest` was
+> added on 2026-10-05 and is counted correctly.
 
 ## `ApplicationContextTest` — Integration
 
@@ -277,7 +342,8 @@ requires an ADMIN bearer token); `SessionService`, `UserService` and
 
 ## `common.CsvUtilTest` — Unit
 
-Covers the in-repo CSV reader/writer used by bulk registration.
+Covers the in-repo CSV reader/writer used by bulk registration and strict node
+CSV import.
 
 | Case | Verifies |
 | --- | --- |
@@ -286,6 +352,20 @@ Covers the in-repo CSV reader/writer used by bulk registration.
 | `skipsBlankLinesAndHandlesCrlfAndMissingTrailingNewline` | `\r\n` endings, fully blank lines skipped, and a final row without a trailing newline are handled. |
 | `parseEmptyContentReturnsNoRows` | `null`/empty input yields no rows. |
 | `writeQuotesOnlyWhenNecessaryAndRoundTrips` | The writer quotes only fields that need it (comma/quote), and output re-parses back to the original values. |
+| `strictParserRejectsUnterminatedQuotedFields` | Strict CSV parsing rejects a quoted field that never closes. |
+| `strictParserRejectsQuotesInsideUnquotedFields` | Strict CSV parsing rejects quotes embedded in an unquoted field. |
+| `strictParserSupportsMultilineQuotedFieldsAndEnforcesRowLimit` | Quoted newlines are preserved and the configured row limit is enforced. |
+
+## `common.GlobalExceptionHandlerTest` — Unit
+
+Multipart request failures are returned in the standard API envelope rather
+than becoming generic `500` responses.
+
+| Case | Verifies |
+| --- | --- |
+| `oversizedMultipartUploadReturns413WithApiResponse` | A request exceeding the server multipart limit returns `413` with an error envelope. |
+| `missingMultipartFieldReturns400WithFieldName` | A missing required multipart field returns `400` and names the field. |
+| `malformedMultipartRequestReturns400` | An invalid multipart request returns `400` instead of a generic server error. |
 
 ## `jwt.JwtServiceTest` — Unit
 
@@ -1083,6 +1163,25 @@ case here is about the mechanics, not the authorization.
 | `editNodeInVersion_WhenVersionNotFound_ShouldThrowVersionNotFoundException` | An unknown version id throws `VersionNotFoundException`. |
 | `editNodeInVersion_WhenNodeNotFound_ShouldThrowEntityNotFoundException` | A node absent from the version throws `EntityNotFoundException`. |
 | `addNodeToVersion_WithWellDTO_ShouldAddWellToVersion` | Adding a `WellDTO` saves the well, appends it to the snapshot and records an `ADD` change. |
+| `addNodeToVersionSupportsPipelineConnectionAndConsumptionNodes` | Adding a `PipelineConnectionDTO`, `InternalConsumptionDTO` or `IndustrialConsumptionDTO` dispatches to its matching save method and records each node in the snapshot. |
+| `editNodeInVersionSupportsPipelineConnectionAndConsumptionNodes` | Editing those same three node subtypes dispatches to the matching edit method when the version owns the node. |
+| `mutatingOperationsRejectCallerWithoutEditPermission` | **Parameterized over all eight mutating entry points** (`deleteVersion`, `modifyVersion`, `addNodeToVersion`, `addConnectionToVersion`, `editNodeInVersion`, `editConnectionInVersion`, `deleteNodeFromVersion`, `deleteConnectionFromVersion`): each requires `EDIT_PROJECT` on the owning project, and a refused call reads and writes nothing. |
+| `mutatingOperationsRejectUnauthenticatedCaller` | The same eight entry points, with no session: `UnauthorizedException`, and again nothing is read or written. |
+| `getVersionChecksViewPermissionAndReturnsTheVersion` | Reading a version runs the view check and returns it. |
+| `getVersionRejectsCallerOutsideTheOwningProject` | A caller with no claim on the owning project gets `ForbiddenException`; the repository is never touched. |
+| `getVersionRejectsUnauthenticatedCaller` | No session throws `UnauthorizedException`; the repository is never touched. |
+| `saveOrphanVersionCreatesTheVersionForAPlatformAdmin` | `POST /version/createtest` creates a detached version for a platform ADMIN, running the platform-level check. |
+| `saveOrphanVersionRejectsNonPlatformAdmin` | A regular user gets `ForbiddenException`; nothing is saved. |
+| `saveOrphanVersionRejectsUnauthenticatedCaller` | No session throws `UnauthorizedException`; nothing is saved. |
+| `saveVersionWithoutParentInitialisesEmptySnapshots` | A version created with no parent has empty, non-null `nodeSnapshot`/`connectionSnapshot`. |
+| `addNodeToVersionWorksOnAFreshlyCreatedRootVersion` | **Regression:** adding the first node to a just-created root version lands it in the snapshot and records an `ADD` change. Before the snapshots were initialised this threw `NullPointerException`. |
+| `saveVersionFromParentWithNullSnapshotsDoesNotPropagateNull` | A parent row created before the fix, still carrying null snapshots, produces a child with empty lists rather than inheriting the nulls. |
+| `versionNoArgsConstructorStartsWithEmptyCollections` | `new Version()` — the path Hibernate and the controller tests use — starts with all four collections non-null. |
+| `saveVersionIsUnguardedBecauseItsCallersAuthorizeInstead` | The internal `saveVersion` deliberately runs no check: `ProjectService.saveVersion` authorizes the owning project and `saveOrphanVersion` requires a platform ADMIN. Adding a third check here would fail this case on purpose. |
+| `getDiagram_ShouldMapNodesAndConnectionsToDTOs` | `getDiagram` maps the version snapshot to a `DiagramDTO`, including node type, graph and geographical positions, and the connection endpoints. |
+| `updateNodePosition_ShouldUpdateGraphAndGeographicalPosition` | `updateNodePosition` updates both the diagram (x/y) and geographical (lng/lat) positions and persists the node. |
+| `updateNodeBasics_ShouldUpdateNameAndState` | `updateNodeBasics` updates a node's name and state and persists it. |
+| `getNodeDetail_ShouldReturnCommonAndTypeSpecificFields` | `getNodeDetail` returns a node's common fields and its type-specific values (keyed by the frontend field names). |
 | `mergeSubVersionIntoParent_ShouldReplaceSnapshotsAndMergeChanges` | A merge applies the child's snapshots onto the parent and folds the child's change lists into the parent's. |
 | `mergeSubVersionIntoParent_AddAndDelete_ShouldCancelOut` | An identity added and then deleted in the child leaves no net change in the parent, instead of two history entries that undo each other. |
 | `mergeSubVersionIntoParent_SingleEdit_ShouldBePreserved` | A lone `EDIT` survives the merge as an `EDIT`. |
@@ -1191,6 +1290,9 @@ version UUID, which is what made guarding them necessary.
 
 | Case | Verifies |
 | --- | --- |
+| `createVersionReturnsCreatedVersion` | `POST /projects/{projectId}/versions` with a valid body → `201` and an envelope with `success=true`, message `Version created`, and the created version's `name`. |
+| `createVersionRejectsBlankNameWithValidationError` | Blank `name` → `400` `Validation error`; `VersionService.createVersion` is never called. |
+| `createVersionRejectsUnknownProjectWith400` | When the service throws for an unknown project → `400` with the domain error message. |
 | `getVersionReturnsTheVersion` | `GET /version/{id}` → `200` with the envelope and the version's `name`. |
 | `getVersionPropagatesForbiddenWith403` | When the service refuses the caller → `403` carrying the domain message. |
 | `getVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
@@ -1198,10 +1300,55 @@ version UUID, which is what made guarding them necessary.
 | `deleteVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
 | `addNodeToVersionPropagatesForbiddenWith403` | `POST /version/{id}/node` for a caller without `EDIT_PROJECT` → `403`. |
 | `addNodeToVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
+| `importNodesFromCsvReturnsImportedRowCount` | An authenticated multipart CSV upload → `200` with the imported row count in the `ApiResponse` envelope. |
+| `importNodesFromCsvRequiresAuthenticationWith401` | The same multipart upload without a token → `401`; the importer is never reached. |
+| `importNodesFromCsvPropagatesEditPermissionFailureWith403` | A caller without edit permission receives `403` and the importer’s authorization message. |
+| `importNodesFromCsvReturnsBadRequestForInvalidRows` | A malformed node row reported by the importer becomes a `400` API error. |
+| `importNodesFromCsvRejectsEmptyFiles` | An empty upload returns `400` without invoking the importer. |
+| `importNodesFromCsvRejectsFilesOverTenMegabytes` | An upload over 10 MB returns `400` without invoking the importer. |
+| `importNodesFromCsvRejectsMissingMultipartFile` | A request without the required `file` part returns `400` with its name. |
 | `createDetachedVersionReturnsTheVersionForAPlatformAdmin` | `POST /version/createtest` → `200` with the created version. |
 | `createDetachedVersionPropagatesForbiddenWith403` | The same call for a non-admin → `403` with `Only platform admins can create detached versions`. |
 | `createDetachedVersionRequiresAuthenticationWith401` | The same call without a token → `401`; the service is never reached. |
 | `mergeSubVersionIntoParentPropagatesNoParentWith400` | `PATCH /version/merge/{subId}` on a root version → `400` with the domain message. |
+
+## `version.service.VersionNodeCsvImportServiceTest` — Unit
+
+CSV parsing and DTO dispatch for authenticated, version-scoped imports. Legacy
+files use `nodeKind` and import nodes only. The optional `recordType` column
+supports node-bound `economicProfile` JSON on `NODE` rows, graph edges on
+`CONNECTION` rows, and one scenario-wide `economicScenario` JSON object on a
+separate `SCENARIO` row.
+
+| Case | Verifies |
+| --- | --- |
+| `importsEveryNodeKindIntoVersion` | Each of the 12 supported `nodeKind` values is converted to its matching DTO and added to the target version. |
+| `importsMixedKindsAndIgnoresEmptyColumnsForOtherKinds` | A mixed CSV creates multiple node DTO types, while blank columns belonging to other types are ignored. |
+| `mapsNestedJsonDtoFields` | Nested graph, type, investment-cost and probability-distribution JSON cells map to the Well DTO. |
+| `importsConnectionsByResolvingProvidedNodeIdsAfterNodeCreation` | Creates nodes with file-local external IDs, then imports a connection whose endpoints resolve to the backend-generated node IDs. |
+| `rejectsConnectionReferencesToUnknownNodeIdsBeforePersisting` | A connection that references a missing external node ID rejects the file before any node or connection is saved. |
+| `rejectsDuplicateExternalNodeIdsBeforePersisting` | Duplicate file-local node IDs are rejected before persistence. |
+| `importsNodeAndScenarioEconomicsAndResolvesNodeReferences` | Imports operational and economic data together, binds the profile and resolves conversion, contract and asset references to the newly created node ID. |
+| `rejectsEconomicReferencesToUnknownExternalNodeIdsBeforePersisting` | Rejects an economic configuration that references a missing file-local node ID before any node is persisted. |
+| `rejectsNodeEconomicProfileWithoutScenarioConfigurationBeforePersisting` | A node economic profile without a scenario configuration is rejected before any node is persisted. |
+| `rejectsUnknownRecordTypeBeforePersisting` | An unsupported record discriminator is rejected before any node is persisted. |
+| `rejectsMalformedEconomicProfileJsonBeforePersisting` | Malformed node economic JSON is rejected before node persistence. |
+| `rejectsScenarioRowsContainingNodeDataBeforePersisting` | Scenario-level rows cannot contain node columns. |
+| `rejectsDuplicateScenarioRowsBeforePersisting` | More than one scenario-wide economic row is rejected before node persistence. |
+| `rejectsUnknownNodeKindWithSupportedKinds` | An unsupported discriminator is rejected with the accepted values and no node is added. |
+| `rejectsUnknownHeaders` | A misspelled header is rejected instead of silently dropping data. |
+| `rejectsRowsWithDifferentColumnCounts` | A row with the wrong number of fields is rejected with its record number. |
+| `rejectsValuesInColumnsNotSupportedByTheSelectedKind` | A non-empty field from another node type is rejected rather than ignored. |
+| `rejectsRowsMissingRequiredFields` | A row missing required common node fields is rejected before persistence. |
+| `rejectsMalformedNestedJson` | A nested DTO cell that is not a JSON object is rejected with its column name. |
+| `checksEditPermissionBeforeParsingCsv` | A caller without `EDIT_PROJECT` is rejected before malformed CSV is parsed or nodes are added. |
+| `rejectsMalformedCsvQuoting` | Quotes inside unquoted fields and non-whitespace after a closing quote are rejected. |
+| `rejectsInconsistentNodeTypeMetadata` | `type.nodeType`/`type.vertical` must agree with the row’s `nodeKind`. |
+| `rejectsMissingRequiredTypeSpecificFields` | Missing required DTO fields, including primitive fields that otherwise default to zero, are rejected. |
+| `rejectsInvalidDistributionParameters` | Unsupported or invalid uniform/normal distribution parameters are rejected. |
+| `rejectsInvalidUtf8` | Invalid UTF-8 input bytes are rejected rather than silently replaced. |
+| `rejectsImportsOverMaximumRowCount` | More than 10,000 data rows are rejected before node persistence. |
+| `rejectsFilesOverMaximumSize` | The service rejects CSV byte arrays larger than 10 MB. |
 
 ## `node.service.NodeServiceTest` — Unit
 
@@ -3090,18 +3237,19 @@ does not execute the migration; see `considerations.md`, 2026-11-15.
 | `removingARowFromAPercentileListDeletesItsPerNodeRow` | Removing an element from a percentile list deletes its `result_per_node` row (orphan removal). |
 | `deletingAVersionDeletesItsFinalResultsAndTheirRows` | Deleting the version deletes its results, the join rows and the per-node rows. |
 
-### 6. `413` for a CSV above 1 MB
+### 6. `413` for a CSV above 10 MB
 
-The limits are explicit now: `spring.servlet.multipart.max-file-size=1MB`,
-`max-request-size=2MB`; `GlobalExceptionHandler.handleUploadTooLarge` answers
-`413 The uploaded file exceeds the maximum size of 1 MB`.
+The limits are `spring.servlet.multipart.max-file-size=10MB` and
+`spring.servlet.multipart.max-request-size=11MB`. The integration test sends
+just over 10 MB, keeping the multipart request below 11 MB, and the handler
+answers `413 Uploaded file exceeds the maximum allowed size`.
 
 | Class | Case | Verifies |
 | --- | --- | --- |
 | `common.GlobalExceptionHandlerTest` (Unit) | `uploadAboveTheLimitAnswers413WithAClearMessage` | The handler returns `413`, `success=false` and the message. |
 | `organization.controller.OrganizationControllerTest` (Web) | `bulkRegisterUsersAnswers413WhenTheFileExceedsTheUploadLimit` | `POST /organizations/{id}/users/bulk` answers `413` with that body when the service throws `MaxUploadSizeExceededException` (mocked). |
-| `organization.controller.BulkUploadSizeLimitHttpTest` (Integration, real server on a random port) | `aCsvAboveOneMegabyteAnswers413InsteadOf500` | A real multipart upload of 1 MB + 1 byte, sent by a platform admin, answers `413` with the message. |
-| | `aCsvOfExactlyOneMegabyteIsNotRejectedForItsSize` | Exactly 1 MB is not answered `413` (the test only asserts the status is not `413`; it does not check what the endpoint answers instead). |
+| `organization.controller.BulkUploadSizeLimitHttpTest` (Integration, real server on a random port) | `aCsvAboveTenMegabytesAnswers413InsteadOf500` | A real multipart upload of 10 MB + 1 byte, sent by a platform admin, answers `413` with the message. |
+| | `aCsvOfExactlyTenMegabytesIsNotRejectedForItsSize` | Exactly 10 MB is not answered `413` (the test only asserts the status is not `413`; it does not check what the endpoint answers instead). |
 
 > **Not tested: `413` before `403`.** The `413` is raised while the multipart
 > request is parsed, before the request reaches the controller, so a caller who
