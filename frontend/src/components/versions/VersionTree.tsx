@@ -1,4 +1,4 @@
-import { MergeIcon, TrashIcon } from '../ui/icons';
+import { MergeIcon, TrashIcon, UploadIcon } from '../ui/icons';
 import { RowButton } from '../ui/RowButton';
 import { formatDate } from '../../utils/date';
 import { isMergeBlocked, MERGE_BLOCKED_MESSAGE } from '../../utils/versionMerge';
@@ -9,8 +9,11 @@ interface VersionTreeProps {
   nodes: VersionTreeNode[];
   canEdit: boolean;
   canMergeInto: (parentVersionId: string) => boolean;
+  /** Whether the caller may import a CSV into this very version (deny by default). */
+  canImportInto: (versionId: string) => boolean;
   unresolvedConflicts: Record<string, number>;
   onDelete: (version: VersionSummary, isRoot: boolean) => void;
+  onImport: (version: VersionSummary) => void;
   onMerge: (version: VersionSummary) => void;
   onResolveConflicts: (version: VersionSummary) => void;
 }
@@ -25,8 +28,10 @@ export function VersionTree({
   nodes,
   canEdit,
   canMergeInto,
+  canImportInto,
   unresolvedConflicts,
   onDelete,
+  onImport,
   onMerge,
   onResolveConflicts,
 }: VersionTreeProps) {
@@ -40,8 +45,10 @@ export function VersionTree({
           parentName={null}
           canEdit={canEdit}
           canMergeInto={canMergeInto}
+          canImportInto={canImportInto}
           unresolvedConflicts={unresolvedConflicts}
           onDelete={onDelete}
+          onImport={onImport}
           onMerge={onMerge}
           onResolveConflicts={onResolveConflicts}
         />
@@ -56,8 +63,10 @@ function VersionTreeRow({
   parentName,
   canEdit,
   canMergeInto,
+  canImportInto,
   unresolvedConflicts,
   onDelete,
+  onImport,
   onMerge,
   onResolveConflicts,
 }: VersionTreeRowProps) {
@@ -113,6 +122,15 @@ function VersionTreeRow({
             <MergeIcon className="h-4 w-4" />
           </RowButton>
         )}
+        {canImportInto(node.version.id) && (
+          <RowButton
+            label={`Importar CSV en ${node.version.name}`}
+            title="Importar CSV"
+            onClick={() => onImport(node.version)}
+          >
+            <UploadIcon className="h-4 w-4" />
+          </RowButton>
+        )}
         {canEdit && (
           <RowButton
             label={`Eliminar versión ${node.version.name}`}
@@ -133,8 +151,10 @@ function VersionTreeRow({
               parentName={node.version.name}
               canEdit={canEdit}
               canMergeInto={canMergeInto}
+              canImportInto={canImportInto}
               unresolvedConflicts={unresolvedConflicts}
               onDelete={onDelete}
+              onImport={onImport}
               onMerge={onMerge}
               onResolveConflicts={onResolveConflicts}
             />

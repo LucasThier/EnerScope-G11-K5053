@@ -42,7 +42,7 @@ npm run preview  # preview the production build
 npm run lint     # eslint
 ```
 
-`npm test` runs on the built-in `node:test` runner (268 tests in 34 files on
+`npm test` runs on the built-in `node:test` runner (296 tests in 35 files on
 2026-11-22, all passing). The per-file catalog is in
 [docs/testing.md](../docs/testing.md) → *Frontend unit tests*.
 
@@ -98,7 +98,7 @@ frontend/
 │  │  ├─ layout/           AppLayout, TopBar, Sidebar, navItems, ProjectSwitcher, UserMenu
 │  │  ├─ versionRoles/     Roles por versión: VersionRolesTab, VersionPicker, VersionRolesPanel,
 │  │  │                    MyAccessCard, AssignVersionRoleForm
-│  │  ├─ versions/         Version tree, new/delete/merge/conflict dialogs
+│  │  ├─ versions/         Version tree, new/delete/merge/conflict dialogs, ImportVersionCsvModal
 │  │  ├─ projects/ members/ organizations/ users/ import/   Admin and team screens (import/ = CSV flow)
 │  │  ├─ editor/           Cadena de valor: canvas, map, node forms, nodeCatalog (labels)
 │  │  └─ economics/ auth/ dashboard/ settings/
@@ -292,6 +292,36 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
     nothing reads it. A decimal typed in an integer field (e.g. *Capacidad del
     buque*) travels as a decimal, and how the backend treats it (reject,
     truncate or accept) has **not been verified**.
+- **Importación de nodos por CSV en una versión** (`components/versions/ImportVersionCsvModal`,
+  `hooks/useVersionCsvImport`, `utils/versionCsvImport.ts`, `projectsApi.importVersionNodesCsv`).
+  *Versionado* → botón **Importar CSV** de cada fila de versión (ícono de subida), solo en las
+  versiones donde `/access` da `canEdit` (deniega por defecto). Importa en una versión que **ya
+  existe**: el backend (`POST /version/{id}/nodes/import`, multipart, campo `file`, hasta 10 MB y
+  10.000 filas) **solo agrega** nodos nuevos, no actualiza ni reemplaza los existentes, y una fila
+  `SCENARIO` reemplaza la configuración económica del «Escenario base». Es todo o nada: si falla
+  algo, no se importa nada. Flujo del modal:
+  1. Elegir el archivo. El cliente lo lee con las mismas reglas del backend (comillas, BOM, CRLF,
+     líneas vacías; el encabezado es la línea 1) y muestra qué trae (nodos, conexiones, economía)
+     o los problemas que el backend rechazaría seguro, con su número de línea. Detecta, entre otros,
+     una `identity` repetida en el archivo o que no es un UUID. **Que una `identity` ya exista en la
+     versión solo lo sabe el backend** (`400`).
+  2. Permisos del archivo contra `/access` de esa versión: las verticales de sus nodos
+     (`editableVerticals`), las conexiones (`canEditConnections`) y la economía
+     (`canEditEconomicConfiguration`). Si falta algo, se explica y no se puede importar.
+  3. Avisos con una casilla de confirmación obligatoria: solo agrega (puede duplicar), reemplaza el
+     Escenario base (si hay fila `SCENARIO`) y no hay deshacer.
+  4. Importar, con **Cancelar importación** mientras se envía. Cancelar o perder la conexión **no
+     prueba que no se importó**: el mensaje manda a revisar la versión en el editor antes de
+     reintentar.
+  5. Resultado con la cantidad de nodos y los botones **Ver en el editor** y **Ver escenarios**.
+  Dos plantillas descargables (`plantilla-nodos.csv` y `plantilla-nodos-con-economia.csv`), **sin
+  columna `identity`** para que un ejemplo no choque; el texto de ayuda aclara que `identity` es
+  opcional y, si viene, no puede existir ya en la versión ni repetirse en el archivo. Los errores
+  del backend (en inglés, uno por vez) se traducen en `api/errors.ts` por expresión regular
+  (`translateCsvImportMessage`, `describeCsvImportError`): «Línea N: …» con el motivo; lo que no se
+  reconoce se muestra con un texto genérico y el original como detalle. Ambas plantillas se
+  verifican contra el importador real en `VersionNodeCsvImportTemplatesTest` (copias en
+  `backend/src/test/resources/csv-templates/`: regenerarlas si cambian las plantillas).
 - **Importación de usuarios por CSV** (`components/import`, `hooks/useCsvUserImport`,
   `utils/csvImport*.ts`). Opened with **Agregar integrantes** on an organization
   (*Administración → Organizaciones*) or from the organization's team screen.

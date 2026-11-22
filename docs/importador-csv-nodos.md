@@ -56,6 +56,35 @@ un ID nuevo al guardar cada nodo y nunca persiste el valor de esta columna.
 Puede ser cualquier texto no vacío, pero debe ser único entre los nodos que lo
 incluyan.
 
+### `identity` repetida o ya existente
+
+El importador solo **agrega** nodos nuevos; no actualiza los existentes. Por eso
+una fila `NODE` con `identity` se rechaza, antes de guardar nada, en dos casos:
+
+- la `identity` ya existe en la versión destino. Guardarla reemplazaría el nodo
+  actual por uno nuevo con otro ID y dejaría colgando las referencias
+  (perfiles, activos, conversiones y contratos) de las configuraciones
+  económicas de los escenarios;
+- la misma `identity` aparece en dos filas del archivo.
+
+El error es un `400` con el número de registro (el encabezado es el 1) y estos
+mensajes exactos:
+
+```text
+Invalid CSV record 3 (NODE): identity 6f1c2a9e-0b7d-4c1e-9a52-3d8f7e4b1a10 already exists in this version
+Invalid CSV record 3 (NODE): identity 6f1c2a9e-0b7d-4c1e-9a52-3d8f7e4b1a10 is repeated in the file
+```
+
+La comprobación se hace con el resto de las validaciones de cada fila (después de
+las demás reglas de esa fila) y antes de crear nodos, conexiones o economía, así
+que el lote sigue siendo atómico: si falla, la versión queda exactamente igual.
+El orden de errores no cambia (401, `400` por archivo vacío o de más de 10 MB,
+403/404 por permisos, y recién después los errores de contenido). Solo se
+compara con la versión destino: la misma `identity` en otra versión (por ejemplo
+la versión padre) es válida. Un archivo sin columna `identity`, o con la celda
+vacía, se importa como siempre y recibe identidades nuevas. La columna
+`identity` de las filas `CONNECTION` no se verifica.
+
 Además, cada `nodeKind` requiere los siguientes encabezados y valores no vacíos:
 
 | `nodeKind` | `type.vertical` | `type.nodeType` | Campos específicos obligatorios |
@@ -212,3 +241,29 @@ los nodos importados, no la fila `SCENARIO`.
 
 Este importador crea nodos (incluido `PIPELINE_CONNECTION`) y aristas del
 diagrama (`NodeConnection`) a partir de filas `CONNECTION`.
+
+## Cómo se muestran los errores en la pantalla
+
+La pantalla *Versionado → Importar CSV* traduce el mensaje del backend (en
+inglés, uno por vez) a «Línea N: …», donde N es el número de registro de esta
+guía (el encabezado es 1). Se reconocen por expresión regular, entre otros:
+
+| Mensaje del backend | Se muestra |
+| --- | --- |
+| `Invalid CSV record N (NODE): identity <uuid> already exists in this version` | Línea N: la identidad `<uuid>` ya existe en esta versión. Este importador solo agrega nodos nuevos: quitá esa fila o dejá la columna identity vacía. |
+| `Invalid CSV record N (NODE): identity <uuid> is repeated in the file` | Línea N: la identidad `<uuid>` aparece repetida en el archivo. Cada nodo debe tener una identidad única. |
+
+El resto de los mensajes con número de registro (columnas faltantes, JSON
+inválido, referencias desconocidas, tipos incoherentes, etc.) y los de archivo
+(UTF-8, tamaño, encabezado, filas de más) tienen su traducción en
+`frontend/src/api/errors.ts`. Un mensaje con número de registro que no se
+reconoce se muestra como «Línea N: la fila no es válida.» con el texto original
+como detalle; uno sin número, como «El importador rechazó el archivo.» con el
+original como detalle. Antes de enviar, la pantalla ya detecta en el cliente
+una `identity` repetida en el archivo o que no es un UUID; que una `identity`
+ya exista en la versión solo lo sabe el backend.
+
+Las plantillas descargables de la pantalla (`plantilla-nodos.csv` y
+`plantilla-nodos-con-economia.csv`) no incluyen la columna `identity`: es
+opcional y, si viene, no puede existir ya en la versión ni repetirse en el
+archivo.

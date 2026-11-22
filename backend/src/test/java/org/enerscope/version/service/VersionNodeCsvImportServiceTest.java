@@ -571,6 +571,81 @@ class VersionNodeCsvImportServiceTest {
         assertTrue(exception.getMessage().contains("10 MB or smaller"));
     }
 
+    @Test
+    void rejectsIdentityThatAlreadyExistsInTheVersionBeforePersisting() {
+        UUID versionId = UUID.randomUUID();
+        UUID identity = UUID.randomUUID();
+        when(versionService.nodeIdentities(versionId)).thenReturn(java.util.Set.of(identity));
+        String csv = withCell(validRow("WELL"), "identity", identity.toString());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(versionId, csv));
+
+        assertEquals("Invalid CSV record 2 (NODE): identity %s already exists in this version".formatted(identity),
+                exception.getMessage());
+        verify(versionService, never()).addNodeToVersion(any(), any());
+        verify(versionService, never()).addConnectionToVersion(any(), any());
+        verify(economicService, never()).saveImportedConfiguration(any(), any());
+    }
+
+    @Test
+    void rejectsExistingIdentityOnALaterRowWithoutWritingTheEarlierValidRows() {
+        UUID versionId = UUID.randomUUID();
+        UUID existing = UUID.randomUUID();
+        when(versionService.nodeIdentities(versionId)).thenReturn(java.util.Set.of(existing));
+        List<List<String>> rows = CsvUtil.parseStrict(withCell(validRow("WELL"), "identity", UUID.randomUUID().toString()), 3);
+        List<String> second = new java.util.ArrayList<>(rows.get(1));
+        second.set(rows.get(0).indexOf("identity"), existing.toString());
+        rows.add(second);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(versionId, CsvUtil.write(rows)));
+
+        assertEquals("Invalid CSV record 3 (NODE): identity %s already exists in this version".formatted(existing),
+                exception.getMessage());
+        verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @Test
+    void rejectsIdentityRepeatedInTheFileBeforePersisting() {
+        UUID versionId = UUID.randomUUID();
+        UUID identity = UUID.randomUUID();
+        when(versionService.nodeIdentities(versionId)).thenReturn(java.util.Set.of());
+        List<List<String>> rows = CsvUtil.parseStrict(withCell(validRow("WELL"), "identity", identity.toString()), 3);
+        rows.add(new java.util.ArrayList<>(rows.get(1)));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(versionId, CsvUtil.write(rows)));
+
+        assertEquals("Invalid CSV record 3 (NODE): identity %s is repeated in the file".formatted(identity),
+                exception.getMessage());
+        verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @Test
+    void importsANewIdentityThatIsNotInTheVersion() {
+        UUID versionId = UUID.randomUUID();
+        UUID identity = UUID.randomUUID();
+        when(versionService.nodeIdentities(versionId)).thenReturn(java.util.Set.of(UUID.randomUUID()));
+
+        int count = importCsv(versionId, withCell(validRow("WELL"), "identity", identity.toString()));
+
+        assertEquals(1, count);
+        ArgumentCaptor<BaseNodeDTO> dtoCaptor = ArgumentCaptor.forClass(BaseNodeDTO.class);
+        verify(versionService).addNodeToVersion(eq(versionId), dtoCaptor.capture());
+        assertEquals(identity, dtoCaptor.getValue().getIdentity());
+    }
+
+    @Test
+    void aFileWithoutIdentityColumnNeverLooksUpTheVersionIdentities() {
+        UUID versionId = UUID.randomUUID();
+
+        assertEquals(1, importCsv(versionId, validRow("WELL")));
+
+        verify(versionService, never()).nodeIdentities(any());
+        verify(versionService).addNodeToVersion(eq(versionId), any(WellDTO.class));
+    }
+
     private int importCsv(UUID versionId, String csv) {
         return csvImportService.importNodes(versionId, csv.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }

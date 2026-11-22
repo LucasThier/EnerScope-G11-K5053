@@ -124,6 +124,7 @@ public class VersionNodeCsvImportService {
         List<PendingNode> pendingNodes = new ArrayList<>();
         List<PendingConnection> pendingConnections = new ArrayList<>();
         Set<String> externalNodeIds = new HashSet<>();
+        NodeIdentityGuard identityGuard = new NodeIdentityGuard(versionId);
         PendingScenario scenarioConfiguration = null;
         boolean hasRecordType = headers.contains(RECORD_TYPE_HEADER);
         for (int rowIndex = 1; rowIndex < rows.size(); rowIndex++) {
@@ -172,6 +173,7 @@ public class VersionNodeCsvImportService {
                 throw new IllegalArgumentException(
                         "CSV record %d has duplicate node id '%s'".formatted(recordNumber, externalId));
             }
+            identityGuard.check(node.getIdentity(), recordNumber);
             pendingNodes.add(new PendingNode(nodeKind, node, profile, externalId, recordNumber));
         }
 
@@ -245,6 +247,41 @@ public class VersionNodeCsvImportService {
         int importedCount = pendingNodes.size();
         logger.info("Imported {} nodes into version {}", importedCount, versionId);
         return importedCount;
+    }
+
+    /**
+     * Rejects a NODE row whose {@code identity} is already in the destination version or appears twice in the file.
+     * {@code addNodeToVersion} would otherwise replace the existing row with a new one under a new id, leaving the
+     * scenarios' economic references dangling. It runs while the rows are validated, before anything is written, so
+     * the batch stays atomic. The version's identities are read only once, and only if some row carries an identity.
+     */
+    private final class NodeIdentityGuard {
+        private final UUID versionId;
+        private final Set<UUID> inFile = new HashSet<>();
+        private Set<UUID> inVersion;
+
+        private NodeIdentityGuard(UUID versionId) {
+            this.versionId = versionId;
+        }
+
+        void check(UUID identity, int recordNumber) {
+            if (identity == null) {
+                return;
+            }
+            if (!inFile.add(identity)) {
+                throw new IllegalArgumentException(
+                        "Invalid CSV record %d (NODE): identity %s is repeated in the file"
+                                .formatted(recordNumber, identity));
+            }
+            if (inVersion == null) {
+                inVersion = versionService.nodeIdentities(versionId);
+            }
+            if (inVersion.contains(identity)) {
+                throw new IllegalArgumentException(
+                        "Invalid CSV record %d (NODE): identity %s already exists in this version"
+                                .formatted(recordNumber, identity));
+            }
+        }
     }
 
     private Set<String> discoverKnownHeaders() {

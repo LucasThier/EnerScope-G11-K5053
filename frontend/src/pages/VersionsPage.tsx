@@ -13,12 +13,15 @@ import {
   NewVersionModal,
 } from '../components/versions/NewVersionModal';
 import { ResolveConflictsDialog } from '../components/versions/ResolveConflictsDialog';
+import { ImportVersionCsvModal } from '../components/versions/ImportVersionCsvModal';
 import { VersionTree } from '../components/versions/VersionTree';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useGuardedProjectAccess } from '../hooks/useGuardedProjectAccess';
 import { AccessFailureAlert } from '../components/versionRoles/AccessFailureAlert';
+import { canImportInto as canImportIntoVersion } from '../utils/versionCsvImport';
 import {
   canBranchFromParent,
+  findVersionAccess,
   canMergeIntoParent,
   projectVersioning,
 } from '../utils/versionAccessRules';
@@ -48,6 +51,7 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
   const [deleting, setDeleting] = useState<PendingDeletion | null>(null);
   const [merging, setMerging] = useState<VersionSummary | null>(null);
   const [resolving, setResolving] = useState<VersionSummary | null>(null);
+  const [importing, setImporting] = useState<VersionSummary | null>(null);
 
   const project = projects.find((candidate) => candidate.id === projectId);
   const { access, failure: accessFailure, retry: retryAccess } = useGuardedProjectAccess(projectId);
@@ -61,6 +65,11 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
   );
   const canBranchFrom = useCallback(
     (parentVersionId: string) => canBranchFromParent(access, parentVersionId),
+    [access],
+  );
+
+  const canImportInto = useCallback(
+    (versionId: string) => canImportIntoVersion(access, versionId),
     [access],
   );
 
@@ -113,6 +122,7 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
     setDeleting(null);
     setMerging(null);
     setResolving(null);
+    setImporting(null);
   }, [projectId]);
 
   useEffect(() => {
@@ -171,8 +181,10 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
             nodes={tree}
             canEdit={canEdit}
             canMergeInto={canMergeInto}
+            canImportInto={canImportInto}
             unresolvedConflicts={unresolvedByVersion}
             onDelete={(version, isRoot) => setDeleting({ version, isRoot })}
+            onImport={setImporting}
             onMerge={setMerging}
             onResolveConflicts={setResolving}
           />
@@ -187,6 +199,17 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
         onMergeNow={handleMergeNow}
         onClose={() => setResolving(null)}
       />
+
+      {importing && (
+        <ImportVersionCsvModal
+          key={importing.id}
+          projectId={projectId}
+          version={importing}
+          access={findVersionAccess(access, importing.id)}
+          onImported={reload}
+          onClose={() => setImporting(null)}
+        />
+      )}
 
       {canEdit && (
         <>

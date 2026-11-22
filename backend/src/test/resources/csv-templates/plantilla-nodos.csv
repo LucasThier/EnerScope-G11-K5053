@@ -1,0 +1,2 @@
+﻿nodeKind,name,state,lifespanInMonths,upkeepCosts,maintenanceIntervalInDays,operatingCosts,wastePercentage,type,investmentCost,maxCollectionCapacity,declineCurve,gasRichness,dtmTime,dtmCost,surface
+WELL,Pozo Norte,RUNNING,240,1000,30,5000,0.02,"{""vertical"":""EXTRACTION"",""role"":""GENERATOR"",""nodeType"":""WELL""}","{""components"":[]}",1000000,"{""type"":""CONSTANT"",""val_a"":0.25}",0.85,0,500,1200

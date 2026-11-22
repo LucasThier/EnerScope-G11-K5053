@@ -12,5 +12,7 @@ public interface EconomicDraftRepository extends JpaRepository<EconomicDraftEnti
     @org.springframework.data.jpa.repository.Query("select d.scenario.id from EconomicDraftEntity d where d.scenario.id in :ids")
     java.util.List<UUID> scenarioIdsWithDraft(@org.springframework.data.repository.query.Param("ids") java.util.Collection<UUID> ids);
     Optional<EconomicDraftEntity> findByVersionId(UUID versionId);
+    /** Every scenario of the version can hold its own legacy draft (one per scenario). */
+    java.util.List<EconomicDraftEntity> findAllByVersionId(UUID versionId);
     void deleteByVersionId(UUID versionId);
 }

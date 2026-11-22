@@ -55,6 +55,24 @@ export const projectsApi = {
   ): Promise<AxiosResponse<ApiResponse<CreatedVersion>>> =>
     invalidatesAccess(client.post(`/projects/${projectId}/version`, data), projectId),
 
+  /**
+   * Imports nodes (and, optionally, connections and economics) from a CSV into a version that already exists. All or
+   * nothing: a rejected file leaves the version as it was. `multipart/form-data`, field `file`, up to 10 MB.
+   */
+  importVersionNodesCsv: (
+    versionId: string,
+    file: File,
+    signal?: AbortSignal,
+  ): Promise<AxiosResponse<ApiResponse<number>>> => {
+    const form = new FormData();
+    form.append('file', file);
+    return client.post(`/version/${versionId}/nodes/import`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 180_000,
+      signal,
+    });
+  },
+
   deleteVersion: (versionId: string): Promise<AxiosResponse<ApiResponse<null>>> =>
     invalidatesAccess(client.delete(`/version/${versionId}`)),
 

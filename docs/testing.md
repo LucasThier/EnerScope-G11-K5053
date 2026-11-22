@@ -6,11 +6,13 @@ change a test, update the matching entry here (see `AGENTS.md` → Definition of
 done).
 
 Run the backend with `cd backend && mvn test` (H2, no database), and with `cd backend && mvn -B verify` to also run the
-nine `*IT` classes (failsafe) against a **disposable** PostgreSQL pointed to by `ECONOMIC_TEST_DATABASE_URL` (see
+ten `*IT` classes (failsafe) against a **disposable** PostgreSQL pointed to by `ECONOMIC_TEST_DATABASE_URL` (see
 [*PostgreSQL classes*](#postgresql-classes-it-by-hand)). CI runs `mvn --batch-mode verify` in the `backend-it` job.
 Last reported counts, verified on 2026-11-22 from `backend/target/{surefire,failsafe}-reports` and `npm test`:
-Surefire **105 classes / 1797 executions**, failsafe **9 classes / 99 executions**, frontend **268 tests in 34 files**,
-all with 0 failures, errors and skips.
+Surefire **107 classes / 1813 executions**, failsafe **11 classes / 108 executions**, frontend **296 tests in 35 files**
+(`npm test`, 2026-11-22), all with 0 failures, errors and skips.
+Run on 2026-11-22 with `mvn -B verify` against a throwaway PostgreSQL 16 on port 55432: Surefire 1813 run / 0 failures / 0 errors / 0 skipped,
+failsafe 108 run / 0 failures / 0 errors / 0 skipped, `BUILD SUCCESS`.
 
 Two automated suites exist:
 
@@ -58,8 +60,8 @@ are the `tests` attribute of its Surefire report from the latest `mvn test`
 (`backend/target/surefire-reports`), which expands each parameterized method
 into one execution per argument.
 
-> **Superseded by the later reconciliations at the end of this file — the current figures are 105 classes /
-> 1797 executions and failsafe 9 classes / 99 executions (the table below sums to them).** The note that follows
+> **Superseded by the later reconciliations at the end of this file — the current figures are 107 classes /
+> 1813 executions and failsafe 11 classes / 108 executions (the table below sums to them).** The note that follows
 > is kept as the history of the first reconciliation. **Reconciled 2026-11-22** (first pass) against
 > `mvn -B clean verify` (PostgreSQL 16 throwaway database, port 55432): Surefire **98 classes, 1647 executions,
 > 0 failures/errors/skips**; failsafe **6 classes, 58 executions**; at that moment the table summed to those
@@ -138,7 +140,7 @@ executions differ; for every other class they are the same number. No class uses
 | `scenario.service.ScenarioDefaultsTest` | Unit | 4 | 4 |
 | `scenario.service.ScenarioLifecycleTest` | Unit | 20 | 20 |
 | `scenario.service.ScenarioLimitsTest` | Unit | 2 | 2 |
-| `scenario.service.ScenarioReferenceServiceTest` | Unit | 2 | 2 |
+| `scenario.service.ScenarioReferenceServiceTest` | Unit | 4 | 4 |
 | `scenario.service.VersionDefaultScenarioTest` | Unit | 6 | 6 |
 | `session.service.SessionServiceTest` | Unit | 9 | 9 |
 | `simulator.EconomicMetricsTest` | Unit | 7 | 7 |
@@ -182,10 +184,12 @@ executions differ; for every other class they are the same number. No class uses
 | `version.service.VersionDeletionTest` | Unit | 6 | 6 |
 | `version.service.VersionLineageTest` | Unit | 10 | 10 |
 | `version.service.VersionMemberServiceTest` | Unit | 39 | 39 |
-| `version.service.VersionNodeCsvImportServiceTest` | Unit | 27 | 38 |
+| `version.service.VersionNodeCsvImportIdentityTest` | Integration | 7 | 7 |
+| `version.service.VersionNodeCsvImportServiceTest` | Unit | 32 | 43 |
+| `version.service.VersionNodeCsvImportTemplatesTest` | Integration | 2 | 2 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 | 10 |
 | `version.service.VersionServiceTest` | Unit | 67 | 67 |
-| **Total (105 classes)** | | **1500** | **1797** |
+| **Total (107 classes)** | | **1516** | **1813** |
 
 > **`mvn test` on 2026-11-15 (13:35, run for this update): 1362 executions,
 > 0 failures, 0 errors, 0 skipped**, in 80 classes (`1238` methods). Executions
@@ -206,7 +210,7 @@ executions differ; for every other class they are the same number. No class uses
 > `version.controller.VersionInactiveAccessHttpTest`,
 > `version.controller.VersionReadWithoutOpenInViewHttpTest` and
 > `version.controller.VersionRoleCopyDeactivatedUsersHttpTest`. The
-> PostgreSQL classes — the `*IT`, nine today — are **not** part of that run and not in the
+> PostgreSQL classes — the `*IT`, ten today — are **not** part of that run and not in the
 > table; they are run by hand against a disposable PostgreSQL (see below). The
 > per-class sections below keep their historical case catalogs; where one
 > disagrees with this table, this table wins. The cases added since the
@@ -253,8 +257,8 @@ Counts below treat each JUnit test method as one case; parameterized methods
 are counted once in the table, with their extra executions explained below.
 
 Not run by `mvn test`; they need a PostgreSQL the test connects to (see each
-class). **Today: 9 classes, 99 executions** (table below), read on 2026-11-22 from the nine
-`TEST-*IT.xml` failsafe reports in `backend/target/failsafe-reports` (written 17:01–17:02 that day by
+class). **Today: 11 classes, 108 executions** (table below), read on 2026-11-22 from the eleven
+`TEST-*IT.xml` failsafe reports in `backend/target/failsafe-reports` (written that day by
 `mvn -B verify`, 0 failures, 0 errors, 0 skipped). The first version of this section counted **49 executions in
 five classes** from a manual run on 2026-11-15; that figure is history and no longer applies.
 
@@ -317,8 +321,10 @@ five classes** from a manual run on 2026-11-15; that figure is history and no lo
 | `scenario.service.ScenarioLifecyclePostgreSqlIT` | 20 inherited from `ScenarioLifecycleTest` | 20 |
 | `scenario.service.VersionDefaultScenarioPostgreSqlIT` | 6 inherited from `VersionDefaultScenarioTest` | 6 |
 | `version.service.VersionDeletionPostgreSqlIT` | 6 inherited from `VersionDeletionTest` | 6 |
+| `version.service.VersionNodeCsvImportIdentityPostgreSqlIT` | 7 inherited from `VersionNodeCsvImportIdentityTest` | 7 |
+| `version.service.VersionNodeCsvImportTemplatesPostgreSqlIT` | 2 inherited from `VersionNodeCsvImportTemplatesTest` | 2 |
 | `version.repository.VersionMemberRepositoryPostgreSqlIT` | 16 | 16 |
-| **Total (9 classes)** | | **99** |
+| **Total (11 classes)** | | **108** |
 
 `ProjectRepositoryPostgreSqlIT` and `ProjectVersionCreationPostgreSqlIT` are new
 in the 2026-11-15 section; the two new `VersionMemberRepositoryPostgreSqlIT`
@@ -1386,6 +1392,11 @@ separate `SCENARIO` row.
 | `rejectsInvalidUtf8` | Invalid UTF-8 input bytes are rejected rather than silently replaced. |
 | `rejectsImportsOverMaximumRowCount` | More than 10,000 data rows are rejected before node persistence. |
 | `rejectsFilesOverMaximumSize` | The service rejects CSV byte arrays larger than 10 MB. |
+| `rejectsIdentityThatAlreadyExistsInTheVersionBeforePersisting` | A NODE row whose `identity` is already in the target version → `Invalid CSV record 2 (NODE): identity <uuid> already exists in this version`; no node, connection or economics written. |
+| `rejectsExistingIdentityOnALaterRowWithoutWritingTheEarlierValidRows` | The colliding identity is on record 3: the valid record 2 is not written either (the check runs before any write). |
+| `rejectsIdentityRepeatedInTheFileBeforePersisting` | Two rows with the same `identity` → `Invalid CSV record 3 (NODE): identity <uuid> is repeated in the file`; nothing written. |
+| `importsANewIdentityThatIsNotInTheVersion` | An `identity` the version does not have is accepted and reaches `addNodeToVersion` unchanged. |
+| `aFileWithoutIdentityColumnNeverLooksUpTheVersionIdentities` | A file with no `identity` column imports as before and never reads the version's identities. |
 
 ## `node.service.NodeServiceTest` — Unit
 
@@ -2922,7 +2933,8 @@ which add up to the same 173). The previous pass recorded 157 in 24 files; the
 | `sidebarActive.test.mjs` | 6 | At most one current sidebar leaf on every route, with and without a project; *Proyectos* current on `/projects`; the route → current item matrix; *Versionado* as a single entry; analysis items without a project; the short and full label of *Configuración*. |
 | `summaryVisuals.test.mjs` | 9 | Summary charts. |
 | `versionAccessApi.test.mjs` | 4 | `versionAccessApi`: `GET /projects/{id}/access`, list members, grant a role (with the vertical when there is one), revoke by member and role id. |
-| `versionAccessRules.test.mjs` | 5 | `utils/versionAccessRules.ts`: merging needs to manage the parent (`canMergeIntoParent`), branching needs to edit the chosen parent (`canBranchFromParent`), `uneditableVerticals` lists the scenario verticals the caller cannot edit, a node of an unknown type blocks that check, and `VersionTree` shows *Mergear* only where the parent can be managed. |
+| `versionCsvImport.test.mjs` | 27 | New file. Node CSV import into a version: the identity messages (exists / repeated, with uuid, upper-case uuid, without a record number, malformed uuid) and the other importer messages translated by regex, previous translations unchanged; the CSV parser (quotes, BOM, CRLF, blank lines) and the analysis (line numbering, identity, file-level problems, kinds, connections, scenario row); both example files clean and without an `identity` column; the identity help text; permissions (deny by default, verticals, connections, economics); confirmation warnings; start conditions; failure classification (rejected vs uncertain); result messages and destinations. |
+| `versionAccessRules.test.mjs` | 14 (was catalogued as 5; this change adds 1) | `utils/versionAccessRules.ts`: merging needs to manage the parent (`canMergeIntoParent`), branching needs to edit the chosen parent (`canBranchFromParent`), `uneditableVerticals` lists the scenario verticals the caller cannot edit, a node of an unknown type blocks that check, and `VersionTree` shows *Mergear* only where the parent can be managed and *Importar CSV* only on the versions the caller can import into. |
 | `versionRoleErrors.test.mjs` | 9 | The Spanish translation of the version endpoints' `403`/`400`/`404` messages, including "ask a project administrator" for managing roles and the cascading-delete `403` that names no version; and, new, the branch / merge / vertical `403`s (*edit this version*, *this vertical's nodes*, *simulate*, *manage this project*) and the `400`/`404` ones (*Resource not found*, *Node vertical does not match its type*, versions of different projects, parent of another project, a version as its own ancestor, a cycle in the simulation graph). |
 | `versionRoles.test.mjs` | 18 | `utils/versionRoles.ts`: role labels, grant ordering, "project administrator administers every version", explicit versus inherited access, `canManageRoles` (not `canManage`) deciding who manages roles, assignable people, role choices, one request per vertical, last-role detection, the version tree and its filters, default version, sorting. |
 | `versionRolesPanel.test.mjs` | 2 | `VersionRolesPanel`: a version administrator who cannot manage roles sees only their own access and a notice; someone who can loads the members and gets the assignment form. |
@@ -2930,7 +2942,7 @@ which add up to the same 173). The previous pass recorded 157 in 24 files; the
 | `workspaceRoutes.test.mjs` | 2 | Configuration and results routes never activate version management; switching projects keeps the module and drops foreign ids. |
 | **Total (27 files, 2026-11-15)** | **173** | |
 
-> **Current total: 268 tests in 34 files**, verified with `npm test` on 2026-11-22 (268 pass, 0 fail, 0 skipped). The
+> **Current total: 296 tests in 35 files**, verified with `npm test` on 2026-11-22 (296 pass, 0 fail, 0 skipped). The
 > table above is the 2026-11-15 snapshot; the 7 files and 95 tests added since are spread over the dated sections below.
 > Five files are **not named anywhere in this catalog yet**: `accessInvalidationApi`, `editorPermissions`, `newVersion`,
 > `projectAccessState` and `userDetail` (`*.test.mjs`); cataloguing them is pending.
@@ -3734,12 +3746,14 @@ Surefire **99 classes, 1652 executions**, failsafe **6 classes, 62 executions**,
 
 The V26 cases now migrate only up to V26 (`flyway.target("26")`), so they keep describing V26.
 
-### `scenario.service.ScenarioReferenceServiceTest` — Unit (2)
+### `scenario.service.ScenarioReferenceServiceTest` — Unit (4, was 2)
 
 | Case | Verifies |
 | --- | --- |
 | `aClonedNodeIsRemappedInTheConfigurationOfEveryScenarioOfTheVersion` | Both scenarios' configurations get the new node id; unrelated nodes are untouched. |
-| `remappingANodeOntoItselfTouchesNothing` | Old id equal to new id reads nothing. |
+| `aClonedNodeIsRemappedInTheScenarioDraftAndTheLegacyDraftOfEveryScenario` | Two `scenario_draft`s and one legacy `economic_draft` of the version all get the new node id (in `configuration`, `editor` and `draft` sub-trees); another node's reference in the same draft is left alone. |
+| `draftsWithoutTheNodeOrWithBlankJsonAreLeftExactlyAsTheyAre` | A draft that references only another node, a blank draft (`""`), `{}` and a draft whose old id is under a key that is not `nodeId`/`deliveryNodeId` keep their exact text (not even re-serialized). |
+| `remappingANodeOntoItselfTouchesNothing` | Old id equal to new id reads no configuration and no draft. |
 
 ### `economic.service.EconomicServiceTest` — Unit (34, was 33)
 
@@ -3964,4 +3978,33 @@ frontend `npm test` **268 cases** (one translation case extended), `tsc -b`, `es
 
 Also: `scenario.controller.ScenarioApiHttpTest.deletingAVersionThatHasSavedResultsIs409WithAClearMessageAndNothingIsDeleted` (79 executions, was 78) checks the
 `409` envelope over HTTP (`success: false` and the message), that the scenarios are still listed, and that a Simulador gets `403`.
+
+### `version.service.VersionNodeCsvImportTemplatesTest` — real services on H2 (2); `VersionNodeCsvImportTemplatesPostgreSqlIT` runs the same 2 on PostgreSQL
+
+The two example files of the frontend's «Importar CSV» screen, copied byte for byte (BOM included) from what
+`frontend/src/utils/versionCsvImport.ts` generates into `backend/src/test/resources/csv-templates/` (regenerate them if the
+frontend templates change), go through the real `VersionNodeCsvImportService` into an empty version made with `ProjectService.saveVersion`.
+
+| Case | Verifies |
+| --- | --- |
+| `theNodesTemplateImportsOneWellAndNoConnectionsNorEconomics` | `plantilla-nodos.csv` imports without error: 1 node («Pozo Norte»), no connections, no configuration in the «Escenario base», still one scenario. |
+| `theEconomicsTemplateImportsTwoNodesOneConnectionAndTheEconomicsOfTheBaseScenario` | `plantilla-nodos-con-economia.csv` imports without error: count 2, nodes «Pozo Norte» and «Gasoducto 1», one connection between them, one scenario («Escenario base») whose configuration (2030, 5 years, USD, boundary `empresa-1`) holds a profile for each generated node id. |
+
+### `version.service.VersionNodeCsvImportIdentityTest` — real services on H2 (7); `VersionNodeCsvImportIdentityPostgreSqlIT` runs the same 7 on PostgreSQL
+
+A version with three wells and an economic configuration (the "Escenario base") that references them, driven through the real
+`VersionNodeCsvImportService`, `VersionService` and `EconomicService` (class-level `@Transactional`; state is re-read after `flush` + `clear`).
+The two rejection cases fail if the identity guard is removed, and the draft cases fail if the draft rewrite in `ScenarioReferenceService` is removed
+(both checked by hand on 2026-11-22).
+
+| Case | Verifies |
+| --- | --- |
+| `anIdentityAlreadyInTheVersionIsRejectedAndTheVersionAndItsReferencesStayIntact` | A valid first row plus a second row with the identity of an existing well → `Invalid CSV record 3 (NODE): identity <uuid> already exists in this version`; the version has the same node ids and identities, the scenario configuration is byte for byte the same and still references the original well. |
+| `anIdentityRepeatedInTheFileIsRejectedAndNothingIsWritten` | The same new identity twice → `Invalid CSV record 3 (NODE): identity <uuid> is repeated in the file`; nothing written. |
+| `aNewIdentityIsImportedAndTheExistingNodesKeepTheirIds` | Control: a fresh identity imports one node and every earlier node keeps its id. |
+| `cloningAnInheritedNodeRemapsTheScenarioConfigurations` | Editing an inherited node clones it (new id) and the scenario configuration now references the clone, not the original. |
+| `cloningAnInheritedNodeRemapsTheScenarioDraftReferences` | A `scenario_draft` that references the node follows the clone (this was the pending finding; `remap` now rewrites it). |
+| `cloningAnInheritedNodeRemapsTheLegacyEconomicDraftReferences` | Same for the legacy `economic_draft`. |
+| `cloningAnInheritedNodeRemapsTheDraftsOfEveryScenarioAndLeavesUnrelatedDraftsAlone` | Three scenarios in one version: the `scenario_draft` of the base, the `scenario_draft` and the `economic_draft` of the second follow the clone; the third scenario's draft (another node) and its `{}` legacy draft keep their exact text. |
+
 

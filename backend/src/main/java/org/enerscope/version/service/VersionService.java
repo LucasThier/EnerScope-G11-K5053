@@ -587,6 +587,27 @@ public class VersionService {
         return saved;
     }
 
+    /**
+     * Cross-version identities of the nodes currently in the version's own snapshot. Read-only and unguarded: the caller
+     * (the CSV importer) has already checked edit permission. The importer uses it to reject a node row whose identity is
+     * already present, because {@link #addNodeToVersion} would otherwise swap that row for a new one with a new id.
+     */
+    @Transactional(readOnly = true)
+    public Set<UUID> nodeIdentities(UUID versionId) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+        Set<UUID> identities = new HashSet<>();
+        if (version.getNodeSnapshot() != null) {
+            for (BaseNode node : version.getNodeSnapshot()) {
+                if (node != null && node.getIdentityId() != null) {
+                    identities.add(node.getIdentityId());
+                }
+            }
+        }
+        return identities;
+    }
+
     @Transactional
     public BaseNode addNodeToVersion(UUID versionId, BaseNodeDTO nodeDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");

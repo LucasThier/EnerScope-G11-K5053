@@ -481,13 +481,14 @@ and Hibernate validation and rolls back its example records.
 
 Two levels of tests (counts in [`docs/testing.md`](../docs/testing.md)):
 
-- `mvn test` — the `*Test` classes on H2; no database needed (last reported run: 105 classes, 1797 executions).
-- `mvn -B verify` — also runs the nine `*IT` classes with failsafe (last reported run: 9 classes, 99 executions)
+- `mvn test` — the `*Test` classes on H2; no database needed (last reported run: 107 classes, 1813 executions).
+- `mvn -B verify` — also runs the eleven `*IT` classes with failsafe (last reported run: 11 classes, 108 executions)
   against a **disposable** PostgreSQL named `enerscope_economic_test`, pointed to by `ECONOMIC_TEST_DATABASE_URL`
   (`ECONOMIC_TEST_DATABASE_USER` / `ECONOMIC_TEST_DATABASE_PASSWORD` if needed). The ITs are
   `PostgreSqlEconomicIT`, `ScenarioConfigurationPostgreSqlIT`, `ProjectRepositoryPostgreSqlIT`,
   `ProjectVersionCreationPostgreSqlIT`, `VersionMemberRepositoryPostgreSqlIT`, `ScenarioMigrationIT`,
-  `ScenarioLifecyclePostgreSqlIT`, `VersionDefaultScenarioPostgreSqlIT` and `VersionDeletionPostgreSqlIT`.
+  `ScenarioLifecyclePostgreSqlIT`, `VersionDefaultScenarioPostgreSqlIT`, `VersionDeletionPostgreSqlIT` and
+  `VersionNodeCsvImportIdentityPostgreSqlIT` and `VersionNodeCsvImportTemplatesPostgreSqlIT`.
   Never point them at a database with real data. CI runs the same `mvn --batch-mode verify` in the `backend-it` job,
   and since it no longer has `continue-on-error`, a failing `*IT` fails the build.
 

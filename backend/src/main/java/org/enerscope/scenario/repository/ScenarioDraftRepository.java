@@ -10,6 +10,8 @@ public interface ScenarioDraftRepository extends JpaRepository<ScenarioDraft,UUI
     @org.springframework.data.jpa.repository.Query("select d.scenario.id from ScenarioDraft d where d.scenario.id in :ids")
     java.util.List<UUID> scenarioIdsWithDraft(@org.springframework.data.repository.query.Param("ids") java.util.Collection<UUID> ids);
     Optional<ScenarioDraft> findByVersionId(UUID versionId);
+    /** Every scenario of the version can hold its own draft (one per scenario). */
+    java.util.List<ScenarioDraft> findAllByVersionId(UUID versionId);
     boolean existsByVersionId(UUID versionId);
     void deleteByVersionId(UUID versionId);
 }

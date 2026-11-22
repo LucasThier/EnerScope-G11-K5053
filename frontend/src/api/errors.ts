@@ -133,13 +133,168 @@ const KNOWN_BACKEND_PREFIXES: [string, string][] = [
   ],
 ];
 
+// --- CSV import of nodes (POST /version/{id}/nodes/import) -------------------------------------------------------
+// The importer answers one English message per failure. Row messages carry the record number (the header is record 1,
+// so the first data row is 2) and are shown as "Línea N: ...". Matching is by regular expression; anything not
+// recognised is handled by `describeCsvImportError`, which keeps the original text as the detail.
+
+const CSV_KIND_LABELS: Record<string, string> = {
+  NODE: 'nodo',
+  CONNECTION: 'conexión',
+  SCENARIO: 'escenario',
+};
+
+function csvKind(kind: string): string {
+  return CSV_KIND_LABELS[kind] ?? kind;
+}
+
+const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
+
+const CSV_ROW_RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [
+    new RegExp(`^Invalid CSV record (\\d+) \\(NODE\\): identity (${UUID}) already exists in this version$`),
+    (m) =>
+      `Línea ${m[1]}: la identidad ${m[2]} ya existe en esta versión. Este importador solo agrega nodos nuevos: ` +
+      'quitá esa fila o dejá la columna identity vacía.',
+  ],
+  [
+    new RegExp(`^Invalid CSV record (\\d+) \\(NODE\\): identity (${UUID}) is repeated in the file$`),
+    (m) =>
+      `Línea ${m[1]}: la identidad ${m[2]} aparece repetida en el archivo. Cada nodo debe tener una identidad única.`,
+  ],
+  [
+    /^CSV record (\d+) has (\d+) fields; expected (\d+)$/,
+    (m) => `Línea ${m[1]}: tiene ${m[2]} campos y el encabezado define ${m[3]}. Revisá las comas y las comillas.`,
+  ],
+  [/^CSV record (\d+) is missing nodeKind$/, (m) => `Línea ${m[1]}: falta el valor de nodeKind (el tipo de nodo).`],
+  [/^CSV record (\d+) is missing recordType$/, (m) => `Línea ${m[1]}: falta el valor de recordType (NODE, CONNECTION o SCENARIO).`],
+  [
+    /^Unsupported nodeKind '(.*)' in CSV record (\d+)\. Supported values: (.*)$/,
+    (m) => `Línea ${m[2]}: el tipo de nodo «${m[1]}» no existe. Valores admitidos: ${m[3]}.`,
+  ],
+  [
+    /^Unsupported recordType '(.*)' in CSV record (\d+)\. Supported values: (.*)$/,
+    (m) => `Línea ${m[2]}: el tipo de fila «${m[1]}» no existe. Valores admitidos: ${m[3]}.`,
+  ],
+  [
+    /^CSV record (\d+) \((\w+)\) is missing required field '(.*)'$/,
+    (m) => `Línea ${m[1]}: a la fila de ${csvKind(m[2])} le falta el campo obligatorio «${m[3]}».`,
+  ],
+  [
+    /^CSV record (\d+) \((\w+)\) has a value in unsupported column '(.*)'$/,
+    (m) => `Línea ${m[1]}: la columna «${m[3]}» no corresponde a un ${m[2]}. Dejala vacía en esa fila.`,
+  ],
+  [
+    /^CSV record (\d+) \((\w+)\) must leave '(.*)' blank$/,
+    (m) => `Línea ${m[1]}: en una fila de ${csvKind(m[2])} la columna «${m[3]}» debe quedar vacía.`,
+  ],
+  [/^CSV record (\d+) has duplicate node id '(.*)'$/, (m) => `Línea ${m[1]}: el id «${m[2]}» está repetido. Cada nodo necesita un id único dentro del archivo.`],
+  [
+    /^CSV record (\d+) \(CONNECTION\) references unknown node id '(.*)' in '(.*)'$/,
+    (m) => `Línea ${m[1]}: la conexión usa «${m[2]}» en ${m[3]}, pero ningún nodo del archivo tiene ese id.`,
+  ],
+  [
+    /^CSV record (\d+) column '(.*)' references unknown imported node id '(.*)' at (.*)$/,
+    (m) => `Línea ${m[1]}: el escenario económico usa el nodo «${m[3]}» (${m[4]}), pero ningún nodo del archivo tiene ese id.`,
+  ],
+  [/^CSV record (\d+) has invalid JSON in column '(.*)'$/, (m) => `Línea ${m[1]}: la columna «${m[2]}» no contiene un JSON válido.`],
+  [/^CSV record (\d+) column '(.*)' must contain a JSON object$/, (m) => `Línea ${m[1]}: la columna «${m[2]}» debe contener un objeto JSON.`],
+  [/^CSV record (\d+) column 'identity' must contain a UUID$/, (m) => `Línea ${m[1]}: la columna identity debe contener un UUID válido o quedar vacía.`],
+  [
+    /^CSV record (\d+) column '(.*)' must contain a (?:valid|finite) number$/,
+    (m) => `Línea ${m[1]}: la columna «${m[2]}» debe contener un número válido.`,
+  ],
+  [
+    /^CSV record (\d+) \((\w+)\) has type\.nodeType '(.*)'; expected '(.*)'$/,
+    (m) => `Línea ${m[1]}: type.nodeType es «${m[3]}» y para ${m[2]} debe ser «${m[4]}».`,
+  ],
+  [
+    /^CSV record (\d+) \((\w+)\) has type\.vertical '(.*)'; expected '(.*)'$/,
+    (m) => `Línea ${m[1]}: type.vertical es «${m[3]}» y para ${m[2]} debe ser «${m[4]}».`,
+  ],
+  [
+    /^CSV record (\d+) \((\w+)\) has inconsistent node type metadata$/,
+    (m) => `Línea ${m[1]}: el JSON de type no coincide con el tipo de nodo ${m[2]}.`,
+  ],
+  [/^CSV record (\d+) \((\w+)\) contains an invalid value: (.*)$/, (m) => `Línea ${m[1]}: la fila de ${m[2]} tiene un valor inválido (${m[3]}).`],
+];
+
+const CSV_ROW_CAUSE = /^Invalid CSV record (\d+) \((\w+)\): (.*)$/s;
+
+const CSV_FILE_RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [/^CSV file cannot be empty$/, () => 'El archivo está vacío.'],
+  [/^CSV file must be 10 MB or smaller$/, () => 'El archivo supera el máximo de 10 MB.'],
+  [/^CSV file must be valid UTF-8$/, () => 'El archivo tiene que estar guardado como CSV UTF-8.'],
+  [/^CSV header row cannot be empty$/, () => 'La primera línea (encabezado) está vacía.'],
+  [/^CSV headers cannot be blank$/, () => 'El encabezado tiene una columna sin nombre.'],
+  [/^CSV headers must be unique$/, () => 'El encabezado repite el nombre de una columna.'],
+  [/^CSV must contain a 'nodeKind' header$/, () => 'Al encabezado le falta la columna nodeKind.'],
+  [/^CSV must contain a header and at least one data row$/, () => 'El archivo necesita un encabezado y al menos una fila de datos.'],
+  [/^CSV must contain at least one NODE record$/, () => 'El archivo necesita al menos una fila de nodo (NODE).'],
+  [/^CSV can contain only one SCENARIO record$/, () => 'El archivo puede tener una sola fila SCENARIO.'],
+  [
+    /^CSV records with economicProfile require one SCENARIO record with economicScenario$/,
+    () => 'Hay nodos con economicProfile, pero falta la fila SCENARIO con economicScenario.',
+  ],
+  [/^Unknown CSV header\(s\): (.*)$/, (m) => `El encabezado tiene columnas que el importador no conoce: ${m[1]}.`],
+  [/^Unexpected character after a quoted CSV field$/, () => 'Hay texto después de unas comillas de cierre. Revisá las comillas del archivo.'],
+  [/^Quote inside an unquoted CSV field$/, () => 'Hay unas comillas dentro de un campo que no está entre comillas.'],
+  [/^Unterminated quoted CSV field$/, () => 'Hay un campo entre comillas que nunca se cierra.'],
+  [/^CSV exceeds the maximum of (\d+) rows$/, (m) => `El archivo supera el máximo de ${m[1]} filas de datos.`],
+];
+
+/** The Spanish text of a node-CSV import error, or null when the message is not one the importer is known to send. */
+export function translateCsvImportMessage(message: string): string | null {
+  for (const [pattern, build] of [...CSV_ROW_RULES, ...CSV_FILE_RULES]) {
+    const match = pattern.exec(message);
+    if (match) {
+      return build(match);
+    }
+  }
+  const cause = CSV_ROW_CAUSE.exec(message);
+  if (cause) {
+    // A rule of the saved node (e.g. a business rule) that failed on this row: keep its text, translated if known.
+    const translated = translateBackendMessage(cause[3]);
+    return `Línea ${cause[1]} (${csvKind(cause[2])}): ${translated}`;
+  }
+  return null;
+}
+
+/** The record number the message points at (header = 1), or null when it is about the file as a whole. */
+export function csvImportErrorLine(message: string): number | null {
+  const match = /(?:^|[^\w])CSV record (\d+)\b/.exec(message);
+  return match ? Number(match[1]) : null;
+}
+
+export interface CsvImportErrorDescription {
+  line: number | null;
+  text: string;
+  /** The backend's original text, kept when it could not be translated. */
+  detail: string | null;
+}
+
+export function describeCsvImportError(message: string): CsvImportErrorDescription {
+  const line = csvImportErrorLine(message);
+  const text = translateCsvImportMessage(message);
+  if (text !== null) {
+    return { line, text, detail: null };
+  }
+  if (line !== null) {
+    return { line, text: `Línea ${line}: la fila no es válida.`, detail: message };
+  }
+  return { line: null, text: 'El importador rechazó el archivo.', detail: message };
+}
+
 export function translateBackendMessage(message: string): string {
   const exact = KNOWN_BACKEND_MESSAGES[message];
   if (exact) {
     return exact;
   }
   const prefixed = KNOWN_BACKEND_PREFIXES.find(([prefix]) => message.startsWith(prefix));
-  return prefixed ? prefixed[1] : message;
+  if (prefixed) {
+    return prefixed[1];
+  }
+  return translateCsvImportMessage(message) ?? message;
 }
 
 const TRANSPORT_MESSAGES: RegExp[] = [
@@ -185,4 +340,17 @@ export function getVersionRoleErrorMessage(error: unknown, fallback: string): st
 
 export function getErrorStatus(error: unknown): number | null {
   return error instanceof AxiosError ? (error.response?.status ?? null) : null;
+}
+
+/** The backend's own `ApiResponse.message` of a failed request, untranslated, or null when there is none. */
+export function getBackendMessage(error: unknown): string | null {
+  if (error instanceof AxiosError) {
+    const data = error.response?.data as ApiResponse<unknown> | undefined;
+    return data?.message ?? null;
+  }
+  return null;
+}
+
+export function isRequestCanceled(error: unknown): boolean {
+  return error instanceof AxiosError && error.code === AxiosError.ERR_CANCELED;
 }
