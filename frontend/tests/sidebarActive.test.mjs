@@ -90,7 +90,7 @@ test('analysis items without a project have no destination and are never current
     Object.assign(state, { project: null, projects, loading, role: 'ADMIN', member: true });
     const groups = useNavigationTree();
     const items = groups.find(g => g.title === 'Análisis').items.filter(i => i.requires);
-    assert.equal(items.length, 2);
+    assert.equal(items.length, 3); // Configuración, Simulaciones and Comparaciones
     for (const item of items) {
       assert.equal(item.to, undefined); assert.equal(item.reason, reason);
       assert.ok(['Proyectos', 'Todos los proyectos'].includes(activeLeaf(groups, '/projects').label));

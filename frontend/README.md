@@ -408,3 +408,26 @@ Project selection is shared with the global header.
 ### Scenario configuration and simulation
 
 Configuration is at `/projects/:projectId/scenario-configurations`; scenario forms retain `/projects/:projectId/versions/:versionId/economics/configuration`. Simulation remains `/projects/:projectId/versions`, with a rounds/seed dialog. The map is unchanged. Browser acceptance: economic-browser.mjs, projectScoping-browser.mjs, results-browser.mjs and probabilistic-browser.mjs under tests; set APP_URL and PLAYWRIGHT_MODULE for a local Vite server and Playwright installation.
+
+## Scenario comparison
+
+**Análisis → Comparaciones** has two screens. Step 1, `/projects/:projectId/comparisons`:
+pick 2–8 scenarios from any project (project selector + search over scenario
+tiles). Each tile says whether its latest simulation is usable ("al día"), changed
+since ("cambió"), was never run or is running, and can be simulated right there
+(10 rounds) — the panel "Tu comparación" lists the choice, can simulate everything
+pending at once and enables **Comparar escenarios** only
+when every scenario is up to date. Earlier runs are listed below. Comparing saves
+the run and opens step 2, `/projects/:projectId/comparisons/:comparisonId`.
+Scenarios are compared with each other — there is no reference — : a conclusion
+(the scenario with the highest NPV, big, and its lead over the second) with every
+scenario ranked by value, the four key indicators as bars ordered best first with
+each one's distance to the best, the most important differences in plain words, the yearly chart
+with a hover crosshair, more indicators in smaller cards and, collapsed, the full
+detail tables. Scenario colours are the `series-1…8` tokens in `src/index.css`.
+
+Code: `src/pages/ComparisonsPage.tsx`, `src/pages/ComparisonResultPage.tsx`,
+`src/components/comparison/*`, `src/api/comparisons.ts`, `src/types/comparison.ts`
+(keep in sync with the backend DTOs) and the pure helpers in
+`src/utils/comparison.ts` (covered by `tests/comparison.test.mjs`). Rules and API:
+[scenario comparison](../docs/scenario-comparison.md).

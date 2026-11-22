@@ -39,7 +39,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -105,7 +107,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -183,7 +186,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -249,7 +253,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -318,7 +323,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -384,7 +391,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -462,7 +470,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -528,7 +537,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -597,7 +607,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -663,7 +675,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -741,7 +754,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -807,7 +821,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -876,7 +891,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -952,7 +969,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -1034,7 +1052,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -1110,7 +1129,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -1183,7 +1203,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -1259,7 +1281,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -1341,7 +1364,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -1417,7 +1441,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -1490,7 +1515,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -1566,7 +1593,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -1648,7 +1676,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -1724,7 +1753,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -1797,7 +1827,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -1849,7 +1881,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -1907,7 +1940,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -1959,7 +1993,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -2008,7 +2043,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -2060,7 +2097,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -2118,7 +2156,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -2170,7 +2209,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -2219,7 +2259,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -2271,7 +2313,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -2329,7 +2372,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -2381,7 +2425,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -2430,7 +2475,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -2491,7 +2538,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -2563,7 +2611,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -2624,7 +2673,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -2687,7 +2737,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -2748,7 +2800,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -2820,7 +2873,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -2881,7 +2935,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -2944,7 +2999,9 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable",
+     "reason": "Sin proyectos"
     },
     {
      "label": "Reportes",
@@ -3005,7 +3062,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
@@ -3077,7 +3135,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "to": "/projects/p/comparisons"
     },
     {
      "label": "Reportes",
@@ -3138,7 +3197,8 @@
     },
     {
      "label": "Comparaciones",
-     "availability": "soon"
+     "fullLabel": "Comparación de Escenarios",
+     "availability": "unavailable"
     },
     {
      "label": "Reportes",
