@@ -42,8 +42,8 @@ npm run preview  # preview the production build
 npm run lint     # eslint
 ```
 
-`npm test` runs on the built-in `node:test` runner (229 tests in 32 files on
-2026-11-15, all passing). The per-file catalog is in
+`npm test` runs on the built-in `node:test` runner (268 tests in 34 files on
+2026-11-22, all passing). The per-file catalog is in
 [docs/testing.md](../docs/testing.md) → *Frontend unit tests*.
 
 The dev server proxies `/api` to the backend at `http://localhost:8080`, so run
@@ -377,12 +377,15 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   `node:test`; register every new test in [docs/testing.md](../docs/testing.md).
   If the sidebar changes on purpose, regenerate the golden (see *Permissions and
   `/access`*). The `tests/*-browser.mjs` Playwright scripts are separate (they
-  need `APP_URL` and `PLAYWRIGHT_MODULE`).
+  need `APP_URL` and `PLAYWRIGHT_MODULE`). **They are out of date**: they still mock the old version-level
+  endpoints (`/versions/:v/economics/...`) and were neither run nor updated for the scenario flow (see
+  `docs/considerations.md`, *Deuda de escenarios*); do not treat them as acceptance.
 
 ## Scenario economics
 
-Open **Simulaciones / Escenarios** with an active project to select an existing
-scenario, configure a simplified economic evaluation and inspect saved results.
+Open **Configuración del Escenario** or **Simulación de Escenarios** with an active project: pick a **version**
+(the physical base), then one of its **scenarios**, configure a simplified economic evaluation and inspect saved
+results (flow described under *Escenarios* above).
 See [economic frontend](../docs/economic-module/economic-frontend.md) for routes, assumptions,
 permissions and historical compatibility.
 
@@ -415,21 +418,22 @@ See [economic module](../docs/economic-module/economic-module.md).
 
 ### Scenario creation
 
-In Simulaciones / Escenarios, users with edit permission can select Nuevo escenario, 
-enter a name, and optionally copy a version from the same project. Crear y configurar 
-opens the economic editor. Editar mapa opens that scenario’s physical graph. 
-Project selection is shared with the global header.
+Inside a version (`/projects/:p/versions/:v/scenarios`), users who may edit that version select **Nuevo escenario**
+and type a name (unique in the version ignoring case, up to 20 scenarios per version). It creates an empty
+**scenario**, never a version. **Duplicar** asks a name and copies only the economic configuration. A scenario has
+no map of its own: **Editar operación en la versión** opens the version's node editor. Project selection is shared
+with the global header.
 
 
 ### Scenario configuration and simulation
 
-Configuration is at `/projects/:projectId/scenario-configurations`; scenario forms retain `/projects/:projectId/versions/:versionId/economics/configuration`. Simulation remains `/projects/:projectId/versions`, with a rounds/seed dialog. The map is unchanged. Browser acceptance: economic-browser.mjs, projectScoping-browser.mjs, results-browser.mjs and probabilistic-browser.mjs under tests; set APP_URL and PLAYWRIGHT_MODULE for a local Vite server and Playwright installation.
+Configuration starts at `/projects/:projectId/scenario-configurations` (versions) and goes on to `/projects/:projectId/versions/:versionId/scenarios` and `.../scenarios/:scenarioId/configuration`; simulation starts at `/projects/:projectId/simulations` and goes on to `/versions/:versionId/simulations`, with a rounds/seed dialog. The old `/versions/:versionId/economics/*` routes redirect to the version's default scenario. The map is unchanged. Browser acceptance: economic-browser.mjs, projectScoping-browser.mjs, results-browser.mjs and probabilistic-browser.mjs under tests; set APP_URL and PLAYWRIGHT_MODULE for a local Vite server and Playwright installation.
 
 ## Scenario comparison
 
 **Análisis → Comparaciones** has two screens. Step 1, `/projects/:projectId/comparisons`:
-pick 2–8 scenarios from any project (project selector + search over scenario
-tiles). Each tile says whether its latest simulation is usable ("al día"), changed
+pick 2–8 scenarios of **the project in the URL** (no project selector; search over scenario
+tiles grouped by version). Each tile says whether its latest simulation is usable ("al día"), changed
 since ("cambió"), was never run or is running, and can be simulated right there
 (10 rounds) — the panel "Tu comparación" lists the choice, can simulate everything
 pending at once and enables **Comparar escenarios** only

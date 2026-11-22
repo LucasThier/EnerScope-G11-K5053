@@ -24,7 +24,8 @@ Package: `org.enerscope.comparison` (`controller`, `service`, `repository`,
   The old item `{ "versionId": … }` is **deprecated** and still accepted: it means that version's default scenario. The comparison is saved in,
   and listed under, that project; saving and deleting need `EDIT_PROJECT`. (Until E1 a
   comparison could mix projects; those saved runs are removed with
-  [`sql/cross-project-comparisons.sql`](sql/cross-project-comparisons.sql).)
+  [`sql/cross-project-comparisons.sql`](sql/cross-project-comparisons.sql), see
+  [*Cleaning old cross-project comparisons*](#cleaning-old-cross-project-comparisons).)
 - **Always the latest simulation.** Each scenario uses its own newest evaluation (`evaluations` by `scenario_id`), so
   two scenarios of the same version have their own results.
 - **Only if it is up to date.** `ScenarioStatusService.isUpToDate` compares what the
@@ -193,7 +194,9 @@ result is recalculated on read and always matches.
 erDiagram
     project ||--o{ scenario_comparison : "has"
     scenario_comparison ||--|{ scenario_comparison_item : "compares"
-    version ||--o{ scenario_comparison_item : "scenario"
+    version ||--o{ scenario : "has"
+    scenario ||--o{ scenario_comparison_item : "compared as"
+    version ||--o{ scenario_comparison_item : "rests on"
     economic_evaluation ||--o{ scenario_comparison_item : "result"
 
     scenario_comparison {
@@ -214,8 +217,18 @@ erDiagram
         timestamptz last_modified
         UUID comparison_id FK
         UUID version_id FK
+        UUID scenario_id FK
         UUID evaluation_id FK
         int position
+        varchar version_name
+        varchar scenario_name
+    }
+    scenario {
+        UUID id PK
+        boolean active
+        UUID version_id FK
+        varchar name
+        boolean is_default
     }
 ```
 
@@ -243,6 +256,7 @@ classDiagram
     ScenarioComparison "*" --> "1" Project
     ScenarioComparison "1" *-- "2..8" ScenarioComparisonItem : items
     ScenarioComparisonItem "*" --> "1" Version
+    ScenarioComparisonItem "*" --> "1" Scenario
     ScenarioComparisonItem "*" --> "1" EconomicEvaluation
 
     ScenarioComparisonController --> ScenarioComparisonService
@@ -286,29 +300,42 @@ classDiagram
 
 Enums: `ComparisonMetric`, `MetricCategory`, `MetricUnit`, `MetricPreference`,
 `Standing`, `FindingType`, `ComparabilityWarning`, `EvaluationMode`,
-`ScenarioStatus`. DTOs: `ComparisonRequestDTO` (+`Item(versionId)`),
+`ScenarioStatus`. DTOs: `ComparisonRequestDTO` (+`Item(scenarioId, versionId)`, `versionId` deprecated),
 `ComparisonResultDTO` (+`Scenario` with project, `MetricRow` with best/worst,
 `MetricCell` with rank, gap to the best and standing,
 `NodeRow`, `NodeCell`, `Series`, `SeriesPoint`, `Warning`, `Finding`),
 `MetricValueDTO`, `NodeFlowDTO`, `ComparableScenarioDTO` (+`SimulationJob`),
-`ComparisonSummaryDTO` (scenario names), `SavedComparisonDTO` (+`Item(versionId,
-evaluationId)`). Existing class touched: `EconomicRoundRepository` gains
+`ComparisonSummaryDTO` (scenario names), `SavedComparisonDTO` (+`Item(scenarioId, versionId, evaluationId,
+scenarioName, versionName, deleted)`). Existing class touched: `EconomicRoundRepository` gains
 `findByJobIdOrderByRoundNumberAsc`.
+
+## Cleaning old cross-project comparisons
+
+Only needed on a database that already held comparisons saved before E1. The script is **not** a Flyway migration;
+it is reviewed and run by hand with `psql -f docs/sql/cross-project-comparisons.sql "$DATABASE_URL"`:
+
+1. **Measure first.** Part 1 only reads: how many comparisons cross projects and which projects they touch.
+2. **Back up** the two tables before anything else (the `pg_dump --data-only -t scenario_comparison -t
+   scenario_comparison_item …` line is at the top of the script).
+3. Part 2 deletes inside a transaction that **ends in `ROLLBACK` by default**: it shows what would go and changes
+   nothing. To delete for real, review the counts and replace `ROLLBACK` by `COMMIT` in **your own copy**, never in the
+   file of the repository.
 
 ## Demo data
 
 [`docs/examples/seed-comparison-demo.mjs`](examples/seed-comparison-demo.mjs) loads,
 through the public API, an organization **EnerScope Demo** with:
 
-| Project | Scenario (version) | Physical model | Equipment (CAPEX) |
+| Project | Version (physical base; each has its own "Escenario base") | Physical model | Equipment (CAPEX) |
 | --- | --- | --- | --- |
-| Demo · Cuenca Neuquina | Escenario base | Pozo Norte (100), Pozo Sur (500) | USD 1.000 |
-| Demo · Cuenca Neuquina | Ampliación de pozos (child of base) | Pozo Sur → 800, new Pozo Este (300) | USD 1.800 |
-| Demo · Cuenca Neuquina | Escenario conservador (child of base) | Pozo Norte → 60, Pozo Sur → 250 | USD 1.000 |
-| Demo · Cuenca Austral | Austral base | Pozo Austral 1 (200), Pozo Austral 2 (400) | USD 1.200 |
+| Demo · Cuenca Neuquina | "Escenario base" (version) | Pozo Norte (100), Pozo Sur (500) | USD 1.000 |
+| Demo · Cuenca Neuquina | "Ampliación de pozos" (child version of the base) | Pozo Sur → 800, new Pozo Este (300) | USD 1.800 |
+| Demo · Cuenca Neuquina | "Escenario conservador" (child version of the base) | Pozo Norte → 60, Pozo Sur → 250 | USD 1.000 |
+| Demo · Cuenca Austral | "Austral base" (version) | Pozo Austral 1 (200), Pozo Austral 2 (400) | USD 1.200 |
 
-All four are ready to simulate and can be compared with each other, across both
-projects. The Neuquina child versions share node identities with the base, so
+The script creates four **versions** (it still names some of them "Escenario …"), each with its own empty
+"Escenario base" scenario that the script configures. All four scenarios are ready to simulate; comparisons are
+saved in one project, so compare the three of Neuquina with each other (the Austral one is in another project). The Neuquina child versions share node identities with the base, so
 per-node flows line up (Pozo Este appears as an added node).
 
 ```bash
@@ -317,7 +344,7 @@ node docs/examples/seed-comparison-demo.mjs --simulate       # also runs 10 roun
 node docs/examples/seed-comparison-demo.mjs --api http://localhost:8081/api/v1 --mail … --password …
 ```
 
-It needs a backend from this branch (migrations through V25) and signs in as the
+It needs a backend from this branch (migrations V1–V28, 28 files with V8.5) and signs in as the
 dev seed admin unless `--mail/--password` (or `ENERSCOPE_ADMIN_MAIL` /
 `ENERSCOPE_ADMIN_PASSWORD`) say otherwise. It refuses to run twice and must never
 target production.

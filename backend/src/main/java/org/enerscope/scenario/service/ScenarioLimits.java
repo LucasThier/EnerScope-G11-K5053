@@ -5,7 +5,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Maximum number of scenarios a version may have. Enforced by the service that creates scenarios
- * (not by the database), under the version's write lock. Not used until scenarios can be created.
+ * (not by the database), under the version's write lock ({@code ScenarioService.ensureRoom}). Configurable with
+ * {@code enerscope.scenarios.max-per-version} ({@code SCENARIOS_MAX_PER_VERSION}); it must be at least 1.
  */
 @Component
 public class ScenarioLimits {

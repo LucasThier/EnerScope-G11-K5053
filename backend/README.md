@@ -19,6 +19,12 @@ cd backend
 docker compose up --build
 ```
 
+> **Do not run `docker compose down -v`** (or `docker volume rm enerscope_pgdata`). The database lives in the named
+> volume `enerscope_pgdata`, mounted at `/var/lib/postgresql/data` of the `db` service, and it survives
+> `docker compose down`, `stop` and rebuilds of the API. `down -v` deletes that volume, and with it every
+> organization, project, version, scenario, simulation and saved comparison of the local database; there is no
+> way back without a backup. The port `5432` of the container is published on the host, so check what else uses it.
+
 ### Option B — Locally with Maven
 
 Requires a running PostgreSQL and a JDK 21+.
@@ -60,7 +66,7 @@ defaults, so the app boots without any of them set.
 | `DATASOURCE_PASSWORD` | `enerscope` | DB password |
 | `LOG_LEVEL_ROOT` | `INFO` | Root log level (framework included) |
 | `LOG_LEVEL_APP` | `INFO` | App log level (the `AppLogger` output) |
-| `SCENARIOS_MAX_PER_VERSION` | `20` | Maximum scenarios a version may have (read as `enerscope.scenarios.max-per-version`; enforced by the service that creates scenarios, not yet in use) |
+| `SCENARIOS_MAX_PER_VERSION` | `20` | Maximum scenarios a version may have (read as `enerscope.scenarios.max-per-version`; enforced by `ScenarioService` when a scenario is created or duplicated, under the version's write lock; must be at least 1; the unique name is checked in the same place) |
 | `JWT_SECRET` | dev placeholder | HMAC signing key (≥ 256 bits). **Change in prod.** |
 | `JWT_ACCESS_EXPIRY_MINUTES` | `60` | Access token lifetime |
 | `JWT_REFRESH_EXPIRY_DAYS` | `30` | Refresh token lifetime |
@@ -120,7 +126,7 @@ The seeded `admin@enerscope.org` is the bootstrap `ADMIN`.
 | `POST` | `/version/createtest` | admin | Create a version detached from every project |
 | `GET` | `/version/{id}` | admin / project member | Read a version |
 | `PATCH` | `/version/{id}` | admin / project editor (re-parenting also needs to manage the version and edit the new parent) | Rename a version or re-parent it |
-| `DELETE` | `/version/{id}` | admin / project admin or version admin, of **every** version in the subtree | Delete a version and every version below it, in one transaction; `403` (naming no version) and nothing deleted if any is refused |
+| `DELETE` | `/version/{id}` | admin / project admin or version admin, of **every** version in the subtree | Delete a version and every version below it, in one transaction (**physical** delete, with its scenarios); `403` (naming no version) and nothing deleted if any is refused; `409` (nothing deleted) when the version or any version below it has simulation jobs, saved evaluations or saved comparison items |
 | `POST` `PATCH` `DELETE` | `/version/{id}/node[/{nodeId}]` | admin / project editor | Add, edit or remove a node in a version |
 | `POST` | `/version/{versionId}/nodes/import` | admin / project editor | Import up to 10,000 typed nodes, connections and optional economic data from a CSV file (max 10 MB) |
 | `POST` `PATCH` `DELETE` | `/version/{id}/connection[/{connectionId}]` | admin / project editor | Add, edit or remove a connection in a version |
@@ -444,10 +450,8 @@ primitive entity fields and throw `NullPointerException` when `null`, and
   that could grant access to it — so only an admin can make one, and by the same
   rule only an admin can touch it afterwards. Versions that belong to a project
   are created with `POST /projects/{projectId}/version`.
-- This is a **minimal slice**: node/connection snapshots and the node/
-  connection change log from the class diagram (`nodeSnapshot`,
-  `connectionSnapshot`, `nodeChanges`, `connectionChanges`) are not modeled.
-  Scenarios and project export are also out of scope for now.
+- A `Version` owns its diagram (`nodeSnapshot`, `connectionSnapshot` and the change logs) and its **scenarios**
+  (see [Scenario API](#scenario-api)). Project export is out of scope for now.
 
 All of the above endpoints require a Bearer token like every non-`/auth`
 route.
@@ -462,7 +466,7 @@ All responses are wrapped in a standard envelope:
 
 The economic API evaluates project versions, with persisted configuration and
 immutable NPV history. See [economic documentation and runnable example](../docs/economic-module/economic-module.md).
-Use the complete migration chain through V15. The incoming master V11 for node columns is redundant with this branch's V12 and is not included. Existing databases require reviewing their Flyway history before deployment; this merge does not reset databases or repair checksums.
+Use the complete migration chain (V1–V28, 28 files, V8.5 included). The incoming master V11 for node columns is redundant with this branch's V12 and is not included. Existing databases require reviewing their Flyway history before deployment; this merge does not reset databases or repair checksums.
 
 Economic routes use `/api/v1/projects/{projectId}/versions/{versionId}/economics`:
 `PUT/GET /configuration`, `POST/GET /evaluations`, and `GET /evaluations/{id}`.
@@ -474,6 +478,18 @@ set `ECONOMIC_TEST_DATABASE_URL` to a disposable `enerscope_economic_test` Postg
 database (optionally `ECONOMIC_TEST_DATABASE_USER` and `ECONOMIC_TEST_DATABASE_PASSWORD`),
 then run `mvn -Dtest=PostgreSqlEconomicIT test`. The integration suite runs Flyway
 and Hibernate validation and rolls back its example records.
+
+Two levels of tests (counts in [`docs/testing.md`](../docs/testing.md)):
+
+- `mvn test` — the `*Test` classes on H2; no database needed (last reported run: 105 classes, 1797 executions).
+- `mvn -B verify` — also runs the nine `*IT` classes with failsafe (last reported run: 9 classes, 99 executions)
+  against a **disposable** PostgreSQL named `enerscope_economic_test`, pointed to by `ECONOMIC_TEST_DATABASE_URL`
+  (`ECONOMIC_TEST_DATABASE_USER` / `ECONOMIC_TEST_DATABASE_PASSWORD` if needed). The ITs are
+  `PostgreSqlEconomicIT`, `ScenarioConfigurationPostgreSqlIT`, `ProjectRepositoryPostgreSqlIT`,
+  `ProjectVersionCreationPostgreSqlIT`, `VersionMemberRepositoryPostgreSqlIT`, `ScenarioMigrationIT`,
+  `ScenarioLifecyclePostgreSqlIT`, `VersionDefaultScenarioPostgreSqlIT` and `VersionDeletionPostgreSqlIT`.
+  Never point them at a database with real data. CI runs the same `mvn --batch-mode verify` in the `backend-it` job,
+  and since it no longer has `continue-on-error`, a failing `*IT` fails the build.
 
 ## Scenario API
 
@@ -500,6 +516,23 @@ project: one generic "Scenario not found") → `403` (capability on the version)
 (repeated name, limit reached, deletion refused, stale token). Roles: the read-only Ejecutivo reads only; the
 Simulador reads and simulates; the version Editor creates, renames, duplicates, configures (within its vertical)
 and simulates; deleting needs the version administrator, the project administrator or a platform administrator.
+
+Fields and states worth knowing:
+
+- Each scenario in the responses carries `configured`, `draftPending`, `defaultScenario`, `latestEvaluatedAt` and a
+  `status` (`ScenarioStatus`): `UP_TO_DATE` (its latest simulation matches its configuration **and** its version's
+  nodes and connections), `OUTDATED` (either changed since), `NEVER_SIMULATED` or `SIMULATING` (a job is queued or
+  running). The API does not say *which* of the two changed. **Editing a node (or a connection) makes every scenario
+  of its version `OUTDATED`**; editing one scenario's economics outdates only that one.
+- "Operación" (node values) belongs to the version: `PUT …/scenarios/{s}/configuration` never saves node values. A
+  request whose `operations` would change them is refused with `400`. A *stale* request is a `409` first.
+- `GET …/scenarios/{s}/configuration` returns `draftOperationsIgnored: true` when a stored draft (written before
+  node values moved to the version) carries node values that differ from the version's current nodes; the draft is
+  kept, but those values are not applied. The screen explains it and offers to discard the draft.
+- The old `/projects/{p}/versions/{v}/…` economics routes are kept and always act on the version's **default**
+  scenario (the shared rules live in one place, behind both route families).
+- Deleting a scenario only deactivates it: its evaluations, jobs and the comparisons that used it stay. Deleting a
+  **version**, in contrast, is physical (and refused with `409` when it has results; see the API overview).
 
 ## Scenario comparison API
 
@@ -577,7 +610,7 @@ purely cross-cutting packages (`jwt`, `health`, `money`, `seed`, `logging`,
 
 backend/src/main/resources/
 ├─ application.properties
-└─ db/migration/             Flyway migrations (V1__init.sql, V2__create_nodes.sql, V3__create_organization_tables.sql, V4__create_project_member_tables.sql, V5__create_version_table.sql, V6__add_well_surface.sql, V7__add_platform_role.sql)
+└─ db/migration/             Flyway migrations V1–V28 (28 files, V8.5 included; V26–V28 are the scenario migrations)
 ```
 
 ### Logging
@@ -595,7 +628,7 @@ application logger level and `LOG_LEVEL_ROOT` the framework level
 (`TRACE < DEBUG < INFO < WARN < ERROR < OFF`). For example, set
 `LOG_LEVEL_APP=DEBUG` in `.env` to see debug output locally.
 
-## Scenario selection
+## Version selection
 
 GET /api/v1/projects/{projectId}/versions returns active version summaries with
 node identifiers, names and types. Requires VIEW_PROJECT through an active project
@@ -637,11 +670,17 @@ reset historical migrations to bypass incompatibilities.
 
 ### Scenario configuration migration and verification 
 
-Fresh PostgreSQL installations execute the individual V1–V23 migrations. The former B18 snapshot is archived outside Flyway in docs/migration-reconciliation. Databases that recorded B18 require a separate compatibility review before upgrading; do not repair or reset their history automatically. V19 adds joint scenario drafts. Run `mvn test`, then `mvn -Dtest=PostgreSqlEconomicIT,ScenarioConfigurationPostgreSqlIT test` with ECONOMIC_TEST_DATABASE_URL pointing exclusively to a disposable enerscope_economic_test database. See docs/economic-module.md for the joint configuration/readiness API.
+Fresh PostgreSQL installations execute the individual V1–V28 migrations (28 files, V8.5 included). The former B18 snapshot is archived outside Flyway in docs/migration-reconciliation. Databases that recorded B18 require a separate compatibility review before upgrading; do not repair or reset their history automatically. V19 adds joint scenario drafts. Run `mvn test`, then `mvn -Dtest=PostgreSqlEconomicIT,ScenarioConfigurationPostgreSqlIT test` with ECONOMIC_TEST_DATABASE_URL pointing exclusively to a disposable enerscope_economic_test database. See docs/economic-module/economic-module.md for the joint configuration/readiness API.
 
 ### Project description input
 
 POST `/projects` accepts an omitted, null or blank `description` and stores an empty string. The maximum length remains 500 characters. PATCH accepts an empty description to clear it; an omitted or null description leaves it unchanged.
+
+### Start-up date and maintenance duration
+
+Editing a node keeps its stored `startupDate` and `maintenanceDuration` when the request omits them (a present value
+updates them; a negative duration is `400`). **A start-up date cannot be cleared by sending `null`**: "absent" and
+"clear it" are the same thing for the edit endpoints. See `docs/considerations.md` (2026-11-22, *E3b*).
 
 ### Explicit node type 
 
@@ -649,4 +688,4 @@ POST `/version/{versionId}/node` and PATCH `/version/{versionId}/node/{nodeId}` 
 
 ### Migration reconciliation 
 
-Use docker compose up -d --build api to compile current sources and wait for the database health check. Pending migrations now continue through V23. Previously published V2/V8.5/V9 retain their historical contents; incoming alternatives are preserved in docs/migration-reconciliation-20261025 outside Flyway discovery. Do not repair checksums or reset existing databases to resolve a conflicting migration number.
+Use docker compose up -d --build api to compile current sources and wait for the database health check. Pending migrations continue through V28 (28 files, V8.5 included). Previously published V2/V8.5/V9 retain their historical contents; incoming alternatives are preserved in docs/migration-reconciliation outside Flyway discovery. Do not repair checksums or reset existing databases to resolve a conflicting migration number.

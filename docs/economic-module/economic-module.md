@@ -35,7 +35,7 @@ copying a configuration, replace its node IDs with the destination version's IDs
 
 The existing Project ⇒ Version association remains unidirectional. The economic
 service resolves the version through its owning project's collection, checks node
-membership, and checks project permissions. No duplicate Scenario hierarchy is added.
+membership, and checks project permissions. (Historical note from the first delivery: at that time there was no separate Scenario entity; since V26 a `Scenario` table exists and a version holds several scenarios, see `docs/domain-model.md`.)
 
 ## Economic conventions
 
@@ -580,11 +580,11 @@ Invoke-RestMethod -Uri "$base/evaluations/$evaluationId/rounds/1" -Headers $head
 
 ### Configuración y simulación separadas
 
-**Configuración del Escenario** lista las versiones del proyecto y permite crear
-escenarios. El formulario conserva las secciones General, Inversión, Ingresos,
-Costos e Impuestos, utilizando exclusivamente el formulario simple. La pestaña **Operación**
-edita las características físicas de los nodos existentes, incluidas distribuciones
-constante, normal y uniforme. Solo ofrece **Guardar** y **Descartar cambios**.
+**Configuración del Escenario** lista las versiones del proyecto; cada versión abre sus escenarios y permite crear,
+duplicar, renombrar y eliminar escenarios. El formulario conserva las secciones General, Inversión, Ingresos,
+Costos e Impuestos, utilizando exclusivamente el formulario simple. *(Nota: la pestaña **Operación**, que editaba las
+características físicas de los nodos desde el escenario, ya no existe; los valores de operación se editan en el nodo,
+en la versión.)* Solo ofrece **Guardar** y **Descartar cambios**.
 
 **Simulación de Escenarios** muestra búsqueda, fecha y preparación. Su única acción
 por fila es **Simular**: un diálogo solicita rondas (1–100, inicialmente 10) y semilla
@@ -643,7 +643,7 @@ Si está completo publica economía y operación en una transacción y elimina a
 tipos de borrador. Si falta información, responde HTTP 200 con `draft` y `errors`:
 guarda únicamente el borrador, sin aplicar cambios parciales. La forma del editor
 y el límite de tamaño también se validan. Los borradores conjuntos viven en
-`ScenarioDraft` / `scenario_draft`, una fila por versión con revisión optimista;
+`ScenarioDraft` / `scenario_draft`, una fila por escenario (única por `scenario_id`, V27) con revisión optimista;
 los borradores económicos V13 siguen siendo recuperables y bloquean ejecuciones.
 
 `ScenarioOperations` conserva costos heredados, geometría e identidad lógica.
@@ -704,7 +704,7 @@ Flyway and uses Hibernate `validate`; test data is transactionally rolled back.
 V11 introduces economic tables and renames the legacy result year column;
 V12 adds maintenance duration and FLNG gas consumption. V16 introduces economic
 jobs and rounds, and permits percentile result rows without a legacy Result owner.
-V19 agrega el borrador conjunto. Las instalaciones nuevas ejecutan las migraciones individuales V1–V23, incluyendo V8.5. B18 se conserva como referencia en docs/migration-reconciliation, fuera del catálogo ejecutable. No se modifican los scripts versionados publicados ni el check de CI.
+V19 agrega el borrador conjunto. Las instalaciones nuevas ejecutan las migraciones individuales V1–V28 (28 archivos, incluyendo V8.5). B18 se conserva como referencia en docs/migration-reconciliation, fuera del catálogo ejecutable. No se modifican los scripts versionados publicados ni el check de CI.
 
 Las bases con historial individual aplican las versiones pendientes. Las bases que registraron B18 necesitan una revisión de compatibilidad específica antes de actualizar. No se hace repair, no se modifica el historial ni se desactiva validación. La prueba de actualización construye un esquema descartable con V1–V18 y un dato testigo, aplica V19–V23 y comprueba preservación e idempotencia.
 

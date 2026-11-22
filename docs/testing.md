@@ -5,7 +5,12 @@ case verifies. **Keep this in sync with the code** — whenever you add, remove 
 change a test, update the matching entry here (see `AGENTS.md` → Definition of
 done).
 
-Run everything with `cd backend && mvn test`.
+Run the backend with `cd backend && mvn test` (H2, no database), and with `cd backend && mvn -B verify` to also run the
+nine `*IT` classes (failsafe) against a **disposable** PostgreSQL pointed to by `ECONOMIC_TEST_DATABASE_URL` (see
+[*PostgreSQL classes*](#postgresql-classes-it-by-hand)). CI runs `mvn --batch-mode verify` in the `backend-it` job.
+Last reported counts, verified on 2026-11-22 from `backend/target/{surefire,failsafe}-reports` and `npm test`:
+Surefire **105 classes / 1797 executions**, failsafe **9 classes / 99 executions**, frontend **268 tests in 34 files**,
+all with 0 failures, errors and skips.
 
 Two automated suites exist:
 
@@ -23,7 +28,9 @@ sees them — stands on the by-hand checklist at the end of the backend catalog,
 [*Manual verification (frontend)*](#manual-verification-frontend), plus the
 Playwright scripts `frontend/tests/*-browser.mjs` (not part of `npm test`; they
 need a local Vite server and a Playwright install, see
-[`frontend/README.md`](../frontend/README.md)). Keep those in sync when a screen
+[`frontend/README.md`](../frontend/README.md)). **Those scripts are out of date**: they still mock the old
+version-level endpoints (`/versions/:v/economics/...`) and were not run or updated for the scenario flow
+(`considerations.md`, *Deuda de escenarios*). Update them before relying on them, and keep them in sync when a screen
 changes.
 
 ## Conventions
@@ -51,9 +58,12 @@ are the `tests` attribute of its Surefire report from the latest `mvn test`
 (`backend/target/surefire-reports`), which expands each parameterized method
 into one execution per argument.
 
-> **Reconciled 2026-11-22** against `mvn -B clean verify` (PostgreSQL 16 throwaway database, port 55432):
-> Surefire **98 classes, 1647 executions, 0 failures/errors/skips**; failsafe **6 classes, 58 executions,
-> 0 failures/errors/skips**; the table below sums to those 1647 executions and 1415 cases. The previous total
+> **Superseded by the later reconciliations at the end of this file — the current figures are 105 classes /
+> 1797 executions and failsafe 9 classes / 99 executions (the table below sums to them).** The note that follows
+> is kept as the history of the first reconciliation. **Reconciled 2026-11-22** (first pass) against
+> `mvn -B clean verify` (PostgreSQL 16 throwaway database, port 55432): Surefire **98 classes, 1647 executions,
+> 0 failures/errors/skips**; failsafe **6 classes, 58 executions**; at that moment the table summed to those
+> 1647 executions and 1415 cases. The previous total
 > (1541 executions) had drifted: four classes were stale (`common.CsvUtilTest` 5 → 8,
 > `common.GlobalExceptionHandlerTest` 1 → 3, `version.controller.VersionControllerTest` 20 → 27,
 > `version.service.VersionServiceTest` 63 → 66) and `version.service.VersionNodeCsvImportServiceTest`
@@ -195,8 +205,8 @@ executions differ; for every other class they are the same number. No class uses
 > `version.controller.VersionAccessHttpTest`,
 > `version.controller.VersionInactiveAccessHttpTest`,
 > `version.controller.VersionReadWithoutOpenInViewHttpTest` and
-> `version.controller.VersionRoleCopyDeactivatedUsersHttpTest`. The five
-> PostgreSQL classes — the `*IT` — are **not** part of that run and not in the
+> `version.controller.VersionRoleCopyDeactivatedUsersHttpTest`. The
+> PostgreSQL classes — the `*IT`, nine today — are **not** part of that run and not in the
 > table; they are run by hand against a disposable PostgreSQL (see below). The
 > per-class sections below keep their historical case catalogs; where one
 > disagrees with this table, this table wins. The cases added since the
@@ -243,14 +253,10 @@ Counts below treat each JUnit test method as one case; parameterized methods
 are counted once in the table, with their extra executions explained below.
 
 Not run by `mvn test`; they need a PostgreSQL the test connects to (see each
-class). **49 executions in total**, read from the `tests` attribute of the five
-`TEST-*IT.xml` Surefire reports left in `backend/target/surefire-reports`
-(written at 13:31 on 2026-11-15, 0 failures, 0 errors, 0 skipped in each). That
-is the report of **a manual run somebody made before this update, not of one
-made for it**: it was **not** re-run here (no PostgreSQL was started), so the
-numbers are only as current as that run. It does include
-`VersionMemberRepositoryPostgreSqlIT` at 14 cases, i.e. after the two cases
-added in `b4dfa71`.
+class). **Today: 9 classes, 99 executions** (table below), read on 2026-11-22 from the nine
+`TEST-*IT.xml` failsafe reports in `backend/target/failsafe-reports` (written 17:01–17:02 that day by
+`mvn -B verify`, 0 failures, 0 errors, 0 skipped). The first version of this section counted **49 executions in
+five classes** from a manual run on 2026-11-15; that figure is history and no longer applies.
 
 | Test class | Cases | Executions |
 | --- | --- | --- |
@@ -2922,7 +2928,12 @@ which add up to the same 173). The previous pass recorded 157 in 24 files; the
 | `versionRolesPanel.test.mjs` | 2 | `VersionRolesPanel`: a version administrator who cannot manage roles sees only their own access and a notice; someone who can loads the members and gets the assignment form. |
 | `visibleDiagram.test.mjs` | 2 | Removed nodes and touching edges disappear without changing saved history; empty and restored diagrams. |
 | `workspaceRoutes.test.mjs` | 2 | Configuration and results routes never activate version management; switching projects keeps the module and drops foreign ids. |
-| **Total (27 files)** | **173** | |
+| **Total (27 files, 2026-11-15)** | **173** | |
+
+> **Current total: 268 tests in 34 files**, verified with `npm test` on 2026-11-22 (268 pass, 0 fail, 0 skipped). The
+> table above is the 2026-11-15 snapshot; the 7 files and 95 tests added since are spread over the dated sections below.
+> Five files are **not named anywhere in this catalog yet**: `accessInvalidationApi`, `editorPermissions`, `newVersion`,
+> `projectAccessState` and `userDetail` (`*.test.mjs`); cataloguing them is pending.
 
 Per-file counts of the older files (economic, results, node editor) come from
 running each file; their case-by-case catalogs are in the dated sections above.

@@ -1,12 +1,20 @@
 # Economic frontend
 
-The Spanish scenario workspace is available at
-`/projects/:projectId/versions`. A scenario is an existing physical Version;
-this module does not create or edit physical nodes.
+The Spanish scenario workspace follows the flow **version → its scenarios → one scenario**
+(`/projects/:projectId/scenario-configurations` and `/projects/:projectId/simulations` list the versions;
+`/projects/:projectId/versions/:versionId/scenarios` lists a version's scenarios). A **version** is the physical base
+(nodes, connections, branches); a **scenario** is the economic and simulation configuration that rests on it, and a
+version can hold several. This module does not create or edit physical nodes: node values ("Operación") are edited
+on the node, in the version's editor.
+
+> The route list below describes the first version of this module, addressed by version. Those
+> `/versions/:versionId/economics/...` routes still resolve (they redirect to the version's default scenario); the
+> current scenario routes are `/versions/:versionId/scenarios/:scenarioId/configuration` and
+> `.../scenarios/:scenarioId/history|results/:evaluationId?` (see `frontend/README.md`, *Escenarios*).
 
 ## Screens and permissions
 
-- Scenario list: active versions, search, update date and link to economics.
+- Version list (first step): active versions, search, update date and link to the version's scenarios.
 - `/projects/:projectId/versions/:versionId/economics`: editable sections for
   general parameters, assets, income, operating costs and taxes.
 - `.../economics/results`: newest saved evaluation.

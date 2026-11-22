@@ -78,14 +78,19 @@ Tests:
 
 ```bash
 cd backend && mvn test        # JUnit, H2 — no database needed
+cd backend && mvn -B verify   # also the 9 *IT classes (failsafe) — needs a DISPOSABLE PostgreSQL
 cd frontend && npm test       # node:test unit suite
 cd frontend && npm run build  # type-check + build
 ```
 
-The five `*PostgreSqlIT` backend classes are **not** part of `mvn test`; they are
-run by hand against a disposable PostgreSQL (see
-[docs/testing.md](docs/testing.md) → *PostgreSQL classes*). Counts and the
-case-by-case catalog are in [docs/testing.md](docs/testing.md).
+`mvn -B verify` needs `ECONOMIC_TEST_DATABASE_URL` (and optionally `_USER` / `_PASSWORD`) pointing at a throwaway
+`enerscope_economic_test` database — never at one with real data. CI runs the same command in the `backend-it`
+job, which fails the build when an `*IT` fails. Last reported counts: backend 105 classes / 1797 executions
+(`mvn test`) and 9 classes / 99 executions (failsafe); frontend 268 tests in 34 files. The case-by-case catalog is in
+[docs/testing.md](docs/testing.md). The Playwright scripts `frontend/tests/*-browser.mjs` are not part of any of
+these and are out of date (see [docs/testing.md](docs/testing.md)).
+
+> Do not run `docker compose down -v`: it deletes the local database volume (`enerscope_pgdata`).
 
 A default administrator is seeded on first boot: `admin@enerscope.org`
 (password configurable via `ADMIN_PASSWORD`, default `admin12345`). It has the
