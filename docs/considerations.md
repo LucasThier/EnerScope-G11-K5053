@@ -2161,9 +2161,6 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     default H2 URL (it logs a WARN and carries on), so nothing could ever
     persist a result in the H2 tests. `ResultMappingTest` opts into
     `NON_KEYWORDS=YEAR`; do the same for any new test that touches `result`.
-    (That class was lost in a merge and rewritten on 2026-11-15; the rewritten
-    one uses the plain H2 URL of the `test` profile with `MODE=PostgreSQL` —
-    see the last entry.)
   - **To check when the `Probabilistica` work is merged:** `FinalResult` there
     declares three `@OneToMany List<ResultPerNode>` (`percentile90/50/10`) with
     no `@JoinColumn` or `@JoinTable`, while `V9` creates the join tables
@@ -2625,7 +2622,6 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
       the operator to check the member list before retrying, because a retry of
       the same file will report those rows as already existing.
     - **A file over the multipart limit answers `500`, not `400`.**
-      *(Superseded on 2026-11-15, see the last entry: it answers `413` now.)*
       `MaxUploadSizeExceededException` has no handler, so it falls through to
       `GlobalExceptionHandler`'s catch-all and comes back as
       `Internal error`. The 1 MB guard in the browser is a workaround, not a
@@ -3310,3 +3306,9 @@ Format: `- YYYY-MM-DD — <note>` (newest at the bottom of each section).
     FLNG tests (+4) and the pipeline-connection storage test (+1).
 - 2026-11-19 — Comparison merged with `master`. `master` shipped its own `V24__editor_simulate_permission.sql`, so the comparison migration is **V25** (`V25__scenario_comparisons.sql`); the "V24" in the 2026-11-12/13 entries above means this migration. **A local database that already applied the old V24 (scenario comparisons) will not start with this code** (Flyway sees a different V24): recreate it, or drop the two `scenario_comparison*` tables and the V24 row from `flyway_schema_history` with explicit approval, then let Flyway apply V24 and V25.
   - The comparison follows master's access model: `canSimulate` per scenario comes from `VersionAccessService` (version roles first, then project), and the screens read `/access` instead of checking platform roles. Read-only members (Ejecutivo) can compare; their result is a preview at `/comparisons/sin-guardar`, never saved.
+
+- 2026-11-10 — Node CSV imports may include an `economicProfile` JSON object on each `NODE` row and one separate `SCENARIO` row with `economicScenario` JSON. Profiles are bound to newly created node IDs; scenario fields are validated and saved atomically with the nodes. Existing CSVs remain node-only, and legacy node cost fields are not inferred as economic rules.
+
+- 2026-11-12 — The complete node CSV format, required fields per `nodeKind`, nested JSON and economic-row rules are documented in [`importador-csv-nodos.md`](importador-csv-nodos.md). Keep the guide aligned with `VersionNodeCsvImportService` when the importer contract changes.
+- 2026-11-12 — Node CSV imports accept an optional external `id` as a file-local reference key; the backend still generates persisted node IDs. `CONNECTION` rows use `fromNodeId`/`toNodeId` to refer to those keys and are saved after their nodes. Keep connection endpoints confined to nodes in the same import.
+- 2026-11-15 — Economic CSV node references in conversions, contracts and assets must use the imported rows' external `id`; resolve them to generated node UUIDs and reject unknown references before persistence. Do not require UUIDs that are unavailable until node creation.

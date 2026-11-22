@@ -4,7 +4,12 @@ The economic module evaluates a **Version of a Project**. It consumes actual ann
 simulator quantities, generates auditable entries, computes income tax separately
 for each tax entity, consolidates the selected boundary, reconciles accrual with
 cash and discounts the resulting cash flows. It does not import legacy node costs
-automatically. The simple frontend is documented in [economic frontend](economic-frontend.md).
+automatically. The node CSV importer can explicitly import typed economic
+profiles on their corresponding node rows and scenario-wide configuration on a
+separate scenario row; node references in conversions, contracts and assets use
+the import file's external node IDs and are bound to newly generated node IDs.
+It does not infer economic rules from operational costs.
+The simple frontend is documented in [economic frontend](economic-frontend.md).
 
 ## Integration and persistence
 

@@ -70,6 +70,9 @@ import org.enerscope.node.dto.IndustrialConsumptionDTO;
 import org.enerscope.node.model.export.InternalConsumption;
 import org.enerscope.node.model.export.IndustrialConsumption;
 import org.enerscope.node.dto.SeaportTerminalDTO;
+import org.enerscope.node.dto.PipelineConnectionDTO;
+import org.enerscope.node.dto.InternalConsumptionDTO;
+import org.enerscope.node.dto.IndustrialConsumptionDTO;
 import org.enerscope.node.model.extraction.Well;
 import org.enerscope.node.model.extraction.TreatmentPlant;
 import org.enerscope.node.model.extraction.GatheringNetwork;
@@ -79,6 +82,8 @@ import org.enerscope.node.model.liquefaction.GroundBasedLiquefactionPlant;
 import org.enerscope.node.model.liquefaction.FLNGUnit;
 import org.enerscope.node.model.export.LNGCarrier;
 import org.enerscope.node.model.export.SeaportTerminal;
+import org.enerscope.node.model.export.InternalConsumption;
+import org.enerscope.node.model.export.IndustrialConsumption;
 import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.ConnectionChange;
 import org.enerscope.node.model.NodeChange;
@@ -591,6 +596,7 @@ public class VersionService {
             case TreatmentPlantDTO dto -> nodeService.saveTreatmentPlant(dto);
             case GatheringNetworkDTO dto -> nodeService.saveGatheringNetwork(dto);
             case PipelineDTO dto -> nodeService.savePipeline(dto);
+            case PipelineConnectionDTO dto -> nodeService.savePipelineConnection(dto);
             case CompressingPlantDTO dto -> nodeService.saveCompressingPlant(dto);
             case GroundBasedLiquefactionPlantDTO dto -> nodeService.saveGroundBasedLiquefactionPlant(dto);
             case FLNGUnitDTO dto -> nodeService.saveFLNGUnit(dto);
@@ -805,6 +811,11 @@ public class VersionService {
                 throw new IllegalArgumentException("Node type mismatch: expected Pipeline");
             }
             return nodeService.editPipeline((Pipeline) originalNode, dto);
+        } else if (nodeDTO instanceof PipelineConnectionDTO dto) {
+            if (!(originalNode instanceof PipelineConnection)) {
+                throw new IllegalArgumentException("Node type mismatch: expected PipelineConnection");
+            }
+            return nodeService.editPipelineConnection((PipelineConnection) originalNode, dto);
         } else if (nodeDTO instanceof CompressingPlantDTO dto) {
             if (!(originalNode instanceof CompressingPlant)) {
                 throw new IllegalArgumentException("Node type mismatch: expected CompressingPlant");
@@ -838,6 +849,16 @@ public class VersionService {
                 throw new IllegalArgumentException("Node type mismatch: expected SeaportTerminal");
             }
             return nodeService.editSeaportTerminal((SeaportTerminal) originalNode, dto);
+        } else if (nodeDTO instanceof InternalConsumptionDTO dto) {
+            if (!(originalNode instanceof InternalConsumption)) {
+                throw new IllegalArgumentException("Node type mismatch: expected InternalConsumption");
+            }
+            return nodeService.editInternalConsumption((InternalConsumption) originalNode, dto);
+        } else if (nodeDTO instanceof IndustrialConsumptionDTO dto) {
+            if (!(originalNode instanceof IndustrialConsumption)) {
+                throw new IllegalArgumentException("Node type mismatch: expected IndustrialConsumption");
+            }
+            return nodeService.editIndustrialConsumption((IndustrialConsumption) originalNode, dto);
         } else {
             throw new IllegalArgumentException("Unsupported node DTO type: " + nodeDTO.getClass().getSimpleName());
         }

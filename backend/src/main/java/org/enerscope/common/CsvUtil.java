@@ -6,12 +6,9 @@ import java.util.List;
 /**
  * Minimal RFC-4180-style CSV reader/writer.
  *
- * <p>The project only needs to parse small credential lists and emit a
- * credentials file, so a self-contained helper is preferred over pulling in a
- * dedicated CSV dependency. It supports quoted fields, escaped quotes
- * ({@code ""}) inside quotes, and both {@code \n} and {@code \r\n} line
- * endings. It does not stream: the whole document is read into memory, which is
- * fine for the expected input sizes.</p>
+ * <p>The project uses this helper for small CSV imports and exports. It
+ * supports quoted fields, escaped quotes ({@code ""}) inside quotes, and both
+ * {@code \n} and {@code \r\n} line endings.</p>
  */
 public final class CsvUtil {
 
@@ -41,7 +38,7 @@ public final class CsvUtil {
                 if (c == QUOTE) {
                     if (i + 1 < content.length() && content.charAt(i + 1) == QUOTE) {
                         field.append(QUOTE);
-                        i++; // consume the escaped quote
+                        i++;
                     } else {
                         inQuotes = false;
                     }
@@ -57,7 +54,7 @@ public final class CsvUtil {
                     current.add(field.toString().trim());
                     field.setLength(0);
                 }
-                case '\r' -> { /* ignore; handled by \n */ }
+                case '\r' -> { /* handled by the following line feed */ }
                 case '\n' -> {
                     current.add(field.toString().trim());
                     field.setLength(0);
@@ -68,10 +65,90 @@ public final class CsvUtil {
             }
         }
 
-        // Flush the last field/row (files without a trailing newline).
         current.add(field.toString().trim());
         addRow(rows, current);
+        return rows;
+    }
 
+    /**
+     * Parses CSV while rejecting malformed quoting and enforcing a row limit.
+     * Fully empty lines are skipped. The maximum includes the header row.
+     */
+    public static List<List<String>> parseStrict(String content, int maximumRows) {
+        if (maximumRows < 1) {
+            throw new IllegalArgumentException("Maximum CSV rows must be positive");
+        }
+        List<List<String>> rows = new ArrayList<>();
+        if (content == null || content.isEmpty()) {
+            return rows;
+        }
+
+        List<String> current = new ArrayList<>();
+        StringBuilder field = new StringBuilder();
+        boolean inQuotes = false;
+        boolean closedQuote = false;
+
+        for (int i = 0; i < content.length(); i++) {
+            char c = content.charAt(i);
+            if (inQuotes) {
+                if (c == QUOTE) {
+                    if (i + 1 < content.length() && content.charAt(i + 1) == QUOTE) {
+                        field.append(QUOTE);
+                        i++;
+                    } else {
+                        inQuotes = false;
+                        closedQuote = true;
+                    }
+                } else {
+                    field.append(c);
+                }
+                continue;
+            }
+
+            if (closedQuote) {
+                if (c == DELIMITER) {
+                    current.add(field.toString().trim());
+                    field.setLength(0);
+                    closedQuote = false;
+                } else if (c == '\n' || c == '\r') {
+                    addStrictRow(rows, current, field, maximumRows);
+                    current = new ArrayList<>();
+                    field.setLength(0);
+                    closedQuote = false;
+                    if (c == '\r' && i + 1 < content.length() && content.charAt(i + 1) == '\n') {
+                        i++;
+                    }
+                } else if (!Character.isWhitespace(c)) {
+                    throw new IllegalArgumentException("Unexpected character after a quoted CSV field");
+                }
+                continue;
+            }
+
+            if (c == QUOTE) {
+                if (!field.toString().isBlank()) {
+                    throw new IllegalArgumentException("Quote inside an unquoted CSV field");
+                }
+                field.setLength(0);
+                inQuotes = true;
+            } else if (c == DELIMITER) {
+                current.add(field.toString().trim());
+                field.setLength(0);
+            } else if (c == '\n' || c == '\r') {
+                addStrictRow(rows, current, field, maximumRows);
+                current = new ArrayList<>();
+                field.setLength(0);
+                if (c == '\r' && i + 1 < content.length() && content.charAt(i + 1) == '\n') {
+                    i++;
+                }
+            } else {
+                field.append(c);
+            }
+        }
+
+        if (inQuotes) {
+            throw new IllegalArgumentException("Unterminated quoted CSV field");
+        }
+        addStrictRow(rows, current, field, maximumRows);
         return rows;
     }
 
@@ -91,10 +168,25 @@ public final class CsvUtil {
     }
 
     private static void addRow(List<List<String>> rows, List<String> row) {
-        // Drop rows that are entirely empty (e.g. a blank trailing line).
         boolean allBlank = row.stream().allMatch(String::isEmpty);
         if (!allBlank) {
             rows.add(row);
+        }
+    }
+
+    private static void addStrictRow(
+            List<List<String>> rows,
+            List<String> current,
+            StringBuilder field,
+            int maximumRows) {
+        current.add(field.toString().trim());
+        boolean allBlank = current.stream().allMatch(String::isEmpty);
+        if (!allBlank) {
+            if (rows.size() >= maximumRows) {
+                throw new IllegalArgumentException(
+                        "CSV exceeds the maximum of %d rows".formatted(maximumRows - 1));
+            }
+            rows.add(current);
         }
     }
 

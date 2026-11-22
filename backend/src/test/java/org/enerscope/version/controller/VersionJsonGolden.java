@@ -56,12 +56,13 @@ final class VersionJsonGolden {
     }
 
     static void assertMatchesGolden(String body) throws IOException {
-        String actual = MAPPER.writeValueAsString(MAPPER.readTree(normalize(body))) + "\n";
+        var actualJson = MAPPER.readTree(normalize(body));
+        String actual = MAPPER.writeValueAsString(actualJson) + "\n";
         if (Boolean.getBoolean("golden.write")) {
             Files.createDirectories(GOLDEN.getParent());
             Files.writeString(GOLDEN, actual, StandardCharsets.UTF_8);
         }
-        assertEquals(Files.readString(GOLDEN, StandardCharsets.UTF_8), actual);
+        assertEquals(MAPPER.readTree(Files.readString(GOLDEN, StandardCharsets.UTF_8)), actualJson);
     }
 
     static String normalize(String body) {

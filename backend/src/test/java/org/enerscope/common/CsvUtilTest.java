@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CsvUtilTest {
@@ -47,5 +48,29 @@ class CsvUtilTest {
 
         List<List<String>> reparsed = CsvUtil.parse(csv);
         assertEquals("pa,ss\"word", reparsed.get(1).get(1));
+    }
+
+    @Test
+    void strictParserRejectsUnterminatedQuotedFields() {
+        assertTrue(assertThrows(IllegalArgumentException.class,
+                () -> CsvUtil.parseStrict("name\n\"unterminated", 10))
+                .getMessage().contains("Unterminated quoted CSV field"));
+    }
+
+    @Test
+    void strictParserRejectsQuotesInsideUnquotedFields() {
+        assertTrue(assertThrows(IllegalArgumentException.class,
+                () -> CsvUtil.parseStrict("name\nSample\"bad", 10))
+                .getMessage().contains("Quote inside an unquoted CSV field"));
+    }
+
+    @Test
+    void strictParserSupportsMultilineQuotedFieldsAndEnforcesRowLimit() {
+        List<List<String>> rows = CsvUtil.parseStrict("name\r\n\"North\nwell\"\r\n", 2);
+        assertEquals(List.of(List.of("name"), List.of("North\nwell")), rows);
+
+        assertTrue(assertThrows(IllegalArgumentException.class,
+                () -> CsvUtil.parseStrict("name\none\ntwo\n", 2))
+                .getMessage().contains("maximum of 1 rows"));
     }
 }
