@@ -18,7 +18,8 @@ class EconomicJobServiceTest {
     final EconomicRoundRepository rounds=mock(EconomicRoundRepository.class);
     final EconomicEvaluationRepository evaluations=mock(EconomicEvaluationRepository.class);
     final EconomicInputCodec codec=new EconomicInputCodec(MAPPER);
-    final EconomicJobService service=new EconomicJobService(economics,new EconomicValidator(),codec,jobs,rounds,evaluations,MAPPER,mock(AppLogger.class));
+    final EconomicJobService service=new EconomicJobService(economics,new EconomicValidator(),codec,jobs,rounds,evaluations,MAPPER,mock(AppLogger.class),
+            org.enerscope.economic.service.EconomicExample.scenarioDefaults());
     final UUID project=UUID.randomUUID(),versionId=version().getId(),id=UUID.randomUUID();
     EconomicJob job() throws Exception {
         var job=new EconomicJob(version(),MAPPER.writeValueAsString(codec.freeze(version(),configuration(),2,42)),2,"42");
@@ -30,11 +31,15 @@ class EconomicJobServiceTest {
     void submissionFreezesInputsAndQueuesWithoutPublishingEvaluation() {
         var version=version();
         when(economics.authorizeSimulation(project,versionId)).thenReturn(version);
-        when(economics.configuration(versionId)).thenReturn(configuration());
+        when(economics.configuration(any(org.enerscope.scenario.model.Scenario.class))).thenReturn(configuration());
         when(economics.nodeIds(version)).thenReturn(Set.of(FIRST,SECOND));
         when(jobs.saveAndFlush(any())).thenAnswer(c->c.getArgument(0));
         var dto=service.submit(project,versionId,new EconomicJobRequest(null,"9223372036854775807"));
         assertEquals(QUEUED,dto.status());assertEquals(10,dto.rounds());assertEquals("9223372036854775807",dto.seed());
+        var queued=org.mockito.ArgumentCaptor.forClass(EconomicJob.class);
+        verify(jobs).saveAndFlush(queued.capture());
+        // Double write: the queued job records the default scenario of its version.
+        assertEquals(org.enerscope.scenario.model.Scenario.DEFAULT_NAME,queued.getValue().getScenario().getName());
         verifyNoInteractions(rounds,evaluations);
     }
 
@@ -42,20 +47,20 @@ class EconomicJobServiceTest {
     void retryUsesFrozenInputAndSeedWithoutReadingCurrentConfiguration() throws Exception {
         var old=job();ReflectionTestUtils.setField(old,"status",INTERRUPTED);
         when(economics.authorizeSimulation(project,versionId)).thenReturn(version());
-        when(jobs.findByIdAndVersionId(id,versionId)).thenReturn(Optional.of(old));
+        when(jobs.findByIdAndScenarioId(id, scenarioIdOf(versionId))).thenReturn(Optional.of(old));
         when(jobs.saveAndFlush(any())).thenAnswer(c->{
             EconomicJob copy=c.getArgument(0);
             assertEquals(old.getInputJson(),copy.getInputJson());return copy;
         });
         var retry=service.retry(project,versionId,id);
         assertEquals(QUEUED,retry.status());assertEquals(0,retry.completedRounds());assertEquals("42",retry.seed());
-        verify(economics,never()).configuration(any());
+        verify(economics,never()).configuration(any(UUID.class));verify(economics,never()).configuration(any(org.enerscope.scenario.model.Scenario.class));
     }
 
     @Test
     void runningJobCannotBeRetried() throws Exception {
         var old=job();ReflectionTestUtils.setField(old,"status",RUNNING);
-        when(jobs.findByIdAndVersionId(id,versionId)).thenReturn(Optional.of(old));
+        when(jobs.findByIdAndScenarioId(id, scenarioIdOf(versionId))).thenReturn(Optional.of(old));
         assertThrows(IllegalArgumentException.class,()->service.retry(project,versionId,id));
         verify(jobs,never()).saveAndFlush(any());
     }
@@ -80,10 +85,10 @@ class EconomicJobServiceTest {
 
     @Test
     void readsRequireViewPermissionAndScopeJobToVersion() throws Exception {
-        when(jobs.findByIdAndVersionId(id,versionId)).thenReturn(Optional.of(job()));
+        when(jobs.findByIdAndScenarioId(id, scenarioIdOf(versionId))).thenReturn(Optional.of(job()));
         service.get(project,versionId,id);service.list(project,versionId);
         verify(economics,times(2)).authorize(project,versionId,ProjectMemberPermission.VIEW_PROJECT);
-        verify(jobs).findByIdAndVersionId(id,versionId);
+        verify(jobs).findByIdAndScenarioId(id,scenarioIdOf(versionId));
     }
 
     @Test
@@ -112,7 +117,7 @@ class EconomicJobServiceTest {
     void submissionRefusedBySimulationPermissionQueuesNothing() {
         when(economics.authorizeSimulation(project,versionId)).thenThrow(new org.enerscope.common.ForbiddenException("You are not allowed to simulate this version"));
         assertThrows(org.enerscope.common.ForbiddenException.class,()->service.submit(project,versionId,null));
-        verify(economics,never()).configuration(any());
+        verify(economics,never()).configuration(any(UUID.class));verify(economics,never()).configuration(any(org.enerscope.scenario.model.Scenario.class));
         verifyNoInteractions(jobs);
     }
 

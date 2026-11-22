@@ -12,13 +12,22 @@ import org.enerscope.version.model.Version;
 @Getter
 @NoArgsConstructor
 public class EconomicConfigurationEntity extends BaseEntity {
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "version_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "version_id", nullable = false)
     private Version version;
     @Column(name = "configuration_json", nullable = false, columnDefinition = "text")
     private String configurationJson;
     @jakarta.persistence.Version
     private long revision;
+
+    /** Default scenario of the version (double write, see ScenarioDefaults); nullable until E7. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "scenario_id", unique = true)
+    private org.enerscope.scenario.model.Scenario scenario;
+
+    public void assignScenario(org.enerscope.scenario.model.Scenario scenario) {
+        this.scenario = scenario;
+    }
 
     public EconomicConfigurationEntity(Version version, String json) {
         this.version = version;

@@ -27,7 +27,7 @@ function load(file) {
   return module.exports;
 }
 const directory = fileURLToPath(new URL('../src/components/editor/', import.meta.url));
-const { NODE_TYPE_SPECS, defaultBaseValues, buildNodePayload } = load(path.join(directory, 'nodeCatalog.ts'));
+const { NODE_TYPE_SPECS, defaultBaseValues, buildNodePayload, baseValuesFromDetail } = load(path.join(directory, 'nodeCatalog.ts'));
 const { NodeFormPanel } = load(path.join(directory, 'NodeFormPanel.tsx'));
 const { NodeDataPanel } = load(path.join(directory, 'NodeDataPanel.tsx'));
 const { ThemeContext } = load(path.resolve(directory, '../../hooks/useTheme.ts'));
@@ -219,4 +219,40 @@ test('node panels render Spanish state, type, vertical and role labels while kee
  for (const text of ['Agregar nodo', 'Crear nodo', 'Propuesto', 'Parámetros de Pozo', 'Curva de declinación']) assert.ok(form.includes(text), text);
  assert.match(form, /value="WELL"/);
  assert.match(form, /value="PROPOSED"/);
+});
+
+const detail = { id: 'n', identity: 'i', name: 'Pozo', state: 'RUNNING', type: { vertical: 'EXTRACTION', role: 'GENERATOR', nodeType: 'WELL' },
+  graphData: null, upkeepCosts: 1, operatingCosts: 2, lifespanInMonths: 120, maintenanceIntervalInDays: 30, wastePercentage: 2.5,
+  startupDate: '2030-01-01T00:00:00Z', maintenanceDuration: 7, attributes: {} };
+test('a loaded node round-trips its start-up date and maintenance duration into the edit payload', () => {
+  const spec = NODE_TYPE_SPECS.find(s => s.type === 'WELL');
+  const base = baseValuesFromDetail(detail);
+  assert.equal(base.startupDate, '2030-01-01T00:00:00Z');
+  assert.equal(base.maintenanceDuration, 7);
+  assert.equal(base.wastePercentage, 2.5);
+  const payload = buildNodePayload(spec, base, {}, {}, 'i');
+  assert.equal(payload.startupDate, '2030-01-01T00:00:00Z');
+  assert.equal(payload.maintenanceDuration, 7);
+  assert.equal(payload.wastePercentage, 2.5);
+});
+test('a node without a start-up date sends none (never null), so the backend keeps whatever is stored', () => {
+  const spec = NODE_TYPE_SPECS.find(s => s.type === 'WELL');
+  for (const stored of [undefined, null]) {
+    const base = baseValuesFromDetail({ ...detail, startupDate: stored, maintenanceDuration: null });
+    assert.equal(base.maintenanceDuration, 0);
+    const payload = buildNodePayload(spec, base, {}, {});
+    assert.ok(!('startupDate' in payload));
+  }
+  assert.ok(!('startupDate' in buildNodePayload(spec, defaultBaseValues(), {}, {})));
+});
+test('the edit form shows start-up date, maintenance duration in hours and losses, and states that a date cannot be cleared', () => {
+  const markup = renderToStaticMarkup(React.createElement(NodeFormPanel, { mode: 'edit', busy: false,
+    initial: { type: 'WELL', base: baseValuesFromDetail(detail), typeFields: {} }, onSubmit: noop, onClose: noop }));
+  assert.match(markup, /Puesta en marcha/);
+  assert.match(markup, /type="date"[^>]*value="2030-01-01"|value="2030-01-01"[^>]*type="date"/);
+  assert.match(markup, /Duración del mantenimiento \(horas\)/);
+  assert.match(markup, /value="7"/);
+  assert.match(markup, /Pérdidas \(%\)/);
+  assert.match(markup, /value="2.5"/);
+  assert.match(markup, /no borrar/);
 });

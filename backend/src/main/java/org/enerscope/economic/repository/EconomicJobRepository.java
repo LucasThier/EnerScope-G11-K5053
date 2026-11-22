@@ -6,6 +6,10 @@ import org.enerscope.economic.model.enums.EconomicJobStatus;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 public interface EconomicJobRepository extends JpaRepository<EconomicJob,UUID> {
+    List<EconomicJob> findByScenarioIdOrderByCreatedAtDesc(UUID scenarioId);
+    boolean existsByVersionIdIn(Collection<UUID> versionIds);
+    boolean existsByScenarioIdAndStatusIn(UUID scenarioId,Collection<EconomicJobStatus> statuses);
+    Optional<EconomicJob> findByIdAndScenarioId(UUID id,UUID scenarioId);
     List<EconomicJob> findByVersionIdOrderByCreatedAtDesc(UUID versionId);
     Optional<EconomicJob> findByIdAndVersionId(UUID id,UUID versionId);
     Optional<EconomicJob> findByEvaluationId(UUID evaluationId);

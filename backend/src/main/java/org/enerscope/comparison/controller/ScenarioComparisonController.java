@@ -18,7 +18,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Compares economic evaluations (results) of the scenarios of one project. Every
+ * Compares the saved simulations (economic evaluations) of scenarios of one project — of the same version or of different
+ * versions — and keeps saved comparisons readable after a scenario or a version is deleted. Every
  * route falls through to {@code anyRequest().authenticated()} in
  * {@code SecurityConfig}; project permissions are checked in the service.
  */
@@ -33,16 +34,19 @@ public class ScenarioComparisonController {
 
     @GetMapping("/scenarios")
     @Operation(summary = "Scenarios that can be compared",
-            description = "Every scenario of the project with the status of its latest simulation "
-                    + "(up to date, outdated, never simulated, simulating) and whether the caller can simulate it.")
+            description = "Every active scenario of every active version of the project, grouped by version (scenarioId, scenarioName, "
+                    + "versionId, versionName), each with the status of its own latest simulation (up to date, outdated, never simulated, "
+                    + "simulating) and whether the caller can simulate it.")
     public ResponseEntity<ApiResponse<List<ComparableScenarioDTO>>> scenarios(@PathVariable UUID projectId) {
         return Responses.ok("Comparable scenarios", statuses.list(projectId));
     }
 
     @PostMapping("/preview")
     @Operation(summary = "Compare evaluations without saving",
-            description = "Two to " + ScenarioComparisonService.MAX_SCENARIOS + " scenarios from any project the caller "
-                    + "can see, compared with each other. Each one uses its latest simulation, which must be up to date.")
+            description = "Two to " + ScenarioComparisonService.MAX_SCENARIOS + " scenarios of this project (same or different "
+                    + "versions), named by scenarioId and compared with each other. Each one uses its latest simulation, which must be up to "
+                    + "date. versionId is accepted only for compatibility (deprecated): it means that version's default scenario. "
+                    + "403 for the whole request without VIEW_PROJECT; 404 for an unknown, deleted or other-project scenario; then 400.")
     public ResponseEntity<ApiResponse<ComparisonResultDTO>> preview(@PathVariable UUID projectId,
                                                                     @RequestBody ComparisonRequestDTO request) {
         return Responses.ok("Comparison calculated", service.preview(projectId, request));
@@ -50,8 +54,8 @@ public class ScenarioComparisonController {
 
     @PostMapping
     @Operation(summary = "Run and save a comparison",
-            description = "Compares like /preview, stores which simulations were compared and returns the result. "
-                    + "Without a name, it is named after its scenarios.")
+            description = "Compares like /preview (needs EDIT_PROJECT), stores which simulations were compared, with the version and scenario "
+                    + "names as they are now, and returns the result. Without a name, it is named after its scenarios.")
     public ResponseEntity<ApiResponse<SavedComparisonDTO>> save(@PathVariable UUID projectId,
                                                                 @RequestBody ComparisonRequestDTO request) {
         return Responses.created("Comparison saved", service.save(projectId, request));
@@ -64,7 +68,8 @@ public class ScenarioComparisonController {
     }
 
     @GetMapping("/{comparisonId}")
-    @Operation(summary = "Read a saved comparison", description = "Recalculated from the immutable evaluations it compares.")
+    @Operation(summary = "Read a saved comparison", description = "Recalculated from the immutable evaluations it compares. Each item is read through its own evaluation: a scenario "
+                    + "or version deleted since is flagged deleted and still shows the names and data it was saved with.")
     public ResponseEntity<ApiResponse<SavedComparisonDTO>> get(@PathVariable UUID projectId,
                                                                @PathVariable UUID comparisonId) {
         return Responses.ok("Comparison", service.get(projectId, comparisonId));

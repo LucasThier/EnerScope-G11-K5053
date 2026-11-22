@@ -113,6 +113,10 @@ public class VersionService {
     private final VersionConflictService versionConflictService;
     private final VersionAccessGuard accessGuard;
     private final VersionLineage lineage;
+    private final org.enerscope.scenario.service.ScenarioDefaults scenarioDefaults;
+    private final org.enerscope.economic.repository.EconomicJobRepository economicJobs;
+    private final org.enerscope.economic.repository.EconomicEvaluationRepository economicEvaluations;
+    private final org.enerscope.comparison.repository.ScenarioComparisonItemRepository comparisonItems;
 
     /**
      * Creates a version detached from every project, for
@@ -127,7 +131,7 @@ public class VersionService {
     }
 
     /**
-     * Creates a version. Deliberately unguarded: it is reached either through
+     * Creates a version and its default scenario ("Escenario base", empty) in the same transaction. Deliberately unguarded: it is reached either through
      * {@code ProjectService.saveVersion}, which authorizes the owning project
      * before calling it, or through {@link #saveOrphanVersion}, which requires a
      * platform ADMIN. There is no version id to check yet at this point.
@@ -193,6 +197,10 @@ public class VersionService {
                 new ArrayList<>(), new ArrayList<>());
 
         Version saved = versionRepository.save(version);
+        // Every active version always has its default scenario, "Escenario base", created in this same transaction. A branch
+        // does not inherit its parent's scenarios or economics (only the physical nodes and connections are copied above):
+        // it is born with its own empty base scenario.
+        scenarioDefaults.forVersion(saved);
 
         logger.info("Registered the {} version", saved.getName());
         return saved;
@@ -210,6 +218,16 @@ public class VersionService {
             if (!versionId.equals(id)) {
                 accessGuard.assertCanManageDescendant(id, versionId);
             }
+        }
+
+        // 403 (above) comes first, then 404 (above), then this 409. A version's simulations and the saved comparisons that use it
+        // must not be lost or break a foreign key: one version in the subtree with any of them refuses the whole delete, before
+        // anything is touched. Versions with nothing of the sort are deleted as before, together with their scenarios.
+        if (economicJobs.existsByVersionIdIn(versionsToDelete)
+                || economicEvaluations.existsByVersionIdIn(versionsToDelete)
+                || comparisonItems.existsByVersionIdIn(versionsToDelete)) {
+            logger.warn("Deleting version {} refused: it or a version below it has simulations or saved comparisons", id);
+            throw new VersionHasResultsException();
         }
 
         Collections.reverse(versionsToDelete);
@@ -378,7 +396,7 @@ public class VersionService {
                 type, toGraphDataDTO(node.getGraphData()),
                 money(node.getUpkeepCosts()), money(node.getOperatingCosts()),
                 node.getLifespanInMonths(), node.getMaintenanceIntervalInDays(),
-                (double) node.getWastePercentage(),
+                (double) node.getWastePercentage(), node.getStartupDate(), node.getMaintenanceDuration(),
                 typeAttributes(node), node instanceof Well w
                     ? org.enerscope.node.dto.ProbabilisticDistributionDTO.from(w.getDeclineCurve()) : null);
     }

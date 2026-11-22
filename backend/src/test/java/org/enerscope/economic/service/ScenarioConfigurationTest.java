@@ -110,29 +110,51 @@ class ScenarioConfigurationTest {
  }
 
  @Test
- void publishesPhysicsAndEconomicsTogetherAndRemapsReferencesWithoutMutatingParent() {
-  var parent=em.find(Version.class,versionId);
-  var child=new Version("Child",parent,new ArrayList<>(parent.getNodeSnapshot()),new ArrayList<>(),new ArrayList<>(),new ArrayList<>());em.persist(child);
-  em.find(Project.class,projectId).addVersion(child);em.flush();
-  economics.save(projectId,child.getId(),economics.get(projectId,versionId));
-  var state=scenarios.get(projectId,child.getId());var input=request(state);
-  input.operations().get(well.getId()).put("maxCollectionCapacity",mapper.valueToTree("250"));
+ void publishesOnlyTheEconomicsAndLeavesTheNodesOfTheVersionUntouched() {
+  var state=scenarios.get(projectId,versionId);var input=request(state);
   ((com.fasterxml.jackson.databind.node.ObjectNode)input.configuration()).put("wacc",0.2);
-  var saved=scenarios.save(projectId,child.getId(),input);
+  var saved=scenarios.save(projectId,versionId,input);
   assertNull(saved.draft());assertEquals(0,new java.math.BigDecimal("0.2").compareTo(saved.configuration().wacc()));
-  var changed=saved.nodes().stream().filter(n->n.identity().equals(well.getIdentityId())).findFirst().orElseThrow();
-  assertNotEquals(well.getId(),changed.id());assertEquals(250,changed.values().get("maxCollectionCapacity").asInt());
-  assertTrue(saved.configuration().conversions().stream().anyMatch(c->c.nodeId().equals(changed.id())));
+  var node=saved.nodes().stream().filter(n->n.identity().equals(well.getIdentityId())).findFirst().orElseThrow();
+  assertEquals(well.getId(),node.id(),"saving a scenario never clones or replaces a node");
   assertEquals(100,well.getMaxCollectionCapacity());
  }
 
  @Test
- void incompleteSavePreservesPublishedValuesAndBlocksJobUntilDiscarded() {
+ void aSaveThatWouldChangeNodeValuesIsRefusedAndNothingIsWritten() {
   var state=scenarios.get(projectId,versionId);var input=request(state);
-  input.operations().get(well.getId()).put("maxCollectionCapacity",mapper.valueToTree(""));
-  var saved=scenarios.save(projectId,versionId,input);
-  assertNotNull(saved.draft());assertFalse(saved.errors().isEmpty());assertEquals(100,well.getMaxCollectionCapacity());
+  input.operations().get(well.getId()).put("maxCollectionCapacity",mapper.valueToTree("250"));
+  var error=assertThrows(IllegalArgumentException.class,()->scenarios.save(projectId,versionId,input));
+  assertTrue(error.getMessage().contains("se editan en cada nodo de la versión"));
+  assertEquals(100,well.getMaxCollectionCapacity());assertNull(scenarios.get(projectId,versionId).draft());
+ }
+
+ @Test
+ void incompleteSavePreservesPublishedValuesAndBlocksJobUntilDiscarded() {
+  var state=scenarios.get(projectId,versionId);var valid=request(state);var published=economics.get(projectId,versionId);
+  var saved=scenarios.save(projectId,versionId,new SaveRequest(valid.token(),valid.sourceToken(),valid.editor(),null,valid.operations()));
+  assertNotNull(saved.draft());assertFalse(saved.errors().isEmpty());
+  assertEquals(published,economics.get(projectId,versionId),"an incomplete save never touches the published configuration");
   assertThrows(IllegalArgumentException.class,()->jobs.submit(projectId,versionId,new EconomicJobRequest(1,"42")));
+ }
+
+ @Test
+ void aDraftThatCarriesNodeValuesIsMarkedSoTheScreenCanExplainThatTheyAreNoLongerApplied() throws Exception {
+  var state=scenarios.get(projectId,versionId);var valid=request(state);
+  var withOperation=request(state);withOperation.operations().get(well.getId()).put("maxCollectionCapacity",mapper.valueToTree("250"));
+  // A draft saved before "Operación" moved to the version: stored as the legacy client would have sent it.
+  em.persist(draftWith(new SaveRequest(valid.token(),valid.sourceToken(),valid.editor(),null,withOperation.operations())));em.flush();em.clear();
+  var loaded=scenarios.get(projectId,versionId);
+  assertTrue(loaded.draftOperationsIgnored());assertNotNull(loaded.draft());
+  scenarios.discard(projectId,versionId,loaded.token());
+  assertFalse(scenarios.get(projectId,versionId).draftOperationsIgnored());
+ }
+
+ org.enerscope.scenario.model.ScenarioDraft draftWith(SaveRequest request) throws Exception {
+  var version=em.find(Version.class,versionId);
+  var draft=new org.enerscope.scenario.model.ScenarioDraft(version,mapper.writeValueAsString(request));
+  draft.assignScenario(em.createQuery("select s from Scenario s where s.version.id=:v and s.defaultScenario=true",org.enerscope.scenario.model.Scenario.class).setParameter("v",versionId).getSingleResult());
+  return draft;
  }
 
  @Test

@@ -1,5 +1,6 @@
 package org.enerscope.node.dto;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -35,6 +36,10 @@ public class NodeDetailDTO {
     private Integer lifespanInMonths;
     private Integer maintenanceIntervalInDays;
     private Double wastePercentage;
+    /** Null when the node has no start-up date; the edit form sends it back so an edit never erases it. */
+    private Instant startupDate;
+    /** Hours. */
+    private Integer maintenanceDuration;
 
     // Type-specific fields keyed by the frontend field keys.
     private Map<String, Double> attributes;

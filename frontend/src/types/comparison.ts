@@ -22,8 +22,14 @@ export type ScenarioStatus = 'UP_TO_DATE' | 'OUTDATED' | 'NEVER_SIMULATED' | 'SI
 export interface ComparableScenario {
   projectId: string;
   projectName: string;
+  /** The version (physical base) the scenario rests on; scenarios are grouped by it. */
   versionId: string;
   versionName: string;
+  /** What a comparison names. */
+  scenarioId: string;
+  scenarioName: string;
+  defaultScenario: boolean;
+  /** The status of this scenario's own latest simulation. */
   status: ScenarioStatus;
   latestEvaluationId: string | null;
   latestEvaluatedAt: string | null;
@@ -36,7 +42,7 @@ export interface ComparableScenario {
 }
 
 /** A compared scenario: always through its latest, up-to-date simulation. */
-export interface ComparisonItem { versionId: string }
+export interface ComparisonItem { scenarioId: string }
 
 export interface ComparisonRequest {
   name?: string | null;
@@ -65,6 +71,11 @@ export interface ComparedScenario {
   projectName: string;
   versionId: string;
   versionName: string;
+  /** Null only for results saved before scenarios existed. */
+  scenarioId: string | null;
+  scenarioName: string | null;
+  /** The scenario or its version was deleted after the comparison was saved; the saved data is still shown. */
+  deleted: boolean;
   evaluatedAt: string;
   mode: EvaluationMode;
   rounds: number;
@@ -138,7 +149,23 @@ export interface ComparisonResult {
   findings: Finding[];
 }
 
-export interface ComparisonSummary { id: string; name: string; description: string | null; scenarios: string[]; createdAt: string }
+export interface ComparisonSummary {
+  id: string; name: string; description: string | null;
+  /** "Versión · Escenario" of each item, with the names it was saved with. */
+  scenarios: string[];
+  hasDeletedScenarios: boolean;
+  createdAt: string;
+}
+
+/** A compared scenario of a saved comparison, with the names it had when the comparison was saved. */
+export interface SavedComparisonItem {
+  scenarioId: string | null;
+  versionId: string;
+  evaluationId: string;
+  scenarioName: string | null;
+  versionName: string;
+  deleted: boolean;
+}
 
 export interface SavedComparison {
   id: string;
@@ -147,6 +174,6 @@ export interface SavedComparison {
   relevanceThreshold: number;
   rateThreshold: number;
   createdAt: string;
-  items: { versionId: string; evaluationId: string }[];
+  items: SavedComparisonItem[];
   result: ComparisonResult;
 }

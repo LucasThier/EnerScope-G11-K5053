@@ -238,17 +238,59 @@ export function groupMetrics(rows: MetricRow[], relevantOnly = false): MetricGro
   })).filter(group => group.rows.length > 0);
 }
 
+/** The label of a deleted scenario in a saved comparison. */
+export const DELETED_SUFFIX = ' (eliminado)';
+export const DELETED_NOTE = 'se eliminó el escenario o su versión después de guardar esta comparación; se muestran los datos que tenía guardados.';
+
+/** "Versión · Escenario", or just the version for results saved before scenarios existed. */
+export function scenarioLabel(scenario: { versionName: string; scenarioName?: string | null }): string {
+  return scenario.scenarioName ? `${scenario.versionName} · ${scenario.scenarioName}` : scenario.versionName;
+}
+
 /**
- * Version names, with the project when scenarios come from several projects, and
- * the position when two evaluations of one version are compared (as the backend does).
+ * The names a result shows, as the backend writes them in its findings: the scenario name when it is distinct among the
+ * compared scenarios, otherwise "versión · escenario" (default scenarios of different versions share a name), the version
+ * name for results saved before scenarios existed, and the position when two evaluations of one scenario are compared.
+ * A scenario deleted since the comparison was saved carries "(eliminado)".
  */
-export function scenarioNames(result: { scenarios: Pick<ComparedScenario, 'evaluationId' | 'versionName' | 'projectId' | 'projectName'>[] }): Record<string, string> {
-  const manyProjects = new Set(result.scenarios.map(s => s.projectId)).size > 1;
-  const base = result.scenarios.map(s => manyProjects && s.projectName ? `${s.versionName} (${s.projectName})` : s.versionName);
+export function scenarioNames(result: { scenarios: Pick<ComparedScenario, 'evaluationId' | 'versionName' | 'scenarioName' | 'deleted'>[] }): Record<string, string> {
+  const nameCounts = new Map<string, number>();
+  result.scenarios.forEach(s => nameCounts.set(String(s.scenarioName), (nameCounts.get(String(s.scenarioName)) ?? 0) + 1));
+  const base = result.scenarios.map(s => {
+    if (!s.scenarioName) return s.versionName;
+    return (nameCounts.get(s.scenarioName) ?? 0) > 1 ? `${s.versionName} · ${s.scenarioName}` : s.scenarioName;
+  });
   const counts = new Map<string, number>();
   base.forEach(name => counts.set(name, (counts.get(name) ?? 0) + 1));
-  return Object.fromEntries(result.scenarios.map((s, index) =>
-    [s.evaluationId, (counts.get(base[index]) ?? 0) > 1 ? `${base[index]} #${index + 1}` : base[index]]));
+  return Object.fromEntries(result.scenarios.map((s, index) => {
+    const name = (counts.get(base[index]) ?? 0) > 1 ? `${base[index]} #${index + 1}` : base[index];
+    return [s.evaluationId, s.deleted ? name + DELETED_SUFFIX : name];
+  }));
+}
+
+/** How many of the compared scenarios were deleted after the comparison was saved. */
+export function deletedCount(result: { scenarios: Pick<ComparedScenario, 'deleted'>[] }): number {
+  return result.scenarios.filter(s => s.deleted).length;
+}
+
+export interface VersionGroup { versionId: string; versionName: string; scenarios: ComparableScenario[] }
+
+/** The picker's scenarios grouped by version, in the order the server lists them (versions oldest first). */
+export function groupByVersion(scenarios: ComparableScenario[]): VersionGroup[] {
+  const groups = new Map<string, VersionGroup>();
+  for (const scenario of scenarios) {
+    const group = groups.get(scenario.versionId) ?? { versionId: scenario.versionId, versionName: scenario.versionName, scenarios: [] };
+    group.scenarios.push(scenario);
+    groups.set(scenario.versionId, group);
+  }
+  return [...groups.values()];
+}
+
+/** The picker's search: matches the scenario name or its version's name. */
+export function filterScenarios(scenarios: ComparableScenario[], query: string): ComparableScenario[] {
+  const text = query.trim().toLocaleLowerCase('es');
+  if (!text) return scenarios;
+  return scenarios.filter(s => s.scenarioName.toLocaleLowerCase('es').includes(text) || s.versionName.toLocaleLowerCase('es').includes(text));
 }
 
 export function metricRow(result: Pick<ComparisonResult, 'metrics'>, metric: ComparisonMetric): MetricRow | undefined {
@@ -432,26 +474,72 @@ export function selectionCheck(selected: ComparableScenario[]): SelectionCheck {
 }
 
 /** The request for the selected scenarios; their order only decides their colours. */
-export function toRequest(versionIds: string[]): ComparisonRequest {
-  return { items: versionIds.map(versionId => ({ versionId })) };
+export function toRequest(scenarioIds: string[]): ComparisonRequest {
+  return { items: scenarioIds.map(scenarioId => ({ scenarioId })) };
 }
 
-export interface SelectionRef { projectId: string; versionId: string }
+export interface SelectionRef { projectId: string; scenarioId: string }
 
-/** `?escenarios=project:version,…` so "Elegir otros escenarios" reopens the picker with the same ones. */
+/** `?escenarios=project:scenario,…` so "Elegir otros escenarios" reopens the picker with the same ones. */
 export function selectionToQuery(selection: SelectionRef[]): string {
-  return selection.map(s => `${s.projectId}:${s.versionId}`).join(',');
+  return selection.map(s => `${s.projectId}:${s.scenarioId}`).join(',');
 }
 
-export function selectionFromQuery(value: string | null): SelectionRef[] {
+/** With `projectId`, scenarios of any other project are dropped: a comparison never crosses projects. */
+export function selectionFromQuery(value: string | null, projectId?: string): SelectionRef[] {
   if (!value) return [];
   const seen = new Set<string>();
   const refs: SelectionRef[] = [];
   for (const part of value.split(',')) {
-    const [projectId, versionId] = part.trim().split(':');
-    if (!projectId || !versionId || seen.has(versionId)) continue;
-    seen.add(versionId);
-    refs.push({ projectId, versionId });
+    const [ref, scenarioId] = part.trim().split(':');
+    if (!ref || !scenarioId || seen.has(scenarioId) || (projectId && ref !== projectId)) continue;
+    seen.add(scenarioId);
+    refs.push({ projectId: ref, scenarioId });
   }
   return refs.slice(0, MAX_SCENARIOS);
+}
+
+export interface ResolvedSelection {
+  refs: SelectionRef[];
+  /** Entries in the old `project:version` format that were turned into their version's default scenario. */
+  migrated: number;
+  /** Entries that match no scenario of the project (deleted, or from another project) and were dropped. */
+  discarded: number;
+}
+
+/**
+ * Checks a selection against the project's scenarios. An id that is a scenario stays; an id that is a **version** (the format
+ * used before scenarios existed) becomes that version's default scenario; anything else is dropped, and the caller says so.
+ */
+export function resolveSelection(refs: SelectionRef[], catalog: ComparableScenario[]): ResolvedSelection {
+  const byScenario = new Map(catalog.map(s => [s.scenarioId, s]));
+  const resolved: SelectionRef[] = [];
+  const seen = new Set<string>();
+  let migrated = 0;
+  let discarded = 0;
+  for (const ref of refs) {
+    let scenario = byScenario.get(ref.scenarioId);
+    let wasVersion = false;
+    if (!scenario) {
+      const ofVersion = catalog.filter(s => s.versionId === ref.scenarioId);
+      scenario = ofVersion.find(s => s.defaultScenario) ?? ofVersion[0];
+      wasVersion = !!scenario;
+    }
+    if (!scenario || seen.has(scenario.scenarioId)) {
+      if (!scenario) discarded += 1;
+      continue;
+    }
+    seen.add(scenario.scenarioId);
+    if (wasVersion) migrated += 1;
+    resolved.push({ projectId: scenario.projectId, scenarioId: scenario.scenarioId });
+  }
+  return { refs: resolved.slice(0, MAX_SCENARIOS), migrated, discarded };
+}
+
+/** The sentence that tells the person what happened to the selection they arrived with; null when nothing changed. */
+export function selectionNotice(resolved: Pick<ResolvedSelection, 'migrated' | 'discarded'>): string | null {
+  const parts: string[] = [];
+  if (resolved.migrated) parts.push(`${resolved.migrated} ${resolved.migrated === 1 ? 'enlace apuntaba' : 'enlaces apuntaban'} a una versión: se eligió su escenario por defecto`);
+  if (resolved.discarded) parts.push(`${resolved.discarded} ${resolved.discarded === 1 ? 'escenario ya no existe' : 'escenarios ya no existen'} y se quitó de la selección`);
+  return parts.length ? parts.join('; ') + '.' : null;
 }

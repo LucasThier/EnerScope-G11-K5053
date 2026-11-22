@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { ComparableScenario } from '../../types/comparison';
+import { scenarioLabel } from '../../utils/comparison';
+import { scenarioConfigurationPath } from '../../utils/scenarioRoutes';
 import { TONE_CLASSES, scenarioStatusView, seriesColor } from '../../utils/comparison';
 import { Button } from '../ui/Button';
 import { Spinner } from '../ui/Spinner';
@@ -28,13 +30,13 @@ export function ScenarioTile({ scenario, position, disabled, starting, error, on
     selected ? 'border-brand-700 ring-2 ring-brand-700' : 'border-ink-100 hover:border-ink-300'}`}>
     <label className={`flex flex-1 items-start gap-3 p-4 ${disabled && !selected ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
       <input type="checkbox" className="mt-1 h-5 w-5 shrink-0 accent-brand-800" checked={selected}
-        aria-label={`Comparar ${scenario.versionName} (${scenario.projectName})`}
+        aria-label={`Comparar ${scenarioLabel(scenario)}`}
         disabled={disabled && !selected} onChange={onToggle} />
       <span className="flex min-w-0 flex-1 flex-col gap-2">
         <span className="flex items-start justify-between gap-2">
           <span className="min-w-0">
-            <span className="block truncate text-base font-semibold text-ink-800">{scenario.versionName}</span>
-            <span className="block truncate text-xs text-ink-500">{scenario.projectName}</span>
+            <span className="block truncate text-base font-semibold text-ink-800">{scenario.scenarioName}</span>
+            <span className="block truncate text-xs text-ink-500">Versión: {scenario.versionName}{scenario.defaultScenario ? ' · escenario por defecto' : ''}</span>
           </span>
           {selected && <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-ink-50 px-2 py-0.5 text-xs font-medium text-ink-700">
             <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${seriesColor(position).bg}`} />
@@ -54,7 +56,7 @@ export function ScenarioTile({ scenario, position, disabled, starting, error, on
       {error && <p className="text-xs text-danger-700">{error}</p>}
       {needsRun && (!scenario.ready ? <p className="text-xs text-ink-600">
           No se puede simular todavía: {scenario.readinessErrors.join(' ') || 'la configuración está incompleta.'}{' '}
-          <Link className="text-brand-800 underline" to={`/projects/${scenario.projectId}/versions/${scenario.versionId}/economics/configuration`}>
+          <Link className="text-brand-800 underline" to={scenarioConfigurationPath(scenario.projectId, scenario.versionId, scenario.scenarioId)}>
             Completar configuración</Link>
         </p>
         : !scenario.canSimulate ? <p className="text-xs text-ink-600">No tenés permiso para simular en este proyecto.</p>

@@ -153,6 +153,8 @@ class PostgreSqlEconomicIT {
         var queued=new org.enerscope.economic.model.EconomicJob(current,input,2,"42");
         var running=new org.enerscope.economic.model.EconomicJob(current,input,2,"42");
         ReflectionTestUtils.setField(running,"status",org.enerscope.economic.model.enums.EconomicJobStatus.RUNNING);
+        var defaultScenario=org.enerscope.scenario.ScenarioFixtures.defaultScenario(em,current);
+        queued.assignScenario(defaultScenario);running.assignScenario(defaultScenario);
         em.persist(queued);em.persist(running);em.flush();
         UUID queuedId=queued.getId(),runningId=running.getId(),projectId=project.getId(),versionId=current.getId();
         jobs.interruptPending();em.clear();
@@ -189,7 +191,8 @@ class PostgreSqlEconomicIT {
         com.fasterxml.jackson.databind.node.ObjectNode tree = MAPPER.valueToTree(snapshot);
         ((com.fasterxml.jackson.databind.node.ObjectNode)tree.path("result")).remove("indicators");
         String original = tree.toString();
-        var stored = new org.enerscope.economic.model.EconomicEvaluation(version, original); em.persist(stored);
+        var defaultScenario = org.enerscope.scenario.ScenarioFixtures.defaultScenario(em, version);
+        var stored = new org.enerscope.economic.model.EconomicEvaluation(version, original); stored.assignScenario(defaultScenario); em.persist(stored);
         // The current configuration deliberately has a different WACC.
         var current = mutate(c -> c.put("wacc", 0));
         em.persist(new org.enerscope.economic.model.EconomicConfigurationEntity(version, MAPPER.writeValueAsString(current)));

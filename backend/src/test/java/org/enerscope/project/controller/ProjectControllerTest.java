@@ -188,6 +188,26 @@ class ProjectControllerTest {
     }
 
     @Test
+    void createVersionWithParentReturnsParentIdWithoutSerializingEntity() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        UUID parentId = UUID.randomUUID();
+        Version parent = new Version();
+        org.springframework.test.util.ReflectionTestUtils.setField(parent, "id", parentId);
+        Version child = new Version();
+        child.setName("Child");
+        child.setParentVersion(parent);
+        when(projectService.saveVersion(eq(projectId), any(VersionDTO.class))).thenReturn(child);
+
+        mockMvc.perform(post("/projects/" + projectId + "/version")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(new VersionDTO("Child", parentId))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("Child"))
+                .andExpect(jsonPath("$.data.parentVersionId").value(parentId.toString()));
+    }
+
+    @Test
     void createVersionRequiresAuthenticationWith401() throws Exception {
         mockMvc.perform(post("/projects/" + UUID.randomUUID() + "/version")
                         .contentType(MediaType.APPLICATION_JSON)

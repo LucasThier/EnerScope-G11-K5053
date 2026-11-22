@@ -29,7 +29,8 @@ public class ScenarioReferenceService {
    em.persist(next);version.getConnectionSnapshot().set(i,next);
    version.getConnectionChanges().add(new ConnectionChange(ChangeTypeEnum.EDIT,old,next));
   }
-  configurations.findByVersionId(version.getId()).ifPresent(config->{
+  // Every scenario of the version keeps pointing at the node it referenced: all their configurations are remapped.
+  configurations.findAllByVersionId(version.getId()).forEach(config->{
    try {
     var tree=mapper.readTree(config.getConfigurationJson());
     ScenarioConfigurationService.remapReferences(tree,Map.of(oldId.toString(),newId.toString()));

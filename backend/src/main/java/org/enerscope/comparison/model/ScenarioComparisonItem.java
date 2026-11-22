@@ -36,10 +36,30 @@ public class ScenarioComparisonItem extends BaseEntity {
     @Column(nullable = false, updatable = false)
     private int position;
 
+    /** Default scenario of the version (double write, see ScenarioDefaults); nullable until E7. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "scenario_id")
+    private org.enerscope.scenario.model.Scenario scenario;
+
+    /** The version's name when the comparison was saved (the version may be renamed or deleted later). */
+    @Column(name = "version_name", length = 320, updatable = false)
+    private String versionName;
+
+    /** The scenario's name when the comparison was saved (the scenario may be renamed or deleted later). */
+    @Column(name = "scenario_name", length = 120, updatable = false)
+    private String scenarioName;
+
+    /** Records the scenario and its current name; call it while building the item, before it is saved. */
+    public void assignScenario(org.enerscope.scenario.model.Scenario scenario) {
+        this.scenario = scenario;
+        if (scenario != null) this.scenarioName = scenario.getName();
+    }
+
     public ScenarioComparisonItem(ScenarioComparison comparison, Version version, EconomicEvaluation evaluation,
                                   int position) {
         this.comparison = comparison;
         this.version = version;
+        this.versionName = version.getName();
         this.evaluation = evaluation;
         this.position = position;
     }

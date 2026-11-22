@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { economicsApi } from '../../api/economics';
+import { scenariosApi } from '../../api/scenarios';
 import { getErrorMessage } from '../../api/errors';
 import type { EconomicJob } from '../../types/economics';
 import { jobLabels, jobPending } from '../../utils/probabilisticResults';
 import { dateTime } from '../../utils/economicFormat';
+import { scenarioResultsPath } from '../../utils/scenarioRoutes';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Alert } from '../ui/Alert';
 
-export function EconomicJobs({ projectId, versionId, canEdit, refreshToken }: {
-  projectId: string; versionId: string; canEdit: boolean; refreshToken: number;
+export function EconomicJobs({ projectId, versionId, scenarioId, canEdit, refreshToken }: {
+  projectId: string; versionId: string; scenarioId: string; canEdit: boolean; refreshToken: number;
 }) {
   const [jobs, setJobs] = useState<EconomicJob[]>([]);
   const [collapsed, setCollapsed] = useState(false);
@@ -24,7 +25,7 @@ export function EconomicJobs({ projectId, versionId, canEdit, refreshToken }: {
       if (cancelled || loading || document.visibilityState === 'hidden') return;
       loading = true;
       try {
-        const next = await economicsApi.jobs(projectId, versionId);
+        const next = await scenariosApi.jobs(projectId, scenarioId);
         if (!cancelled) {
           setJobs(next); setError('');
           if (next.some(jobPending)) timer = setTimeout(() => { void load(); }, 2000);
@@ -35,10 +36,10 @@ export function EconomicJobs({ projectId, versionId, canEdit, refreshToken }: {
     function visibility() { clearTimeout(timer); if (document.visibilityState === 'visible') void load(); }
     void load(); document.addEventListener('visibilitychange', visibility);
     return () => { cancelled = true; clearTimeout(timer); document.removeEventListener('visibilitychange', visibility); };
-  }, [projectId, versionId, refreshToken, refresh]);
+  }, [projectId, scenarioId, refreshToken, refresh]);
   async function repeat(job: EconomicJob) {
     setRetrying(job.id); setError('');
-    try { await economicsApi.retryJob(projectId, versionId, job.id); setRefresh(n => n + 1); }
+    try { await scenariosApi.retryJob(projectId, scenarioId, job.id); setRefresh(n => n + 1); }
     catch (e) { setError(getErrorMessage(e, 'No se pudo repetir la ejecución.')); }
     finally { setRetrying(null); }
   }
@@ -59,7 +60,7 @@ export function EconomicJobs({ projectId, versionId, canEdit, refreshToken }: {
       <p className="mt-2 text-sm" role={jobPending(job) ? 'status' : undefined}>{job.completedRounds} de {job.rounds} rondas · Semilla: <span className="break-all">{job.seed}</span></p>
       {jobPending(job) && <progress className="mt-2 w-full accent-brand-800" aria-label="Rondas terminadas" max={job.rounds} value={job.completedRounds} />}
       {job.errorMessage && <p className="mt-2 text-sm text-red-700">{job.errorMessage}</p>}
-      {job.evaluationId && <Link className="mt-2 inline-block text-brand-800 underline" to={`/projects/${projectId}/versions/${versionId}/economics/results/${job.evaluationId}`}>Ver resultados →</Link>}
+      {job.evaluationId && <Link className="mt-2 inline-block text-brand-800 underline" to={scenarioResultsPath(projectId, versionId, scenarioId, job.evaluationId)}>Ver resultados →</Link>}
       {canEdit && ['FAILED','INTERRUPTED'].includes(job.status) && <Button className="mt-2" variant="secondary" disabled={retrying !== null} onClick={() => { void repeat(job); }}>Repetir desde el inicio</Button>}
     </li>)}</ul></>
     }

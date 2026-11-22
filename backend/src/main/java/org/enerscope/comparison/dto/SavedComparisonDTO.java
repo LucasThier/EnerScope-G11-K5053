@@ -18,6 +18,9 @@ public record SavedComparisonDTO(UUID id,
                                  List<Item> items,
                                  ComparisonResultDTO result) {
 
-    /** A compared scenario and the simulation the comparison was made with. */
-    public record Item(UUID versionId, UUID evaluationId) {}
+    /**
+     * A compared scenario and the simulation the comparison was made with. The names are the ones the version and the
+     * scenario had when it was saved; {@code deleted} says one of them has been deleted since (the saved result still opens).
+     */
+    public record Item(UUID scenarioId, UUID versionId, UUID evaluationId, String scenarioName, String versionName, boolean deleted) {}
 }

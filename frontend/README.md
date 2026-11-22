@@ -239,9 +239,25 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   **read-only** for them: `/access` grants no edit, so `editorGates` returns
   `readOnly`. In the projects table, members who cannot administer see **Ver
   equipo** instead of the manage button.
-- **Configuración del escenario**: *Guardar* follows `canEditEconomicConfiguration`;
-  *Crear copia simple* needs edit permission on every vertical of the scenario
-  (`editableVerticals`) and otherwise shows which verticals are missing.
+- **Escenarios** (flow: version → its scenarios → one scenario). A **version** is the physical base; a **scenario** is the
+  economic and simulation configuration that rests on it. `Configuración del Escenario` (`/projects/:p/scenario-configurations`)
+  and `Simulación de Escenarios` (`/projects/:p/simulations`) first list the **versions** ("Versión (base física)", with
+  search); a version opens its scenarios (`/projects/:p/versions/:v/scenarios` for configuration, `/versions/:v/simulations`
+  for simulation): name, status (*Al día / Desactualizado / Sin simular / Simulando…*, read from the API), last simulation,
+  and **Nuevo escenario** (the name is always typed), **Duplicar** (asks a name; copies only the economic configuration),
+  **Renombrar** and **Eliminar** (the confirmation says results and saved comparisons are kept). Buttons follow
+  `/projects/:id/access` and deny by default (`utils/scenarioRules.ts`): create/duplicate/rename/edit need to edit the
+  version, delete needs to administer it, simulate needs to simulate it, the read-only Ejecutivo only reads; a disabled
+  button carries the reason. A scenario opens at `/versions/:v/scenarios/:s/configuration` (economic configuration;
+  **"Operación" is not edited here**: a note and **Editar operación en la versión** lead to the version's node editor,
+  `/editor?versionId=…`; an *Desactualizado* scenario shows "La base cambió: revisá este escenario.", and a recovered draft
+  that carried node values shows "Este borrador traía cambios de operación; editalos en el nodo." with *Descartar
+  borrador*) and `/versions/:v/scenarios/:s/history|results/:evaluationId?`. The old `/versions/:v/economics/...` routes
+  redirect to the version's default scenario. All scenario calls are in `api/scenarios.ts`
+  (`/projects/{p}/scenarios/{s}/...`); their errors are translated in `api/errors.ts`. The comparison screens are unchanged.
+- **Configuración del escenario**: *Guardar* follows the version-edit permission (`utils/scenarioRules.ts`); *Crear copia simple*
+  creates a **new scenario** (typed name) with the simple equivalent of an advanced configuration; a failure leaves the
+  empty scenario in the list and says so.
 - A 403 for a user cached as platform administrator re-reads the user (at most
   once every 5 s, `api/authEvents.ts`); if the session cannot be renewed the app
   returns to the login.

@@ -161,12 +161,17 @@ public class ProjectController {
 
     @PostMapping(value = "/{projectId}/version", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Create a new version", description = "Create a new Version with all required properties.")
-    public ResponseEntity<ApiResponse<Version>> createVersion(
+    public ResponseEntity<ApiResponse<VersionSummaryDTO>> createVersion(
             @PathVariable UUID projectId,
             @RequestBody VersionDTO versionDTO) {
 
         Version version = projectService.saveVersion(projectId, versionDTO);
-        return Responses.ok("Version created successfully", version);
+        // Return a DTO: serializing the entity trips over the lazy parentVersion proxy.
+        VersionSummaryDTO summary = new VersionSummaryDTO(
+                version.getId(), version.getName(), version.getLastModified(), List.of(),
+                version.getParentVersion() == null ? null : version.getParentVersion().getId(),
+                version.getCreatedAt());
+        return Responses.ok("Version created successfully", summary);
     }
 
 

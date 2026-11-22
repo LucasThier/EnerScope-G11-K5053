@@ -11,6 +11,9 @@ import org.enerscope.economic.model.enums.EconomicJobStatus;
 import org.enerscope.economic.model.results.*;
 import org.enerscope.economic.repository.*;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.scenario.model.Scenario;
+import org.enerscope.version.model.Version;
+import org.enerscope.scenario.service.ScenarioDefaults;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,24 +29,45 @@ public class EconomicJobService {
     private final EconomicEvaluationRepository evaluations;
     private final ObjectMapper mapper;
     private final AppLogger logger;
+    private final ScenarioDefaults scenarioDefaults;
 
     public EconomicJobDTO submit(UUID projectId,UUID versionId,EconomicJobRequest request) {
         var version=economics.authorizeSimulation(projectId,versionId);
-        economics.assertNoDraft(version);
-        var configuration=economics.configuration(versionId);
+        economics.lock(version);
+        return submitIn(version,scenarioDefaults.forVersion(version),request);
+    }
+
+    /** Queues a simulation of {@code scenario}; the caller has authorized the simulation. */
+    public EconomicJobDTO submitIn(Version version,Scenario scenario,EconomicJobRequest request) {
+        economics.assertNoDraft(version,scenario);
+        var configuration=economics.configuration(scenario);
         validator.validate(configuration,economics.nodeIds(version));
         economics.validateExportNodes(configuration,version);
         if(request==null) request=new EconomicJobRequest(null,null);
         var input=codec.freeze(version,configuration,request.roundCount(),request.seedValue());
-        var stored=jobs.saveAndFlush(new EconomicJob(version,json(input),input.simulation().rounds(),input.simulation().seed()));
-        logger.info("Economic job {} queued for version {}",stored.getId(),versionId);
+        var queued=new EconomicJob(version,json(input),input.simulation().rounds(),input.simulation().seed());
+        queued.assignScenario(scenario);
+        var stored=jobs.saveAndFlush(queued);
+        logger.info("Economic job {} queued for scenario {} of version {}",stored.getId(),scenario.getId(),version.getId());
         return dto(stored);
     }
 
     @Transactional(readOnly=true)
     public List<EconomicJobDTO> list(UUID projectId,UUID versionId) {
         economics.authorize(projectId,versionId,ProjectMemberPermission.VIEW_PROJECT);
-        return jobs.findByVersionIdOrderByCreatedAtDesc(versionId).stream().map(this::dto).toList();
+        return scenarioDefaults.existing(versionId).stream().flatMap(s->jobsOf(s).stream()).toList();
+    }
+
+    /** The jobs of a scenario, newest first. */
+    @Transactional(readOnly=true)
+    public List<EconomicJobDTO> jobsOf(Scenario scenario) {
+        return jobs.findByScenarioIdOrderByCreatedAtDesc(scenario.getId()).stream().map(this::dto).toList();
+    }
+
+    /** One job of a scenario; another scenario's job is a 404. */
+    @Transactional(readOnly=true)
+    public EconomicJobDTO jobOf(Scenario scenario,UUID id) {
+        return dto(findIn(scenario,id));
     }
 
     @Transactional(readOnly=true)
@@ -54,11 +78,22 @@ public class EconomicJobService {
 
     public EconomicJobDTO retry(UUID projectId,UUID versionId,UUID id) {
         var version=economics.authorizeSimulation(projectId,versionId);
-        var old=find(versionId,id);
+        return repeat(version,find(versionId,id));
+    }
+
+    /** Repeats a failed or interrupted job of {@code scenario}; the caller has authorized the simulation. */
+    public EconomicJobDTO retryIn(Version version,Scenario scenario,UUID id) {
+        return repeat(version,findIn(scenario,id));
+    }
+
+    private EconomicJobDTO repeat(Version version,EconomicJob old) {
+        var id=old.getId();
         if(old.getStatus()!=FAILED && old.getStatus()!=INTERRUPTED)
             throw new IllegalArgumentException("Only failed or interrupted jobs can be repeated");
         codec.thaw(read(old.getInputJson(),FrozenEconomicInput.class));
-        var copy=jobs.saveAndFlush(new EconomicJob(version,old.getInputJson(),old.getRounds(),old.getSeed()));
+        var repeated=new EconomicJob(version,old.getInputJson(),old.getRounds(),old.getSeed());
+        repeated.assignScenario(old.getScenario()!=null ? old.getScenario() : scenarioDefaults.forVersion(version));
+        var copy=jobs.saveAndFlush(repeated);
         logger.info("Economic job {} repeats job {}",copy.getId(),id);
         return dto(copy);
     }
@@ -70,6 +105,26 @@ public class EconomicJobService {
     }
 
     @Transactional(readOnly=true)
+    public List<EconomicRoundSummary> roundSummariesOf(Scenario scenario,UUID evaluationId) {
+        var job=completedJobOf(scenario,evaluationId);
+        return rounds.summaries(job.getId()).stream().map(s->read(s,EconomicRoundSummary.class)).toList();
+    }
+
+    @Transactional(readOnly=true)
+    public EconomicRoundResult roundOf(Scenario scenario,UUID evaluationId,int number) {
+        var job=completedJobOf(scenario,evaluationId);
+        return read(rounds.findByJobIdAndRoundNumber(job.getId(),number)
+                .orElseThrow(()->new EntityNotFoundException("Economic round not found")).getSnapshotJson(),EconomicRoundResult.class);
+    }
+
+    private EconomicJob completedJobOf(Scenario scenario,UUID evaluationId) {
+        if(evaluations.findByIdAndScenarioId(evaluationId,scenario.getId()).isEmpty())
+            throw new EntityNotFoundException("Economic evaluation not found");
+        return jobs.findByEvaluationId(evaluationId).filter(j->j.getStatus()==COMPLETED)
+                .orElseThrow(()->new EntityNotFoundException("Evaluation has no probabilistic rounds"));
+    }
+
+    @Transactional(readOnly=true)
     public EconomicRoundResult round(UUID projectId,UUID versionId,UUID evaluationId,int number) {
         var job=completedJob(projectId,versionId,evaluationId);
         return read(rounds.findByJobIdAndRoundNumber(job.getId(),number)
@@ -78,7 +133,7 @@ public class EconomicJobService {
 
     private EconomicJob completedJob(UUID projectId,UUID versionId,UUID evaluationId) {
         economics.authorize(projectId,versionId,ProjectMemberPermission.VIEW_PROJECT);
-        if(evaluations.findByIdAndVersionId(evaluationId,versionId).isEmpty())
+        if(scenarioDefaults.existing(versionId).flatMap(s->evaluations.findByIdAndScenarioId(evaluationId,s.getId())).isEmpty())
             throw new EntityNotFoundException("Economic evaluation not found");
         return jobs.findByEvaluationId(evaluationId).filter(j->j.getStatus()==COMPLETED)
                 .orElseThrow(()->new EntityNotFoundException("Evaluation has no probabilistic rounds"));
@@ -108,7 +163,9 @@ public class EconomicJobService {
         var input=read(job.getInputJson(),FrozenEconomicInput.class);
         var snapshot=new EvaluationDTO.Snapshot(3,input.configuration(),codec.displayNodes(input),input.connections(),
                 null,null,input.simulation(),summary);
-        var evaluation=evaluations.saveAndFlush(new EconomicEvaluation(job.getVersion(),json(snapshot)));
+        var finished=new EconomicEvaluation(job.getVersion(),json(snapshot));
+        finished.assignScenario(job.getScenario()!=null ? job.getScenario() : scenarioDefaults.forVersion(job.getVersion()));
+        var evaluation=evaluations.saveAndFlush(finished);
         job.complete(evaluation.getId());
         logger.info("Economic job {} completed as evaluation {}",id,evaluation.getId());
     }
@@ -122,8 +179,13 @@ public class EconomicJobService {
         if(count>0) logger.warn("Marked {} unfinished economic jobs as interrupted",count);
     }
 
+    private EconomicJob findIn(Scenario scenario,UUID id) {
+        return jobs.findByIdAndScenarioId(id,scenario.getId()).orElseThrow(()->new EntityNotFoundException("Economic job not found"));
+    }
+
     private EconomicJob find(UUID versionId,UUID id) {
-        return jobs.findByIdAndVersionId(id,versionId).orElseThrow(()->new EntityNotFoundException("Economic job not found"));
+        return scenarioDefaults.existing(versionId).flatMap(s->jobs.findByIdAndScenarioId(id,s.getId()))
+                .orElseThrow(()->new EntityNotFoundException("Economic job not found"));
     }
 
     private EconomicJobDTO dto(EconomicJob job) {

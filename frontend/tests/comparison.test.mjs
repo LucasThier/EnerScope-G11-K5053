@@ -9,6 +9,7 @@ const {
   formatMetric, cellText, roundsNote, gapText, rankLabel, standingTone, byRank, findingTone, groupMetrics, scenarioNames,
   lineSegments, chartScale, toRequest, nodeTypeLabel, compactMetric, headline, barScale, seriesColor,
   scenarioStatusView, selectionCheck, selectionToQuery, selectionFromQuery, MAX_SCENARIOS,
+  deletedCount, scenarioLabel, DELETED_NOTE, groupByVersion, filterScenarios, resolveSelection, selectionNotice,
 } = await import('data:text/javascript;base64,' + Buffer.from(code).toString('base64'));
 
 const value = (v, status = 'AVAILABLE', availableRounds = 1, totalRounds = 1) => ({ value: v, status, availableRounds, totalRounds, distribution: null });
@@ -85,12 +86,29 @@ test('two evaluations of the same version get distinguishable names', () => {
   assert.deepEqual(names, { a: 'Base #1', b: 'Base #2', c: 'GNL' });
 });
 
-test('scenarios from several projects are named with their project', () => {
-  const names = scenarioNames({ scenarios: [
-    { evaluationId: 'a', versionName: 'Base', projectId: 'p1', projectName: 'Neuquina' },
-    { evaluationId: 'b', versionName: 'Base', projectId: 'p2', projectName: 'Austral' },
-  ] });
-  assert.deepEqual(names, { a: 'Base (Neuquina)', b: 'Base (Austral)' });
+test('scenarios are named by their scenario name, and by version · scenario when the names repeat', () => {
+  // Default scenarios of different versions share a name: the version tells them apart.
+  assert.deepEqual(scenarioNames({ scenarios: [
+    { evaluationId: 'a', versionName: 'Neuquina', scenarioName: 'Escenario base', deleted: false },
+    { evaluationId: 'b', versionName: 'Austral', scenarioName: 'Escenario base', deleted: false },
+  ] }), { a: 'Neuquina · Escenario base', b: 'Austral · Escenario base' });
+  // Distinct names read as just the scenario, also when both rest on the same version.
+  assert.deepEqual(scenarioNames({ scenarios: [
+    { evaluationId: 'a', versionName: 'Neuquina', scenarioName: 'Conservador', deleted: false },
+    { evaluationId: 'b', versionName: 'Neuquina', scenarioName: 'Ambicioso', deleted: false },
+  ] }), { a: 'Conservador', b: 'Ambicioso' });
+});
+
+test('a deleted scenario of a saved comparison is marked and counted, and the label shows version and scenario', () => {
+  const result = { scenarios: [
+    { evaluationId: 'a', versionName: 'Neuquina', scenarioName: 'Conservador', deleted: false },
+    { evaluationId: 'b', versionName: 'Neuquina', scenarioName: 'Ambicioso', deleted: true },
+  ] };
+  assert.deepEqual(scenarioNames(result), { a: 'Conservador', b: 'Ambicioso (eliminado)' });
+  assert.equal(deletedCount(result), 1);
+  assert.equal(scenarioLabel({ versionName: 'Neuquina', scenarioName: 'Conservador' }), 'Neuquina · Conservador');
+  assert.equal(scenarioLabel({ versionName: 'Neuquina', scenarioName: null }), 'Neuquina', 'a result saved before scenarios existed');
+  assert.match(DELETED_NOTE, /datos que tenía guardados/);
 });
 
 test('chart lines break at missing years instead of drawing zero', () => {
@@ -202,10 +220,45 @@ test('scenario status reads in plain words, with progress and failed runs', () =
   assert.match(scenarioStatusView(scenario('a', 'NEVER_SIMULATED', { job: { id: 'j', status: 'FAILED', completedRounds: 0, rounds: 10, errorMessage: 'x' } })).detail, /falló/);
 });
 
+const pick = (scenarioId, versionId, extra = {}) => scenario(versionId, 'UP_TO_DATE', { scenarioId, scenarioName: scenarioId.toUpperCase(), defaultScenario: false, ...extra });
+
 test('the selection round-trips through the URL and the request keeps its order', () => {
-  const refs = [{ projectId: 'p1', versionId: 'a' }, { projectId: 'p2', versionId: 'b' }];
+  const refs = [{ projectId: 'p1', scenarioId: 'a' }, { projectId: 'p2', scenarioId: 'b' }];
   assert.deepEqual(selectionFromQuery(selectionToQuery(refs)), refs);
   assert.deepEqual(selectionFromQuery('p1:a,p1:a,broken,:x,p2:b'), refs);
   assert.deepEqual(selectionFromQuery(null), []);
-  assert.deepEqual(toRequest(['b', 'a']), { items: [{ versionId: 'b' }, { versionId: 'a' }] });
+  // A comparison never crosses projects: scenarios of any other project are dropped.
+  assert.deepEqual(selectionFromQuery('p1:a,p2:b,p1:c', 'p1'), [{ projectId: 'p1', scenarioId: 'a' }, { projectId: 'p1', scenarioId: 'c' }]);
+  assert.deepEqual(toRequest(['b', 'a']), { items: [{ scenarioId: 'b' }, { scenarioId: 'a' }] });
+});
+
+test('the picker groups scenarios by version in the server order and searches scenario and version names', () => {
+  const catalog = [pick('s1', 'v1', { versionName: 'Neuquina', scenarioName: 'Base' }), pick('s2', 'v1', { versionName: 'Neuquina', scenarioName: 'Conservador' }),
+    pick('s3', 'v2', { versionName: 'Austral', scenarioName: 'Base' })];
+  const groups = groupByVersion(catalog);
+  assert.deepEqual(groups.map(g => [g.versionName, g.scenarios.map(s => s.scenarioName)]), [['Neuquina', ['Base', 'Conservador']], ['Austral', ['Base']]]);
+  assert.deepEqual(filterScenarios(catalog, 'conserv').map(s => s.scenarioId), ['s2']);
+  assert.deepEqual(filterScenarios(catalog, 'austral').map(s => s.scenarioId), ['s3'], 'a version name finds its scenarios');
+  assert.equal(filterScenarios(catalog, '  ').length, 3);
+  assert.equal(filterScenarios(catalog, 'nada').length, 0);
+});
+
+test('a selection that arrives in the URL keeps scenario ids, turns old version ids into the default scenario and drops the rest', () => {
+  const catalog = [pick('s1', 'v1', { defaultScenario: true }), pick('s2', 'v1'), pick('s3', 'v2', { defaultScenario: true })];
+  const resolved = resolveSelection([
+    { projectId: 'p', scenarioId: 's2' },        // a scenario: kept
+    { projectId: 'p', scenarioId: 'v1' },        // an old-format version id: its default scenario (s1)
+    { projectId: 'p', scenarioId: 'v2' },        // another version: s3
+    { projectId: 'p', scenarioId: 'gone' },      // matches nothing: dropped
+    { projectId: 'p', scenarioId: 's1' },        // already chosen through v1: not twice
+  ], catalog);
+  assert.deepEqual(resolved.refs.map(r => r.scenarioId), ['s2', 's1', 's3']);
+  assert.equal(resolved.migrated, 2);
+  assert.equal(resolved.discarded, 1);
+  assert.match(selectionNotice(resolved), /2 enlaces apuntaban a una versión/);
+  assert.match(selectionNotice(resolved), /1 escenario ya no existe/);
+  assert.equal(selectionNotice({ migrated: 0, discarded: 0 }), null);
+  // A version with no default marked still resolves (to its first scenario).
+  assert.deepEqual(resolveSelection([{ projectId: 'p', scenarioId: 'v9' }], [pick('x1', 'v9')]).refs.map(r => r.scenarioId), ['x1']);
+  assert.deepEqual(resolveSelection([], catalog), { refs: [], migrated: 0, discarded: 0 });
 });

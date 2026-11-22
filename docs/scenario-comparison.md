@@ -1,8 +1,9 @@
 # Scenario comparison
 
-The comparison puts the **results of two to eight scenarios side by side** — from
-one project or from several — **compared with each other: no scenario is a
-reference**. For every indicator it says who leads, who comes last and how far each
+The comparison puts the **results of two to eight scenarios side by side** — all of
+**one project**, from the same version or from different ones — **compared with each other: no scenario is a
+reference**. A *scenario* is the economic and simulation configuration that rests on a *version* (the physical base);
+what is compared is scenarios, never versions. For every indicator it says who leads, who comes last and how far each
 one is from the best, and it points out the differences that matter, in a
 form a non-technical reader (a director) can take in at a glance. A scenario's
 "result" is its **latest simulation** (a saved, immutable `EconomicEvaluation`),
@@ -15,13 +16,17 @@ Package: `org.enerscope.comparison` (`controller`, `service`, `repository`,
 
 ## Rules
 
-- **Scenarios from any project.** Each version is resolved to its own project
-  (`ProjectRepository.findIdByVersionId`) and the caller needs `VIEW_PROJECT` on
-  every one of them (otherwise `403`; an unknown or deleted version is `404`). The
-  comparison itself is saved in, and listed under, the project of the URL; saving
-  and deleting need `EDIT_PROJECT` there.
-- **Always the latest simulation.** A request names scenarios only
-  (`{ "items": [{ "versionId": … }] }`); each one uses its newest evaluation.
+- **Scenarios of the project in the URL only.** The caller needs `VIEW_PROJECT` there
+  (otherwise `403` for the whole request, before anything is looked up: never a partial result). Each item names a
+  **scenario** (`{ "items": [{ "scenarioId": … }] }`); one that does not exist, is deleted, rests on an inactive version or
+  belongs to any other project answers the same generic `404` "Scenario not found", and nothing is checked or revealed
+  about another project. Then `400` for two to eight scenarios, none twice, every one simulated and up to date.
+  The old item `{ "versionId": … }` is **deprecated** and still accepted: it means that version's default scenario. The comparison is saved in,
+  and listed under, that project; saving and deleting need `EDIT_PROJECT`. (Until E1 a
+  comparison could mix projects; those saved runs are removed with
+  [`sql/cross-project-comparisons.sql`](sql/cross-project-comparisons.sql).)
+- **Always the latest simulation.** Each scenario uses its own newest evaluation (`evaluations` by `scenario_id`), so
+  two scenarios of the same version have their own results.
 - **Only if it is up to date.** `ScenarioStatusService.isUpToDate` compares what the
   simulation froze — economic configuration, physical nodes and connections —
   with the scenario as it is now (JSON round trip, entities sorted by id; audit
@@ -29,7 +34,7 @@ Package: `org.enerscope.comparison` (`controller`, `service`, `repository`,
   unpublished drafts do not count). A changed scenario is refused with
   `Scenario changed since its last simulation: <name>`; one never simulated with
   `Scenario has never been simulated: <name>`.
-- **Statuses** (`GET /scenarios`): `UP_TO_DATE`, `OUTDATED`, `NEVER_SIMULATED`,
+- **Statuses** (`GET /scenarios`, one entry per scenario, listed grouped by version): `UP_TO_DATE`, `OUTDATED`, `NEVER_SIMULATED`,
   `SIMULATING` (a job queued or running, with its progress), plus whether the
   scenario can be simulated now (`ready` + `readinessErrors`, from the scenario
   configuration's readiness check) and whether the caller may (`canSimulate`,
@@ -38,8 +43,14 @@ Package: `org.enerscope.comparison` (`controller`, `service`, `repository`,
 - 2–8 scenarios, the same one only once. Eight is the size of the validated
   categorical palette that identifies scenarios on screen.
 - A saved comparison keeps the simulations it was made with: reopening it shows
-  them even if the scenarios changed later (it is a record of that run). If one
-  of its versions is later deleted it can no longer be read.
+  them even if the scenarios changed later (it is a record of that run). Each item stores, besides its evaluation, the
+  **scenario** and the **names of the version and of the scenario as they were when it was saved** (`version_name`,
+  `scenario_name`, V28). Reopening reads each item through **its own evaluation** (`EconomicService.evaluationById`), and
+  needs neither the scenario nor the version to be active: if either was **deleted** (deactivated) after saving, the item is
+  flagged `deleted`, shown with its stored names and data, and the screen says so ("(eliminado)" and a notice). An
+  item saved before scenarios existed (no scenario, no names) reads through its evaluation with the live version name.
+  The display name of a scenario in the findings is its scenario name, or "version · scenario" when the compared names
+  repeat (the default scenarios of different versions are all called "Escenario base").
 
 ## What is compared
 
@@ -111,17 +122,18 @@ and which ones have incomplete data.
 
 ## Screens
 
-**Step 1 — choose** (`/projects/:projectId/comparisons`). A project selector and
-a search over that project's scenarios, shown as tiles with their status ("Simulación
+**Step 1 — choose** (`/projects/:projectId/comparisons`). A search over the project's scenarios (by scenario or version name), shown **grouped by version** ("Versión (base física): …") as tiles with the status of each scenario ("Simulación
 al día", "Cambió desde la última simulación", "Sin simular", "Simulando… 4 de 10
 rondas"). A tile can be simulated from there (10 rounds) when it needs it and the
 user may; otherwise it says why (incomplete configuration with a link to complete
-it, or no permission). Scenarios from several projects can be picked. The side
+it, or no permission). There is no project selector: only the scenarios of the project in the URL are offered. The side
 panel "Tu comparación" lists the choice with its colour, offers "Simular los N escenarios pendientes", and enables
 **Comparar escenarios** only when every scenario is up to date. Statuses refresh
 every 2.5 s while something is simulating. Below: **Comparaciones anteriores**
 (open or delete earlier runs). Comparing saves the run (named after its scenarios)
-and opens step 2. `?escenarios=project:version,…` preselects scenarios.
+and opens step 2. `?escenarios=project:scenario,…` preselects scenarios: ids of another project are ignored, an id in the **old
+`project:version` format** becomes that version's default scenario, and an id that no longer exists is dropped; the screen says
+what it did. The tile's "Completar configuración" opens that scenario's configuration.
 
 Saving a run needs `EDIT_PROJECT` (read from `/access`, like the other project
 screens). **Read-only members** (e.g. the Ejecutivo type) still compare: the result
@@ -162,14 +174,15 @@ All routes are under `/api/v1/projects/{projectId}/comparisons`, use the
 | Method | Path | Permission | Behavior |
 | --- | --- | --- | --- |
 | `GET` | `/scenarios` | `VIEW_PROJECT` | The project's scenarios with their simulation status |
-| `POST` | `/preview` | `VIEW_PROJECT` on every involved project | Compare without saving |
-| `POST` | `/` | `EDIT_PROJECT` + `VIEW_PROJECT` on every involved project | Compare, save the run (201) and return it |
+| `POST` | `/preview` | `VIEW_PROJECT` | Compare without saving |
+| `POST` | `/` | `EDIT_PROJECT` | Compare, save the run (201) and return it |
 | `GET` | `/` | `VIEW_PROJECT` | Saved runs: name, scenario names, date |
-| `GET` | `/{comparisonId}` | `VIEW_PROJECT` on every involved project | A saved run, recalculated from its own simulations |
+| `GET` | `/{comparisonId}` | `VIEW_PROJECT` | A saved run, recalculated from its own simulations |
 | `DELETE` | `/{comparisonId}` | `EDIT_PROJECT` | Soft delete |
 
-Simulating from the screen uses the existing
-`POST /projects/{projectId}/versions/{versionId}/economics/evaluation-jobs`.
+Simulating from the screen uses `POST /projects/{projectId}/scenarios/{scenarioId}/simulations`. Who may save, confirmed
+against the code and `ScenarioComparisonHttpTest`: saving needs `EDIT_PROJECT`, so the **Ejecutivo** only previews, and the
+**Simulador** (a project editor with a version SIMULATOR role) **can save** — it is not preview-only.
 
 ## Persistence (V25)
 
@@ -208,7 +221,18 @@ erDiagram
 
 Constraints: `UNIQUE (comparison_id, position)`, `UNIQUE (comparison_id,
 evaluation_id)`, `position >= 0`, both thresholds `> 0`. `project_id` is the project
-the run is saved in; an item's version may belong to another project.
+the run is saved in; since E1 every item's version must belong to it (older runs that crossed projects are removed with the reviewed script above).
+
+### V28: names kept in the items
+
+`scenario_comparison_item` gains `version_name VARCHAR(320)` and `scenario_name VARCHAR(120)` (V28, expand only), filled when a
+comparison is saved and backfilled for existing items with the current names (only items still without a name are touched; the
+final control fails the migration if any is left; repeatable). Items point at their `scenario` (V26) and, as before, at the
+`economic_evaluation`. Deleting a scenario only deactivates it, and a deactivated version keeps its rows, so the foreign keys never break and
+the comparison keeps opening. **Deleting a version** (`DELETE /version/{id}`) is a physical delete, but it is **refused with `409`** ("La versión tiene
+simulaciones o comparaciones guardadas y no se puede eliminar.") when the version, or any version below it, has simulation jobs, saved evaluations or saved
+comparison items: so a version that a saved comparison depends on is never lost. A version without any of that is deleted with its scenarios. Logical deletion
+of versions (deactivating them instead) is a pending product decision — see `considerations.md`.
 
 ## Classes
 

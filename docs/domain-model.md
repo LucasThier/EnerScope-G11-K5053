@@ -275,6 +275,52 @@ seat warm, and a guard that does not apply is not even queried.
 `src/api/errors.ts` translates all three backend messages. The backend remains
 the authority: the UI mirror only sees the members of the screen it is on.
 
+## Version and Scenario (glossary)
+
+- **Versión = base física.** The network model of a project (nodes, connections, branches
+  through `parentVersion`). Entity `Version`, table `version`.
+- **Escenario = configuración económica y de simulación.** The economic rules and simulation
+  settings that rest on a version, with the simulations and results produced from them.
+- **Current state:** there is no separate scenario entity yet. The economic configuration,
+  drafts, jobs and evaluations (`economic_configuration`, `economic_draft`, `scenario_draft`,
+  `economic_job`, `economic_evaluation`) all hang from `version_id`, one configuration per
+  version, so in the code and the API "scenario" and "version" still share an id. The screens
+  already say "Versión" for the physical base and "Escenario" for its economic configuration.
+  A scenario entity (several per version) is the planned next step.
+- **E3 (migration `V26`, expand only):** table `scenario` (`Scenario`: `version`, `name` ≤ 120,
+  `defaultScenario`). Each version has one **default scenario, "Escenario base"** (created by V26
+  for every existing version, active or not, and on first use for new ones by `ScenarioDefaults`).
+  A name is unique inside its version ignoring case among the *active* scenarios (a deleted one
+  frees it); at most one active default per version (both are partial/expression unique indexes).
+  The limit of scenarios per version (20, `enerscope.scenarios.max-per-version`) is enforced by the
+  service, not the database. The six tables that hang from a version's economics
+  (`economic_configuration`, `economic_draft`, `scenario_draft`, `economic_evaluation`,
+  `economic_job`, `scenario_comparison_item`) gain a **nullable `scenario_id`**, backfilled to the
+  version's default scenario and written together with `version_id` on every new write ("double
+  write").
+- **E4a (migration `V27`):** the `UNIQUE (version_id)` of `economic_configuration`, `economic_draft` and
+  `scenario_draft` are dropped and replaced by unique indexes on `scenario_id` (one configuration, one draft
+  and one scenario draft **per scenario**; a version may now hold several scenarios). **Every read of those
+  tables and of `economic_evaluation` / `economic_job` now goes by `scenario_id`**, resolving the version's
+  default scenario inside the services (`ScenarioDefaults.existing` for reads, which never creates one;
+  `forVersion` for writes). The endpoints and service signatures are unchanged (still addressed by version)
+  and there is still no way to create a second scenario (E4b). `version_id` keeps being written everywhere and
+  is dropped, with the `NOT NULL` on `scenario_id`, in the last "contract" migration.
+- **Every active version has its default scenario from creation (E6b):** `VersionService.saveVersion` creates "Escenario base" (empty) in the same
+  transaction, for a root version, a branch and a detached version. A branch does **not** inherit its parent's scenarios or economics (branching
+  copies only nodes, connections and version roles); it is born with its own empty base scenario. Deleting a version row (physical today) deletes its
+  scenarios (`ON DELETE CASCADE`). **A version that has simulation jobs, saved evaluations or saved comparison items — or has a version below it that does — cannot
+  be deleted: `DELETE /version/{id}` answers `409` and deletes nothing (E6c).** Logical deletion of versions is a pending product decision.
+- **E4b (scenario API):** scenarios can now be created, renamed, duplicated and deleted (logically,
+  `active = false`) through `/projects/{p}/versions/{v}/scenarios` and `/projects/{p}/scenarios/{s}`; the economic
+  configuration, drafts, simulations and results of a scenario are served under `/scenarios/{s}/...`
+  (see [`backend/README.md`](../backend/README.md#scenario-api)). `EconomicConfigurationEntity`,
+  `EconomicDraftEntity` and `ScenarioDraft` map `version` as `@ManyToOne` (no longer unique) and `scenario` as unique.
+  **The scenario holds only the economic and simulation part**: node values ("Operación") belong to the version and
+  are edited on the node, so saving a scenario never clones or changes nodes. A scenario is *up to date* only while
+  its configuration **and** its version's nodes and connections equal what its last simulation froze: editing a node
+  makes every scenario of that version outdated; editing one scenario's economics outdates only that one.
+
 ## Version
 
 Persistent entity mapped to the `version` table. **Minimal slice** — only
@@ -595,12 +641,13 @@ none. FrozenEconomicInput and ProbabilisticSummary are value records, not shared
 
 ## ScenarioComparison
 
-A saved comparison run of two to eight scenarios, saved under one Project but able to include scenarios of other projects
-(`scenario_comparison`, V25). It holds a `name`, an optional `description` and
+A saved comparison run of two to eight **scenarios** of **one Project** (the one it is saved in; the same or different versions;
+a scenario of any other project is rejected with a generic `404`) (`scenario_comparison`, V25). It holds a `name`, an optional `description` and
 two relevance thresholds (`relevanceThreshold`, relative; `rateThreshold`,
 absolute in fraction points). It owns 2–8 ordered `ScenarioComparisonItem`s
-(`scenario_comparison_item`), each pointing at a `Version` and one of its
-`EconomicEvaluation`s, unique by (comparison, position) and (comparison,
+(`scenario_comparison_item`), each pointing at a `Version`, a `Scenario` and the
+`EconomicEvaluation` of that scenario it was made with, plus the **names of the version and the scenario as they were when it was saved**
+(`version_name`, `scenario_name`, V28) so it still opens, flagged `deleted`, after either is deleted, unique by (comparison, position) and (comparison,
 evaluation). Positions keep the order the scenarios were picked in (it only decides their colour); scenarios are compared with each other. Only the definition is stored: the
 result is recalculated from the immutable evaluations on every read. Deleting is
 a soft delete. See [`scenario-comparison.md`](scenario-comparison.md).

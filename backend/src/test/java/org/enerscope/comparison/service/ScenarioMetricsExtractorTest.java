@@ -24,7 +24,7 @@ class ScenarioMetricsExtractorTest {
     final UUID evaluation = UUID.randomUUID();
 
     ScenarioSource source(org.enerscope.economic.dto.EvaluationDTO.Snapshot snapshot, List<EconomicRoundResult> rounds) {
-        return new ScenarioSource(PROJECT, "Proyecto", version, "Base", evaluation, Instant.now(), snapshot, rounds);
+        return new ScenarioSource(PROJECT, "Proyecto", version, "Base", UUID.randomUUID(), "Escenario base", false, evaluation, Instant.now(), snapshot, rounds);
     }
 
     static void assertValue(String expected, MetricValueDTO actual) {

@@ -83,14 +83,32 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
   'At most 8 evaluations can be compared at once': 'Se pueden comparar hasta 8 escenarios a la vez.',
   'The same scenario cannot be compared with itself': 'Elegiste el mismo escenario dos veces.',
   'Every compared item needs a version': 'Elegí un escenario en cada fila.',
+  'Every compared item needs a scenario': 'Elegí un escenario en cada fila.',
   'A saved comparison needs a name': 'Poné un nombre para guardar la comparación.',
   'Comparison name must be at most 120 characters': 'El nombre puede tener hasta 120 caracteres.',
   'Comparison not found': 'La comparación no existe o fue eliminada.',
   'Version not found': 'El escenario no existe o fue eliminado.',
   'Economic evaluation not found': 'La evaluación no existe o ya no está disponible.',
+  'Economic job not found': 'La simulación no existe o ya no está disponible.',
+  'Economic configuration not found': 'Este escenario todavía no tiene configuración económica.',
+  // Scenarios of a version (the 404 is the same for an unknown, deleted, foreign or inactive one).
+  // DELETE /version/{id} answers 409 when the version, or one below it, has simulations or saved comparisons.
+  'La versión tiene simulaciones o comparaciones guardadas y no se puede eliminar.':
+    'No se puede eliminar: esta versión, o alguna que deriva de ella, tiene simulaciones o comparaciones guardadas. Se conservan para no perder esos resultados.',
+  'Scenario not found': 'El escenario no existe, fue eliminado o no pertenece a este proyecto.',
+  'El nombre del escenario es obligatorio.': 'Escribí un nombre para el escenario.',
+  'No se puede eliminar el único escenario de la versión.':
+    'No se puede eliminar el único escenario de la versión: una versión siempre conserva al menos uno.',
 };
 
 const KNOWN_BACKEND_PREFIXES: [string, string][] = [
+  // Scenarios: the backend already answers in Spanish with the name inside; these fix the wording the screens show.
+  ['Ya existe un escenario llamado', 'Ya hay un escenario con ese nombre en esta versión. Elegí otro (no se distinguen mayúsculas).'],
+  ['Una versión admite como máximo', 'Esta versión ya tiene el máximo de 20 escenarios. Eliminá alguno para crear otro.'],
+  ['El escenario tiene una simulación en cola', 'El escenario tiene una simulación en cola o en curso. Esperá a que termine para eliminarlo.'],
+  ['El escenario cambió desde otra pantalla', 'El escenario cambió desde otra pantalla. Tus cambios se conservan; recargá para no sobrescribir datos.'],
+  ['Los valores de operación de los nodos', 'Los valores de operación se editan en cada nodo de la versión, no en el escenario. Usá «Editar operación en la versión».'],
+  ['El nombre del escenario admite hasta', 'El nombre del escenario admite hasta 120 caracteres.'],
   ['Node vertical does not match its type:', 'La vertical del nodo no corresponde a su tipo.'],
   ['Version not found with id:', 'La versión no existe o ya fue eliminada.'],
   ['Version conflict not found with id:', 'El conflicto no existe o ya fue resuelto.'],

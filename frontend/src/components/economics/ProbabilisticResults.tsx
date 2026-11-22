@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { economicsApi } from '../../api/economics';
+import { scenariosApi } from '../../api/scenarios';
 import { getErrorMessage } from '../../api/errors';
 import type { Evaluation, EconomicRound, NumericStatistics, PaybackStatistics } from '../../types/economics';
 import { money, percent } from '../../utils/economicFormat';
@@ -21,7 +21,7 @@ function StatisticsTable({ rows, format }: { rows: { label: string; values: Nume
   return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Indicador / período','Muestra','Media','Mínimo','Máximo','P10','P50','P90'].map(h => <th key={h} className="p-3">{h}</th>)}</tr></thead>
     <tbody>{rows.map(row => <tr key={row.label} className="border-t border-ink-100"><th className="p-3 font-medium">{row.label}</th><td className="p-3">{row.values.count}</td>{statistics.map(key => <td className="whitespace-nowrap p-3" key={key}>{format(row.values[key])}</td>)}</tr>)}</tbody></table></div>;
 }
-export function ProbabilisticResults({ evaluation, projectId, versionId }: { evaluation: Evaluation; projectId: string; versionId: string }) {
+export function ProbabilisticResults({ evaluation, projectId, scenarioId }: { evaluation: Evaluation; projectId: string; scenarioId: string }) {
   const [selection, setSelection] = useState('summary');
   const [round, setRound] = useState<EconomicRound | null>(null);
   const [error, setError] = useState('');
@@ -30,11 +30,11 @@ export function ProbabilisticResults({ evaluation, projectId, versionId }: { eva
   useEffect(() => {
     if (selection === 'summary') return;
     let cancelled = false;
-    economicsApi.round(projectId, versionId, evaluation.id, Number(selection))
+    scenariosApi.round(projectId, scenarioId, evaluation.id, Number(selection))
       .then(value => { if (!cancelled) setRound(value); })
       .catch(e => { if (!cancelled) setError(getErrorMessage(e, 'No se pudo leer la ronda.')); });
     return () => { cancelled = true; };
-  }, [projectId, versionId, evaluation.id, selection]);
+  }, [projectId, scenarioId, evaluation.id, selection]);
   const summary = evaluation.snapshot.summary;
   if (!summary) return <Alert>No hay estadísticas disponibles.</Alert>;
   const currency = evaluation.snapshot.configuration?.currency;

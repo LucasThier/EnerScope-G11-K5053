@@ -22,25 +22,27 @@ import org.enerscope.economic.service.EconomicService;
 import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
-import org.enerscope.project.repository.ProjectRepository;
+import org.enerscope.scenario.model.Scenario;
+import org.enerscope.scenario.repository.ScenarioRepository;
+import org.enerscope.scenario.service.ScenarioDefaults;
 import org.enerscope.version.model.Version;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Compares saved economic evaluations and stores comparison definitions.
+ * Compares the saved simulations of scenarios and stores comparison definitions.
  *
- * <p>A comparison lives in the project of the path (where it is saved and listed),
- * but its scenarios may come from any project: each version is resolved to its own
- * project and the caller needs {@code VIEW_PROJECT} on every one of them, so naming
- * a version is never enough to read results of a project the caller cannot see.
- * Saving and deleting also need {@code EDIT_PROJECT} on the path project. Every
- * evaluation must belong to its version.</p>
+ * <p>A comparison holds scenarios of <b>one project</b> — the one in the path — whether they rest on the same version or on
+ * different ones. Order of answers: {@code 403} for the whole request when the caller lacks {@code VIEW_PROJECT} there
+ * (nothing is looked up, so there is never a partial result); then a generic {@code 404} "Scenario not found" for a scenario
+ * that does not exist, is deleted, rests on an inactive version or belongs to another project; then {@code 400} (two to
+ * eight scenarios, none twice, every one simulated and up to date). Saving also needs {@code EDIT_PROJECT}.</p>
  *
- * <p>A new comparison always uses each scenario's <em>latest</em> simulation, and only
- * while it is up to date ({@link ScenarioStatusService#isUpToDate}): a scenario that
- * changed since must be simulated again first. Reopening a saved comparison shows the
- * simulations it was made with, even if the scenarios changed afterwards.</p>
+ * <p>A new comparison uses each scenario's <em>latest</em> simulation, only while it is up to date
+ * ({@link ScenarioStatusService#isUpToDate(Version, Scenario, EvaluationDTO.Snapshot)}). The saved comparison stores, per item,
+ * its evaluation (immutable), the scenario, and the names of the version and of the scenario as they were. Reopening it reads
+ * each item through its <em>own</em> evaluation and does not need the scenario or the version to be active: an item whose
+ * scenario or version was deleted is flagged {@code deleted} and still shows its saved data.</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -53,7 +55,7 @@ public class ScenarioComparisonService {
     private static final BigDecimal MAX_THRESHOLD = new BigDecimal("1000");
 
     private final EconomicService economics;
-    private final ProjectRepository projects;
+    private final ScenarioRepository scenarios;
     private final EconomicEvaluationRepository evaluations;
     private final EconomicJobRepository jobs;
     private final EconomicRoundRepository rounds;
@@ -61,26 +63,25 @@ public class ScenarioComparisonService {
     private final ScenarioMetricsExtractor extractor;
     private final ScenarioComparisonCalculator calculator;
     private final ScenarioStatusService status;
+    private final ScenarioDefaults scenarioDefaults;
     private final ObjectMapper mapper;
     private final AppLogger logger;
 
-    /** A resolved item: the project that owns the version, the version and the simulation actually compared. */
-    private record Resolved(Project project, Version version, EvaluationDTO evaluation) {}
+    /** A scenario to compare, the version it rests on, and the simulation actually compared. */
+    private record Resolved(Project project, Version version, Scenario scenario, EvaluationDTO evaluation) {}
 
     @Transactional(readOnly = true)
     public ComparisonResultDTO preview(UUID projectId, ComparisonRequestDTO request) {
         Project project = economics.authorizeProject(projectId, ProjectMemberPermission.VIEW_PROJECT);
-        validate(request);
-        List<Resolved> resolved = resolve(project, request.items());
+        List<Resolved> resolved = resolve(project, request);
         ComparisonResultDTO result = calculate(resolved, request.relevanceThreshold(), request.rateThreshold());
-        logger.debug("Previewed comparison of {} evaluations in project {}", resolved.size(), projectId);
+        logger.debug("Previewed comparison of {} scenarios in project {}", resolved.size(), projectId);
         return result;
     }
 
     public SavedComparisonDTO save(UUID projectId, ComparisonRequestDTO request) {
         Project project = economics.authorizeProject(projectId, ProjectMemberPermission.EDIT_PROJECT);
-        validate(request);
-        List<Resolved> resolved = resolve(project, request.items());
+        List<Resolved> resolved = resolve(project, request);
         BigDecimal relevance = orDefault(request.relevanceThreshold(), ScenarioComparisonCalculator.DEFAULT_RELEVANCE_THRESHOLD);
         BigDecimal rate = orDefault(request.rateThreshold(), ScenarioComparisonCalculator.DEFAULT_RATE_THRESHOLD);
         ComparisonResultDTO result = calculate(resolved, relevance, rate);
@@ -89,12 +90,14 @@ public class ScenarioComparisonService {
         ScenarioComparison comparison = new ScenarioComparison(project, name(request.name(), resolved), description, relevance, rate);
         for (int i = 0; i < resolved.size(); i++) {
             Resolved item = resolved.get(i);
-            EconomicEvaluation evaluation = evaluations.findByIdAndVersionId(item.evaluation().id(), item.version().getId())
+            EconomicEvaluation evaluation = evaluations.findByIdAndScenarioId(item.evaluation().id(), item.scenario().getId())
                     .orElseThrow(() -> new EntityNotFoundException("Economic evaluation not found"));
-            comparison.addItem(new ScenarioComparisonItem(comparison, item.version(), evaluation, i));
+            var comparisonItem = new ScenarioComparisonItem(comparison, item.version(), evaluation, i);
+            comparisonItem.assignScenario(item.scenario());
+            comparison.addItem(comparisonItem);
         }
         ScenarioComparison stored = comparisons.saveAndFlush(comparison);
-        logger.info("Scenario comparison {} saved in project {} with {} evaluations", stored.getId(), projectId, resolved.size());
+        logger.info("Scenario comparison {} saved in project {} with {} scenarios", stored.getId(), projectId, resolved.size());
         return dto(stored, result);
     }
 
@@ -103,22 +106,25 @@ public class ScenarioComparisonService {
         economics.authorizeProject(projectId, ProjectMemberPermission.VIEW_PROJECT);
         return comparisons.findByProjectIdAndActiveTrueOrderByCreatedAtDesc(projectId).stream()
                 .map(c -> new ComparisonSummaryDTO(c.getId(), c.getName(), c.getDescription(),
-                        c.getItems().stream().map(item -> item.getVersion().getName()).toList(), c.getCreatedAt()))
+                        c.getItems().stream().map(ScenarioComparisonService::label).toList(),
+                        c.getItems().stream().anyMatch(ScenarioComparisonService::deleted), c.getCreatedAt()))
                 .toList();
     }
 
+    /**
+     * A saved comparison, recalculated from the immutable evaluations it was made with. Each item is read through its own
+     * evaluation, so a deleted scenario or version never hides it; it is flagged and shown with its stored names.
+     */
     @Transactional(readOnly = true)
     public SavedComparisonDTO get(UUID projectId, UUID comparisonId) {
         Project project = economics.authorizeProject(projectId, ProjectMemberPermission.VIEW_PROJECT);
         ScenarioComparison comparison = find(projectId, comparisonId);
         List<Resolved> resolved = comparison.getItems().stream()
-                .map(item -> {
-                    Project owner = owner(project, item.getVersion().getId());
-                    return new Resolved(owner, item.getVersion(),
-                            economics.getEvaluation(owner.getId(), item.getVersion().getId(), item.getEvaluation().getId()));
-                })
+                .map(item -> new Resolved(project, item.getVersion(), item.getScenario(),
+                        economics.evaluationById(item.getEvaluation().getId())))
                 .toList();
-        return dto(comparison, calculate(resolved, comparison.getRelevanceThreshold(), comparison.getRateThreshold()));
+        List<ScenarioComparisonItem> items = comparison.getItems();
+        return dto(comparison, calculate(resolved, items, comparison.getRelevanceThreshold(), comparison.getRateThreshold()));
     }
 
     public void delete(UUID projectId, UUID comparisonId) {
@@ -131,19 +137,21 @@ public class ScenarioComparisonService {
 
     // ---------------------------------------------------------------- internals
 
-    private void validate(ComparisonRequestDTO request) {
-        if (request == null || request.items() == null) {
+    /** The scenarios of the request, found (404), checked (400) and each paired with its latest up-to-date simulation. */
+    private List<Resolved> resolve(Project project, ComparisonRequestDTO request) {
+        List<ComparisonRequestDTO.Item> items = shape(request);
+        List<Resolved> resolved = new ArrayList<>();
+        Set<UUID> seen = new HashSet<>();
+        List<Located> located = new ArrayList<>();
+        for (ComparisonRequestDTO.Item item : items) {
+            located.add(locate(project, item));
+        }
+        if (located.size() < MIN_SCENARIOS) {
             throw new IllegalArgumentException("Pick at least " + MIN_SCENARIOS + " evaluations to compare");
         }
-        if (request.items().size() < MIN_SCENARIOS) {
-            throw new IllegalArgumentException("Pick at least " + MIN_SCENARIOS + " evaluations to compare");
-        }
-        if (request.items().size() > MAX_SCENARIOS) {
-            throw new IllegalArgumentException("At most " + MAX_SCENARIOS + " evaluations can be compared at once");
-        }
-        for (ComparisonRequestDTO.Item item : request.items()) {
-            if (item == null || item.versionId() == null) {
-                throw new IllegalArgumentException("Every compared item needs a version");
+        for (Located each : located) {
+            if (!seen.add(each.scenario().getId())) {
+                throw new IllegalArgumentException("The same scenario cannot be compared with itself");
             }
         }
         threshold(request.relevanceThreshold(), "Relevance threshold");
@@ -151,12 +159,69 @@ public class ScenarioComparisonService {
         if (request.name() != null && request.name().trim().length() > 120) {
             throw new IllegalArgumentException("Comparison name must be at most 120 characters");
         }
+        for (Located each : located) {
+            Scenario scenario = each.scenario();
+            Version version = each.version();
+            EconomicEvaluation latest = evaluations.findByScenarioIdOrderByCreatedAtDesc(scenario.getId()).stream().findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Scenario has never been simulated: " + scenario.getName()));
+            // Reuses the economic module's read, which also enriches historical snapshots saved without indicators.
+            EvaluationDTO evaluation = economics.evaluationOf(scenario, latest.getId());
+            if (!status.isUpToDate(version, scenario, evaluation.snapshot())) {
+                logger.info("Scenario {} changed since its latest simulation {}; comparison refused", scenario.getId(), latest.getId());
+                throw new IllegalArgumentException("Scenario changed since its last simulation: " + scenario.getName());
+            }
+            resolved.add(new Resolved(project, version, scenario, evaluation));
+        }
+        return resolved;
+    }
+
+    private record Located(Scenario scenario, Version version) {}
+
+    /** The request's items, or 400 when the body, the items or an item is missing, or there are more than the maximum. */
+    private List<ComparisonRequestDTO.Item> shape(ComparisonRequestDTO request) {
+        if (request == null || request.items() == null) {
+            throw new IllegalArgumentException("Pick at least " + MIN_SCENARIOS + " evaluations to compare");
+        }
+        // Bounded before anything is looked up, so a huge request cannot cost a lookup per item.
+        if (request.items().size() > MAX_SCENARIOS) {
+            throw new IllegalArgumentException("At most " + MAX_SCENARIOS + " evaluations can be compared at once");
+        }
+        for (ComparisonRequestDTO.Item item : request.items()) {
+            if (item == null || (item.scenarioId() == null && item.versionId() == null)) {
+                throw new IllegalArgumentException("Every compared item needs a scenario");
+            }
+        }
+        return request.items();
+    }
+
+    /**
+     * Finds the scenario of an item in the path project. An unknown, deleted or foreign scenario (or one whose version is
+     * inactive or in another project) is one generic 404. An item that names only a version (the deprecated form) means that
+     * version's default scenario.
+     */
+    @SuppressWarnings("deprecation")
+    private Located locate(Project project, ComparisonRequestDTO.Item item) {
+        Scenario scenario = item.scenarioId() != null
+                ? scenarios.findById(item.scenarioId()).filter(Scenario::isActive).orElse(null)
+                : scenarioDefaults.existing(item.versionId()).orElse(null);
+        if (scenario == null) {
+            logger.warn("A comparison named a scenario that does not exist or is not active");
+            throw new EntityNotFoundException("Scenario not found");
+        }
+        UUID versionId = scenario.getVersion().getId();
+        Version version = project.getVersions().stream().filter(v -> v.getId().equals(versionId) && v.isActive()).findFirst()
+                .orElseThrow(() -> {
+                    logger.warn("Scenario {} was compared from project {} but belongs to another project or an inactive version",
+                            scenario.getId(), project.getId());
+                    return new EntityNotFoundException("Scenario not found");
+                });
+        return new Located(scenario, version);
     }
 
     /** The given name, or the scenario names joined ("Base vs Ampliación"), cut to the column size. */
     private static String name(String requested, List<Resolved> resolved) {
         if (requested != null && !requested.isBlank()) return requested.trim();
-        String joined = String.join(" vs ", resolved.stream().map(r -> r.version().getName()).toList());
+        String joined = String.join(" vs ", resolved.stream().map(r -> r.scenario().getName()).toList());
         return joined.length() <= 120 ? joined : joined.substring(0, 119) + "…";
     }
 
@@ -170,53 +235,23 @@ public class ScenarioComparisonService {
         return value == null ? fallback : value;
     }
 
-    /**
-     * The project that owns a version, checked for {@code VIEW_PROJECT}. The path project
-     * is already authorized; any other one is authorized here, so a version of a project
-     * the caller cannot see answers 403 and an unknown or deleted version 404.
-     */
-    private Project owner(Project pathProject, UUID versionId) {
-        UUID ownerId = projects.findIdByVersionId(versionId).orElseThrow(() -> {
-            logger.warn("Version {} was compared but does not exist or is not active", versionId);
-            return new EntityNotFoundException("Version not found");
-        });
-        return ownerId.equals(pathProject.getId()) ? pathProject
-                : economics.authorizeProject(ownerId, ProjectMemberPermission.VIEW_PROJECT);
-    }
-
-    private List<Resolved> resolve(Project pathProject, List<ComparisonRequestDTO.Item> items) {
-        List<Resolved> resolved = new ArrayList<>();
-        Set<UUID> seen = new HashSet<>();
-        for (ComparisonRequestDTO.Item item : items) {
-            Project project = owner(pathProject, item.versionId());
-            Version version = project.getVersions().stream()
-                    .filter(v -> v.getId().equals(item.versionId()) && v.isActive())
-                    .findFirst()
-                    .orElseThrow(() -> new EntityNotFoundException("Version not found"));
-            if (!seen.add(version.getId())) {
-                throw new IllegalArgumentException("The same scenario cannot be compared with itself");
-            }
-            EconomicEvaluation latest = evaluations.findByVersionIdOrderByCreatedAtDesc(version.getId()).stream().findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("Scenario has never been simulated: " + version.getName()));
-            // Reuses the economic module's read, which also enriches historical snapshots saved without indicators.
-            EvaluationDTO evaluation = economics.getEvaluation(project.getId(), version.getId(), latest.getId());
-            if (!status.isUpToDate(version, evaluation.snapshot())) {
-                logger.info("Scenario {} changed since its latest simulation {}; comparison refused", version.getId(), latest.getId());
-                throw new IllegalArgumentException("Scenario changed since its last simulation: " + version.getName());
-            }
-            resolved.add(new Resolved(project, version, evaluation));
-        }
-        return resolved;
-    }
-
     private ComparisonResultDTO calculate(List<Resolved> resolved, BigDecimal relevance, BigDecimal rate) {
-        List<ScenarioMetrics> measured = resolved.stream().map(r -> extractor.extract(source(r))).toList();
+        return calculate(resolved, null, relevance, rate);
+    }
+
+    /** {@code stored} gives the names (and the deleted flag) a saved comparison keeps; a preview uses the live ones. */
+    private ComparisonResultDTO calculate(List<Resolved> resolved, List<ScenarioComparisonItem> stored, BigDecimal relevance, BigDecimal rate) {
+        List<ScenarioMetrics> measured = new ArrayList<>();
+        for (int i = 0; i < resolved.size(); i++) {
+            measured.add(extractor.extract(source(resolved.get(i), stored == null ? null : stored.get(i))));
+        }
         return calculator.compare(measured, relevance, rate);
     }
 
-    private ScenarioSource source(Resolved resolved) {
+    private ScenarioSource source(Resolved resolved, ScenarioComparisonItem item) {
         Version version = resolved.version();
         Project project = resolved.project();
+        Scenario scenario = resolved.scenario();
         EvaluationDTO evaluation = resolved.evaluation();
         List<EconomicRoundResult> roundResults = List.of();
         if (evaluation.snapshot().schemaVersion() >= 3) {
@@ -228,7 +263,12 @@ public class ScenarioComparisonService {
                         return List.of();
                     });
         }
-        return new ScenarioSource(project.getId(), project.getName(), version.getId(), version.getName(), evaluation.id(),
+        String versionName = item != null && item.getVersionName() != null ? item.getVersionName() : version.getName();
+        String scenarioName = item != null && item.getScenarioName() != null ? item.getScenarioName()
+                : scenario != null ? scenario.getName() : null;
+        boolean deleted = item != null && deleted(item);
+        return new ScenarioSource(project.getId(), project.getName(), version.getId(), versionName,
+                scenario == null ? null : scenario.getId(), scenarioName, deleted, evaluation.id(),
                 evaluation.createdAt(), evaluation.snapshot(), roundResults);
     }
 
@@ -246,9 +286,27 @@ public class ScenarioComparisonService {
                 .orElseThrow(() -> new EntityNotFoundException("Comparison not found"));
     }
 
+    /** True when the item's scenario, or its version, has been deleted since the comparison was saved. */
+    static boolean deleted(ScenarioComparisonItem item) {
+        boolean scenarioGone = item.getScenario() != null && !item.getScenario().isActive();
+        return scenarioGone || !item.getVersion().isActive();
+    }
+
+    /** "Version · Scenario" with the names the item stored (the live ones for rows saved before the names were kept). */
+    static String label(ScenarioComparisonItem item) {
+        String version = item.getVersionName() != null ? item.getVersionName() : item.getVersion().getName();
+        String scenario = item.getScenarioName() != null ? item.getScenarioName()
+                : item.getScenario() != null ? item.getScenario().getName() : null;
+        return scenario == null ? version : version + " · " + scenario;
+    }
+
     private static SavedComparisonDTO dto(ScenarioComparison comparison, ComparisonResultDTO result) {
         List<SavedComparisonDTO.Item> items = comparison.getItems().stream()
-                .map(item -> new SavedComparisonDTO.Item(item.getVersion().getId(), item.getEvaluation().getId()))
+                .map(item -> new SavedComparisonDTO.Item(item.getScenario() == null ? null : item.getScenario().getId(),
+                        item.getVersion().getId(), item.getEvaluation().getId(),
+                        item.getScenarioName() != null ? item.getScenarioName()
+                                : item.getScenario() != null ? item.getScenario().getName() : null,
+                        item.getVersionName() != null ? item.getVersionName() : item.getVersion().getName(), deleted(item)))
                 .toList();
         return new SavedComparisonDTO(comparison.getId(), comparison.getName(), comparison.getDescription(),
                 comparison.getRelevanceThreshold(), comparison.getRateThreshold(), comparison.getCreatedAt(), items, result);

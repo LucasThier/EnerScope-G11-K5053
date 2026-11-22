@@ -51,6 +51,15 @@ are the `tests` attribute of its Surefire report from the latest `mvn test`
 (`backend/target/surefire-reports`), which expands each parameterized method
 into one execution per argument.
 
+> **Reconciled 2026-11-22** against `mvn -B clean verify` (PostgreSQL 16 throwaway database, port 55432):
+> Surefire **98 classes, 1647 executions, 0 failures/errors/skips**; failsafe **6 classes, 58 executions,
+> 0 failures/errors/skips**; the table below sums to those 1647 executions and 1415 cases. The previous total
+> (1541 executions) had drifted: four classes were stale (`common.CsvUtilTest` 5 → 8,
+> `common.GlobalExceptionHandlerTest` 1 → 3, `version.controller.VersionControllerTest` 20 → 27,
+> `version.service.VersionServiceTest` 63 → 66) and `version.service.VersionNodeCsvImportServiceTest`
+> (27 cases, documented further down) was missing from this table. The per-case sections of those four
+> classes were **not** rewritten, only their counts.
+
 Six classes use `@ParameterizedTest` — `economic.controller.ScenarioVerticalAccessHttpTest`,
 `node.controller.NodeCreateAccessHttpTest`, `node.model.enums.NodeTypeEnumTest`,
 `version.controller.VersionBranchAccessHttpTest`,
@@ -64,28 +73,29 @@ executions differ; for every other class they are the same number. No class uses
 | `ApplicationContextTest` | Integration | 1 | 1 |
 | `auth.controller.AuthControllerTest` | Web | 16 | 16 |
 | `auth.filter.SessionRevocationHttpTest` | Integration | 9 | 9 |
-| `common.CsvUtilTest` | Unit | 5 | 5 |
-| `comparison.controller.ScenarioComparisonControllerTest` | Web | 5 | 5 |
+| `common.CsvUtilTest` | Unit | 8 | 8 |
+| `comparison.controller.ScenarioComparisonControllerTest` | Web | 6 | 6 |
 | `comparison.repository.ScenarioComparisonMigrationTest` | Data (JDBC/H2) | 3 | 3 |
-| `comparison.service.ScenarioComparisonCalculatorTest` | Unit | 15 | 15 |
-| `comparison.service.ScenarioComparisonServiceTest` | Unit | 12 | 12 |
+| `comparison.service.ScenarioComparisonCalculatorTest` | Unit | 16 | 16 |
+| `comparison.service.ScenarioComparisonServiceTest` | Unit | 22 | 22 |
 | `comparison.service.ScenarioMetricsExtractorTest` | Unit | 6 | 6 |
 | `comparison.service.ScenarioStatusServiceTest` | Unit | 6 | 6 |
-| `common.GlobalExceptionHandlerTest` | Unit | 1 | 1 |
+| `common.GlobalExceptionHandlerTest` | Unit | 3 | 3 |
+| `comparison.controller.ScenarioComparisonHttpTest` | Integration | 10 | 15 |
 | `economic.controller.EconomicControllerTest` | Web | 12 | 12 |
 | `economic.controller.EconomicJobControllerTest` | Web | 4 | 4 |
 | `economic.controller.EconomicWriteAccessHttpTest` | Integration | 9 | 9 |
 | `economic.controller.ScenarioConfigurationControllerTest` | Web | 4 | 4 |
-| `economic.controller.ScenarioVerticalAccessHttpTest` | Integration | 22 | 28 |
+| `economic.controller.ScenarioVerticalAccessHttpTest` | Integration | 22 | 26 |
 | `economic.service.EconomicEngineTest` | Unit | 21 | 21 |
 | `economic.service.EconomicIndicatorsCalculatorTest` | Unit | 17 | 17 |
 | `economic.service.EconomicJobServiceTest` | Unit | 10 | 10 |
 | `economic.service.EconomicJobWorkerTest` | Unit | 4 | 4 |
-| `economic.service.EconomicServiceTest` | Unit | 33 | 33 |
+| `economic.service.EconomicServiceTest` | Unit | 34 | 34 |
 | `economic.service.EconomicSimulationAdapterTest` | Unit | 2 | 2 |
 | `economic.service.EconomicStatisticsCalculatorTest` | Unit | 5 | 5 |
 | `economic.service.ProbabilisticSimulationTest` | Unit | 8 | 8 |
-| `economic.service.ScenarioConfigurationTest` | Integration | 14 | 14 |
+| `economic.service.ScenarioConfigurationTest` | Integration | 16 | 16 |
 | `economic.service.ScenarioOperationsTest` | Unit | 6 | 6 |
 | `jwt.JwtServiceTest` | Unit | 5 | 5 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 | 1 |
@@ -98,6 +108,7 @@ executions differ; for every other class they are the same number. No class uses
 | `node.model.enums.NodeTypeEnumTest` | Unit | 6 | 50 |
 | `node.repository.ConsumptionPersistenceTest` | Data | 1 | 1 |
 | `node.service.NodeClonerRoleTest` | Unit | 2 | 2 |
+| `node.service.NodeServiceOptionalBaseValuesTest` | Unit | 4 | 48 |
 | `node.service.NodeServiceTest` | Unit | 7 | 7 |
 | `organization.controller.BulkUploadSizeLimitHttpTest` | Integration | 2 | 2 |
 | `organization.controller.OrganizationControllerTest` | Web | 47 | 47 |
@@ -105,13 +116,20 @@ executions differ; for every other class they are the same number. No class uses
 | `organization.repository.OrganizationRepositoryTest` | Data | 24 | 24 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 18 | 18 |
 | `organization.service.OrganizationServiceTest` | Unit | 88 | 88 |
-| `project.controller.ProjectControllerTest` | Web | 45 | 45 |
+| `project.controller.ProjectControllerTest` | Web | 46 | 46 |
 | `project.model.ProjectMemberTest` | Unit | 3 | 3 |
 | `project.repository.ProjectMemberRepositoryTest` | Data | 21 | 21 |
 | `project.repository.ProjectRepositoryTest` | Data | 18 | 18 |
 | `project.service.ProjectAccessGuardTest` | Unit | 26 | 26 |
 | `project.service.ProjectServiceTest` | Unit | 108 | 108 |
+| `scenario.controller.ScenarioApiHttpTest` | Integration | 17 | 79 |
+| `scenario.service.ScenarioAccessTest` | Unit | 7 | 7 |
 | `scenario.service.ScenarioChangeScopeTest` | Unit | 16 | 16 |
+| `scenario.service.ScenarioDefaultsTest` | Unit | 4 | 4 |
+| `scenario.service.ScenarioLifecycleTest` | Unit | 20 | 20 |
+| `scenario.service.ScenarioLimitsTest` | Unit | 2 | 2 |
+| `scenario.service.ScenarioReferenceServiceTest` | Unit | 2 | 2 |
+| `scenario.service.VersionDefaultScenarioTest` | Unit | 6 | 6 |
 | `session.service.SessionServiceTest` | Unit | 9 | 9 |
 | `simulator.EconomicMetricsTest` | Unit | 7 | 7 |
 | `simulator.ResultMappingTest` | Data | 8 | 8 |
@@ -132,7 +150,7 @@ executions differ; for every other class they are the same number. No class uses
 | `version.controller.VersionAccessHttpTest` | Integration | 15 | 15 |
 | `version.controller.VersionBranchAccessHttpTest` | Integration | 25 | 29 |
 | `version.controller.VersionConflictsListAccessHttpTest` | Integration | 8 | 8 |
-| `version.controller.VersionControllerTest` | Web | 20 | 20 |
+| `version.controller.VersionControllerTest` | Web | 27 | 27 |
 | `version.controller.VersionGetJsonOpenInViewHttpTest` | Integration | 1 | 1 |
 | `version.controller.VersionGetJsonWithoutOpenInViewHttpTest` | Integration | 3 | 3 |
 | `version.controller.VersionInactiveAccessHttpTest` | Integration | 5 | 5 |
@@ -151,11 +169,13 @@ executions differ; for every other class they are the same number. No class uses
 | `version.service.VersionAccessTest` | Unit | 11 | 11 |
 | `version.service.VersionConflictIntegrationTest` | Integration | 11 | 11 |
 | `version.service.VersionConflictServiceTest` | Unit | 30 | 30 |
+| `version.service.VersionDeletionTest` | Unit | 6 | 6 |
 | `version.service.VersionLineageTest` | Unit | 10 | 10 |
 | `version.service.VersionMemberServiceTest` | Unit | 39 | 39 |
+| `version.service.VersionNodeCsvImportServiceTest` | Unit | 27 | 38 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 | 10 |
-| `version.service.VersionServiceTest` | Unit | 63 | 63 |
-| **Total (94 classes)** | | **1363** | **1540** |
+| `version.service.VersionServiceTest` | Unit | 67 | 67 |
+| **Total (105 classes)** | | **1500** | **1797** |
 
 > **`mvn test` on 2026-11-15 (13:35, run for this update): 1362 executions,
 > 0 failures, 0 errors, 0 skipped**, in 80 classes (`1238` methods). Executions
@@ -284,11 +304,15 @@ added in `b4dfa71`.
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
 | **Total** | | **460 [^p]** |
 | `economic.service.PostgreSqlEconomicIT` | 4 | 4 |
-| `economic.service.ScenarioConfigurationPostgreSqlIT` | 1 own + 14 inherited from `ScenarioConfigurationTest` | 15 |
+| `economic.service.ScenarioConfigurationPostgreSqlIT` | 1 own + 16 inherited from `ScenarioConfigurationTest` | 17 |
 | `project.repository.ProjectRepositoryPostgreSqlIT` | 7 | 7 |
 | `project.service.ProjectVersionCreationPostgreSqlIT` | 10 | 10 |
+| `scenario.repository.ScenarioMigrationIT` | 13 | 13 |
+| `scenario.service.ScenarioLifecyclePostgreSqlIT` | 20 inherited from `ScenarioLifecycleTest` | 20 |
+| `scenario.service.VersionDefaultScenarioPostgreSqlIT` | 6 inherited from `VersionDefaultScenarioTest` | 6 |
+| `version.service.VersionDeletionPostgreSqlIT` | 6 inherited from `VersionDeletionTest` | 6 |
 | `version.repository.VersionMemberRepositoryPostgreSqlIT` | 16 | 16 |
-| **Total (5 classes)** | | **52** |
+| **Total (9 classes)** | | **99** |
 
 `ProjectRepositoryPostgreSqlIT` and `ProjectVersionCreationPostgreSqlIT` are new
 in the 2026-11-15 section; the two new `VersionMemberRepositoryPostgreSqlIT`
@@ -1043,6 +1067,7 @@ non-`/auth` route); `ProjectService` is mocked.
 | `listProjectsForwardsOrganizationFilter` | `?organizationId=` reaches `ProjectService.listForCurrentUser` unchanged. |
 | `listProjectsRequiresAuthenticationWith401` | Without a Bearer token → `401`; the service is never called. |
 | `createVersionReturnsCreatedVersion` | `POST /projects/{id}/version` → `200` `Version created successfully` with the version's `name` (previously always `500`). |
+| `createVersionWithParentReturnsParentIdWithoutSerializingEntity` | Creating a child version returns a summary DTO with `parentVersionId` instead of serializing the entity (the lazy `parentVersion` proxy caused a `500` although the version was saved). |
 | `createVersionRequiresAuthenticationWith401` | Without a Bearer token → `401`; `ProjectService.saveVersion` is never called. |
 | `createProjectReturnsCreatedProject` | `POST /projects` with a valid body → `201` and an envelope with `success=true`, message `Project created`, and the created project's `name`/`description`. |
 | `createProjectRejectsBlankFieldsWithValidationError` | Blank `name`/`description` → `400` `Validation error`; `ProjectService.createProject` is never called. |
@@ -2296,7 +2321,7 @@ Scenarios are compared with each other; there is no reference scenario.
 | `scenariosFromDifferentProjectsAreNamedWithTheirProject` | Mixed projects name scenarios "Base (Cuenca Austral)" in the findings. |
 | `fewerThanTwoScenariosAreRejected` | Fewer than two scenarios throw `IllegalArgumentException`. |
 
-### `comparison.service.ScenarioComparisonServiceTest` — Unit (12)
+### `comparison.service.ScenarioComparisonServiceTest` — Unit (13)
 
 | Case | Verifies |
 | --- | --- |
@@ -2304,8 +2329,9 @@ Scenarios are compared with each other; there is no reference scenario.
 | `scenarioThatChangedSinceItsLastSimulationMustBeSimulatedAgain` | An outdated scenario is refused (`Scenario changed since its last simulation: …`) by preview and save; nothing is stored. |
 | `scenarioNeverSimulatedCannotBeCompared` | A scenario with no simulation answers `Scenario has never been simulated: …`. |
 | `unknownVersionIsNotFoundBeforeReadingAnyEvaluation` | An unknown or deleted version is a 404 before any evaluation is read. |
-| `scenariosOfAnotherProjectAreComparedWhenTheCallerCanViewIt` | A version of another project is compared after `VIEW_PROJECT` is checked on that project, read through its own project, and the result carries each project's name. |
-| `scenarioOfAProjectTheCallerCannotViewIsForbidden` | A version of a project the caller cannot see is a 403 and its evaluations are never read. |
+| `scenarioOfAnotherProjectIsNotFoundEvenWhenTheCallerCanViewIt` | (E1) A version of another project is a generic 404 for preview and save, even if the caller can view that project; that project's permission is never checked and its evaluations are never read. |
+| `scenarioOfAProjectTheCallerCannotViewIsAlsoAGenericNotFound` | (E1) A version of a project the caller cannot see is the same generic 404 (`Version not found`): nothing about that project is revealed. |
+| `withoutAccessToThePathProjectTheWholeRequestIsForbiddenBeforeAnyLookup` | (E1) Without `VIEW_PROJECT` on the URL project the whole request is a 403 before any version or evaluation is looked up. |
 | `fewerThanTwoItemsTheSameScenarioTwiceAndInvalidThresholdsAreRejected` | One item, no body, the same scenario twice, a zero threshold, an item without version and more than 8 items are rejected. |
 | `saveNeedsEditPermissionNamesItAfterItsScenariosAndStoresTheSimulationsCompared` | Saving needs `EDIT_PROJECT`, is named after its scenarios ("Base vs Ampliación") unless given a name (trimmed), applies default thresholds and stores the simulations compared, in order. |
 | `userWithoutEditPermissionCannotSave` | A 403 from the permission check stores nothing. |
@@ -2366,7 +2392,7 @@ Scenarios are compared with each other; there is no reference scenario.
 | `scenario colours follow the position and never cycle past the palette` | Position → `series-n` classes; the cap is 8. |
 | `comparing needs two to eight scenarios, all simulated and up to date` | The Compare button's rule and its reason; which pending scenarios can be simulated from the screen and which are blocked. |
 | `scenario status reads in plain words, with progress and failed runs` | Tile labels for up to date / changed / never simulated / simulating (with rounds) and a failed last run. |
-| `the selection round-trips through the URL and the request keeps its order` | `?escenarios=project:version,…` round trip (duplicates and broken parts dropped) and the request order. |
+| `the selection round-trips through the URL and the request keeps its order` | `?escenarios=project:version,…` round trip (duplicates and broken parts dropped), the request order, and (E1) scenarios of any other project are dropped when the project is given. |
 
 Also updated: `economicNavigation.test.mjs` and `workspaceRoutes.test.mjs` (Comparaciones links to `/projects/{id}/comparisons`; comparison routes keep their title and drop the run id when switching projects).
 
@@ -3595,3 +3621,336 @@ unrelated (`VersionGetJson*HttpTest` golden JSON: `dtmcost`/`dtmtime` property o
 same two fail on a clean `master` checkout). Frontend `npm test` — **249 cases, 1 failure**, also pre-existing on
 Windows (`permissionsCharacterization.test.mjs` compares `/`-separated allowed paths with `\`-separated walked
 paths); `npm run build` and `npm run lint` pass.
+
+## Scenario table, expand only (V26) — 2026-11-22 (E3)
+
+`mvn test` runs on H2 with Hibernate-built schema and Flyway disabled, so V26 is verified only by the
+PostgreSQL integration test below (`mvn -B verify` with `ECONOMIC_TEST_DATABASE_URL` pointing at a
+disposable database whose name contains `enerscope_economic_test`). Validation on this delivery:
+`mvn -B clean verify` against a throwaway PostgreSQL 16 — **1598 unit executions** and **58 integration
+executions**, zero failures/errors/skips. `node.migration.MigrationCatalogTest.executableCatalogUsesOnlyVersionedMigrations` now expects **26** migrations.
+
+### `scenario.repository.ScenarioMigrationIT` — PostgreSQL/Flyway (10; 6 for V26, 4 for V27 added in E4a)
+
+Each case migrates a disposable schema to V25, inserts rows (one version with every kind of row, one with
+only an evaluation, one inactive with a configuration, one with nothing, and a comparison with two items),
+applies V26 and checks the result.
+
+| Case | Verifies |
+| --- | --- |
+| `everyPreviousRowSurvivesAndPointsAtTheDefaultScenarioOfItsVersion` | V26 runs once; row counts of the six linked tables and of `version` are identical before and after; no `scenario_id` is null; every row points at the default scenario of its own version. |
+| `everyVersionGetsExactlyOneEscenarioBase` | Four versions give four scenarios, each the single default named "Escenario base"; a version with no economics and an inactive one get one too (the flag follows the version). |
+| `aScenarioNameIsUniqueInItsVersionIgnoringCaseAmongActiveScenariosOnly` | Same name in a different case is refused in the same version, allowed in another version and again after the first is deactivated; a blank name is refused. |
+| `aVersionCannotHaveTwoActiveDefaultScenarios` | A second active default is refused; it is accepted once the first is deactivated. |
+| `runningTheMigrationAgainChangesNothing` | Flyway applies 0 migrations the second time, and executing the V26 file by hand again adds no scenario, moves no link and changes no count. |
+| `theUniqueConstraintsOnVersionIdStayUntilV27` | A second economic configuration for the same version is still refused (the `UNIQUE (version_id)` is dropped in V27, not here). |
+
+### `scenario.service.ScenarioDefaultsTest` — Unit (4)
+
+| Case | Verifies |
+| --- | --- |
+| `createsTheEscenarioBaseOfAVersionThatHasNone` | With no default scenario, one named "Escenario base", flagged default and bound to the version, is saved and returned. |
+| `reusesTheExistingDefaultScenarioWithoutCreatingAnother` | An existing default is returned as is; nothing is saved. |
+| `lookingForTheDefaultScenarioOfAVersionWithoutOneNeverCreatesIt` | (E4a) `existing` answers empty for a version with no default scenario and saves nothing (reads never write). |
+| `lookingForTheDefaultScenarioReturnsTheExistingOne` | (E4a) `existing` returns the stored default scenario without saving. |
+
+### `scenario.service.ScenarioLimitsTest` — Unit (2)
+
+| Case | Verifies |
+| --- | --- |
+| `theDefaultLimitIsTwentyScenariosPerVersion` | The default is 20. |
+| `aLimitBelowOneIsRejectedAtStartup` | A configured maximum below 1 fails fast. |
+
+Existing cases extended (no change in counts): `EconomicServiceTest.editorCanSaveValidatedConfiguration` and
+`newEvaluationStoresVersionTwoAndSimulatesOnce`, `EconomicJobServiceTest.submissionFreezesInputsAndQueuesWithoutPublishingEvaluation`
+and `ScenarioComparisonServiceTest.saveNeedsEditPermissionNamesItAfterItsScenariosAndStoresTheSimulationsCompared`
+now also check that the new row records the default scenario of its version (double write).
+
+## Start-up date and maintenance duration survive an edit — 2026-11-22 (E3b)
+
+Bug: editing a node from the map erased its `startupDate` in all 12 node types (`NodeService.edit*` copied
+`dto.getStartupDate()` unconditionally and the editor never sent it), and `maintenanceDuration` could not be
+set through the node DTO at all. Now an absent value keeps the stored one (so a start-up date cannot be cleared
+with `null`), a present one updates it, and a negative duration is rejected.
+
+### `node.service.NodeServiceOptionalBaseValuesTest` — Unit (4 cases × 12 node types = 48 executions)
+
+Each case runs once per node type (Well, GatheringNetwork, TreatmentPlant, Pipeline, PipelineConnection,
+CompressingPlant, GroundBasedLiquefactionPlant, FLNGUnit, SeaportTerminal, LNGCarrier, InternalConsumption,
+IndustrialConsumption), creating the node through `NodeService.save*` and editing it through `edit*`.
+
+| Case | Verifies |
+| --- | --- |
+| `creatingANodeStoresItsStartupDateAndMaintenanceDuration` | Creating a node with both values stores them (the constructors do not take the duration). |
+| `editingWithoutStartupDateOrMaintenanceDurationKeepsTheStoredValues` | Editing with neither value keeps both, and the rest of the edit (name) is still applied. |
+| `editingWithANewStartupDateOrMaintenanceDurationUpdatesThem` | Editing with new values updates both. |
+| `aNegativeMaintenanceDurationIsRejectedOnCreateAndEdit` | A negative duration is refused on create and edit, and the node keeps its value. |
+
+Checked by mutation: restoring the old unconditional copy makes the "keeps the stored values" case fail for all 12 types.
+
+### `version.service.VersionServiceTest` — Unit (66, was 65 before this change)
+
+| Case | Verifies |
+| --- | --- |
+| `nodeDetailReportsTheStartupDateAndMaintenanceDurationSoTheEditFormCanSendThemBack` | `getNodeDetail` returns the node's `startupDate` and `maintenanceDuration`, which the edit form sends back. |
+
+### `frontend/tests/nodeOperationalEditor.test.mjs` — 3 new cases (frontend `npm test`: 252 cases, 0 failures)
+
+| Case | Verifies |
+| --- | --- |
+| `a loaded node round-trips its start-up date and maintenance duration into the edit payload` | `baseValuesFromDetail` then `buildNodePayload` keep `startupDate`, `maintenanceDuration` and `wastePercentage`. |
+| `a node without a start-up date sends none (never null), so the backend keeps whatever is stored` | The payload omits `startupDate` when there is none, and a missing duration becomes 0. |
+| `the edit form shows start-up date, maintenance duration in hours and losses, and states that a date cannot be cleared` | The three new fields render with the loaded values and the "no borrar" hint. |
+
+CI: `backend-it` (PostgreSQL integration tests) no longer has `continue-on-error`, so a failing `*IT` — including `ScenarioMigrationIT` — fails the job.
+
+## Reads by scenario and V27 (E4a) — 2026-11-22
+
+`V27__scenario_unique_per_scenario.sql` drops the `UNIQUE (version_id)` of `economic_configuration`,
+`economic_draft` and `scenario_draft` and adds `UNIQUE (scenario_id)`; every read now goes by `scenario_id`
+(see `considerations.md`). Validation: `mvn -B clean verify` against a throwaway PostgreSQL 16 on port 55432 —
+Surefire **99 classes, 1652 executions**, failsafe **6 classes, 62 executions**, zero failures/errors/skips;
+`MigrationCatalogTest` now expects **27** migrations. The table above sums to those 1652 executions and 1420 cases.
+
+### `scenario.repository.ScenarioMigrationIT` — 4 cases added for V27 (PostgreSQL)
+
+| Case | Verifies |
+| --- | --- |
+| `v27KeepsEveryRowOfAV26DatabaseAndLosesNoLink` | On a V26 database with rows, only V27 is applied; row counts are identical and no `scenario_id` is null. |
+| `aSecondScenarioOfTheSameVersionCanHaveItsOwnConfigurationDraftAndScenarioDraft` | A non-default scenario of the same version can hold its own `economic_configuration`, `economic_draft` and `scenario_draft` (two rows per version). |
+| `aScenarioStillHasAtMostOneConfigurationDraftAndScenarioDraft` | A second row for the same scenario is refused in all three tables. |
+| `v27IsRepeatable` | Flyway applies V26 and V27, then 0; running the V27 file twice by hand changes no count; the three unique indexes exist and no `UNIQUE (version_id)` remains. |
+
+The V26 cases now migrate only up to V26 (`flyway.target("26")`), so they keep describing V26.
+
+### `scenario.service.ScenarioReferenceServiceTest` — Unit (2)
+
+| Case | Verifies |
+| --- | --- |
+| `aClonedNodeIsRemappedInTheConfigurationOfEveryScenarioOfTheVersion` | Both scenarios' configurations get the new node id; unrelated nodes are untouched. |
+| `remappingANodeOntoItselfTouchesNothing` | Old id equal to new id reads nothing. |
+
+### `economic.service.EconomicServiceTest` — Unit (34, was 33)
+
+| Case | Verifies |
+| --- | --- |
+| `readingAVersionWithoutAScenarioFindsNothingAndNeverCreatesOne` | Configuration, draft and evaluation list of a version with no default scenario answer not-found / null / empty, never create a scenario and never touch the repositories. |
+
+Existing tests adjusted (no change in their counts): the mocked service tests now stub reads by scenario
+(`EconomicExample.scenarioIdOf(versionId)`, `EconomicExample.scenarioDefaults()`), and the tests that persist
+rows straight through the `EntityManager` (`EconomicWriteAccessHttpTest`, `ScenarioVerticalAccessHttpTest`,
+`ProjectExecutiveHttpTest`, `PostgreSqlEconomicIT`) attach the default scenario (`ScenarioFixtures`).
+
+## Scenario API, roles and the end of node edits from a scenario (E4b) — 2026-11-22
+
+Scenarios can be created, renamed, duplicated and deleted, and their configuration, simulations and results are
+served per scenario (`backend/README.md#scenario-api`). Saving a scenario no longer saves node values. Validation:
+`mvn -B clean verify` against a throwaway PostgreSQL 16 on port 55432 — Surefire **102 classes, 1756 executions**,
+failsafe **7 classes, 82 executions**, zero failures/errors/skips. The table above sums to those 1756 executions
+(1464 cases).
+
+### `scenario.controller.ScenarioApiHttpTest` — HTTP, real security and persistence on H2 (16 cases, 78 executions)
+
+| Case | Verifies |
+| --- | --- |
+| `everyRoleGetsTheExpectedAnswerForEveryAction` (×63) | The role matrix. Roles: Ejecutivo, Simulador, version Editor of Extraction, version Editor of Export, version administrator, project administrator, platform administrator. Actions: list, read, create, rename, duplicate, delete, simulate, save configuration, list evaluations. Ejecutivo reads only; Simulador reads and simulates (202); Editors do everything except delete (403); the three administrators do everything. |
+| `anEditorSavesRulesOfItsOwnVerticalAndGets403ForAnotherVerticalsRules` | On the scenario endpoint an Export editor saves a change to the Export node's rules (200) and an Extraction editor gets `403`. |
+| `duplicatingAConfiguredScenarioNeedsTheRightToEditEveryVerticalItsRulesTouch` | Duplicating a scenario whose rules touch two verticals is `403` for a one-vertical editor and `201` for a version administrator. |
+| `aNonMemberGets403BeforeAnythingIsLookedUpEvenForAScenarioThatDoesNotExist` | A caller with no project permission gets `403` for an existing and for an unknown scenario id (403 before 404). |
+| `anUnknownDeletedOrForeignScenarioIsTheSameGeneric404` | Unknown, deleted and other-project scenarios answer the same `404` "Scenario not found" on every route (read, rename, delete, duplicate, configuration get/put, simulate, evaluations). |
+| `aMemberOfAnotherProjectCannotReachThisProjectsScenarios` | With the other project's id in the URL the caller is not a member there: `403`. |
+| `anInactiveVersionHidesItsScenarios` | List, read and create answer `404` once the version is inactive. |
+| `theVersionCapabilityIs403BeforeTheNameIsValidatedAndTheNameIs400BeforeAConflict` | Blank name: Ejecutivo and Simulador `403`, administrator `400`; a repeated name is `409`. |
+| `repeatedNamesAndTheLimitAnswer409WithAClearMessage` | Repeated name (different case/accent) `409`; the 21st scenario `409` naming 20; duplicating at the limit `409`. |
+| `createReturnsTheScenarioAndNeverCreatesAVersion` | `201` with name, version id, not default, not configured; the project still has the same versions; the list is oldest first. |
+| `duplicatingGivesTheCopyTheSameConfigurationAndTheSourceStaysTheSame` | The copy's configuration equals the source's; the source is unchanged. |
+| `theLastScenarioCannotBeDeletedAndTheDefaultIsPromotedWhenItIsDeleted` | Deleting the default promotes the remaining one (`defaultScenario: true`); deleting the last is `409`. |
+| `theOldVersionEndpointsFollowTheDefaultScenarioAndTheNewOnesKeepToTheirOwn` | Saving a copy does not change what the old `/versions/{v}/economics/configuration` returns; after the default is deleted it returns the promoted scenario's. |
+| `aSimulationBelongsToItsScenarioAndAPendingDraftBlocksIt` | A job is listed under its scenario only (another scenario's job id is `404`); a pending draft makes simulating that scenario `400`. |
+| `anEvaluationOfAnotherScenarioIsNotFoundUnderThisOne` | Listing another scenario's evaluations is empty and reading one (or its rounds) is `404`. |
+| `aScenarioSaveThatWouldChangeNodeValuesIsABadRequestWithAClearMessage` | A save carrying changed node values is `400` with "se editan en cada nodo de la versión". |
+
+### `scenario.service.ScenarioLifecycleTest` — real services on H2 (18); `ScenarioLifecyclePostgreSqlIT` runs the same 18 on PostgreSQL
+
+| Case | Verifies |
+| --- | --- |
+| `createsAnEmptyNonDefaultScenarioNamedByThePersonAndListsThemOldestFirst` | Trimmed name, not default, not configured; list order. |
+| `theFirstScenarioOfAVersionThatHasNoDefaultBecomesIt` | In a version with no scenario the first created is the default. |
+| `aNameIsUniqueInTheVersionIgnoringCaseAndTheDefaultNameIsTakenToo` | "AMPLIACIÓN", "escenario BASE" and padded names are refused. |
+| `renamingChecksTheNameAgainstTheOthersButNotAgainstItself` | Renaming to another's name is refused; changing only the case of its own is allowed. |
+| `aMissingBlankOrTooLongNameIsABadRequest` | Null body, null, blank and 121-character names are `IllegalArgumentException`; 120 is accepted. |
+| `aVersionHoldsAtMostTwentyActiveScenariosAndADeletedOneFreesItsPlace` | The 21st (and a duplicate at the limit) is refused; deleting one frees a place. |
+| `aDeletedScenarioFreesItsName` | A deleted scenario's name can be reused. |
+| `duplicatingCopiesOnlyTheConfigurationAndLeavesTheSourceIntact` | Same configuration, no draft, no evaluations in the copy; source configuration, drafts and evaluations untouched. |
+| `duplicatingAnEmptyScenarioGivesAnEmptyOne` | An empty scenario duplicates to an empty one; its name is checked. |
+| `theLastScenarioOfAVersionCannotBeDeleted` | `ScenarioDeletionRefusedException` and the scenario stays active. |
+| `aScenarioWithAQueuedOrRunningSimulationCannotBeDeleted` | Refused while a job is queued, then while running; allowed once completed. |
+| `deletingTheDefaultPromotesTheOldestRemainingOneInTheSameTransaction` | Old mark removed, oldest remaining becomes the only default, old endpoints follow it. |
+| `deletingANonDefaultScenarioLeavesTheDefaultAlone` | The default is unchanged. |
+| `deletingKeepsItsEvaluationsJobsAndTheSavedComparisonsThatUsedIt` | After deleting, its evaluation, job and a saved comparison with both items are all still there and point at the deleted scenario. |
+| `theOldEndpointsKeepActingOnTheDefaultScenarioWhenOthersExist` | Saving a copy's configuration leaves the default's (and the version-level read) unchanged. |
+| `aDraftOfAnotherScenarioDoesNotBlockTheDefaultOneNorItsReadiness` | Readiness is the default scenario's; another scenario's draft shows only on that scenario. |
+| `editingANodeRemapsTheConfigurationOfEveryScenarioOfTheVersion` | After editing a node from the map (clone-on-write) both scenarios reference the new node and none the old one. |
+| `editingANodeLeavesEveryScenarioOutdatedByDesign` | A node edit changes the source token of every scenario of the version. |
+
+### `scenario.service.ScenarioAccessTest` — Unit (7)
+
+| Case | Verifies |
+| --- | --- |
+| `withoutTheProjectPermissionTheAnswerIs403AndNothingIsLookedUp` | The scenario repository and the version guard are never touched. |
+| `anUnknownInactiveOrForeignScenarioIsTheSameGeneric404BeforeTheVersionGuard` | Same "Scenario not found" for unknown, inactive and other-project scenarios; no guard call. |
+| `aScenarioOfAnInactiveVersionIs404` | An inactive version hides its scenarios. |
+| `readingNeedsOnlyTheProjectPermission` | `VIEW_PROJECT` and no version guard. |
+| `editingNeedsEditProjectThenTheRightToEditTheVersion` | `EDIT_PROJECT` first, then `assertCanEditVersion`, in that order. |
+| `deletingNeedsToAdministerTheVersionAndSimulatingToSimulateIt` | `assertCanManageVersion` / `assertCanSimulateVersion`, never the edit guard. |
+| `aRefusedVersionCapabilityIsA403AfterTheScenarioWasFound` | The version `403` comes after the lookup. |
+
+### Cases added or changed in existing classes
+
+| Class and case | Verifies |
+| --- | --- |
+| `comparison.service.ScenarioComparisonServiceTest.aSavedComparisonReadsEachItemThroughItsOwnScenarioEvenWhenItIsDeletedOrNoLongerTheDefault` | (14, was 13) A saved item is read through the scenario recorded in it; an item with no scenario still reads through the version. |
+| `economic.service.ScenarioConfigurationTest.publishesOnlyTheEconomicsAndLeavesTheNodesOfTheVersionUntouched` | Replaces the old "publishes physics and economics together": a save changes the configuration and never clones or replaces a node. |
+| `economic.service.ScenarioConfigurationTest.aSaveThatWouldChangeNodeValuesIsRefusedAndNothingIsWritten` | Changed node values are `IllegalArgumentException`; nothing is written. |
+| `economic.service.ScenarioConfigurationTest.incompleteSavePreservesPublishedValuesAndBlocksJobUntilDiscarded` | Rewritten around an incomplete economic save (no configuration) instead of an invalid node value. |
+| `economic.service.ScenarioConfigurationTest.aDraftThatCarriesNodeValuesIsMarkedSoTheScreenCanExplainThatTheyAreNoLongerApplied` | A stored draft whose node values differ from the nodes is flagged `draftOperationsIgnored`; discarding clears the flag. |
+| `economic.controller.ScenarioVerticalAccessHttpTest` | (22 cases, 26 executions) The vertical tests that changed node values now change the **rules** of a vertical's node (the only thing a scenario saves): own vertical `200`, another vertical `403`, invalid rule of another vertical `403`, invalid rule of its own stored as a draft; the three "changes every vertical" cases and the two child-copy cases no longer rename nodes; `aScenarioSaveThatWouldChangeNodeValuesIsRefusedWithAClearMessageNotSilentlyDropped` is new. The case `anyEditorChangesAnInternalConsumptionNode` was removed (it renamed a node; the internal-consumption exemption stays covered by `ScenarioChangeScopeTest`). |
+| `economic.service.EconomicJobServiceTest` | Stubs read the configuration by scenario. |
+
+## Frontend scenario flow (E5) — 2026-11-22
+
+Version → its scenarios → one scenario. Validation: `mvn -B clean verify` against a throwaway PostgreSQL 16 on port 55432
+— Surefire **102 classes, 1758 executions**, failsafe **7 classes, 84 executions**, zero failures/errors/skips (the table
+above sums to those 1758 executions); frontend `npm test` **265 cases, 0 failures** (252 before), `tsc -b`, `eslint .` and
+`npm run build` clean. The browser (Playwright) scripts `frontend/tests/*-browser.mjs` mock the endpoints of the old
+version-level flow and were **not run and not updated**; they must be rewritten before they are used again.
+
+### Backend: status per scenario (the one backend change of E5)
+
+`ScenarioDTO` gains `status` (`UP_TO_DATE`, `OUTDATED`, `NEVER_SIMULATED`, `SIMULATING`) and `latestEvaluatedAt`
+(`ScenarioStatusService.standingOf`), because the only status the API returned was the comparison's, for the default
+scenario only.
+
+| Case | Verifies |
+| --- | --- |
+| `scenario.service.ScenarioLifecycleTest.eachScenarioReportsItsOwnStatusAndANodeEditOutdatesEveryOneThatWasSimulated` | A never-simulated scenario is `NEVER_SIMULATED` with no date; after simulating the default one it is `UP_TO_DATE` with a date while the copy stays `NEVER_SIMULATED`; after a node of the version changes the simulated one is `OUTDATED`. |
+| `scenario.service.ScenarioLifecycleTest.aScenarioWithAQueuedOrRunningSimulationIsSimulating` | A queued job makes the scenario `SIMULATING`. |
+
+### `frontend/tests/scenarioFlow.test.mjs` — 13 cases (pure logic: `utils/scenarioRules.ts`, `utils/scenarioRoutes.ts`, `utils/workspaceRoutes.ts`, `api/errors.ts`)
+
+| Case | Verifies |
+| --- | --- |
+| `each role gets the scenario permissions the backend matrix gives it` | Ejecutivo, Simulador, Editor, version administrator, project administrator and platform administrator: view / edit / delete / simulate flags, and a reason exactly when an action is denied. |
+| `permissions deny by default: no access data, or a version the person has no entry for` | `null`/`undefined` access and an unknown version allow nothing. |
+| `a role that cannot edit never edits even with version flags: the project permission is required too` | Version flags without `EDIT_PROJECT` give nothing. |
+| `the reason of a blocked action says why: read-only role, missing right, or the state of the scenario` | Read-only, missing right, not configured, draft pending, simulating, limit of 20 reached. |
+| `a scenario name is required, trimmed, at most 120 characters and unique in the version ignoring case` | Blank, 120/121 characters, repeated names ignoring case and accents. |
+| `renaming lets a scenario keep or re-case its own name but not take another one` | `selfId` handling. |
+| `the status the API returns reads in plain words, and a changed base carries the notice` | Four labels and tones, "La base cambió: revisá este escenario.", the ignored-operations and delete notices. |
+| `the default scenario is the one marked, else the first` | `defaultScenarioOf`. |
+| `every scenario error the backend can answer has its own plain Spanish message` | Repeated name, limit of 20, last scenario, running simulation, stale token, node values in a scenario save, "Scenario not found", name required / too long. |
+| `scenario routes are built under the version and keep each module to its own sidebar entry` | Path builders and that configuration and simulation patterns match their own routes only (never version management). |
+| `switching projects from any scenario screen opens that module list of the new project, never a foreign id` | `projectDestination` for the new routes. |
+| `the old version-level economics routes are read and sent to the default scenario` | `parseLegacyEconomicsPath` / `legacyEconomicsTarget` for configuration, history and results (with evaluation id) and the paths that must not match. |
+
+`frontend/tests/scenarioConfiguration.test.mjs` gains `a recovered draft never resends stale node values: they are always the nodes' current ones`.
+
+## Comparison by scenario and V28 (E6) — 2026-11-22
+
+Items name a scenario; saved comparisons keep the version and scenario names and open after either is deleted
+(`scenario-comparison.md`). Validation: `mvn -B clean verify` against a throwaway PostgreSQL 16 on port 55432 — Surefire
+**103 classes, 1782 executions**, failsafe **7 classes, 87 executions**, zero failures/errors/skips (the table above sums to those
+1782 executions); `MigrationCatalogTest` expects **28** migrations; frontend `npm test` **268 cases, 0 failures** (265 before),
+`tsc -b`, `eslint .` and `npm run build` clean. The Playwright scripts are still not updated (see the E5 note).
+
+### `comparison.controller.ScenarioComparisonHttpTest` — HTTP, real security and persistence on H2 (14 executions)
+
+| Case | Verifies |
+| --- | --- |
+| `everyRolePreviewsButOnlyThoseWhoCanEditTheProjectSave` (×6) | Everyone with `VIEW_PROJECT` previews (200); saving: Ejecutivo `403`, **Simulador `201`**, Editor, version administrator, project administrator and platform administrator `201`. |
+| `twoScenariosOfTheSameVersionAreComparedAndNamedByTheirScenario` | Scenarios of one version are compared; the result carries scenario names, scenario ids and the shared version. |
+| `thePickerListsEveryScenarioGroupedByVersionWithItsOwnStatus` | `GET /comparisons/scenarios` lists each scenario (default first) with its own status and its version. |
+| `anItemThatNamesOnlyAVersionMeansItsDefaultScenario` | The deprecated `{versionId}` item compares that version's default scenario. |
+| `anUnknownDeletedOrForeignScenarioIsTheSameGeneric404` | Unknown, deleted and other-project scenarios answer one `404` "Scenario not found". |
+| `withoutAccessToTheProjectTheWholeRequestIs403WithNoPartialResult` | A non-member gets `403` with no data, also when an item does not exist, and for the picker. |
+| `tooFewTheSameTwiceAndNeverSimulatedAreBadRequests` | One item, the same scenario twice and a never-simulated scenario are `400`. |
+| `aSavedComparisonKeepsOpeningWithItsDataAfterItsScenarioIsDeleted` | After deleting a scenario the saved comparison opens (`200`), the item is `deleted` with its stored name, the result keeps its data, the list says it includes deleted scenarios. |
+| `aSavedComparisonKeepsOpeningAfterItsVersionIsDeactivated` | Same when the version is deactivated. |
+
+### `comparison.service.ScenarioComparisonServiceTest` — Unit (22, was 14; rewritten around scenarios)
+
+Scenarios of the same version and of different versions; same-named scenarios told apart by version; changed / never simulated;
+unknown scenario `404` before any evaluation is read and a single unknown is `404` (not "too few"); other-project, deleted and
+inactive-version scenarios are the same generic `404`; `403` for the whole request with nothing looked up; the deprecated version item
+and its cross-project `404`; shape errors (null body, no items, item without id, nine items, the same scenario twice, thresholds, name
+length); save stores the scenario and the names as they were; a saved comparison reads each item by its own evaluation and keeps the
+stored names even if the scenario was renamed; a deleted scenario and a deleted version are flagged `deleted`; an old comparison without
+scenario or names still opens and lists by version name; soft delete.
+
+### Other backend changes
+
+| Class and case | Verifies |
+| --- | --- |
+| `comparison.controller.ScenarioComparisonControllerTest.aRequestThatNamesOnlyAVersionStillBindsForCompatibility` | (6, was 5) `{versionId}` binds to `Item.ofVersion`; `{scenarioId}` to `Item(scenarioId)`. |
+| `comparison.service.ScenarioComparisonCalculatorTest` | (16, was 15) The project-name test became two: same scenario names across versions read "versión · escenario"; distinct names read as the scenario; the `deleted` flag reaches the result and a scenario without a name falls back to its version. |
+| `comparison.service.ScenarioStatusServiceTest.listReportsEachScenarioItsOwnStatusReadinessAndWhetherTheCallerCanSimulateGroupedByVersion` | The list has one entry per scenario, two scenarios of one version have their own statuses (up to date / simulating), grouped by version. |
+| `scenario.repository.ScenarioMigrationIT` | (13, was 10) `v28GivesEveryExistingComparisonItemTheCurrentNamesWithoutLosingARow`, `aSavedItemKeepsItsNamesWhenTheScenarioIsRenamedAndTheVersionDeleted` and `v28IsRepeatableAndNeverOverwritesAStoredName`; the V27 cases now migrate up to V27 only. |
+
+### Frontend (`frontend/tests/comparison.test.mjs`, 5 cases added or rewritten)
+
+| Case | Verifies |
+| --- | --- |
+| `scenarios are named by their scenario name, and by version · scenario when the names repeat` | `scenarioNames` mirrors the backend. |
+| `a deleted scenario of a saved comparison is marked and counted, and the label shows version and scenario` | "(eliminado)", `deletedCount`, `scenarioLabel` and the notice text. |
+| `the selection round-trips through the URL and the request keeps its order` | `scenarioId` in the URL and in the request; other projects dropped. |
+| `the picker groups scenarios by version in the server order and searches scenario and version names` | `groupByVersion`, `filterScenarios`. |
+| `a selection that arrives in the URL keeps scenario ids, turns old version ids into the default scenario and drops the rest` | `resolveSelection` and `selectionNotice`. |
+
+## Every version has its "Escenario base" from creation (E6b) — 2026-11-22
+
+`VersionService.saveVersion` (used by `ProjectService.saveVersion` for root versions and branches, and by `saveOrphanVersion`) calls
+`ScenarioDefaults.forVersion` in the same transaction. Validation: `mvn -B clean verify` against a throwaway PostgreSQL 16 on port
+55432 — Surefire **104 classes, 1790 executions**, failsafe **8 classes, 93 executions**, zero failures/errors/skips (the table above
+sums to those 1790 executions); frontend `npm test` **268 cases** (unchanged), `tsc -b`, `eslint .` and `npm run build` clean.
+
+### `scenario.service.VersionDefaultScenarioTest` — real services on H2 (6); `VersionDefaultScenarioPostgreSqlIT` runs the same 6 on PostgreSQL
+
+| Case | Verifies |
+| --- | --- |
+| `creatingARootVersionCreatesExactlyOneEmptyDefaultScenario` | A root version has exactly one active scenario, "Escenario base", default, with no configuration. |
+| `branchingCreatesItsOwnEmptyBaseScenarioAndInheritsNothingFromTheParent` | A branch has exactly one empty "Escenario base" of its own; the parent keeps its two scenarios and its configuration; the child has none. |
+| `aDetachedVersionAlsoGetsItsBaseScenario` | `saveOrphanVersion` also creates it. |
+| `severalVersionsEachGetTheirOwnSingleScenario` | Two roots and a branch give three scenarios in total, one each. |
+| `deletingAVersionRowAlsoRemovesItsScenariosAndLeavesTheOthersAlone` | Deleting a version (a physical delete today) removes its scenarios and no other version's. |
+| `theComparisonPickerListsTheNewVersionsScenario` | The comparison picker lists the new root and its branch, each with "Escenario base", default, `NEVER_SIMULATED` and not ready. |
+
+### Other changes
+
+| Class and case | Verifies |
+| --- | --- |
+| `version.service.VersionServiceTest.creatingARootVersionAndABranchEachCreateTheirDefaultScenarioInTheSameCall` | (67, was 66) `saveVersion` calls `ScenarioDefaults.forVersion` once for a root and once for a branch, and nothing else. |
+| `comparison.controller.ScenarioComparisonHttpTest.aVersionCreatedThroughTheApiAppearsInThePickerWithItsEmptyBaseScenario` | (15, was 14) A root and a branch created with `POST /projects/{id}/version` show up in `GET /comparisons/scenarios` with their base scenario. |
+| `version.service.VersionConflictIntegrationTest` | (11, unchanged) four cases that delete versions failed once every version had a scenario (the schema H2 builds had no cascade); `Scenario.version` is now mapped `@OnDelete(CASCADE)`, as V26's foreign key is on PostgreSQL. |
+
+## Deleting a version that has results (E6c) — 2026-11-22
+
+`DELETE /version/{id}` now answers **409** "La versión tiene simulaciones o comparaciones guardadas y no se puede eliminar." when the version, or any
+version in the subtree that would be deleted, has simulation jobs, saved evaluations or saved comparison items; nothing is touched. Order: 403, 404, 409.
+A version with none of that is deleted as before, with its scenarios. Validation: `mvn -B clean verify` against a throwaway PostgreSQL 16 on port
+55432 — Surefire **105 classes, 1797 executions**, failsafe **9 classes, 99 executions**, zero failures/errors/skips (the table above sums to those 1797);
+frontend `npm test` **268 cases** (one translation case extended), `tsc -b`, `eslint .` and `npm run build` clean.
+
+### `version.service.VersionDeletionTest` — real services on H2 (6); `VersionDeletionPostgreSqlIT` runs the same 6 on PostgreSQL (real foreign keys)
+
+| Case | Verifies |
+| --- | --- |
+| `aVersionWithASavedEvaluationIsRefusedAndNothingIsDeleted` | 409 (`VersionHasResultsException`, exact message); the version, its scenario and the evaluation are still there. |
+| `aVersionWithASimulationJobIsRefusedAndNothingIsDeleted` | Same for a job. |
+| `aVersionInASavedComparisonIsRefusedAndTheComparisonIsKept` | A version that only appears in a saved comparison item is refused; the comparison and the other version are kept. |
+| `anEmptyVersionIsDeletedWithAllItsScenariosAndTheRestIsUntouched` | An empty version with two scenarios is deleted with both; another version with an evaluation is untouched. |
+| `aSubtreeWithAChildThatHasSimulationsIsRefusedForEverything` | An empty parent with one simulated child and one empty child: deleting the parent is refused and removes nothing; the empty child alone can still be deleted. |
+| `permissionIsCheckedBeforeTheConflictAndAnUnknownVersionStaysNotFound` | A caller who cannot manage the version gets 403 (not a hint that results exist); an unknown id stays 404; the administrator gets the 409. |
+
+Also: `scenario.controller.ScenarioApiHttpTest.deletingAVersionThatHasSavedResultsIs409WithAClearMessageAndNothingIsDeleted` (79 executions, was 78) checks the
+`409` envelope over HTTP (`success: false` and the message), that the scenarios are still listed, and that a Simulador gets `403`.
+

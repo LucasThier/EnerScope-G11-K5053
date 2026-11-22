@@ -60,6 +60,7 @@ defaults, so the app boots without any of them set.
 | `DATASOURCE_PASSWORD` | `enerscope` | DB password |
 | `LOG_LEVEL_ROOT` | `INFO` | Root log level (framework included) |
 | `LOG_LEVEL_APP` | `INFO` | App log level (the `AppLogger` output) |
+| `SCENARIOS_MAX_PER_VERSION` | `20` | Maximum scenarios a version may have (read as `enerscope.scenarios.max-per-version`; enforced by the service that creates scenarios, not yet in use) |
 | `JWT_SECRET` | dev placeholder | HMAC signing key (≥ 256 bits). **Change in prod.** |
 | `JWT_ACCESS_EXPIRY_MINUTES` | `60` | Access token lifetime |
 | `JWT_REFRESH_EXPIRY_DAYS` | `30` | Refresh token lifetime |
@@ -474,20 +475,49 @@ database (optionally `ECONOMIC_TEST_DATABASE_USER` and `ECONOMIC_TEST_DATABASE_P
 then run `mvn -Dtest=PostgreSqlEconomicIT test`. The integration suite runs Flyway
 and Hibernate validation and rolls back its example records.
 
+## Scenario API
+
+A **scenario** is the economic and simulation configuration that rests on a **version** (the physical base). Every version gets its default scenario **when it is created** (root, branch or detached): a branch does not inherit its parent's scenarios or economics, it starts with its own empty "Escenario base". A
+version holds up to **20** scenarios (`enerscope.scenarios.max-per-version` / `SCENARIOS_MAX_PER_VERSION`), each with
+a name the person types, unique in the version ignoring case. Every version has one *default* scenario, "Escenario
+base", which the old `/versions/{versionId}/...` routes keep acting on. Creating a scenario never creates a version
+(`POST /projects/{id}/version` still creates a version only). Routes (Swagger documents each one):
+
+| Method and path | Needs | Notes |
+| --- | --- | --- |
+| `GET /projects/{p}/versions/{v}/scenarios` | `VIEW_PROJECT` | Active scenarios, oldest first |
+| `POST /projects/{p}/versions/{v}/scenarios` | `EDIT_PROJECT` + edit the version | Empty scenario; body `{"name"}`; `201` |
+| `GET /projects/{p}/scenarios/{s}` | `VIEW_PROJECT` | |
+| `PATCH /projects/{p}/scenarios/{s}` | `EDIT_PROJECT` + edit the version | Rename |
+| `POST /projects/{p}/scenarios/{s}/duplicate` | `EDIT_PROJECT` + edit the version | Copies only the economic configuration; needs the vertical rights its rules need; `201` |
+| `DELETE /projects/{p}/scenarios/{s}` | `EDIT_PROJECT` + administer the version | Logical; `409` for the last scenario or a queued/running simulation; deleting the default promotes the oldest remaining |
+| `GET`/`PUT /projects/{p}/scenarios/{s}/configuration`, `DELETE .../configuration/draft` | view / edit the version | Economic configuration and draft; node values are **not** saved here (`400`) |
+| `POST`/`GET .../simulations`, `GET .../simulations/{job}`, `POST .../simulations/{job}/retry` | simulate the version / view | `202` for POST |
+| `GET .../evaluations`, `.../evaluations/{id}`, `.../evaluations/{id}/rounds[/{n}]` | `VIEW_PROJECT` | Results of that scenario only |
+
+Order of answers: `403` (project permission) → `404` (unknown, deleted, in an inactive version or in another
+project: one generic "Scenario not found") → `403` (capability on the version) → `400` (name or body) → `409`
+(repeated name, limit reached, deletion refused, stale token). Roles: the read-only Ejecutivo reads only; the
+Simulador reads and simulates; the version Editor creates, renames, duplicates, configures (within its vertical)
+and simulates; deleting needs the version administrator, the project administrator or a platform administrator.
+
 ## Scenario comparison API
 
-Compares the latest, up-to-date simulations of two to eight scenarios — from one
-or several projects — with each other (no reference): financial indicators (NPV,
+Compares the latest, up-to-date simulations of two to eight **scenarios** of one
+project — of the same version or of different ones — with each other (no reference): financial indicators (NPV,
 IRR, ROI, ROE, paybacks), costs (CAPEX/OPEX), cash totals and physical flows, with
 each scenario's position and distance to the best, and the relevant differences
 flagged. See
 [scenario comparison](../docs/scenario-comparison.md).
 
-Routes use `/api/v1/projects/{projectId}/comparisons`: `GET /scenarios` (each
-scenario's simulation status), `POST /preview`, `POST /` (compare and save the
-run), `GET /`, `GET /{comparisonId}` and `DELETE /{comparisonId}`. A scenario that
-changed since its last simulation is refused until it is simulated again. V25 adds
-the `scenario_comparison` and `scenario_comparison_item` tables.
+Routes use `/api/v1/projects/{projectId}/comparisons`: `GET /scenarios` (every scenario, grouped by version, with the status of
+its own latest simulation), `POST /preview`, `POST /` (compare and save the
+run), `GET /`, `GET /{comparisonId}` and `DELETE /{comparisonId}`. Items are `{"scenarioId"}` (`{"versionId"}` is deprecated and
+means that version's default scenario). `403` for the whole request without `VIEW_PROJECT`; a generic `404` for an unknown,
+deleted or other-project scenario; then `400`. A scenario that changed since its last simulation is refused until it is simulated
+again. Saving needs `EDIT_PROJECT` (the Ejecutivo only previews; the Simulador can save). V25 adds the `scenario_comparison` and
+`scenario_comparison_item` tables; **V28** stores the version and scenario names in each item, so a saved comparison keeps
+opening, with its data and an `deleted` flag, after a scenario or version is deleted.
 
 Demo data to try it (two projects, four scenarios ready to simulate): `node docs/examples/seed-comparison-demo.mjs [--simulate]`
 from the repository root against a local backend — see [demo data](../docs/scenario-comparison.md#demo-data).

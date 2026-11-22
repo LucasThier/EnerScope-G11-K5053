@@ -2,6 +2,8 @@ package org.enerscope.common;
 
 import org.enerscope.logging.AppLogger;
 import org.enerscope.scenario.service.ScenarioConflictException;
+import org.enerscope.scenario.service.ScenarioRuleConflictException;
+import org.enerscope.version.service.VersionHasResultsException;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.springframework.http.HttpStatus;
@@ -143,6 +145,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ScenarioConflictException.class)
     public ResponseEntity<ApiResponse<Void>> handleScenarioConflict(ScenarioConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(VersionHasResultsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleVersionHasResults(VersionHasResultsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ScenarioRuleConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleScenarioRuleConflict(ScenarioRuleConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
     }
 

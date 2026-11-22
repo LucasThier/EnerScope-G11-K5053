@@ -52,7 +52,11 @@ export function NodeFormPanel({
   const [numericBase, setNumericBase] = useState({
     lifespanInMonths: initial ? String(initial.base.lifespanInMonths) : '',
     maintenanceIntervalInDays: String(initial?.base.maintenanceIntervalInDays ?? defaultBaseValues().maintenanceIntervalInDays),
+    maintenanceDuration: initial ? String(initial.base.maintenanceDuration) : '',
+    wastePercentage: initial ? String(initial.base.wastePercentage) : '',
   });
+  // The start-up date is shown as a day; the stored instant is only replaced when the person picks another day.
+  const [startupDay, setStartupDay] = useState(initial?.base.startupDate?.slice(0, 10) ?? '');
   const [typeFields, setTypeFields] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(initial?.typeFields ?? {}).map(([key,value]) => [key,String(value)])),
   );
@@ -85,6 +89,11 @@ export function NodeFormPanel({
       ...(type === 'WELL' ? { declineCurve: { type: declineType, val_a: a, val_b: declineType === 'CONSTANT' ? null : b } } : {}),
       lifespanInMonths: num(numericBase.lifespanInMonths),
       maintenanceIntervalInDays: num(numericBase.maintenanceIntervalInDays),
+      maintenanceDuration: num(numericBase.maintenanceDuration),
+      wastePercentage: num(numericBase.wastePercentage),
+      startupDate: startupDay && startupDay !== initial?.base.startupDate?.slice(0, 10)
+        ? startupDay + 'T00:00:00Z'
+        : initial?.base.startupDate ?? null,
     }, Object.fromEntries(Object.entries(typeFields).map(([key,value]) => [key,num(value)])));
     onClose();
   }
@@ -158,7 +167,27 @@ export function NodeFormPanel({
           value={numericBase.maintenanceIntervalInDays}
           onChange={(e) => setNumericBase((b) => ({ ...b, maintenanceIntervalInDays: e.target.value }))}
         />
+        <TextField
+          label="Duración del mantenimiento (horas)"
+          type="number"
+          value={numericBase.maintenanceDuration}
+          onChange={(e) => setNumericBase((b) => ({ ...b, maintenanceDuration: e.target.value }))}
+        />
+        <TextField
+          label="Pérdidas (%)"
+          type="number"
+          step="any"
+          value={numericBase.wastePercentage}
+          onChange={(e) => setNumericBase((b) => ({ ...b, wastePercentage: e.target.value }))}
+        />
       </div>
+      <TextField
+        label="Puesta en marcha"
+        type="date"
+        value={startupDay}
+        onChange={(e) => setStartupDay(e.target.value)}
+      />
+      <p className="text-xs text-ink-500">Una fecha ya cargada se puede cambiar, pero no borrar desde acá.</p>
 
       {spec && operationalFields(spec).length > 0 && (
         <div className="flex flex-col gap-2 border-t border-ink-100 pt-3">

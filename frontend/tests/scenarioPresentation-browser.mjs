@@ -58,12 +58,12 @@ await page.route('**/api/v1/**',async route=>{
 const base=(process.env.APP_URL||'http://127.0.0.1:5173')+'/projects/p1/versions/v1/economics/configuration';
 try {
  await page.goto((process.env.APP_URL||'http://127.0.0.1:5173')+'/projects/p1/scenario-configurations');
- await page.getByRole('columnheader',{name:'Versiones Disponibles',exact:true}).waitFor();
+ await page.getByRole('columnheader',{name:'Versión (base física)',exact:true}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Nuevo escenario',exact:true}).count(),0);
- await page.getByText('Seleccioná una versión disponible para editar la configuración económica y operativa del escenario a simular',{exact:true}).waitFor();
- await page.getByLabel('Buscar Versión').fill('absent');
+ await page.getByText('Cada versión es la base física de la red. Elegí una para configurar su escenario: la parte económica y de simulación.',{exact:true}).waitFor();
+ await page.getByLabel('Buscar versión').fill('absent');
  assert.equal(await page.getByRole('link',{name:'Configurar Escenario',exact:true}).count(),0);
- await page.getByLabel('Buscar Versión').fill('Scenario');
+ await page.getByLabel('Buscar versión').fill('Scenario');
  await screenshot('available-versions');
  await page.getByRole('link',{name:'Configurar Escenario',exact:true}).click();
  await page.getByLabel('Año de inversión',{exact:true}).waitFor();

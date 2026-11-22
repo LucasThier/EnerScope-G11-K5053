@@ -43,8 +43,9 @@ class ScenarioStatusServiceTest {
     final EconomicInputCodec codec = new EconomicInputCodec(MAPPER);
     final EconomicEvaluationRepository evaluations = mock(EconomicEvaluationRepository.class);
     final EconomicJobRepository jobs = mock(EconomicJobRepository.class);
-    final ScenarioStatusService service = new ScenarioStatusService(economics, scenarios, access, codec, evaluations, jobs, MAPPER,
-            mock(AppLogger.class));
+    final org.enerscope.scenario.repository.ScenarioRepository scenarioRepository = mock(org.enerscope.scenario.repository.ScenarioRepository.class);
+    final ScenarioStatusService service = new ScenarioStatusService(economics, scenarios, access, codec, evaluations, jobs,
+            org.enerscope.economic.service.EconomicExample.scenarioDefaults(), scenarioRepository, MAPPER, mock(AppLogger.class));
 
     /** What a simulation of {@code version} with {@code configuration} freezes, as the economic module stores it. */
     EvaluationDTO.Snapshot simulated(Version version, EconomicConfiguration configuration) throws Exception {
@@ -107,56 +108,70 @@ class ScenarioStatusServiceTest {
         assertFalse(service.isUpToDate(version, new EvaluationDTO.Snapshot(1, null, null, null, null, null)));
     }
 
+    static org.enerscope.scenario.model.Scenario scenario(Version version, String name, boolean isDefault) {
+        var scenario = new org.enerscope.scenario.model.Scenario(version, name, isDefault);
+        ReflectionTestUtils.setField(scenario, "id", UUID.randomUUID());
+        return scenario;
+    }
+
     @Test
-    void listReportsEachScenarioStatusReadinessAndWhetherTheCallerCanSimulate() throws Exception {
+    void listReportsEachScenarioItsOwnStatusReadinessAndWhetherTheCallerCanSimulateGroupedByVersion() throws Exception {
         var project = new Project("Proyecto", "", null);
         ReflectionTestUtils.setField(project, "id", UUID.randomUUID());
         var simulated = EconomicExample.version();
         var never = version("Sin simular");
-        var running = version("Simulando");
-        List.of(simulated, never, running).forEach(project::addVersion);
+        List.of(simulated, never).forEach(project::addVersion);
+        var base = scenario(simulated, "Base", true);
+        var running = scenario(simulated, "Simulando", false);          // a second scenario of the same version
+        var empty = scenario(never, "Vacío", true);
         when(economics.authorizeProject(project.getId(), org.enerscope.project.model.enums.ProjectMemberPermission.VIEW_PROJECT))
                 .thenReturn(project);
-        when(scenarios.readiness(project.getId())).thenReturn(List.of(
-                new Readiness(simulated.getId(), true, List.of()),
-                new Readiness(never.getId(), false, List.of("Economic configuration not found")),
-                new Readiness(running.getId(), true, List.of())));
-        when(economics.configuration(simulated.getId())).thenReturn(configuration());
+        when(scenarioRepository.findByVersionIdInAndActiveTrueOrderByCreatedAtAscIdAsc(any())).thenReturn(List.of(base, running, empty));
+        when(scenarios.readinessOf(simulated, base)).thenReturn(new Readiness(simulated.getId(), true, List.of()));
+        when(scenarios.readinessOf(simulated, running)).thenReturn(new Readiness(simulated.getId(), true, List.of()));
+        when(scenarios.readinessOf(never, empty)).thenReturn(new Readiness(never.getId(), false, List.of("Economic configuration not found")));
+        when(economics.configuration(base)).thenReturn(configuration());
         var evaluation = new EconomicEvaluation(simulated, "{}");
         ReflectionTestUtils.setField(evaluation, "id", UUID.randomUUID());
-        when(evaluations.findByVersionIdOrderByCreatedAtDesc(any())).thenReturn(List.of());
-        when(evaluations.findByVersionIdOrderByCreatedAtDesc(simulated.getId())).thenReturn(List.of(evaluation));
-        when(economics.getEvaluation(project.getId(), simulated.getId(), evaluation.getId()))
+        when(evaluations.findByScenarioIdOrderByCreatedAtDesc(any())).thenReturn(List.of());
+        when(evaluations.findByScenarioIdOrderByCreatedAtDesc(base.getId())).thenReturn(List.of(evaluation));
+        when(economics.evaluationOf(base, evaluation.getId()))
                 .thenReturn(new EvaluationDTO(evaluation.getId(), Instant.now(), simulated(simulated, configuration())));
-        var job = new EconomicJob(running, "{}", 10, "1");
+        var job = new EconomicJob(simulated, "{}", 10, "1");
         ReflectionTestUtils.setField(job, "id", UUID.randomUUID());
         ReflectionTestUtils.setField(job, "status", EconomicJobStatus.RUNNING);
         ReflectionTestUtils.setField(job, "completedRounds", 4);
-        when(jobs.findByVersionIdOrderByCreatedAtDesc(any())).thenReturn(List.of());
-        when(jobs.findByVersionIdOrderByCreatedAtDesc(running.getId())).thenReturn(List.of(job));
-
+        when(jobs.findByScenarioIdOrderByCreatedAtDesc(any())).thenReturn(List.of());
+        when(jobs.findByScenarioIdOrderByCreatedAtDesc(running.getId())).thenReturn(List.of(job));
         when(access.resolveForProject(project.getId())).thenReturn(new ProjectAccessDTO(project.getId(), false, null,
                 List.of(), false, false, List.of(versionAccess(simulated.getId(), true), versionAccess(never.getId(), false))));
 
         var statuses = service.list(project.getId());
 
-        var first = statuses.stream().filter(s -> s.versionId().equals(simulated.getId())).findFirst().orElseThrow();
+        assertEquals(3, statuses.size());
+        var first = statuses.stream().filter(s -> s.scenarioId().equals(base.getId())).findFirst().orElseThrow();
         assertEquals(ScenarioStatus.UP_TO_DATE, first.status());
+        assertEquals(simulated.getId(), first.versionId());
+        assertEquals("Base", first.scenarioName());
+        assertTrue(first.defaultScenario());
         assertEquals(evaluation.getId(), first.latestEvaluationId());
         assertEquals(EvaluationMode.DETERMINISTIC, first.mode());
         assertEquals("Proyecto", first.projectName());
         assertTrue(first.canSimulate(), "the version access says it can be simulated");
-        var unsimulated = statuses.stream().filter(s -> s.versionId().equals(never.getId())).findFirst().orElseThrow();
+        var simulating = statuses.stream().filter(s -> s.scenarioId().equals(running.getId())).findFirst().orElseThrow();
+        assertEquals(ScenarioStatus.SIMULATING, simulating.status(), "another scenario of the same version has its own status");
+        assertEquals(simulated.getId(), simulating.versionId());
+        assertFalse(simulating.defaultScenario());
+        assertEquals(4, simulating.job().completedRounds());
+        assertEquals(10, simulating.job().rounds());
+        var unsimulated = statuses.stream().filter(s -> s.scenarioId().equals(empty.getId())).findFirst().orElseThrow();
         assertEquals(ScenarioStatus.NEVER_SIMULATED, unsimulated.status());
         assertFalse(unsimulated.ready());
         assertEquals(List.of("Economic configuration not found"), unsimulated.readinessErrors());
-        var simulating = statuses.stream().filter(s -> s.versionId().equals(running.getId())).findFirst().orElseThrow();
-        assertEquals(ScenarioStatus.SIMULATING, simulating.status());
-        assertEquals(4, simulating.job().completedRounds());
-        assertEquals(10, simulating.job().rounds());
-
         assertFalse(unsimulated.canSimulate(), "no SIMULATE on that version");
-        assertFalse(simulating.canSimulate(), "versions missing from the access answer cannot be simulated");
+        // Grouped by version: the two scenarios of the first version are next to each other.
+        assertEquals(simulated.getId(), statuses.get(0).versionId());
+        assertEquals(simulated.getId(), statuses.get(1).versionId());
     }
 
     static Version version(String name) {

@@ -18,6 +18,7 @@ import { useGuardedProjectAccess } from '../hooks/useGuardedProjectAccess';
 import { editorGates } from '../utils/editorPermissions';
 import { AccessFailureAlert } from '../components/versionRoles/AccessFailureAlert';
 import {
+  baseValuesFromDetail,
   canConnect,
   nodeTypeLabel,
   type GraphDataInput,
@@ -45,16 +46,7 @@ interface EditState {
 
 /** Builds the edit form's initial values from a loaded node detail. */
 function editStateFromDetail(detail: NodeDetail): EditState {
-  const base: NodeBaseValues = {
-    name: detail.name,
-    declineCurve: detail.declineCurve ?? undefined,
-    state: detail.state,
-    upkeepCosts: detail.upkeepCosts,
-    operatingCosts: detail.operatingCosts,
-    lifespanInMonths: detail.lifespanInMonths,
-    maintenanceIntervalInDays: detail.maintenanceIntervalInDays,
-    wastePercentage: detail.wastePercentage,
-  };
+  const base: NodeBaseValues = baseValuesFromDetail(detail);
   return {
     nodeId: detail.id,
     identity: detail.identity,

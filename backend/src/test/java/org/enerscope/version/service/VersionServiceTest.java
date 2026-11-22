@@ -55,6 +55,15 @@ import static org.mockito.Mockito.when;
 class VersionServiceTest {
 
         @Mock
+        private org.enerscope.scenario.service.ScenarioDefaults scenarioDefaults;
+        @Mock
+        private org.enerscope.economic.repository.EconomicJobRepository economicJobs;
+        @Mock
+        private org.enerscope.economic.repository.EconomicEvaluationRepository economicEvaluations;
+        @Mock
+        private org.enerscope.comparison.repository.ScenarioComparisonItemRepository comparisonItems;
+
+        @Mock
         private VersionRepository versionRepository;
 
         @Mock
@@ -132,7 +141,11 @@ class VersionServiceTest {
                                 nodeService,
                                 versionConflictService,
                                 accessGuard,
-                                lineage);
+                                lineage,
+                                scenarioDefaults,
+                                economicJobs,
+                                economicEvaluations,
+                                comparisonItems);
         }
 
         @Test
@@ -1269,6 +1282,23 @@ class VersionServiceTest {
     }
 
     @Test
+    void nodeDetailReportsTheStartupDateAndMaintenanceDurationSoTheEditFormCanSendThemBack() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Well well = wellTyped(nodeId, VerticalEnum.EXTRACTION);
+        well.setStartupDate(java.time.Instant.parse("2030-01-01T00:00:00Z"));
+        well.setMaintenanceDuration(7);
+        Version version = new Version("V", null, new ArrayList<>(List.of(well)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(well));
+
+        var detail = versionService.getNodeDetail(versionId, nodeId);
+
+        assertEquals(java.time.Instant.parse("2030-01-01T00:00:00Z"), detail.getStartupDate());
+        assertEquals(7, detail.getMaintenanceDuration());
+    }
+
+    @Test
     void mergeAuthorizesTheDestinationAndEveryTouchedNodeInsteadOfTheSubversion() {
         Version parent = versionWithId("Parent", null);
         Well original = typedWell(NodeTypeEnum.WELL, VerticalEnum.EXTRACTION);
@@ -1610,6 +1640,19 @@ class VersionServiceTest {
         assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.modifyVersion(
                 versionId, new org.enerscope.version.dto.VersionDTO("New", null)));
         verifyNoInteractions(versionRepository, lineage);
+    }
+
+    @Test
+    void creatingARootVersionAndABranchEachCreateTheirDefaultScenarioInTheSameCall() {
+        when(versionRepository.save(any(Version.class))).thenAnswer(call -> call.getArgument(0));
+        Version parent = versionService.saveVersion(new org.enerscope.version.dto.VersionDTO("Raíz", null));
+        when(versionRepository.findById(any())).thenReturn(Optional.of(parent));
+
+        Version child = versionService.saveVersion(new org.enerscope.version.dto.VersionDTO("Hija", UUID.randomUUID()));
+
+        org.mockito.Mockito.verify(scenarioDefaults).forVersion(parent);
+        org.mockito.Mockito.verify(scenarioDefaults).forVersion(child);
+        org.mockito.Mockito.verifyNoMoreInteractions(scenarioDefaults);
     }
 
     @Test

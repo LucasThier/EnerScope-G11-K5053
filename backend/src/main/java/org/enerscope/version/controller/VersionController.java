@@ -80,8 +80,9 @@ public class VersionController {
 
     @DeleteMapping(value = "/{id}")
     @Operation(summary = "Delete a version",
-            description = "Deletes the version and every version below it. The caller must be able to manage the "
-                    + "version and each descendant; if any is refused, nothing is deleted.")
+            description = "Deletes the version, its scenarios and every version below it. The caller must be able to manage the "
+                    + "version and each descendant; if any is refused, nothing is deleted (403). 409 when the version or any version below it "
+                    + "has simulation jobs, saved evaluations or saved comparisons: nothing is deleted then either.")
     public ResponseEntity<ApiResponse<Void>> deleteVersion(
             @PathVariable UUID id) {
         versionService.deleteVersion(id);

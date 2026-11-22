@@ -64,7 +64,7 @@ public class ScenarioComparisonCalculator {
         List<NodeRow> nodes = compareNodes(scenarios, relevance, names, findings);
         List<Series> annual = scenarios.stream().map(s -> new Series(s.evaluationId(), s.annual())).toList();
         List<Scenario> header = scenarios.stream().map(s -> new Scenario(s.evaluationId(), s.projectId(), s.projectName(),
-                s.versionId(), s.versionName(), s.evaluatedAt(), s.mode(), s.rounds(), s.currency(), s.startYear(),
+                s.versionId(), s.versionName(), s.scenarioId(), s.scenarioName(), s.deleted(), s.evaluatedAt(), s.mode(), s.rounds(), s.currency(), s.startYear(),
                 s.years(), s.wacc(), List.copyOf(bestIn.get(s.evaluationId())))).toList();
 
         findings.sort(Comparator.comparingInt(Ranked::group)
@@ -302,13 +302,17 @@ public class ScenarioComparisonCalculator {
     // ---------------------------------------------------------------- text
 
     /**
-     * Version names, with the project name when scenarios come from several projects, and
-     * disambiguated by position when two evaluations of the same version are compared.
+     * The names the findings use: the scenario name when it is distinct among the compared scenarios, otherwise
+     * "version · scenario" (the default scenarios of different versions all share a name), and disambiguated by position
+     * when two evaluations of the same scenario are compared. Without a scenario name (older data) the version name stands.
      */
     private static Map<UUID, String> displayNames(List<ScenarioMetrics> scenarios) {
-        boolean manyProjects = scenarios.stream().map(ScenarioMetrics::projectId).distinct().count() > 1;
-        List<String> base = scenarios.stream().map(s -> manyProjects && s.projectName() != null
-                ? s.versionName() + " (" + s.projectName() + ")" : String.valueOf(s.versionName())).toList();
+        Map<String, Long> scenarioNameCounts = new HashMap<>();
+        scenarios.forEach(s -> scenarioNameCounts.merge(String.valueOf(s.scenarioName()), 1L, Long::sum));
+        List<String> base = scenarios.stream().map(s -> {
+            if (s.scenarioName() == null) return String.valueOf(s.versionName());
+            return scenarioNameCounts.get(s.scenarioName()) > 1 ? s.versionName() + " · " + s.scenarioName() : s.scenarioName();
+        }).toList();
         Map<String, Long> counts = new HashMap<>();
         base.forEach(name -> counts.merge(name, 1L, Long::sum));
         Map<UUID, String> names = new HashMap<>();

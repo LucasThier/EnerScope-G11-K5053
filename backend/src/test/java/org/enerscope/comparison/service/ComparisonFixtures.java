@@ -138,8 +138,16 @@ final class ComparisonFixtures {
                     ? new MetricValueDTO(bd(raw), MetricValueDTO.AVAILABLE, 1, 1, null)
                     : new MetricValueDTO(null, raw, 0, 1, null));
         }
-        return new ScenarioMetrics(UUID.randomUUID(), projectId, projectName, UUID.randomUUID(), name, Instant.parse("2026-11-01T00:00:00Z"),
+        return new ScenarioMetrics(UUID.randomUUID(), projectId, projectName, UUID.randomUUID(), name, UUID.randomUUID(), null, false, Instant.parse("2026-11-01T00:00:00Z"),
                 mode, 1, currency, 2030, years, bd("0.1"), "ALGO", 1, metrics, new LinkedHashMap<>(nodes), List.of());
+    }
+
+    /** The same measurements for a scenario with the given name (and the version name already in the metrics). */
+    static ScenarioMetrics namedScenario(ScenarioMetrics metrics, String scenarioName, boolean deleted) {
+        return new ScenarioMetrics(metrics.evaluationId(), metrics.projectId(), metrics.projectName(), metrics.versionId(),
+                metrics.versionName(), UUID.randomUUID(), scenarioName, deleted, metrics.evaluatedAt(), metrics.mode(),
+                metrics.rounds(), metrics.currency(), metrics.startYear(), metrics.years(), metrics.wacc(),
+                metrics.simulationAlgorithm(), metrics.simulationCalculationVersion(), metrics.metrics(), metrics.nodes(), metrics.annual());
     }
 
     static ScenarioMetrics.Node node(String key, String name, String output) {

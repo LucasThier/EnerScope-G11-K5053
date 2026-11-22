@@ -5,7 +5,9 @@ import {
   SECONDARY_METRICS,
   STANDING_LABELS,
   TONE_CLASSES,
+  DELETED_NOTE,
   cellText,
+  deletedCount,
   formatMetric,
   gapText,
   rankLabel,
@@ -30,7 +32,12 @@ import { MetricBars } from './MetricBars';
  */
 export function ComparisonResults({ result }: { result: ComparisonResult }) {
   const names = scenarioNames(result);
+  const gone = deletedCount(result);
   return <div className="space-y-8">
+    {gone > 0 && <Alert tone="info">
+      <p className="font-semibold">{gone === 1 ? '1 escenario eliminado' : `${gone} escenarios eliminados`}</p>
+      <p className="mt-1">Se {DELETED_NOTE} Los marcados «(eliminado)» ya no existen, pero la comparación conserva su simulación.</p>
+    </Alert>}
     <ExecutiveSummary result={result} names={names} />
 
     {result.warnings.length > 0 && <Alert tone="warning">

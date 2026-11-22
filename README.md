@@ -19,6 +19,25 @@ management** (JWT based), **organizations and projects** with scoped roles,
 **versions** of a project's value-chain model (with per-version roles, branches,
 merge and conflicts), and the **economic evaluation** of scenarios.
 
+### Vocabulary: Versión and Escenario
+
+Two different concepts, used the same way in the code, the docs and the screens:
+
+- **Versión = base física.** The network model of a project: nodes, connections and
+  branches (parent/child versions). It is what the value-chain editor edits.
+- **Escenario = configuración económica y de simulación.** The economic rules and the
+  simulation settings that rest on a version. Simulations, results and comparisons belong
+  to a scenario.
+
+> A version can hold **several scenarios** (up to 20, each with a name the person types, unique in the
+> version ignoring case; every version is created with an empty "Escenario base", and a branch does not inherit its parent's scenarios): the backend API for listing, creating, renaming, duplicating, deleting,
+> configuring and simulating them is in [`backend/README.md`](backend/README.md#scenario-api). The screens
+> follow the flow **version → its scenarios → one scenario** (list with status, *Nuevo escenario*, *Duplicar*,
+> *Renombrar*, *Eliminar*; see [`frontend/README.md`](frontend/README.md)), and comparisons compare **scenarios** (of the same or
+> different versions of a project, see [`docs/scenario-comparison.md`](docs/scenario-comparison.md)); a
+> scenario never creates a version. Node values ("Operación") belong to the version and are edited on the
+> node. See [`docs/considerations.md`](docs/considerations.md).
+
 - **Domain:** `enerscope.org`
 - **Backend:** Java 21 · Spring Boot 3.5 · PostgreSQL · Flyway · JWT · Swagger
 - **Frontend:** React 19 · Vite · TypeScript · Tailwind CSS (no hand-written CSS)

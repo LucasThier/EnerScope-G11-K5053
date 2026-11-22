@@ -89,6 +89,10 @@ export interface NodeDetail {
   lifespanInMonths: number;
   maintenanceIntervalInDays: number;
   wastePercentage: number;
+  /** ISO instant, or null/absent when the node has no start-up date. */
+  startupDate?: string | null;
+  /** Hours. */
+  maintenanceDuration?: number | null;
   attributes: Record<string, number>;
   declineCurve?: DeclineDistribution | null;
 }
