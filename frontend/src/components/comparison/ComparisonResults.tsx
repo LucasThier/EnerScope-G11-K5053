@@ -48,7 +48,7 @@ export function ComparisonResults({ result }: { result: ComparisonResult }) {
     </Alert>}
 
     <section aria-labelledby="key-indicators" className="space-y-4">
-      <h2 id="key-indicators" className="text-xl font-semibold text-ink-800">Indicadores clave</h2>
+      <h2 id="key-indicators" className="text-lg font-semibold text-ink-800">Indicadores clave</h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {KEY_METRICS.map(metric => <MetricBars key={metric} result={result} metric={metric} names={names} />)}
       </div>
@@ -60,7 +60,7 @@ export function ComparisonResults({ result }: { result: ComparisonResult }) {
     </div>
 
     <section aria-labelledby="more-indicators" className="space-y-4">
-      <h2 id="more-indicators" className="text-xl font-semibold text-ink-800">Más indicadores</h2>
+      <h2 id="more-indicators" className="text-lg font-semibold text-ink-800">Más indicadores</h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {SECONDARY_METRICS.map(metric => <MetricBars key={metric} result={result} metric={metric} names={names} size="sm" />)}
       </div>

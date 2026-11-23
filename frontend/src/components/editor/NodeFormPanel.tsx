@@ -219,7 +219,7 @@ export function NodeFormPanel({
         </SelectField>
         <TextField label={declineType === 'CONSTANT' ? 'Declinación anual (puntos porcentuales)' : declineType === 'NORMAL' ? 'Media anual (puntos porcentuales)' : 'Mínimo anual (puntos porcentuales)'} type="number" step="any" value={declineA} onChange={e => setDeclineA(e.target.value)} />
         {declineType !== 'CONSTANT' && <TextField label={declineType === 'NORMAL' ? 'Desviación estándar' : 'Máximo anual (puntos porcentuales)'} type="number" step="any" value={declineB} onChange={e => setDeclineB(e.target.value)} />}
-        {!validDecline && <p role="status" className="text-xs text-red-600">Completá los parámetros: constante entre 0 y 100; uniforme con mínimo menor al máximo entre 0 y 100; normal con desviación mayor a cero.</p>}
+        {!validDecline && <p role="status" className="text-xs text-danger-600">Completá los parámetros: constante entre 0 y 100; uniforme con mínimo menor al máximo entre 0 y 100; normal con desviación mayor a cero.</p>}
       </fieldset>}
       <Button variant="primary" loading={busy} disabled={!base.name.trim() || !validDecline} onClick={submit}>
         {mode === 'create' ? 'Crear nodo' : 'Guardar nodo'}

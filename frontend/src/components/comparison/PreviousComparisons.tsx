@@ -23,7 +23,7 @@ export function PreviousComparisons({ projectId, comparisons, canDelete, onDelet
                 className="font-medium text-brand-800 underline-offset-2 hover:underline">{comparison.name}</Link>
               <p className="mt-1 text-xs text-ink-500">
                 {comparison.scenarios.length} escenarios · {new Date(comparison.createdAt).toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' })}
-                {comparison.hasDeletedScenarios && <span className="text-amber-800"> · incluye escenarios eliminados</span>}
+                {comparison.hasDeletedScenarios && <span className="text-warn-800"> · incluye escenarios eliminados</span>}
               </p>
               <p className="mt-1 truncate text-xs text-ink-500">{comparison.scenarios.join(' · vs · ')}</p>
             </div>

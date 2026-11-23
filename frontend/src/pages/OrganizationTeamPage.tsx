@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
+import { EmptyState } from '../components/ui/EmptyState';
+import { LoadingState } from '../components/ui/LoadingState';
+import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
@@ -104,54 +107,47 @@ export function OrganizationTeamPage() {
 
   return (
     <div>
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink-800">
-            {organization?.name ?? 'Equipo'}
-          </h1>
-          <p className="mt-1 text-sm text-ink-500">
-            Quiénes integran tu organización. Podés agregar y quitar personas; el nombre y el
-            estado de la organización los administra la plataforma.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {canManageOrganizationUsers(caller, members) && (
-            <Button
-              variant="secondary"
-              onClick={() => {
-                importFlow.reset();
-                setImporting(true);
-              }}
-            >
-              <UploadIcon className="h-4 w-4" />
-              Importar CSV
-            </Button>
-          )}
-          {owned.length > 1 && (
-            <FilterSelect
-              label="Elegir organización"
-              value={organizationId ?? ''}
-              options={owned.map((candidate) => ({
-                value: candidate.id,
-                label: candidate.name,
-              }))}
-              onChange={(next) => navigate(`/organizations/${next}`)}
-            />
-          )}
-        </div>
-      </header>
+      <PageHeader
+        title={organization?.name ?? 'Equipo'}
+        description="Quiénes integran tu organización. Podés agregar y quitar personas; el nombre y el estado de la organización los administra la plataforma."
+        actions={
+          <>
+            {canManageOrganizationUsers(caller, members) && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  importFlow.reset();
+                  setImporting(true);
+                }}
+              >
+                <UploadIcon className="h-4 w-4" />
+                Importar CSV
+              </Button>
+            )}
+            {owned.length > 1 && (
+              <FilterSelect
+                label="Elegir organización"
+                value={organizationId ?? ''}
+                options={owned.map((candidate) => ({
+                  value: candidate.id,
+                  label: candidate.name,
+                }))}
+                onChange={(next) => navigate(`/organizations/${next}`)}
+              />
+            )}
+          </>
+        }
+      />
 
       <Card padded={false} className="overflow-hidden">
         {loading ? (
-          <p className="px-4 py-8 text-center text-sm text-ink-500">Cargando integrantes…</p>
+          <LoadingState>Cargando integrantes…</LoadingState>
         ) : error ? (
           <div className="px-4 py-6">
             <Alert tone="error">{error}</Alert>
           </div>
         ) : members.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-ink-500">
-            Esta organización todavía no tiene integrantes.
-          </p>
+          <EmptyState>Esta organización todavía no tiene integrantes.</EmptyState>
         ) : (
           <MembersTable
             members={members}

@@ -7,6 +7,7 @@ import { PreviousComparisons } from '../components/comparison/PreviousComparison
 import { ScenarioTile } from '../components/comparison/ScenarioTile';
 import { SelectionPanel } from '../components/comparison/SelectionPanel';
 import { Alert } from '../components/ui/Alert';
+import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Modal, ModalFooter } from '../components/ui/Modal';
@@ -144,15 +145,14 @@ function ComparisonSelection({ projectId }: { projectId: string }) {
   const visible = catalog?.status === 'ready' ? filterScenarios(catalog.scenarios, filter) : [];
   const groups = groupByVersion(visible);
 
-  return <div className="relative space-y-10">
-    <header className="max-w-3xl">
-      <p className="text-sm font-semibold text-brand-800">Paso 1 de 2</p>
-      <h1 className="mt-1 text-3xl font-semibold text-ink-800">Comparar escenarios</h1>
-      <p className="mt-2 text-base text-ink-600">
-        Elegí qué escenarios querés poner lado a lado, de la misma versión o de versiones distintas del proyecto. Se usa la última simulación de cada uno; si un escenario cambió
-        o nunca se simuló, lo podés simular acá mismo.
-      </p>
-    </header>
+  return <div className="relative space-y-6">
+    <PageHeader
+      spaced={false}
+      className="max-w-3xl"
+      eyebrow="Paso 1 de 2"
+      title="Comparar escenarios"
+      description="Elegí qué escenarios querés poner lado a lado, de la misma versión o de versiones distintas del proyecto. Se usa la última simulación de cada uno; si un escenario cambió o nunca se simuló, lo podés simular acá mismo."
+    />
 
     {selectionNote && <Alert tone="info">{selectionNote}</Alert>}
 

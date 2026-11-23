@@ -1,4 +1,5 @@
 import { Alert } from '../ui/Alert';
+import { tableBodyCellCompact, tableHeaderCellCompact } from '../ui/tableClasses';
 import { controlCompact } from '../ui/controlClasses';
 import { TrashIcon } from '../ui/icons';
 import { RowButton } from '../ui/RowButton';
@@ -29,8 +30,7 @@ interface MembersTableProps<M extends MemberRow> {
   roleError?: RoleChangeError | null;
 }
 
-const headerCell = 'px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
-const bodyCell = 'px-3 py-2.5 align-middle text-sm text-ink-700';
+const bodyCell = `${tableBodyCellCompact} align-middle`;
 
 export function MembersTable<M extends MemberRow>({
   members,
@@ -54,22 +54,22 @@ export function MembersTable<M extends MemberRow>({
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-ink-100">
-            <th scope="col" className={`${headerCell} whitespace-nowrap`}>
+            <th scope="col" className={`${tableHeaderCellCompact} whitespace-nowrap`}>
               Nombre
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCellCompact}>
               Email
             </th>
             {showJobTitle && (
-              <th scope="col" className={headerCell}>
+              <th scope="col" className={tableHeaderCellCompact}>
                 Puesto
               </th>
             )}
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCellCompact}>
               Rol
             </th>
             {onRemove && (
-              <th scope="col" className={`${headerCell} text-right`}>
+              <th scope="col" className={`${tableHeaderCellCompact} text-right`}>
                 Acciones
               </th>
             )}

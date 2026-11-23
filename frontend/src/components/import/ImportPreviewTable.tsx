@@ -1,12 +1,12 @@
 import { MEMBER_TYPE_LABELS } from '../organizations/memberTypeLabels';
+import { tableBodyCellCompact, tableHeaderCellCompact } from '../ui/tableClasses';
 import type { ImportRow } from '../../utils/csvImport';
 
 interface ImportPreviewTableProps {
   rows: ImportRow[];
 }
 
-const headerCell = 'px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
-const bodyCell = 'px-3 py-2 align-top text-sm text-ink-700';
+const bodyCell = `${tableBodyCellCompact} align-top`;
 
 export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
   const showJobTitle = rows.some((row) => row.jobTitle !== '');
@@ -23,21 +23,21 @@ export function ImportPreviewTable({ rows }: ImportPreviewTableProps) {
       <table className="w-full border-collapse">
         <thead className="sticky top-0 bg-raised">
           <tr className="border-b border-ink-100">
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCellCompact}>
               Línea
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCellCompact}>
               Email
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCellCompact}>
               Nombre
             </th>
             {showJobTitle && (
-              <th scope="col" className={headerCell}>
+              <th scope="col" className={tableHeaderCellCompact}>
                 Puesto
               </th>
             )}
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCellCompact}>
               Rol
             </th>
           </tr>

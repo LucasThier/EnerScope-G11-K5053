@@ -1,5 +1,6 @@
 import type { OrganizationSummary } from '../../types/auth';
 import { EyeIcon, PencilIcon, TrashIcon, UndoIcon, UserPlusIcon } from '../ui/icons';
+import { tableBodyCell, tableHeaderCell } from '../ui/tableClasses';
 import { RowButton } from '../ui/RowButton';
 import { formatDate } from '../../utils/date';
 
@@ -12,8 +13,7 @@ interface OrganizationsTableProps {
   onReactivate: (organization: OrganizationSummary) => Promise<void>;
 }
 
-const headerCell = 'px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
-const bodyCell = 'px-4 py-3 text-sm text-ink-700 align-top';
+const bodyCell = `${tableBodyCell} align-top`;
 
 export function OrganizationsTable({
   organizations,
@@ -28,19 +28,19 @@ export function OrganizationsTable({
       <table className="w-full min-w-[40rem] border-collapse">
         <thead>
           <tr className="border-b border-ink-100">
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCell}>
               Organización
             </th>
-            <th scope="col" className={`${headerCell} text-right`}>
+            <th scope="col" className={`${tableHeaderCell} text-right`}>
               Integrantes
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCell}>
               Creada
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCell}>
               Estado
             </th>
-            <th scope="col" className={`${headerCell} text-right`}>
+            <th scope="col" className={`${tableHeaderCell} text-right`}>
               Acciones
             </th>
           </tr>

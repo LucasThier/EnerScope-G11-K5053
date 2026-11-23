@@ -370,6 +370,81 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
 - **Surfaces come from tokens.** `body` carries the page background in
   `index.css`; a full-height page container must use `bg-ink-50` rather than a
   hard-coded white, so a change to the token reaches every screen.
+- **Page title, tables, empty and loading states come from `components/ui`, not from markup written in a screen.**
+  - A page title is `<PageHeader title description back eyebrow actions>`: one
+    `h1` per page, `text-2xl font-semibold text-ink-800`, `mb-6` below. Inside a
+    container that already spaces its children (`flex gap-6`, `space-y-*`) pass
+    `spaced={false}`. Sign-in and the editor keep their own.
+  - A data table takes its cells from `ui/tableClasses.ts`: `tableHeaderCell` /
+    `tableBodyCell` (`px-4 py-3`, for a table that is the content of a page) or
+    the `…Compact` pair (`px-3 py-2`, for a modal, a side panel or a dense
+    numeric table). The header is the small uppercase `ink-500` label. Add
+    `align-top`, `whitespace-nowrap` or `text-right` where the table is written.
+  - "Nothing here" inside a card or section is `<EmptyState action={…}>`;
+    "still loading" is `<LoadingState>` (a `role="status"` paragraph). A whole
+    screen waiting is `PageLoader`; a spinner beside a label is `Spinner`.
+  - `tests/pageHeader.test.mjs`, `tableClasses.test.mjs` and `emptyState.test.mjs`
+    fail on a hand-written `<h1>`, table-cell copy or `px-4 py-8 text-center`.
+- **The economic flow uses the same controls as the rest of the app.**
+  - A `<select>` is `SelectField` (a form, 48px) or `FilterSelect` (a filter
+    with a hidden label, 40px); never a hand-written one. A text button is
+    `Button`; a link that must look like a button is `ButtonLink` (same
+    variants), because an action with an address is an `<a>`.
+  - A sheet is `Card`, with `padded={false}` plus a `className` when it needs
+    another padding. A box *inside* a card is not a `Card` (it would add a second
+    shadow): give it `rounded-control border border-ink-200`.
+  - A dialog is `Modal`. Never a native `<dialog>`; a dialog that must not close
+    while it submits passes `onClose={() => { if (!busy) onClose(); }}`.
+  - `tests/economicsControls.test.mjs` fails on a `<select>`, a `<dialog>`, a
+    hand-drawn card or an undocumented `<button>` in the economic module.
+- **Type scale: six steps and two outside it.** The family is the system sans
+  (nothing is declared or loaded), weights are `semibold` for titles and buttons,
+  `medium` for labels and `normal` for text. Sizes are named by role:
+
+  | Step | Classes | Used for |
+  |---|---|---|
+  | `title-page` | `text-2xl font-semibold text-ink-800` | the page's `h1` (`PageHeader`) |
+  | `title-section` | `text-lg font-semibold text-ink-800` | `h2` of a card, a section or a modal |
+  | `title-block` | `text-base font-semibold text-ink-800` | `h3`, a block inside a card |
+  | `body` | `text-sm text-ink-700` | text, table cells, form controls |
+  | `caption` | `text-xs text-ink-500` | hints, metadata, errors (`text-danger-600`) |
+  | `label-caps` | `text-xs font-medium uppercase tracking-wide text-ink-500` | table headers, definition labels |
+
+  Outside the scale: **display**, only the sign-in headline and title
+  (`clamp(...)`, in `LoginPage`), and **micro**, `text-[11px]`, only for badges,
+  a small caption and the sidebar's section titles. No new size without a role
+  here; `tests/uiLegibility.test.mjs` pins where an arbitrary pixel size may
+  appear. `ink-500` is the floor for text: `ink-300` / `ink-400` are for borders,
+  icons and placeholders, and the same test fails on one used as a text colour.
+  Every section heading (`h2`) is `text-lg`; `tests/uiLegibility.test.mjs` fails
+  on a `text-xl` one. *What the code does today that this table does not say:*
+  some `h3` are `text-sm`, KPI figures are `text-xl` / `text-3xl` / `text-5xl`
+  (`PlatformIndicators`, `EconomicSummary`, `ExecutiveSummary`, `MetricBars`),
+  the Inicio hero is `text-3xl sm:text-4xl`, and the value-chain editor has two
+  `text-[10px]` (`EnerNode`, `EditorPage`).
+- **Spacing is on the 4px grid, and sections are 24px apart.** Sections and
+  cards of a page: `gap-6` or `space-y-6`, and the page header's own `mb-6`
+  (`PageHeader`). Inside a card or a form: `gap-4` / `space-y-4`. A row of
+  related items: `gap-2` or `gap-3`. **Never `space-y-5` or `space-y-10`**:
+  there is none left, and `tests/uiLegibility.test.mjs` fails on a new one.
+  Half steps (`py-2.5`, `gap-1.5`) are off the grid.
+- **Shared components: use them, do not rebuild them.** `PageHeader` (a page's
+  title), `tableClasses` (a table's cells), `EmptyState` and `LoadingState`
+  (inside a card or a section), `ButtonLink` (a navigation that looks like a
+  button), `Card` (a sheet), `Modal` + `ModalFooter` (a dialog), and, as before,
+  `Button`, `TextField` / `TextArea` / `SelectField`, `SearchField` /
+  `FilterSelect`, `Alert`, `Tabs`, `RowButton`. A `className` on a `Button` may
+  lay it out (`mt-4`, `w-full`) but not recolour it: the variant already did.
+- **Touch targets.** Two of them have a hit area bigger than what is drawn, with an
+  `::after` and no change to the picture. The tabs are 44px tall (the 36px button
+  extended 4px above and below). A `RowButton` is a 24×24 button whose area is
+  **24×44**: 10px added above and below (`after:-inset-y-2.5`) and none sideways,
+  because the buttons of a row sit 4px apart. It stays inside its own row (a table
+  cell pads 12px around it, a project row is 56px, a members row is 56px because the
+  role select is 40px tall), so it overlaps neither its neighbour nor the rows above
+  and below. That meets WCAG 2.2 AA (2.5.8, target size minimum 24px) and **not** the
+  44px guideline (2.5.5, AAA), which would need the row to grow on a phone (see
+  `docs/considerations.md`). `tests/uiLegibility.test.mjs` holds the arithmetic.
 - **Brand mark.** `<Logo variant="mark">` is the monogram for tight spots (the
   top bar); `<Logo variant="full">` adds the wordmark, for sign-in. Both are
   sized by height only (`size="sm" | "md" | "lg"`; `md` — 44px for the mark — is the green sidebar's logo cell), never by width. `tone` names the

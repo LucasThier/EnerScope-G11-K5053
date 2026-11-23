@@ -35,7 +35,7 @@ export function CashFlowChart({ periods, currency, active }: { periods: Economic
   }, []);
 
   return <div className="overflow-x-auto">
-    {active && detail && selected && <div role="tooltip" className="pointer-events-none fixed z-50 w-72 max-w-[calc(100vw-16px)] rounded-lg bg-ink-800 px-3 py-2 text-sm text-white shadow-lg"
+    {active && detail && selected && <div role="tooltip" className="pointer-events-none fixed z-50 w-72 max-w-[calc(100vw-16px)] rounded-lg bg-fill-neutral-strong px-3 py-2 text-sm text-on-accent shadow-lg"
       style={{ left: Math.max(8, Math.min(detail.x + 14, window.innerWidth - 296)), top: Math.max(8, Math.min(detail.y + 14, window.innerHeight - 72)) }}>
       Año {selected.year} · {money(selected.cashFlow, currency)}
     </div>}

@@ -7,6 +7,10 @@ import { AccessFailureAlert } from '../components/versionRoles/AccessFailureAler
 import { SimulationDialog } from '../components/economics/SimulationDialog';
 import { DeleteScenarioDialog, ScenarioNameDialog } from '../components/scenarios/ScenarioDialogs';
 import { Alert } from '../components/ui/Alert';
+import { EmptyState } from '../components/ui/EmptyState';
+import { LoadingState } from '../components/ui/LoadingState';
+import { tableBodyCell, tableHeaderCell } from '../components/ui/tableClasses';
+import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { useActiveProject } from '../hooks/useActiveProject';
@@ -24,8 +28,8 @@ import {
 const POLL_MS = 2500;
 
 const TONES: Record<StatusTone, string> = {
-  good: 'bg-green-50 text-green-800 ring-green-200',
-  warn: 'bg-amber-50 text-amber-800 ring-amber-200',
+  good: 'bg-brand-50 text-brand-800 ring-brand-200',
+  warn: 'bg-warn-50 text-warn-800 ring-warn-200',
   info: 'bg-sky-50 text-sky-800 ring-sky-200',
   neutral: 'bg-ink-50 text-ink-700 ring-ink-200',
 };
@@ -94,58 +98,63 @@ function Workspace({ projectId, versionId, mode }: { projectId: string; versionI
   const title = mode === 'configuration' ? 'Escenarios de la versión' : 'Simulación de escenarios';
 
   return <div className="space-y-6">
-    <header className="space-y-2">
-      <Link className="text-sm font-semibold text-brand-800 hover:underline" to={backPath}>← Versión (base física){versionName ? ` / ${versionName}` : ''}</Link>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink-800">{title}{versionName ? `: ${versionName}` : ''}</h1>
-          <p className="mt-1 max-w-3xl text-sm text-ink-500">
-            {mode === 'configuration'
-              ? 'Un escenario es la configuración económica y de simulación que se apoya en esta versión. Los valores de operación de los nodos pertenecen a la versión.'
-              : 'Elegí un escenario para simularlo o ver sus resultados. Cada escenario tiene su propio historial.'}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+    <PageHeader
+      spaced={false}
+      back={{
+        to: backPath,
+        label: <>← Versión (base física){versionName ? ` / ${versionName}` : ''}</>,
+      }}
+      title={`${title}${versionName ? `: ${versionName}` : ''}`}
+      description={
+        <span className="block max-w-3xl">
+          {mode === 'configuration'
+            ? 'Un escenario es la configuración económica y de simulación que se apoya en esta versión. Los valores de operación de los nodos pertenecen a la versión.'
+            : 'Elegí un escenario para simularlo o ver sus resultados. Cada escenario tiene su propio historial.'}
+        </span>
+      }
+      actions={
+        <>
           <Link className="text-sm font-semibold text-brand-800 underline" to={versionOperationPath(versionId)}>Editar operación en la versión</Link>
           {mode === 'configuration' && (
             <Button disabled={createBlock !== null} title={createBlock ?? undefined} onClick={() => setDialog({ kind: 'create' })}>
               Nuevo escenario
             </Button>
           )}
-        </div>
-      </div>
-      {mode === 'configuration' && createBlock && <p role="note" className="text-sm text-ink-500">{createBlock}</p>}
-    </header>
+        </>
+      }
+    >
+      {mode === 'configuration' && createBlock && <p role="note" className="mt-2 text-sm text-ink-500">{createBlock}</p>}
+    </PageHeader>
 
     <AccessFailureAlert message={accessFailure} onRetry={() => void retryAccess()} />
     {error && <Alert tone="error">{error}{' '}<Button variant="ghost" size="compact" onClick={() => setRetry(n => n + 1)}>Reintentar</Button></Alert>}
 
-    {!error && scenarios === null ? <p role="status">Cargando escenarios…</p> : scenarios && (
+    {!error && scenarios === null ? <LoadingState>Cargando escenarios…</LoadingState> : scenarios && (
       <Card>
-        {!scenarios.length ? <p className="text-sm text-ink-500">Esta versión todavía no tiene escenarios.</p> : (
+        {!scenarios.length ? <EmptyState>Esta versión todavía no tiene escenarios.</EmptyState> : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead><tr className="border-b border-ink-200">
-                <th className="p-3">Escenario</th><th className="p-3">Estado</th><th className="p-3">Última simulación</th><th className="p-3">Actualizado</th><th className="p-3">Acciones</th>
+              <thead><tr className="border-b border-ink-100">
+                <th className={tableHeaderCell}>Escenario</th><th className={tableHeaderCell}>Estado</th><th className={tableHeaderCell}>Última simulación</th><th className={tableHeaderCell}>Actualizado</th><th className={tableHeaderCell}>Acciones</th>
               </tr></thead>
               <tbody>{scenarios.map(scenario => {
                 const status = scenarioStatusView(scenario.status);
                 const simulateBlock = simulateBlockedReason(permissions, scenario);
                 return <tr key={scenario.id} className="border-b border-ink-100 align-top">
-                  <td className="p-3 font-medium">
+                  <td className={`${tableBodyCell} font-medium`}>
                     <Link className="text-brand-800 underline" to={mode === 'configuration'
                       ? scenarioConfigurationPath(projectId, versionId, scenario.id) : scenarioHistoryPath(projectId, versionId, scenario.id)}>{scenario.name}</Link>
                     {scenario.defaultScenario && <span className="ml-2 rounded-full bg-ink-50 px-2 py-0.5 text-xs font-medium text-ink-600">Por defecto</span>}
-                    {scenario.draftPending && <p className="mt-1 text-xs text-amber-800">Tiene un borrador pendiente.</p>}
+                    {scenario.draftPending && <p className="mt-1 text-xs text-warn-800">Tiene un borrador pendiente.</p>}
                     {!scenario.configured && <p className="mt-1 text-xs text-ink-500">Sin configuración económica todavía.</p>}
                   </td>
-                  <td className="p-3">
+                  <td className={tableBodyCell}>
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${TONES[status.tone]}`}>{status.label}</span>
                     {scenario.status === 'OUTDATED' && <p className="mt-1 max-w-xs text-xs text-ink-600">La base cambió: revisá este escenario.</p>}
                   </td>
-                  <td className="p-3">{scenario.latestEvaluatedAt ? formatDate(scenario.latestEvaluatedAt) : '—'}</td>
-                  <td className="p-3">{formatDate(scenario.lastModified)}</td>
-                  <td className="p-3"><div className="flex flex-wrap gap-2">
+                  <td className={tableBodyCell}>{scenario.latestEvaluatedAt ? formatDate(scenario.latestEvaluatedAt) : '—'}</td>
+                  <td className={tableBodyCell}>{formatDate(scenario.lastModified)}</td>
+                  <td className={tableBodyCell}><div className="flex flex-wrap gap-2">
                     {mode === 'configuration' ? <>
                       <Link className="text-brand-800 underline" to={scenarioConfigurationPath(projectId, versionId, scenario.id)}>
                         {permissions.canEdit ? 'Configurar' : 'Ver configuración'}

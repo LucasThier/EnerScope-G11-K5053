@@ -55,11 +55,11 @@ export function EconomicJobs({ projectId, versionId, scenarioId, canEdit, refres
     {!collapsed && <>
     <p className="mb-4 text-sm text-ink-600">Podés navegar mientras se simula. Repetir conserva las entradas y la semilla originales.</p>
     {error && <Alert tone="error">{error}</Alert>}
-    <ul className="space-y-4">{jobs.map(job => <li key={job.id} className="rounded-xl border border-ink-100 p-4">
+    <ul className="space-y-4">{jobs.map(job => <li key={job.id} className="rounded-control border border-ink-100 p-4">
       <div className="flex flex-wrap justify-between gap-2"><span>{dateTime(job.createdAt)}</span><strong>{jobLabels[job.status]}</strong></div>
       <p className="mt-2 text-sm" role={jobPending(job) ? 'status' : undefined}>{job.completedRounds} de {job.rounds} rondas · Semilla: <span className="break-all">{job.seed}</span></p>
       {jobPending(job) && <progress className="mt-2 w-full accent-brand-800" aria-label="Rondas terminadas" max={job.rounds} value={job.completedRounds} />}
-      {job.errorMessage && <p className="mt-2 text-sm text-red-700">{job.errorMessage}</p>}
+      {job.errorMessage && <p className="mt-2 text-sm text-danger-700">{job.errorMessage}</p>}
       {job.evaluationId && <Link className="mt-2 inline-block text-brand-800 underline" to={scenarioResultsPath(projectId, versionId, scenarioId, job.evaluationId)}>Ver resultados →</Link>}
       {canEdit && ['FAILED','INTERRUPTED'].includes(job.status) && <Button className="mt-2" variant="secondary" disabled={retrying !== null} onClick={() => { void repeat(job); }}>Repetir desde el inicio</Button>}
     </li>)}</ul></>

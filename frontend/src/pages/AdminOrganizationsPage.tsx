@@ -1,5 +1,8 @@
 import { useId, useMemo, useState } from 'react';
 import { Alert } from '../components/ui/Alert';
+import { EmptyState } from '../components/ui/EmptyState';
+import { LoadingState } from '../components/ui/LoadingState';
+import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { SearchField } from '../components/ui/SearchField';
@@ -47,18 +50,16 @@ export function AdminOrganizationsPage() {
 
   return (
     <div>
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink-800">Gestión de organizaciones</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            Las organizaciones de la plataforma y quiénes las integran.
-          </p>
-        </div>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <PlusIcon className="h-4 w-4" />
-          Nueva organización
-        </Button>
-      </header>
+      <PageHeader
+        title="Gestión de organizaciones"
+        description="Las organizaciones de la plataforma y quiénes las integran."
+        actions={
+          <Button onClick={() => setIsModalOpen(true)}>
+            <PlusIcon className="h-4 w-4" />
+            Nueva organización
+          </Button>
+        }
+      />
 
       {actionError && (
         <Alert tone="error" className="mb-4">
@@ -79,23 +80,24 @@ export function AdminOrganizationsPage() {
         </div>
 
         {loading ? (
-          <p className="px-4 py-8 text-center text-sm text-ink-500">Cargando organizaciones…</p>
+          <LoadingState>Cargando organizaciones…</LoadingState>
         ) : error ? (
           <div className="px-4 py-6">
             <Alert tone="error">{error}</Alert>
           </div>
         ) : organizations.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <p className="text-sm text-ink-500">Todavía no hay organizaciones.</p>
-            <Button className="mt-4" onClick={() => setIsModalOpen(true)}>
-              <PlusIcon className="h-4 w-4" />
-              Nueva organización
-            </Button>
-          </div>
+          <EmptyState
+            action={
+              <Button onClick={() => setIsModalOpen(true)}>
+                  <PlusIcon className="h-4 w-4" />
+                  Nueva organización
+                </Button>
+            }
+          >
+            Todavía no hay organizaciones.
+          </EmptyState>
         ) : visibleOrganizations.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-ink-500">
-            Ninguna organización coincide con la búsqueda.
-          </p>
+          <EmptyState>Ninguna organización coincide con la búsqueda.</EmptyState>
         ) : (
           <OrganizationsTable
             organizations={visibleOrganizations}

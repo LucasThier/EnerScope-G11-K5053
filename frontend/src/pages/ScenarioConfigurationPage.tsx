@@ -16,6 +16,8 @@ import { EconomicEditor } from '../components/economics/EconomicEditor';
 import { createSimpleCopyDraft } from '../utils/economicDraft';
 import { ScenarioNameDialog } from '../components/scenarios/ScenarioDialogs';
 import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { PageHeader } from '../components/ui/PageHeader';
 import { Alert } from '../components/ui/Alert';
 
 export function ScenarioConfigurationPage() {
@@ -118,37 +120,36 @@ function Workspace({projectId,versionId,scenarioId}:{projectId:string;versionId:
  if(!snapshot||!form||!scenario)return error?<Alert tone="error">{error}</Alert>:<p role="status">Cargando configuración…</p>;
  const disabled=!canEdit||conflict;
  const status=scenarioStatusView(scenario.status);
- return <div className="space-y-5">
- <Link className="text-brand-800 underline" to={versionScenariosPath(projectId,versionId)}>← Versión (base física){versionName?` / ${versionName}`:''} / {scenario.name}</Link>
- <header className="flex flex-wrap items-start justify-between gap-3">
-  <div><h1 className="text-2xl font-semibold">Configuración del Escenario: {scenario.name}</h1>
-   <p className="mt-1 text-sm text-ink-500">Versión (base física): {versionName || '—'}. Acá se configura la parte económica y de simulación; la ejecución se inicia desde Simulación de Escenarios.</p></div>
-  <div className="flex flex-col items-end gap-1"><span role="status">{busy?'Guardando…':dirty?'Cambios sin guardar':'Sin cambios pendientes'}</span>
+ return <div className="space-y-6">
+ <PageHeader spaced={false}
+  back={{to:versionScenariosPath(projectId,versionId),label:<>← Versión (base física){versionName?` / ${versionName}`:''} / {scenario.name}</>}}
+  title={`Configuración del Escenario: ${scenario.name}`}
+  description={`Versión (base física): ${versionName || '—'}. Acá se configura la parte económica y de simulación; la ejecución se inicia desde Simulación de Escenarios.`}
+  actions={<div className="flex flex-col items-end gap-1"><span role="status">{busy?'Guardando…':dirty?'Cambios sin guardar':'Sin cambios pendientes'}</span>
    <span className="text-sm text-ink-600">Estado: <strong>{status.label}</strong></span>
-   <Link className="text-sm text-brand-800 underline" to={scenarioHistoryPath(projectId,versionId,scenario.id)}>Historial y resultados</Link></div>
- </header>
+   <Link className="text-sm text-brand-800 underline" to={scenarioHistoryPath(projectId,versionId,scenario.id)}>Historial y resultados</Link></div>}/>
  <AccessFailureAlert message={accessFailure} onRetry={()=>void retryAccess()}/>
  {!canEdit&&!accessFailure&&permissions.reasons.edit&&<Alert>{permissions.reasons.edit}</Alert>}
  {scenario.status==='OUTDATED'&&<Alert tone="error"><strong>{OUTDATED_NOTICE}</strong> {OUTDATED_DETAIL}</Alert>}
- <section aria-labelledby="operation-title" className="rounded-xl border border-ink-200 bg-white p-4">
+ <section aria-labelledby="operation-title"><Card padded={false} className="p-4">
   <h2 id="operation-title" className="text-base font-semibold">Operación</h2>
   <p className="mt-1 text-sm text-ink-600">Los valores de operación de los nodos (capacidades, pérdidas, fechas de puesta en marcha, mantenimiento…) pertenecen a la versión, no al escenario: se editan en cada nodo.</p>
   <Link className="mt-2 inline-block text-sm font-semibold text-brand-800 underline" to={versionOperationPath(versionId)}>Editar operación en la versión</Link>
- </section>
+ </Card></section>
  {error&&<Alert tone="error">{error}</Alert>}{notice&&<Alert>{notice}{snapshot.draftOperationsIgnored&&<Button variant="ghost" disabled={!canEdit||busy} onClick={()=>void discard()}>Descartar borrador</Button>}</Alert>}
  {snapshot.errors.length>0&&<Alert tone="error"><ul>{snapshot.errors.map((e,i)=><li key={i}>{e}</li>)}</ul></Alert>}
  {conflict&&<Alert tone="error">El escenario cambió desde otra pantalla. Tus cambios se conservan; para evitar sobrescribir datos, recargá descartando los cambios afectados.<Button variant="ghost" disabled={busy||!canEdit} onClick={()=>void discard()}>Descartar y recargar</Button></Alert>}
  {blocker.state==='blocked'&&<Alert>Hay cambios sin guardar.<Button variant="ghost" onClick={()=>blocker.reset()}>Seguir editando</Button><Button variant="ghost" disabled={busy} onClick={()=>blocker.proceed()}>Salir sin guardar</Button></Alert>}
  {form.editor.mode==='simple' ?
  <EconomicEditor saveOnly draft={form.editor.value} nodes={nodes} disabled={disabled} busy={busy} dirty={dirty||!!snapshot.draft||!!snapshot.legacyDraft} onChange={value=>setForm({...form,editor:{mode:'simple',value}})} save={()=>void save()} discard={()=>void discard()}/> :
- <section className="space-y-4 rounded-xl border border-ink-200 bg-white p-5">
+ <Card padded={false} className="space-y-4 p-5">
   <h2 className="text-lg font-semibold">Configuración original conservada</h2>
   <p>Este escenario contiene reglas que el formulario simple no representa. Sus datos y resultados se conservan intactos. Podés crear un escenario nuevo, copia de este, para editarlo con el formulario simple.</p>
   <dl className="grid gap-3 sm:grid-cols-2"><div><dt>Año de inversión</dt><dd>{form.editor.value.startYear}</dd></div><div><dt>Años operativos</dt><dd>{form.editor.value.years}</dd></div><div><dt>Moneda</dt><dd>{form.editor.value.currency}</dd></div><div><dt>Entidades fiscales</dt><dd>{form.editor.value.taxEntities.length}</dd></div></dl>
   <p className="text-sm text-ink-500">La copia usa una entidad al 100 %, ingresos gravados y costos deducibles. Debés revisar importes y vigencias: no reproduce participaciones, quebrantos, transferencias internas ni cobros diferidos.</p>
   <Button disabled={disabled||busy||dirty||!!snapshot.draft||!!snapshot.legacyDraft} title={permissions.reasons.edit ?? undefined} onClick={()=>setCopying(true)}>Crear copia simple</Button>
   {(snapshot.draft||snapshot.legacyDraft)&&<><p>Hay un borrador conservado. Descartalo explícitamente para crear una copia desde la configuración publicada.</p><Button variant="ghost" disabled={!canEdit||busy} onClick={()=>void discard()}>Descartar cambios</Button></>}
- </section>}
+ </Card>}
  <ScenarioNameDialog open={copying} title="Crear copia simple" submitLabel="Crear copia"
   description="Se crea un escenario nuevo en esta versión con el equivalente simple de esta configuración. El original y sus resultados se conservan."
   scenarios={[]} onClose={()=>setCopying(false)} onSubmit={createSimpleCopy}/>

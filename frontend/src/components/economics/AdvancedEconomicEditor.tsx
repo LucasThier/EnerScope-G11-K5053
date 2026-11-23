@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import type { EconomicConfiguration, Scenario } from '../../types/economics';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { SelectField } from '../ui/SelectField';
 import { TextField } from '../ui/TextField';
 
 const sections = ['General', 'Inversión', 'Ingresos', 'Costos', 'Impuestos'] as const;
@@ -57,9 +58,9 @@ export function AdvancedEconomicEditor({ configuration: c, nodes, onChange, disa
     if (['taxEntityId', 'counterpartyId'].includes(key)) options = c.taxEntities.map(e => [e.id, e.name]);
     if (options) {
       if (value && !options.some(([id]) => id === value)) options = [...options, [String(value), String(value)]];
-      return <label key={key} className="flex min-w-0 flex-col gap-2 text-sm font-medium text-ink-600">{label}<select className="min-w-0 rounded-lg border border-ink-200 bg-white p-3" value={String(value ?? '')} onChange={e => change(path, e.target.value || null)}>
+      return <SelectField key={key} label={label} className="min-w-0" value={String(value ?? '')} onChange={e => change(path, e.target.value || null)}>
         <option value="">Sin asignación explícita</option>{options.map(([id, text]) => <option key={id} value={id}>{text}</option>)}
-      </select></label>;
+      </SelectField>;
     }
     const optional = ['lossExpiryYears', 'annualQuantity', 'cashDate'].includes(key);
     const isNumber = numeric.has(key);
@@ -84,7 +85,7 @@ export function AdvancedEconomicEditor({ configuration: c, nodes, onChange, disa
       ...c.nodeProfiles.flatMap((p, i) => p.rules.map((rule, j) => ({ rule, path: ['nodeProfiles', i, 'rules', j] as Path, source: nodeName(p.nodeId) }))),
       ...c.contracts.map((contract, i) => ({ rule: contract.revenueRule, path: ['contracts', i, 'revenueRule'] as Path, source: 'Contrato · ' + nodeName(contract.deliveryNodeId) })),
     ].filter(({ rule }) => rule.direction === direction);
-    return <div className="space-y-5">{entries.map(({ rule, path, source }) => <div key={path.join('.')} className="space-y-4 rounded-xl border border-ink-200 p-4"><h3 className="font-semibold">{rule.concept}</h3><p className="text-sm text-ink-500">{source}</p>{fields(rule, path)}</div>)}
+    return <div className="space-y-6">{entries.map(({ rule, path, source }) => <div key={path.join('.')} className="space-y-4 rounded-control border border-ink-200 p-4"><h3 className="font-semibold">{rule.concept}</h3><p className="text-sm text-ink-500">{source}</p>{fields(rule, path)}</div>)}
       {!entries.length && <p className="text-sm text-ink-500">No hay conceptos cargados en esta sección.</p>}
       <Button variant="secondary" onClick={() => {
         const concept = (direction === 'INCOME' ? 'Ingreso ' : 'Costo ') + crypto.randomUUID().slice(0, 8);
@@ -95,15 +96,15 @@ export function AdvancedEconomicEditor({ configuration: c, nodes, onChange, disa
       }}>{direction === 'INCOME' ? 'Agregar ingreso' : 'Agregar costo'}</Button>
     </div>;
   }
-  const actions = <div className="flex flex-wrap justify-between gap-3 rounded-lg border border-ink-200 bg-white p-4">
+  const actions = <Card padded={false} className="flex flex-wrap justify-between gap-3 p-4">
     <Button variant="ghost" disabled={disabled || busy || !dirty} onClick={discard}>Descartar cambios</Button><div className="flex flex-wrap gap-3">
       <Button variant="secondary" disabled={disabled || busy} onClick={() => saveOnly ? save(false) : submit(false)}>Guardar</Button>
-      {!saveOnly && <Button disabled={disabled || busy} loading={busy} onClick={() => submit(true)}>Guardar y simular</Button>}</div></div>;
+      {!saveOnly && <Button disabled={disabled || busy} loading={busy} onClick={() => submit(true)}>Guardar y simular</Button>}</div></Card>;
   return <div ref={root} className="space-y-4">
     <p className="text-sm text-ink-600">Esta configuración incluye entidades y reglas propias. Podés editarlas por sección. Guardar conserva como borrador los datos incompletos; se conservan las participaciones, los contratos y las fechas de cobro y pago.</p>
     {actions}<div className="grid gap-4 xl:grid-cols-[9rem_minmax(0,1fr)]">
-      <nav aria-label="Secciones de configuración" className="flex flex-wrap gap-2 xl:flex-col">{sections.map(s => <button key={s} type="button" aria-current={s === section ? 'page' : undefined} onClick={() => setSection(s)} className={'rounded-lg px-3 py-2 text-left text-sm ' + (s === section ? 'bg-brand-50 font-semibold text-brand-800' : 'text-ink-600')}>{s}</button>)}</nav>
-      <Card>{sections.map(s => <fieldset key={s} data-section={s} hidden={section !== s} disabled={disabled || busy} className="min-w-0 space-y-5 disabled:opacity-75"><h2 className="text-lg font-semibold">{s}</h2>
+      <nav aria-label="Secciones de configuración" className="flex flex-wrap gap-2 xl:flex-col">{sections.map(s => <button key={s} type="button" aria-current={s === section ? 'page' : undefined} onClick={() => setSection(s)} className={'rounded-lg px-3 py-2 text-left text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' + (s === section ? 'bg-brand-50 font-semibold text-brand-800' : 'text-ink-600')}>{s}</button>)}</nav>
+      <Card>{sections.map(s => <fieldset key={s} data-section={s} hidden={section !== s} disabled={disabled || busy} className="min-w-0 space-y-6 disabled:opacity-75"><h2 className="text-lg font-semibold">{s}</h2>
         {s === 'General' && <>{fields({ startYear: c.startYear, years: c.years, currency: c.currency, wacc: c.wacc }, [])}<p className="text-sm text-ink-500">Si cambiás el horizonte, revisá también las fechas de las reglas y los tratamientos fiscales.</p><details><summary className="cursor-pointer text-sm font-semibold">Conversiones de unidades</summary><div className="mt-4 space-y-4">{c.conversions.map((v, i) => <div key={i} className="rounded-lg border border-ink-200 p-4">{fields(v, ['conversions', i])}</div>)}</div></details></>}
         {s === 'Inversión' && <>{c.assets.map((a, i) => <div key={a.id} className="space-y-3 rounded-lg border border-ink-200 p-4"><h3 className="font-semibold">{a.concept}</h3>{fields(a, ['assets', i])}</div>)}{!c.assets.length && <p>No hay activos cargados.</p>}<Button variant="secondary" onClick={() => {
           const next = structuredClone(c), concept = 'Activo ' + crypto.randomUUID().slice(0, 8), entity = c.taxEntities[0].id;

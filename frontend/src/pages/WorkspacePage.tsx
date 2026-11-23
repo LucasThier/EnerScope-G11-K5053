@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PageHeader } from '../components/ui/PageHeader';
 import { PlatformIndicators } from '../components/dashboard/PlatformIndicators';
 import { QuickActions } from '../components/dashboard/QuickActions';
 import { RecentProjectHero } from '../components/dashboard/RecentProjectHero';
@@ -27,12 +28,11 @@ export function WorkspacePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-3xl font-bold tracking-tight text-ink-800 sm:text-4xl">
-          Tu espacio de trabajo
-        </h1>
-        <p className="mt-1 text-base text-ink-500">Accesos directos a la actividad reciente.</p>
-      </header>
+      <PageHeader
+        spaced={false}
+        title="Tu espacio de trabajo"
+        description="Accesos directos a la actividad reciente."
+      />
 
       <RecentProjectHero canCreateProject={canCreateProject} onNewProject={openNewProject} />
 
