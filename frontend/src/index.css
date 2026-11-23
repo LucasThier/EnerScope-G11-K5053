@@ -14,7 +14,7 @@
  *   in front of this tool for hours, and large saturated areas tire the eye;
  *   green earns attention precisely because it is rare.
  *   ONE EXCEPTION: the navigation sidebar is a deep forest-green rail
- *   (--color-sidebar, #114636), the same value in both themes. It is a narrow,
+ *   (--color-sidebar, #114636 in the light theme, a deeper #0e2f26 in the dark). It is a narrow,
  *   dark, low-saturation column, not a bright area, and it carries its own
  *   sidebar-* tokens so nothing else in the app inherits it. Its pairs are
  *   measured by tests/sidebarTheme.test.mjs (see the tokens for the ratios).
@@ -82,6 +82,13 @@
   --color-warn-700: oklch(55.5% 0.163 48.998);
   --color-warn-800: oklch(47.3% 0.137 46.201);
 
+  /* Info — the sky blue the "running" status chip used to reach for directly.
+     Same values as Tailwind's sky-50 / -200 / -800, now inside the system so the
+     dark theme can restate them like warn and danger. */
+  --color-info-50: oklch(97.7% 0.013 236.62);
+  --color-info-200: oklch(90.1% 0.058 230.902);
+  --color-info-800: oklch(44.3% 0.11 240.79);
+
   /* Semantic roles. These name *what a colour is for* rather than where it sits
      on a ramp, which is what lets a second theme restate them. In the light
      theme every one of them equals the value the components used literally
@@ -133,10 +140,12 @@
   --color-nav-active: #ddeedf; /* the fill behind the current section's row — the one place green is a surface, and never a large one */
 
   /* THE SIDEBAR RAIL — the one green surface (see the exception at the top).
-     Identical in both themes, restated in the dark block so it reads as one
-     list. Ratios are WCAG, measured against --color-sidebar unless noted, and
-     asserted by tests/sidebarTheme.test.mjs: text >= 4.5:1, focus and icons
-     >= 3:1. The nav-* tokens above stay for the top bar and its popovers. */
+     These are the light theme's values; the dark block restates every one with
+     its own, deeper values (until 2026-11-23 they were identical). Ratios below
+     are the light theme's, WCAG, measured against --color-sidebar unless noted,
+     and asserted per theme by tests/sidebarTheme.test.mjs: text >= 4.5:1, the
+     current pill >= 1.8:1 against the rail, focus and icons >= 3:1. The nav-*
+     tokens above stay for the top bar and its popovers. */
   --color-sidebar: #114636; /* the rail, logo cell included */
   --color-sidebar-hover: #245546; /* a resting row under the pointer: white at 8% over the rail */
   --color-sidebar-text: #ffffff; /* resting and locked rows — 10.75:1; 8.53:1 on the hover */
@@ -156,9 +165,9 @@
   --color-sample-light-page: #f5f7f9;
   --color-sample-light-surface: #ffffff;
   --color-sample-light-accent: #2e7d32;
-  --color-sample-dark-page: #0f141a;
-  --color-sample-dark-surface: #232c35;
-  --color-sample-dark-accent: #a5e8ad;
+  --color-sample-dark-page: #0b0f12;
+  --color-sample-dark-surface: #1c242c;
+  --color-sample-dark-accent: #8fd49b;
 
   /* SIGN-IN SCREEN. The login is a photograph with a translucent panel over it,
      so it needs a handful of colours the rest of the app has no use for. Two
@@ -247,18 +256,25 @@ body {
  *
  * WHERE each colour goes, in the order you meet it going up off the page:
  *
- *   page     #0f141a   the page itself. Not black: a blue-tinted charcoal, so
+ *   page     #0b0f12   the page itself. Not black: a blue-tinted charcoal, so
  *                      the ink hue survives and large areas stay restful.
- *   surface  #181f26   cards, the top bar, the sidebar, the form controls — the
- *                      sheets that sit on the page.
- *   raised   #232c35   modals, popovers, the editor's floating panels.
- *   ink-50   #303a45   the hover fill, now LIGHTER than the surface it lands
- *                      on. A hover lifts in the dark the same way it darkens in
- *                      the light: one step away from the surface, either way.
+ *   surface  #1c242c   cards, the top bar, the form controls — the sheets that
+ *                      sit on the page (1.23:1 above it).
+ *   raised   #26323e   modals, popovers, the editor's floating panels (1.20:1
+ *                      above the surface).
+ *   ink-50   #2f3d4c   the hover fill, now LIGHTER than the surface it lands
+ *                      on (1.41:1). A hover lifts in the dark the same way it
+ *                      darkens in the light: one step away from the surface.
+ *   nav      #14191f   the menus' own ground, between the page and the surface.
  *
- * Elevation is carried by those four steps and by borders a notch more visible
- * than their light counterparts (a card's border goes from 1.12:1 to 1.89:1
- * against the page), because a drop shadow does nothing over a dark ground.
+ * Each step is a deliberate ~1.2:1 so the layers separate by luminance, in the
+ * same blue-grey hue. Elevation is carried by those steps, by borders a notch
+ * more visible than their light counterparts (a card's border is 2.03:1
+ * against the page), and by a 1px inner top highlight on cards and modals (the
+ * rule after this block), because a drop shadow does nothing over a dark ground.
+ * The spotlight plate keeps its light-theme value (1.81:1 over this page). The
+ * sidebar has its own, deeper dark values (1.33:1 over the page, set in the
+ * sidebar-* tokens below).
  *
  * The ink ramp inverts around its middle: what was a dark text colour becomes a
  * light one, what was a light surface becomes a dark one, and the rungs in
@@ -267,16 +283,20 @@ body {
  *   ink-100  borders and dividers
  *   ink-200  decorative borders: dividers, swatches, an alert's edge
  *   ink-300  dividers only — never text
- *   ink-400  placeholders, decorative icons, disabled labels (5.42:1)
- *   ink-500  <- the floor for secondary text, labels and metadata (7.60:1)
- *   ink-600  form labels (9.78:1)
- *   ink-700  body text (12.46:1)
- *   ink-800  headings (14.78:1)
+ *   ink-400  placeholders, decorative icons, disabled labels (5.31:1)
+ *   ink-500  <- the floor for secondary text, labels and metadata (7.17:1)
+ *   ink-600  form labels (9.13:1)
+ *   ink-700  body text (11.42:1)
+ *   ink-800  headings (13.69:1)
  *
  * The accents invert their polarity: on a dark ground a light green reads as
  * the accent and a dark label reads on top of it, so brand-800 stays the one
  * token for links, active navigation and the primary button's fill, with
- * on-accent as its label. Same for danger and for warn.
+ * on-accent as its label. Same for danger and for warn. The green is a softer
+ * mint than before (#8fd49b, 45% saturation against 59%) so a filled button
+ * does not glare on the dark ground. The neutral fill (secondary button,
+ * avatar, chart tooltips) is a grey, not a near-white slab: it must stay light
+ * because on-accent, its label, is shared with the brand and danger fills.
  *
  * Ratios above are against `surface`; every text/background, focus and control
  * pair in both themes is measured by the contrast script, and this theme clears
@@ -285,39 +305,43 @@ body {
 html[data-theme='dark'] {
   color-scheme: dark;
 
-  --color-brand-50: #16301c;
-  --color-brand-100: #1d4024;
-  --color-brand-200: #2a5c33;
+  --color-brand-50: #12261a;
+  --color-brand-100: #19341f;
+  --color-brand-200: #2a5238;
   --color-brand-300: #3c7d47;
-  --color-brand-400: #5fae6b;
-  --color-brand-500: #6cc077;
-  --color-brand-600: #7fcf89;
-  --color-brand-700: #92dc9b;
-  --color-brand-800: #a5e8ad;
-  --color-brand-900: #bdf2c3;
+  --color-brand-400: #4e9a5e;
+  --color-brand-500: #5fb06e;
+  --color-brand-600: #72bf80;
+  --color-brand-700: #82cc8f;
+  --color-brand-800: #8fd49b;
+  --color-brand-900: #a8e2b2;
 
-  --color-ink-50: #303a45;
-  --color-ink-100: #3a4550;
-  --color-ink-200: #4a5663;
+  --color-ink-50: #2f3d4c;
+  --color-ink-100: #38475a;
+  --color-ink-200: #4c5d72;
   --color-ink-300: #5f6d7b;
-  --color-ink-400: #8695a4;
-  --color-ink-500: #a3b1bf;
-  --color-ink-600: #bdc8d2;
-  --color-ink-700: #d8e0e7;
-  --color-ink-800: #eef2f6;
-  --color-ink-900: #f8fafb;
+  --color-ink-400: #8798ab;
+  --color-ink-500: #a2b1c1;
+  --color-ink-600: #bbc7d3;
+  --color-ink-700: #d4dde6;
+  --color-ink-800: #ebf0f5;
+  --color-ink-900: #f7fafc;
 
-  --color-danger-50: #3a1518;
-  --color-danger-200: #5c2328;
+  --color-danger-50: #34161a;
+  --color-danger-200: #6a2a31;
   --color-danger-400: #d4707a;
-  --color-danger-600: #ffa8ad;
-  --color-danger-700: #ffc2c6;
+  --color-danger-600: #f09aa1;
+  --color-danger-700: #f8b4ba;
 
-  --color-warn-50: #3a2a0c;
+  --color-warn-50: #30240a;
   --color-warn-100: #4d3810;
   --color-warn-200: #6a4f17;
   --color-warn-700: #f0cf8a;
-  --color-warn-800: #f7e2b4;
+  --color-warn-800: #f4d9a0;
+
+  --color-info-50: #112a3f;
+  --color-info-200: #2a577a;
+  --color-info-800: #a9d3f2;
 
   --color-series-1: #3987e5;
   --color-series-2: #d95926;
@@ -327,33 +351,37 @@ html[data-theme='dark'] {
   --color-series-6: #008300;
   --color-series-7: #9085e9;
   --color-series-8: #e66767;
-  --color-page: #0f141a;
-  --color-surface: #181f26;
-  --color-raised: #232c35;
-  --color-on-accent: #111820;
-  --color-focus: #5fae6b;
-  --color-control-border: #76838f; /* the same mid ink grey in both themes: it is the only band that clears 3:1 against a near-white and a near-black control fill at once — 4.29:1 on a card and 3.65:1 on a modal's raised panel here, against ink-200's 2.22:1 */
-  --color-fill-neutral: #cfd8e0;
-  --color-fill-neutral-strong: #e4eaef;
+  --color-page: #0b0f12;
+  --color-surface: #1c242c;
+  --color-raised: #26323e;
+  --color-on-accent: #0b140e;
+  --color-focus: #5fb06e;
+  --color-control-border: #76838f; /* the same mid ink grey in both themes: it is the only band that clears 3:1 against a near-white and a near-black control fill at once — 4.05:1 on a card and 3.37:1 on a modal's raised panel here, against ink-200's 2.22:1 */
+  --color-fill-neutral: #b2bfcb;
+  --color-fill-neutral-strong: #c9d3dc;
   --color-scrim: #000000;
   --color-hero: #1a2129;
   --color-hero-line: #2f3841;
   --color-hero-node: #454f5a;
   --color-hero-text: #aab6c2;
 
-  --color-nav: #141a21;
-  --color-nav-hover: #1f2731;
-  --color-nav-active: #1b3a22;
+  --color-nav: #14191f;
+  --color-nav-hover: #212b36;
+  --color-nav-active: #173a26;
 
-  --color-sidebar: #114636; /* unchanged in the dark theme, like the spotlight plate */
-  --color-sidebar-hover: #245546;
-  --color-sidebar-text: #ffffff;
-  --color-sidebar-muted: #dbe3e1;
-  --color-sidebar-icon-muted: #a0b5af;
-  --color-sidebar-line: #356254;
-  --color-sidebar-active: #d6f5c3;
-  --color-sidebar-active-text: #1b5e20;
-  --color-sidebar-focus: #ffffff;
+  /* The rail in the dark theme: a deeper, quieter forest green, so it sits on the
+     near-black page instead of glowing on it (1.33:1 above the page), and a mid
+     green pill instead of the pale lime. Every ratio is against --color-sidebar
+     unless noted, and asserted by tests/sidebarTheme.test.mjs. */
+  --color-sidebar: #0e2f26; /* the rail, logo cell included — 1.33:1 above the page */
+  --color-sidebar-hover: #214037; /* white at 8% over the rail */
+  --color-sidebar-text: #ffffff; /* 14.45:1 on the rail; 11.33:1 on the hover */
+  --color-sidebar-muted: #dbe0de; /* white at 85% — 10.82:1 */
+  --color-sidebar-icon-muted: #9faca8; /* white at 60% — 6.15:1 */
+  --color-sidebar-line: #324e47; /* white at 15%, decorative — 1.59:1 */
+  --color-sidebar-active: #2d6a53; /* the pill behind the current row — 2.27:1 against the rail */
+  --color-sidebar-active-text: #ffffff; /* label and icon on that pill — 6.37:1 */
+  --color-sidebar-focus: #ffffff; /* keyboard ring — 14.45:1 on the rail, 11.33:1 on the hover */
 
   --color-spotlight: #1d4541; /* unchanged in the dark theme: the plate keeps its petrol and stands off the page by luminance */
   --color-spotlight-text: #dcebe3; /* unchanged */
@@ -391,4 +419,15 @@ html[data-theme='dark'] {
   --auth-subtitle-halo-inset: -0.75rem -2rem; /* tight and almost opaque, not the wide wash of the light theme */
   --auth-subtitle-halo-radius: 1.5rem;
   --auth-subtitle-halo-blur: 24px;
+}
+
+/* The inner top highlight of a card or a modal in the dark theme: a 1px line of
+   white at 5%, drawn by the same box-shadow the elevation utilities build.
+   Tailwind inlines --shadow-raise / --shadow-float into those utilities, so
+   restating the tokens in the block above would do nothing; --tw-inset-shadow is
+   the slot the utilities already read, and it is not inherited, so it is set on
+   the elements themselves. Dark theme only. */
+html[data-theme='dark'] .shadow-raise,
+html[data-theme='dark'] .shadow-float {
+  --tw-inset-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.05);
 }

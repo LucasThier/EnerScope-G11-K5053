@@ -361,12 +361,14 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   active navigation item, and nothing else. Every other surface, border, icon
   and text colour comes from the ink ramp. Analysts sit in this tool for hours;
   green earns attention because it is rare. **One exception: the sidebar** is a
-  deep forest-green rail (`bg-sidebar`, `#114636`, the same in both themes),
-  styled only from its own `sidebar-*` tokens — white labels (10.75:1), section
-  titles at 85% white (8.24:1), a `#D6F5C3` pill with `#1B5E20` text for the
-  current row (6.64:1), a white focus ring. Never reuse those tokens elsewhere,
-  and never point `nav-*` at them: the top bar and its popovers use `nav-*`.
-  `tests/sidebarTheme.test.mjs` holds every pair to AA.
+  deep forest-green rail (`bg-sidebar`: `#114636` in the light theme, a deeper
+  `#0e2f26` in the dark one, 1.33:1 above the dark page), styled only from its
+  own `sidebar-*` tokens — white labels (10.75:1 light, 14.45:1 dark), section
+  titles at 85% white, a pill for the current row (light `#D6F5C3` with
+  `#1B5E20` text, 6.64:1; dark `#2D6A53` with white text, 6.37:1), a white focus
+  ring. Never reuse those tokens elsewhere, and never point `nav-*` at them:
+  the top bar and its popovers use `nav-*`. `tests/sidebarTheme.test.mjs` holds
+  every pair to AA in both themes.
 - **Surfaces come from tokens.** `body` carries the page background in
   `index.css`; a full-height page container must use `bg-ink-50` rather than a
   hard-coded white, so a change to the token reaches every screen.

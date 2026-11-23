@@ -30,7 +30,7 @@ const POLL_MS = 2500;
 const TONES: Record<StatusTone, string> = {
   good: 'bg-brand-50 text-brand-800 ring-brand-200',
   warn: 'bg-warn-50 text-warn-800 ring-warn-200',
-  info: 'bg-sky-50 text-sky-800 ring-sky-200',
+  info: 'bg-info-50 text-info-800 ring-info-200',
   neutral: 'bg-ink-50 text-ink-700 ring-ink-200',
 };
 

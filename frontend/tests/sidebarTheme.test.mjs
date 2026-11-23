@@ -8,7 +8,12 @@ import { fileURLToPath } from 'node:url';
  * The green sidebar is the one green surface in the app (index.css → the
  * exception under "WHERE each colour goes"). These tests hold its sidebar-*
  * tokens to WCAG AA in both themes: 4.5:1 for text, 3:1 for the focus ring and
- * for icons, and 3:1 for every opaque colour of the logo cut drawn on it.
+ * for icons, 1.8:1 for the current-row pill against the rail, and 3:1 for every
+ * opaque colour of the logo cut drawn on it.
+ *
+ * Until 2026-11-23 the two themes shared one set of values; the dark theme now
+ * has its own, deeper rail (#0e2f26) and a mid-green pill, so the same ratios
+ * are asserted on each theme's own tokens and the light values are frozen.
  */
 const src = new URL('../src/', import.meta.url);
 const css = readFileSync(new URL('index.css', src), 'utf8');
@@ -63,8 +68,21 @@ const PAIRS = [
   ['sidebar-icon-muted', 'sidebar', 3, 'a locked row icon and padlock'],
   ['sidebar-focus', 'sidebar', 3, 'the focus ring on the rail'],
   ['sidebar-focus', 'sidebar-hover', 3, 'the focus ring on a hovered row'],
-  ['sidebar-active', 'sidebar', 3, 'the current row pill against the rail'],
+  ['sidebar-active', 'sidebar', 1.8, 'the current row pill against the rail'],
 ];
+
+/** The light theme's values, frozen: the dark theme's sidebar must never move them. */
+const LIGHT = {
+  sidebar: '#114636',
+  'sidebar-hover': '#245546',
+  'sidebar-text': '#ffffff',
+  'sidebar-muted': '#dbe3e1',
+  'sidebar-icon-muted': '#a0b5af',
+  'sidebar-line': '#356254',
+  'sidebar-active': '#d6f5c3',
+  'sidebar-active-text': '#1b5e20',
+  'sidebar-focus': '#ffffff',
+};
 
 const themes = {
   light: sidebarTokens(block('@theme')),
@@ -77,9 +95,17 @@ test('every sidebar token is declared in both themes', () => {
   }
 });
 
-test('the sidebar is identical in the light and the dark theme', () => {
-  assert.deepEqual(themes.dark, themes.light);
-  assert.equal(themes.light.sidebar, '#114636');
+test('the light theme keeps exactly its sidebar values', () => {
+  assert.deepEqual(themes.light, LIGHT);
+});
+
+test('the dark theme has its own deeper rail and a quiet mid-green pill, 1.3-1.5:1 above the page', () => {
+  const dark = themes.dark;
+  assert.notEqual(dark.sidebar, themes.light.sidebar);
+  assert.notEqual(dark['sidebar-active'], themes.light['sidebar-active']);
+  const page = css.match(/html\[data-theme='dark'\][^]*?--color-page:\s*(#[0-9a-fA-F]{6})/)[1];
+  const measured = ratio(rgb(dark.sidebar), rgb(page));
+  assert.ok(measured >= 1.3 && measured <= 1.5, `sidebar ${dark.sidebar} on page ${page} is ${measured.toFixed(2)}:1`);
 });
 
 for (const [theme, tokens] of Object.entries(themes)) {
@@ -148,11 +174,13 @@ function weakestOpaqueRatio(asset, background) {
   return { weakest, below };
 }
 
-for (const asset of ['logo-mark-sidebar.png', 'logo-full-sidebar.png']) {
-  test(`${asset}: every opaque colour clears 3:1 on the sidebar`, () => {
-    const { weakest, below } = weakestOpaqueRatio(asset, rgb(themes.light.sidebar));
-    assert.equal(below, 0, `${below} opaque pixels under 3:1 (weakest ${weakest.toFixed(2)}:1)`);
-  });
+for (const [theme, tokens] of Object.entries(themes)) {
+  for (const asset of ['logo-mark-sidebar.png', 'logo-full-sidebar.png']) {
+    test(`${theme}: ${asset}: every opaque colour clears 3:1 on the sidebar`, () => {
+      const { weakest, below } = weakestOpaqueRatio(asset, rgb(tokens.sidebar));
+      assert.equal(below, 0, `${below} opaque pixels under 3:1 (weakest ${weakest.toFixed(2)}:1)`);
+    });
+  }
 }
 
 test('the plain white cut is why the sidebar cut exists: its greens fail on the rail', () => {
