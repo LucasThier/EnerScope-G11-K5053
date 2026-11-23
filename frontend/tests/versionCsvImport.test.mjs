@@ -102,7 +102,10 @@ test('the previous translations and passthroughs are unchanged', () => {
 // ---- parsing and analysis ------------------------------------------------------------------------------------------
 
 const HEAD = 'nodeKind,name,state,lifespanInMonths,upkeepCosts,maintenanceIntervalInDays,operatingCosts,wastePercentage,type,investmentCost,identity';
-const well = (identity = '') => `WELL,Pozo,RUNNING,240,1,30,2,0.1,"{""vertical"":""EXTRACTION""}","{""components"":[]}",${identity}`;
+const typeCell = (vertical, role, nodeType) => `"{""vertical"":""${vertical}"",""role"":""${role}"",""nodeType"":""${nodeType}""}"`;
+const well = (identity = '') => `WELL,Pozo,RUNNING,240,1,30,2,0.1,${typeCell('EXTRACTION', 'GENERATOR', 'WELL')},"{""components"":[]}",${identity}`;
+const row = (kind, typeText) => `${kind},N,RUNNING,240,1,30,2,0.1,${typeText},"{""components"":[]}",`;
+const rawCell = (text) => `"${text.replace(/"/g, '""')}"`;
 
 test('the parser reads quotes, escaped quotes, embedded line breaks, CRLF and a BOM like the backend', () => {
   const { records, error } = csv.parseCsvRecords('﻿a,b\r\n"x, y","say ""hi"""\r\n\r\n"two\nlines", z \r\n');
@@ -298,4 +301,223 @@ test('the result messages and where the buttons lead', () => {
     editor: '/editor?versionId=v%2F2',
     scenarios: '/projects/p%201/versions/v%2F2/scenarios',
   });
+});
+
+// ---- type / role / vertical coherence --------------------------------------------------------------------------------
+
+// Written by hand from backend NodeTypeEnum.java: [nodeKind, vertical, role, type.nodeType]. The nodeType column keeps
+// the enum's own spelling (PIPELINE_CONECTION, GROUND_LIQUEFACTION_PLANT, LNG_CAMER), not nodeKind's.
+const EXPECTED = [
+  ['WELL', 'EXTRACTION', 'GENERATOR', 'WELL'],
+  ['GATHERING_NETWORK', 'EXTRACTION', 'INTERMEDIATE', 'GATHERING_NETWORK'],
+  ['TREATMENT_PLANT', 'EXTRACTION', 'INTERMEDIATE', 'TREATMENT_PLANT'],
+  ['PIPELINE', 'TRANSPORTATION', 'INTERMEDIATE', 'PIPELINE'],
+  ['PIPELINE_CONNECTION', 'TRANSPORTATION', 'INTERMEDIATE', 'PIPELINE_CONECTION'],
+  ['COMPRESSING_PLANT', 'TRANSPORTATION', 'INTERMEDIATE', 'COMPRESSING_PLANT'],
+  ['GROUND_BASED_LIQUEFACTION_PLANT', 'LIQUEFACTION', 'INTERMEDIATE', 'GROUND_LIQUEFACTION_PLANT'],
+  ['FLNG_UNIT', 'LIQUEFACTION', 'INTERMEDIATE', 'FLNG_UNIT'],
+  ['LNG_CARRIER', 'EXPORT', 'SINK', 'LNG_CAMER'],
+  ['SEAPORT_TERMINAL', 'EXPORT', 'SINK', 'SEAPORT_TERMINAL'],
+  ['INTERNAL_CONSUMPTION', 'INTERNAL_CONSUMPTION', 'SINK', 'INTERNAL_CONSUMPTION'],
+  ['INDUSTRIAL_CONSUMPTION', 'INTERNAL_CONSUMPTION', 'SINK', 'INDUSTRIAL_CONSUMPTION'],
+];
+const ROLES = ['GENERATOR', 'INTERMEDIATE', 'SINK'];
+const VERTICALS = ['EXTRACTION', 'TRANSPORTATION', 'LIQUEFACTION', 'EXPORT', 'INTERNAL_CONSUMPTION'];
+const messages = (raw) => csv.analyzeNodesCsv(raw).problems.map((p) => `Línea ${p.line}: ${p.message}`);
+
+test('the type rules match the hand-written NodeTypeEnum matrix, one rule per supported nodeKind', () => {
+  assert.deepEqual(
+    Object.entries(csv.NODE_TYPE_RULES).map(([kind, r]) => [kind, r.vertical, r.role, r.nodeType]),
+    EXPECTED,
+  );
+  assert.deepEqual(Object.keys(csv.NODE_TYPE_RULES).sort(), Object.keys(csv.NODE_KIND_VERTICAL).sort());
+});
+
+test('the vertical used for the edit permission is the NodeTypeEnum one for every kind, INDUSTRIAL_CONSUMPTION included', () => {
+  for (const [kind, vertical] of EXPECTED) {
+    assert.equal(csv.NODE_KIND_VERTICAL[kind], vertical, kind);
+  }
+  assert.equal(csv.NODE_KIND_VERTICAL.INDUSTRIAL_CONSUMPTION, 'INTERNAL_CONSUMPTION');
+});
+
+test('a file with an INDUSTRIAL_CONSUMPTION node needs the Consumo interno vertical, not Exportación', () => {
+  const analysis = csv.analyzeNodesCsv(`${HEAD}\n${row('INDUSTRIAL_CONSUMPTION', typeCell('INTERNAL_CONSUMPTION', 'SINK', 'INDUSTRIAL_CONSUMPTION'))}\n`);
+  assert.deepEqual(analysis.problems, []);
+  assert.deepEqual(analysis.verticals, ['INTERNAL_CONSUMPTION']);
+  assert.deepEqual(csv.importPermissionBlockers(analysis, version({ editableVerticals: ['INTERNAL_CONSUMPTION'] })), []);
+  const onlyExport = csv.importPermissionBlockers(analysis, version({ editableVerticals: ['EXPORT'] }));
+  assert.equal(onlyExport.length, 1);
+  assert.match(onlyExport[0], /Consumo interno/);
+});
+
+test('a row whose type says what its nodeKind implies is clean, for every kind', () => {
+  for (const [kind, vertical, role, nodeType] of EXPECTED) {
+    assert.deepEqual(messages(`${HEAD}\n${row(kind, typeCell(vertical, role, nodeType))}\n`), [], kind);
+  }
+});
+
+test('every wrong role is reported with the expected one and the line, for every kind', () => {
+  for (const [kind, vertical, role, nodeType] of EXPECTED) {
+    for (const wrong of ROLES.filter((r) => r !== role)) {
+      assert.deepEqual(
+        messages(`${HEAD}\n${row(kind, typeCell(vertical, wrong, nodeType))}\n`),
+        [`Línea 2: ${kind} debe tener el rol ${role} (el archivo dice ${wrong})`],
+        `${kind} with ${wrong}`,
+      );
+    }
+  }
+});
+
+test('every wrong vertical is reported with the expected one and the line, for every kind', () => {
+  for (const [kind, vertical, role, nodeType] of EXPECTED) {
+    for (const wrong of VERTICALS.filter((v) => v !== vertical)) {
+      assert.deepEqual(
+        messages(`${HEAD}\n${row(kind, typeCell(wrong, role, nodeType))}\n`),
+        [`Línea 2: ${kind} debe tener la vertical ${vertical} (el archivo dice ${wrong})`],
+        `${kind} with ${wrong}`,
+      );
+    }
+  }
+});
+
+test('the message of the screenshot: a SEAPORT_TERMINAL as INTERMEDIATE on line 9', () => {
+  const good = row('WELL', typeCell('EXTRACTION', 'GENERATOR', 'WELL'));
+  const bad = row('SEAPORT_TERMINAL', typeCell('EXPORT', 'INTERMEDIATE', 'SEAPORT_TERMINAL'));
+  const raw = [HEAD, ...Array(7).fill(good), bad].join('\n');
+  const analysis = csv.analyzeNodesCsv(raw);
+  assert.equal(analysis.problems.length, 1);
+  assert.equal(csv.formatProblem(analysis.problems[0]), 'Línea 9: SEAPORT_TERMINAL debe tener el rol SINK (el archivo dice INTERMEDIATE)');
+});
+
+test('type.nodeType uses the enum spelling, and the message explains it when it differs from nodeKind', () => {
+  assert.deepEqual(messages(`${HEAD}\n${row('LNG_CARRIER', typeCell('EXPORT', 'SINK', 'LNG_CARRIER'))}\n`), [
+    'Línea 2: LNG_CARRIER debe tener type.nodeType LNG_CAMER (el archivo dice LNG_CARRIER). Se escribe así aunque nodeKind use la ortografía LNG_CARRIER',
+  ]);
+  assert.deepEqual(messages(`${HEAD}\n${row('PIPELINE', typeCell('TRANSPORTATION', 'INTERMEDIATE', 'WELL'))}\n`), [
+    'Línea 2: PIPELINE debe tener type.nodeType PIPELINE (el archivo dice WELL)',
+  ]);
+});
+
+test('several errors in one file are all reported, in order, with the header counted as line 1', () => {
+  const raw = [
+    HEAD,
+    well(),
+    row('SEAPORT_TERMINAL', typeCell('EXPORT', 'INTERMEDIATE', 'SEAPORT_TERMINAL')),
+    row('PIPELINE', typeCell('EXTRACTION', 'SINK', 'PIPELINE')),
+    '',
+    row('LNG_CARRIER', typeCell('EXPORT', 'SINK', 'LNG_CAMER')),
+    row('FLNG_UNIT', typeCell('LIQUEFACTION', 'GENERATOR', 'FLNG_UNIT')),
+  ].join('\n');
+  const analysis = csv.analyzeNodesCsv(raw);
+  assert.deepEqual(messages(raw), [
+    'Línea 3: SEAPORT_TERMINAL debe tener el rol SINK (el archivo dice INTERMEDIATE)',
+    'Línea 4: PIPELINE debe tener la vertical TRANSPORTATION (el archivo dice EXTRACTION)',
+    'Línea 4: PIPELINE debe tener el rol INTERMEDIATE (el archivo dice SINK)',
+    'Línea 6: FLNG_UNIT debe tener el rol INTERMEDIATE (el archivo dice GENERATOR)',
+  ]);
+  assert.equal(analysis.hiddenProblemCount, 0);
+  assert.equal(analysis.nodeCount, 5);
+});
+
+test('a type cell that is empty, not JSON, not an object or missing keys is an error with its line and the right value', () => {
+  const example = '{"vertical":"EXPORT","role":"SINK","nodeType":"SEAPORT_TERMINAL"}';
+  assert.deepEqual(messages(`${HEAD}\n${row('SEAPORT_TERMINAL', '')}\n`), [`Línea 2: falta el valor de type. Para SEAPORT_TERMINAL es ${example}`]);
+  assert.deepEqual(messages(`${HEAD}\n${row('SEAPORT_TERMINAL', rawCell('{"vertical": EXPORT}'))}\n`), [
+    `Línea 2: la columna type no contiene un JSON válido. Para SEAPORT_TERMINAL tiene que ser ${example}`,
+  ]);
+  for (const text of ['[1,2]', '"SINK"', 'null', '7']) {
+    assert.deepEqual(messages(`${HEAD}\n${row('SEAPORT_TERMINAL', rawCell(text))}\n`), [
+      `Línea 2: la columna type debe ser un objeto JSON. Para SEAPORT_TERMINAL es ${example}`,
+    ], text);
+  }
+  assert.deepEqual(messages(`${HEAD}\n${row('SEAPORT_TERMINAL', rawCell('{"vertical":"EXPORT"}'))}\n`), [
+    'Línea 2: SEAPORT_TERMINAL debe tener el rol SINK (el archivo no lo indica)',
+    'Línea 2: SEAPORT_TERMINAL debe tener type.nodeType SEAPORT_TERMINAL (el archivo no lo indica)',
+  ]);
+  assert.deepEqual(messages(`${HEAD}\n${row('SEAPORT_TERMINAL', rawCell('{"vertical":"EXPORT","role":5,"nodeType":"SEAPORT_TERMINAL"}'))}\n`), [
+    'Línea 2: SEAPORT_TERMINAL debe tener el rol SINK (el archivo dice 5)',
+  ]);
+});
+
+test('the kind is read case-insensitively, a wrong type is not checked when the kind is unknown, nor without a type column', () => {
+  assert.deepEqual(messages(`${HEAD}\n${row('seaport_terminal', typeCell('EXPORT', 'INTERMEDIATE', 'SEAPORT_TERMINAL'))}\n`), [
+    'Línea 2: SEAPORT_TERMINAL debe tener el rol SINK (el archivo dice INTERMEDIATE)',
+  ]);
+  const unknown = messages(`${HEAD}\n${row('POZO', typeCell('EXPORT', 'SINK', 'X'))}\n`);
+  assert.equal(unknown.length, 1);
+  assert.match(unknown[0], /«POZO» no existe/);
+  assert.deepEqual(messages('nodeKind,name\nSEAPORT_TERMINAL,a\n'), []);
+});
+
+test('rows that are not NODE rows are not checked against the type rules', () => {
+  const head = 'recordType,nodeKind,name,type,fromNodeId,toNodeId';
+  assert.deepEqual(messages(`${head}\nNODE,WELL,a,${typeCell('EXTRACTION', 'GENERATOR', 'WELL')},,\nCONNECTION,,,,a,a\n`), []);
+});
+
+test('only the first 50 problems are listed and the rest are counted', () => {
+  const bad = row('SEAPORT_TERMINAL', typeCell('EXPORT', 'INTERMEDIATE', 'SEAPORT_TERMINAL'));
+  const analysis = csv.analyzeNodesCsv([HEAD, ...Array(60).fill(bad)].join('\n'));
+  assert.equal(csv.MAX_PROBLEMS, 50);
+  assert.equal(analysis.problems.length, 50);
+  assert.equal(analysis.hiddenProblemCount, 10);
+  assert.deepEqual([analysis.problems[0].line, analysis.problems[49].line], [2, 51]);
+  assert.equal(csv.hiddenProblemsMessage(10), 'Y 10 problemas más.');
+  assert.equal(csv.hiddenProblemsMessage(1), 'Y 1 problema más.');
+  assert.equal(csv.analyzeNodesCsv([HEAD, ...Array(50).fill(bad)].join('\n')).hiddenProblemCount, 0);
+});
+
+test('a file with problems cannot start the import, whichever the problem', () => {
+  const analysis = csv.analyzeNodesCsv(`${HEAD}\n${row('SEAPORT_TERMINAL', typeCell('EXPORT', 'INTERMEDIATE', 'SEAPORT_TERMINAL'))}\n`);
+  assert.equal(csv.canStartImport({ analysis, blockers: [], confirmed: true, sending: false }), false);
+});
+
+test('the help text says the role and the vertical come from the node type', () => {
+  assert.match(csv.NODE_TYPE_HELP, /rol y la vertical se deducen del tipo de nodo/);
+  assert.match(csv.NODE_TYPE_HELP, /plantillas/);
+});
+
+test('the example files agree with the type rules', () => {
+  const { records } = csv.parseCsvRecords(csv.buildTemplateCsv('full'));
+  const header = records[0];
+  for (const record of records.filter((r) => r[header.indexOf('recordType')] === 'NODE')) {
+    const rule = csv.NODE_TYPE_RULES[record[header.indexOf('nodeKind')]];
+    assert.deepEqual(JSON.parse(record[header.indexOf('type')]), { vertical: rule.vertical, role: rule.role, nodeType: rule.nodeType });
+  }
+});
+
+// ---- the backend's own messages for the same rule -----------------------------------------------------------------
+
+test('the backend role and vertical messages are translated, with their line when the row is named', () => {
+  const t = errors.translateCsvImportMessage;
+  assert.equal(
+    t('Invalid CSV record 9 (SEAPORT_TERMINAL): Node role does not match its type: SEAPORT_TERMINAL is SINK, not INTERMEDIATE'),
+    'Línea 9: SEAPORT_TERMINAL debe tener el rol SINK (el archivo dice INTERMEDIATE)',
+  );
+  assert.equal(
+    t('Invalid CSV record 4 (NODE): Node vertical does not match its type: PIPELINE belongs to TRANSPORTATION, not EXTRACTION'),
+    'Línea 4: PIPELINE debe tener la vertical TRANSPORTATION (el archivo dice EXTRACTION)',
+  );
+  assert.equal(t('Node role does not match its type: WELL is GENERATOR, not SINK'), 'WELL debe tener el rol GENERATOR (el archivo dice SINK)');
+  assert.equal(
+    t('Node vertical does not match its type: LNG_CAMER belongs to EXPORT, not LIQUEFACTION'),
+    'LNG_CAMER debe tener la vertical EXPORT (el archivo dice LIQUEFACTION)',
+  );
+});
+
+test('the translated role message reaches the screen with its line and no original detail', () => {
+  const message = 'Invalid CSV record 9 (SEAPORT_TERMINAL): Node role does not match its type: SEAPORT_TERMINAL is SINK, not INTERMEDIATE';
+  assert.deepEqual(errors.describeCsvImportError(message), {
+    line: 9,
+    text: 'Línea 9: SEAPORT_TERMINAL debe tener el rol SINK (el archivo dice INTERMEDIATE)',
+    detail: null,
+  });
+  const failure = csv.classifyImportFailure({ status: 400, canceled: false, message, fallback: 'fallback' });
+  assert.deepEqual([failure.kind, failure.line, failure.detail], ['rejected', 9, null]);
+  assert.equal(errors.translateBackendMessage(message), 'Línea 9: SEAPORT_TERMINAL debe tener el rol SINK (el archivo dice INTERMEDIATE)');
+});
+
+test('a mismatch message that does not fit the known shape is left alone', () => {
+  const odd = 'Node role does not match its type: something unexpected';
+  assert.equal(errors.translateCsvImportMessage(odd), null);
+  assert.equal(errors.translateBackendMessage(odd), odd);
 });

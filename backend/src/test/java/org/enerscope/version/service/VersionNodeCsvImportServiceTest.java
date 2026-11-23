@@ -2,6 +2,8 @@ package org.enerscope.version.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.enerscope.common.CsvUtil;
+import org.enerscope.node.model.enums.NodeTypeEnum;
+import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.common.ForbiddenException;
 import org.enerscope.economic.model.configuration.EconomicConfiguration;
 import org.enerscope.economic.service.EconomicService;
@@ -133,7 +135,7 @@ class VersionNodeCsvImportServiceTest {
             case "GATHERING_NETWORK", "TREATMENT_PLANT", "WELL" -> "EXTRACTION";
             case "PIPELINE", "PIPELINE_CONNECTION", "COMPRESSING_PLANT" -> "TRANSPORTATION";
             case "GROUND_BASED_LIQUEFACTION_PLANT", "FLNG_UNIT" -> "LIQUEFACTION";
-            case "INTERNAL_CONSUMPTION" -> "INTERNAL_CONSUMPTION";
+            case "INTERNAL_CONSUMPTION", "INDUSTRIAL_CONSUMPTION" -> "INTERNAL_CONSUMPTION";
             default -> "EXPORT";
         };
     }
@@ -184,7 +186,7 @@ class VersionNodeCsvImportServiceTest {
                         "{\"vertical\":\"TRANSPORTATION\",\"role\":\"INTERMEDIATE\",\"nodeType\":\"PIPELINE\"}",
                         "{\"components\":[]}", "120", "10", "0.1", ""),
                 List.of("INDUSTRIAL_CONSUMPTION", "Factory", "RUNNING", "240", "10", "30", "20", "0.1",
-                        "{\"vertical\":\"EXPORT\",\"role\":\"SINK\",\"nodeType\":\"INDUSTRIAL_CONSUMPTION\"}",
+                        "{\"vertical\":\"INTERNAL_CONSUMPTION\",\"role\":\"SINK\",\"nodeType\":\"INDUSTRIAL_CONSUMPTION\"}",
                         "{\"components\":[]}", "", "", "", "75")));
 
         int count = importCsv(versionId, csv);
@@ -426,6 +428,34 @@ class VersionNodeCsvImportServiceTest {
                 () -> importCsv(UUID.randomUUID(), CsvUtil.write(rows)));
 
         assertTrue(exception.getMessage().contains("only one SCENARIO record"));
+        verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @Test
+    void importsIndustrialConsumptionDeclaredInTheVerticalOfNodeTypeEnum() {
+        UUID versionId = UUID.randomUUID();
+        String csv = withCell(validRow("INDUSTRIAL_CONSUMPTION"), "type",
+                "{\"vertical\":\"INTERNAL_CONSUMPTION\",\"role\":\"SINK\",\"nodeType\":\"INDUSTRIAL_CONSUMPTION\"}");
+
+        assertEquals(1, importCsv(versionId, csv));
+
+        ArgumentCaptor<BaseNodeDTO> dtoCaptor = ArgumentCaptor.forClass(BaseNodeDTO.class);
+        verify(versionService).addNodeToVersion(eq(versionId), dtoCaptor.capture());
+        IndustrialConsumptionDTO node = assertInstanceOf(IndustrialConsumptionDTO.class, dtoCaptor.getValue());
+        assertEquals(VerticalEnum.INTERNAL_CONSUMPTION, node.getType().getVertical());
+        assertEquals(NodeTypeEnum.INDUSTRIAL_CONSUMPTION.vertical(), node.getType().getVertical());
+    }
+
+    @Test
+    void rejectsIndustrialConsumptionDeclaredAsExportBeforePersisting() {
+        String csv = withCell(validRow("INDUSTRIAL_CONSUMPTION"), "type",
+                "{\"vertical\":\"EXPORT\",\"role\":\"SINK\",\"nodeType\":\"INDUSTRIAL_CONSUMPTION\"}");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(UUID.randomUUID(), csv));
+
+        assertEquals("CSV record 2 (INDUSTRIAL_CONSUMPTION) has type.vertical 'EXPORT'; expected 'INTERNAL_CONSUMPTION'",
+                exception.getMessage());
         verify(versionService, never()).addNodeToVersion(any(), any());
     }
 

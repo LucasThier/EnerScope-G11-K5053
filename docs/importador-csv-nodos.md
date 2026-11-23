@@ -100,13 +100,45 @@ Además, cada `nodeKind` requiere los siguientes encabezados y valores no vacío
 | `LNG_CARRIER` | `EXPORT` | `LNG_CAMER` | `exportFrequency`, `shipCapacity`, `fullLoadTime`, `hiringCost`, `timeToDestination` |
 | `SEAPORT_TERMINAL` | `EXPORT` | `SEAPORT_TERMINAL` | `intermediateStorage`, `portDepth`, `shipCapacity` |
 | `INTERNAL_CONSUMPTION` | `INTERNAL_CONSUMPTION` | `INTERNAL_CONSUMPTION` | `consumptionSummer`, `consumptionAutumn`, `consumptionWinter`, `consumptionSpring` |
-| `INDUSTRIAL_CONSUMPTION` | `EXPORT` | `INDUSTRIAL_CONSUMPTION` | `consumption` |
+| `INDUSTRIAL_CONSUMPTION` | `INTERNAL_CONSUMPTION` | `INDUSTRIAL_CONSUMPTION` | `consumption` |
 
 Los valores de `type.vertical` y `type.nodeType` deben coincidir con la fila.
 Los nombres `PIPELINE_CONECTION`, `GROUND_LIQUEFACTION_PLANT` y `LNG_CAMER`
 son los valores exactos que usa actualmente el enum del backend, aunque no
 coincidan con la ortografía de `nodeKind`. `type.role` debe ser `GENERATOR`,
 `INTERMEDIATE` o `SINK`.
+
+### El rol y la vertical se deducen del tipo de nodo
+
+El rol estructural y la vertical no se eligen: los fija el tipo de nodo
+(`NodeTypeEnum` del backend), y el archivo tiene que repetirlos tal cual en la
+columna `type`. Un valor distinto se rechaza.
+
+| Rol | Tipos de nodo (`nodeKind`) |
+| --- | --- |
+| `GENERATOR` | `WELL` |
+| `INTERMEDIATE` | `GATHERING_NETWORK`, `TREATMENT_PLANT`, `PIPELINE`, `PIPELINE_CONNECTION`, `COMPRESSING_PLANT`, `GROUND_BASED_LIQUEFACTION_PLANT`, `FLNG_UNIT` |
+| `SINK` | `SEAPORT_TERMINAL`, `LNG_CARRIER`, `INDUSTRIAL_CONSUMPTION`, `INTERNAL_CONSUMPTION` |
+
+Por ejemplo, un `SEAPORT_TERMINAL` es siempre `SINK` de la vertical `EXPORT`:
+`{"vertical":"EXPORT","role":"SINK","nodeType":"SEAPORT_TERMINAL"}`. Las
+plantillas descargables traen el valor correcto para los tipos que muestran.
+
+La pantalla lo comprueba en el navegador antes de enviar y lista **todos** los
+problemas del archivo juntos (los primeros 50 y cuántos faltan), con su línea y
+el valor esperado, por ejemplo: «Línea 9: SEAPORT_TERMINAL debe tener el rol
+SINK (el archivo dice INTERMEDIATE)». También marca una celda `type` vacía, que
+no sea un JSON válido o que no sea un objeto, o a la que le falte `vertical`,
+`role` o `nodeType`. Con problemas, el botón *Importar* queda deshabilitado. Si
+aun así el backend lo rechaza, se muestra el mismo mensaje traducido.
+
+La vertical exigida para cada `nodeKind` (tabla de arriba) sale del mismo
+`NodeTypeEnum` que se aplica al guardar el nodo, así que la verificación previa
+del importador y el guardado no pueden contradecirse. `INDUSTRIAL_CONSUMPTION`
+va en `INTERNAL_CONSUMPTION` (hasta el 2026-11-22 el importador exigía `EXPORT`
+y el guardado `INTERNAL_CONSUMPTION`, por lo que ese tipo no se podía importar).
+Para importar ese tipo hace falta permiso de edición en la vertical *Consumo
+interno*.
 
 Los campos numéricos deben ser números finitos. Los campos enteros deben
 contener un entero dentro del rango de su tipo. Para los nodos, el importador
@@ -252,6 +284,8 @@ guía (el encabezado es 1). Se reconocen por expresión regular, entre otros:
 | --- | --- |
 | `Invalid CSV record N (NODE): identity <uuid> already exists in this version` | Línea N: la identidad `<uuid>` ya existe en esta versión. Este importador solo agrega nodos nuevos: quitá esa fila o dejá la columna identity vacía. |
 | `Invalid CSV record N (NODE): identity <uuid> is repeated in the file` | Línea N: la identidad `<uuid>` aparece repetida en el archivo. Cada nodo debe tener una identidad única. |
+| `Invalid CSV record N (TIPO): Node role does not match its type: TIPO is SINK, not INTERMEDIATE` | Línea N: TIPO debe tener el rol SINK (el archivo dice INTERMEDIATE) |
+| `Invalid CSV record N (TIPO): Node vertical does not match its type: TIPO belongs to EXPORT, not LIQUEFACTION` | Línea N: TIPO debe tener la vertical EXPORT (el archivo dice LIQUEFACTION) |
 
 El resto de los mensajes con número de registro (columnas faltantes, JSON
 inválido, referencias desconocidas, tipos incoherentes, etc.) y los de archivo

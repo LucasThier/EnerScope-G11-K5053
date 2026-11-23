@@ -10,7 +10,9 @@ import { useVersionCsvImport } from '../../hooks/useVersionCsvImport';
 import {
   IDENTITY_HELP,
   MAX_DATA_ROWS,
+  NODE_TYPE_HELP,
   formatProblem,
+  hiddenProblemsMessage,
   importDestinations,
   importSummary,
   importedNodesMessage,
@@ -113,6 +115,7 @@ export function ImportVersionCsvModal({ projectId, version, access, onImported, 
               Plantilla con conexiones y economía
             </Button>
           </div>
+          <p className="text-sm text-ink-500">{NODE_TYPE_HELP}</p>
           <p className="text-sm text-ink-500">{IDENTITY_HELP}</p>
 
           {flow.readError && <Alert tone="error">{flow.readError}</Alert>}
@@ -125,6 +128,9 @@ export function ImportVersionCsvModal({ projectId, version, access, onImported, 
                   <li key={`${problem.line}-${problem.message}`}>{formatProblem(problem)}</li>
                 ))}
               </ul>
+              {analysis.hiddenProblemCount > 0 && (
+                <p className="mt-1">{hiddenProblemsMessage(analysis.hiddenProblemCount)}</p>
+              )}
               <p className="mt-1">Corregilos en el archivo y subilo de nuevo.</p>
             </Alert>
           )}

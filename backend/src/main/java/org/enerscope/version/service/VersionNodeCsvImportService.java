@@ -1061,34 +1061,38 @@ public class VersionNodeCsvImportService {
     private record PendingScenario(JsonNode configuration, int recordNumber) {
     }
 
+    /**
+     * The node kinds the importer accepts. The vertical a kind requires in {@code type.vertical} is not listed here: it
+     * is the one of its {@link NodeTypeEnum}, the same rule {@code VersionService.alignDeclaredVertical} enforces when
+     * the node is saved, so the pre-check and the save cannot disagree.
+     */
     private enum NodeKind {
-        WELL(WellDTO.class, NodeTypeEnum.WELL, VerticalEnum.EXTRACTION,
+        WELL(WellDTO.class, NodeTypeEnum.WELL,
                 List.of("maxCollectionCapacity", "declineCurve", "gasRichness", "dtmTime", "dtmCost", "surface")),
-        GATHERING_NETWORK(GatheringNetworkDTO.class, NodeTypeEnum.GATHERING_NETWORK, VerticalEnum.EXTRACTION,
+        GATHERING_NETWORK(GatheringNetworkDTO.class, NodeTypeEnum.GATHERING_NETWORK,
                 List.of("maxTransportCapacity", "length", "lossPerMeter", "connectedWells")),
-        TREATMENT_PLANT(TreatmentPlantDTO.class, NodeTypeEnum.TREATMENT_PLANT, VerticalEnum.EXTRACTION,
+        TREATMENT_PLANT(TreatmentPlantDTO.class, NodeTypeEnum.TREATMENT_PLANT,
                 List.of("maxTreatmentCapacity", "contaminantWaste", "intermediateStorage", "treatmentCost")),
-        PIPELINE(PipelineDTO.class, NodeTypeEnum.PIPELINE, VerticalEnum.TRANSPORTATION,
+        PIPELINE(PipelineDTO.class, NodeTypeEnum.PIPELINE,
                 List.of("maxFlowCapacity", "length", "lossPerKm")),
-        PIPELINE_CONNECTION(PipelineConnectionDTO.class, NodeTypeEnum.PIPELINE_CONECTION, VerticalEnum.TRANSPORTATION,
+        PIPELINE_CONNECTION(PipelineConnectionDTO.class, NodeTypeEnum.PIPELINE_CONECTION,
                 List.of("transferCapacity", "outputPriority")),
-        COMPRESSING_PLANT(CompressingPlantDTO.class, NodeTypeEnum.COMPRESSING_PLANT, VerticalEnum.TRANSPORTATION,
+        COMPRESSING_PLANT(CompressingPlantDTO.class, NodeTypeEnum.COMPRESSING_PLANT,
                 List.of("maxCompressionCapacity", "processWaste", "gasConsumption")),
         GROUND_BASED_LIQUEFACTION_PLANT(GroundBasedLiquefactionPlantDTO.class,
-                NodeTypeEnum.GROUND_LIQUEFACTION_PLANT, VerticalEnum.LIQUEFACTION,
+                NodeTypeEnum.GROUND_LIQUEFACTION_PLANT,
                 List.of("maxProcessingCapacity", "mtpaRatio", "intermediateStorage", "gasConsumption")),
-        FLNG_UNIT(FLNGUnitDTO.class, NodeTypeEnum.FLNG_UNIT, VerticalEnum.LIQUEFACTION,
+        FLNG_UNIT(FLNGUnitDTO.class, NodeTypeEnum.FLNG_UNIT,
                 List.of("maxProcessingCapacity", "mtpaRatio", "intermediateStorage", "vesselDepth",
                         "hiringCost", "shipCapacity", "gasConsumption")),
-        LNG_CARRIER(LNGCarrierDTO.class, NodeTypeEnum.LNG_CAMER, VerticalEnum.EXPORT,
+        LNG_CARRIER(LNGCarrierDTO.class, NodeTypeEnum.LNG_CAMER,
                 List.of("exportFrequency", "shipCapacity", "fullLoadTime", "hiringCost", "timeToDestination")),
-        SEAPORT_TERMINAL(SeaportTerminalDTO.class, NodeTypeEnum.SEAPORT_TERMINAL, VerticalEnum.EXPORT,
+        SEAPORT_TERMINAL(SeaportTerminalDTO.class, NodeTypeEnum.SEAPORT_TERMINAL,
                 List.of("intermediateStorage", "portDepth", "shipCapacity")),
         INTERNAL_CONSUMPTION(InternalConsumptionDTO.class, NodeTypeEnum.INTERNAL_CONSUMPTION,
-                VerticalEnum.INTERNAL_CONSUMPTION,
                 List.of("consumptionSummer", "consumptionAutumn", "consumptionWinter", "consumptionSpring")),
         INDUSTRIAL_CONSUMPTION(IndustrialConsumptionDTO.class, NodeTypeEnum.INDUSTRIAL_CONSUMPTION,
-                VerticalEnum.EXPORT, List.of("consumption"));
+                List.of("consumption"));
 
         private final Class<? extends BaseNodeDTO> dtoClass;
         private final NodeTypeEnum expectedNodeType;
@@ -1098,11 +1102,10 @@ public class VersionNodeCsvImportService {
         NodeKind(
                 Class<? extends BaseNodeDTO> dtoClass,
                 NodeTypeEnum expectedNodeType,
-                VerticalEnum expectedVertical,
                 List<String> requiredFields) {
             this.dtoClass = dtoClass;
             this.expectedNodeType = expectedNodeType;
-            this.expectedVertical = expectedVertical;
+            this.expectedVertical = expectedNodeType.vertical();
             this.requiredFields = requiredFields;
         }
     }

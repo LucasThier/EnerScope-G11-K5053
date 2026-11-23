@@ -109,7 +109,6 @@ const KNOWN_BACKEND_PREFIXES: [string, string][] = [
   ['El escenario cambió desde otra pantalla', 'El escenario cambió desde otra pantalla. Tus cambios se conservan; recargá para no sobrescribir datos.'],
   ['Los valores de operación de los nodos', 'Los valores de operación se editan en cada nodo de la versión, no en el escenario. Usá «Editar operación en la versión».'],
   ['El nombre del escenario admite hasta', 'El nombre del escenario admite hasta 120 caracteres.'],
-  ['Node vertical does not match its type:', 'La vertical del nodo no corresponde a su tipo.'],
   ['Version not found with id:', 'La versión no existe o ya fue eliminada.'],
   ['Version conflict not found with id:', 'El conflicto no existe o ya fue resuelto.'],
   ['Node with id', 'El nodo ya no existe en esta versión.'],
@@ -221,6 +220,30 @@ const CSV_ROW_RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
 
 const CSV_ROW_CAUSE = /^Invalid CSV record (\d+) \((\w+)\): (.*)$/s;
 
+// `NodeTypeEnum` derives the vertical and the structural role from the node type and rejects a different declared
+// value: "<TYPE> is <ROLE>, not <declared>" / "<TYPE> belongs to <VERTICAL>, not <declared>". Same wording as the
+// client-side check of the file (`checkNodeTypeCell`).
+const NODE_TYPE_MISMATCH_RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [
+    /^Node role does not match its type: (\w+) is (\w+), not (\w+)$/,
+    (m) => `${m[1]} debe tener el rol ${m[2]} (el archivo dice ${m[3]})`,
+  ],
+  [
+    /^Node vertical does not match its type: (\w+) belongs to (\w+), not (\w+)$/,
+    (m) => `${m[1]} debe tener la vertical ${m[2]} (el archivo dice ${m[3]})`,
+  ],
+];
+
+function translateNodeTypeMismatch(message: string): string | null {
+  for (const [pattern, build] of NODE_TYPE_MISMATCH_RULES) {
+    const match = pattern.exec(message);
+    if (match) {
+      return build(match);
+    }
+  }
+  return null;
+}
+
 const CSV_FILE_RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^CSV file cannot be empty$/, () => 'El archivo está vacío.'],
   [/^CSV file must be 10 MB or smaller$/, () => 'El archivo supera el máximo de 10 MB.'],
@@ -251,8 +274,17 @@ export function translateCsvImportMessage(message: string): string | null {
       return build(match);
     }
   }
+  const mismatch = translateNodeTypeMismatch(message);
+  if (mismatch) {
+    return mismatch;
+  }
   const cause = CSV_ROW_CAUSE.exec(message);
   if (cause) {
+    // The sentence already names the node type, so it replaces the "(kind)" the generic wrapper would add.
+    const typeMismatch = translateNodeTypeMismatch(cause[3]);
+    if (typeMismatch) {
+      return `Línea ${cause[1]}: ${typeMismatch}`;
+    }
     // A rule of the saved node (e.g. a business rule) that failed on this row: keep its text, translated if known.
     const translated = translateBackendMessage(cause[3]);
     return `Línea ${cause[1]} (${csvKind(cause[2])}): ${translated}`;

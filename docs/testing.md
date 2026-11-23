@@ -6,13 +6,13 @@ change a test, update the matching entry here (see `AGENTS.md` → Definition of
 done).
 
 Run the backend with `cd backend && mvn test` (H2, no database), and with `cd backend && mvn -B verify` to also run the
-ten `*IT` classes (failsafe) against a **disposable** PostgreSQL pointed to by `ECONOMIC_TEST_DATABASE_URL` (see
+twelve `*IT` classes (failsafe) against a **disposable** PostgreSQL pointed to by `ECONOMIC_TEST_DATABASE_URL` (see
 [*PostgreSQL classes*](#postgresql-classes-it-by-hand)). CI runs `mvn --batch-mode verify` in the `backend-it` job.
 Last reported counts, verified on 2026-11-22 from `backend/target/{surefire,failsafe}-reports` and `npm test`:
-Surefire **107 classes / 1818 executions**, failsafe **11 classes / 111 executions**, frontend **296 tests in 35 files**
+Surefire **108 classes / 1822 executions**, failsafe **12 classes / 113 executions**, frontend **315 tests in 35 files**
 (`npm test`, 2026-11-22), all with 0 failures, errors and skips.
-Run on 2026-11-22 with `mvn -B verify` against a throwaway PostgreSQL 16 on port 55432: Surefire 1818 run / 0 failures / 0 errors / 0 skipped,
-failsafe 111 run / 0 failures / 0 errors / 0 skipped, `BUILD SUCCESS`.
+Run on 2026-11-22 with `mvn -B verify` against a throwaway PostgreSQL 16 on port 55432: Surefire 1822 run / 0 failures / 0 errors / 0 skipped,
+failsafe 113 run / 0 failures / 0 errors / 0 skipped, `BUILD SUCCESS`.
 
 Two automated suites exist:
 
@@ -184,12 +184,13 @@ executions differ; for every other class they are the same number. No class uses
 | `version.service.VersionDeletionTest` | Unit | 9 | 9 |
 | `version.service.VersionLineageTest` | Unit | 10 | 10 |
 | `version.service.VersionMemberServiceTest` | Unit | 39 | 39 |
+| `version.service.VersionNodeCsvImportAllKindsTest` | Integration | 2 | 2 |
 | `version.service.VersionNodeCsvImportIdentityTest` | Integration | 7 | 7 |
-| `version.service.VersionNodeCsvImportServiceTest` | Unit | 32 | 43 |
+| `version.service.VersionNodeCsvImportServiceTest` | Unit | 34 | 45 |
 | `version.service.VersionNodeCsvImportTemplatesTest` | Integration | 2 | 2 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 | 10 |
 | `version.service.VersionServiceTest` | Unit | 69 | 69 |
-| **Total (107 classes)** | | **1521** | **1818** |
+| **Total (108 classes)** | | **1525** | **1822** |
 
 > **`mvn test` on 2026-11-15 (13:35, run for this update): 1362 executions,
 > 0 failures, 0 errors, 0 skipped**, in 80 classes (`1238` methods). Executions
@@ -321,10 +322,11 @@ five classes** from a manual run on 2026-11-15; that figure is history and no lo
 | `scenario.service.ScenarioLifecyclePostgreSqlIT` | 20 inherited from `ScenarioLifecycleTest` | 20 |
 | `scenario.service.VersionDefaultScenarioPostgreSqlIT` | 6 inherited from `VersionDefaultScenarioTest` | 6 |
 | `version.service.VersionDeletionPostgreSqlIT` | 9 inherited from `VersionDeletionTest` | 9 |
+| `version.service.VersionNodeCsvImportAllKindsPostgreSqlIT` | 2 inherited from `VersionNodeCsvImportAllKindsTest` | 2 |
 | `version.service.VersionNodeCsvImportIdentityPostgreSqlIT` | 7 inherited from `VersionNodeCsvImportIdentityTest` | 7 |
 | `version.service.VersionNodeCsvImportTemplatesPostgreSqlIT` | 2 inherited from `VersionNodeCsvImportTemplatesTest` | 2 |
 | `version.repository.VersionMemberRepositoryPostgreSqlIT` | 16 | 16 |
-| **Total (11 classes)** | | **111** |
+| **Total (12 classes)** | | **113** |
 
 `ProjectRepositoryPostgreSqlIT` and `ProjectVersionCreationPostgreSqlIT` are new
 in the 2026-11-15 section; the two new `VersionMemberRepositoryPostgreSqlIT`
@@ -1378,6 +1380,8 @@ separate `SCENARIO` row.
 | `rejectsMalformedEconomicProfileJsonBeforePersisting` | Malformed node economic JSON is rejected before node persistence. |
 | `rejectsScenarioRowsContainingNodeDataBeforePersisting` | Scenario-level rows cannot contain node columns. |
 | `rejectsDuplicateScenarioRowsBeforePersisting` | More than one scenario-wide economic row is rejected before node persistence. |
+| `importsIndustrialConsumptionDeclaredInTheVerticalOfNodeTypeEnum` | An `INDUSTRIAL_CONSUMPTION` row with `type.vertical` `INTERNAL_CONSUMPTION` (the `NodeTypeEnum` vertical) is accepted and handed to the save as an `IndustrialConsumptionDTO` in that vertical. |
+| `rejectsIndustrialConsumptionDeclaredAsExportBeforePersisting` | The same row with `EXPORT` is rejected with `CSV record 2 (INDUSTRIAL_CONSUMPTION) has type.vertical 'EXPORT'; expected 'INTERNAL_CONSUMPTION'` and nothing is saved. |
 | `rejectsUnknownNodeKindWithSupportedKinds` | An unsupported discriminator is rejected with the accepted values and no node is added. |
 | `rejectsUnknownHeaders` | A misspelled header is rejected instead of silently dropping data. |
 | `rejectsRowsWithDifferentColumnCounts` | A row with the wrong number of fields is rejected with its record number. |
@@ -2933,16 +2937,16 @@ which add up to the same 173). The previous pass recorded 157 in 24 files; the
 | `sidebarActive.test.mjs` | 6 | At most one current sidebar leaf on every route, with and without a project; *Proyectos* current on `/projects`; the route → current item matrix; *Versionado* as a single entry; analysis items without a project; the short and full label of *Configuración*. |
 | `summaryVisuals.test.mjs` | 9 | Summary charts. |
 | `versionAccessApi.test.mjs` | 4 | `versionAccessApi`: `GET /projects/{id}/access`, list members, grant a role (with the vertical when there is one), revoke by member and role id. |
-| `versionCsvImport.test.mjs` | 27 | New file. Node CSV import into a version: the identity messages (exists / repeated, with uuid, upper-case uuid, without a record number, malformed uuid) and the other importer messages translated by regex, previous translations unchanged; the CSV parser (quotes, BOM, CRLF, blank lines) and the analysis (line numbering, identity, file-level problems, kinds, connections, scenario row); both example files clean and without an `identity` column; the identity help text; permissions (deny by default, verticals, connections, economics); confirmation warnings; start conditions; failure classification (rejected vs uncertain); result messages and destinations. |
+| `versionCsvImport.test.mjs` | 46 (was 27; the `type` check added 17, the `INDUSTRIAL_CONSUMPTION` fix 2) | New file. Node CSV import into a version: the identity messages (exists / repeated, with uuid, upper-case uuid, without a record number, malformed uuid) and the other importer messages translated by regex, previous translations unchanged; the CSV parser (quotes, BOM, CRLF, blank lines) and the analysis (line numbering, identity, file-level problems, kinds, connections, scenario row); both example files clean and without an `identity` column; the identity help text; permissions (deny by default, verticals, connections, economics); confirmation warnings; start conditions; failure classification (rejected vs uncertain); result messages and destinations. Type / role / vertical coherence of each `NODE` row against a hand-written `NodeTypeEnum` matrix (the `type.nodeType` enum spelling included): every kind clean, every wrong role and every wrong vertical for every kind with its expected value and line, the "line 9" message, several errors in one file in order with the header as line 1, empty / non-JSON / non-object / missing-key `type`, case-insensitive kind, no check without a `type` column or on non-`NODE` rows, the 50-problem cap with the remaining count, no import with problems, the help text, the templates agreeing with the rules; `NODE_KIND_VERTICAL` (the edit-permission vertical) equal to the `NodeTypeEnum` vertical for every kind, and an `INDUSTRIAL_CONSUMPTION` file needing *Consumo interno*, not *Exportación*; and the backend `Node role/vertical does not match its type` messages translated (wrapped with a record number or not, unknown shape left alone). |
 | `versionAccessRules.test.mjs` | 14 (was catalogued as 5; this change adds 1) | `utils/versionAccessRules.ts`: merging needs to manage the parent (`canMergeIntoParent`), branching needs to edit the chosen parent (`canBranchFromParent`), `uneditableVerticals` lists the scenario verticals the caller cannot edit, a node of an unknown type blocks that check, and `VersionTree` shows *Mergear* only where the parent can be managed and *Importar CSV* only on the versions the caller can import into. |
-| `versionRoleErrors.test.mjs` | 9 | The Spanish translation of the version endpoints' `403`/`400`/`404` messages, including "ask a project administrator" for managing roles and the cascading-delete `403` that names no version; and, new, the branch / merge / vertical `403`s (*edit this version*, *this vertical's nodes*, *simulate*, *manage this project*) and the `400`/`404` ones (*Resource not found*, *Node vertical does not match its type*, versions of different projects, parent of another project, a version as its own ancestor, a cycle in the simulation graph). |
+| `versionRoleErrors.test.mjs` | 9 | The Spanish translation of the version endpoints' `403`/`400`/`404` messages, including "ask a project administrator" for managing roles and the cascading-delete `403` that names no version; and, new, the branch / merge / vertical `403`s (*edit this version*, *this vertical's nodes*, *simulate*, *manage this project*) and the `400`/`404` ones (*Resource not found*, *Node vertical does not match its type* (now translated with the type and the expected vertical), versions of different projects, parent of another project, a version as its own ancestor, a cycle in the simulation graph). |
 | `versionRoles.test.mjs` | 18 | `utils/versionRoles.ts`: role labels, grant ordering, "project administrator administers every version", explicit versus inherited access, `canManageRoles` (not `canManage`) deciding who manages roles, assignable people, role choices, one request per vertical, last-role detection, the version tree and its filters, default version, sorting. |
 | `versionRolesPanel.test.mjs` | 2 | `VersionRolesPanel`: a version administrator who cannot manage roles sees only their own access and a notice; someone who can loads the members and gets the assignment form. |
 | `visibleDiagram.test.mjs` | 2 | Removed nodes and touching edges disappear without changing saved history; empty and restored diagrams. |
 | `workspaceRoutes.test.mjs` | 2 | Configuration and results routes never activate version management; switching projects keeps the module and drops foreign ids. |
 | **Total (27 files, 2026-11-15)** | **173** | |
 
-> **Current total: 296 tests in 35 files**, verified with `npm test` on 2026-11-22 (296 pass, 0 fail, 0 skipped). The
+> **Current total: 315 tests in 35 files**, verified with `npm test` on 2026-11-22 (315 pass, 0 fail, 0 skipped). The
 > table above is the 2026-11-15 snapshot; the 7 files and 95 tests added since are spread over the dated sections below.
 > Five files are **not named anywhere in this catalog yet**: `accessInvalidationApi`, `editorPermissions`, `newVersion`,
 > `projectAccessState` and `userDetail` (`*.test.mjs`); cataloguing them is pending.
@@ -3994,6 +3998,20 @@ frontend templates change), go through the real `VersionNodeCsvImportService` in
 | --- | --- |
 | `theNodesTemplateImportsOneWellAndNoConnectionsNorEconomics` | `plantilla-nodos.csv` imports without error: 1 node («Pozo Norte»), no connections, no configuration in the «Escenario base», still one scenario. |
 | `theEconomicsTemplateImportsTwoNodesOneConnectionAndTheEconomicsOfTheBaseScenario` | `plantilla-nodos-con-economia.csv` imports without error: count 2, nodes «Pozo Norte» and «Gasoducto 1», one connection between them, one scenario («Escenario base») whose configuration (2030, 5 years, USD, boundary `empresa-1`) holds a profile for each generated node id. |
+
+### `version.service.VersionNodeCsvImportAllKindsTest` — real services on H2 (2); `VersionNodeCsvImportAllKindsPostgreSqlIT` runs the same 2 on PostgreSQL
+
+One CSV with a node of each of the 12 kinds goes through the real `VersionNodeCsvImportService` **and the real
+`VersionService` save** (nothing mocked), so the importer's `type` pre-check and `VersionService.alignDeclaredVertical`
+(vertical and role of `NodeTypeEnum`) run together. Each row's `type` is built from the `NodeTypeEnum` constant itself
+(`vertical()`, `role()`, `name()`), not from the importer. Added after `INDUSTRIAL_CONSUMPTION` could not be imported
+(pre-check `EXPORT`, save `INTERNAL_CONSUMPTION`); with that mismatch put back by hand, the import case fails on record 13
+(checked on 2026-11-22).
+
+| Case | Verifies |
+| --- | --- |
+| `theKindListCoversEveryNodeType` | The test's kind list has one entry per `NodeTypeEnum` constant, so a new type cannot be left out. |
+| `importsOneNodeOfEachOfTheTwelveKindsWithTheTypeOfNodeTypeEnum` | The import returns 12 and the version holds 12 nodes, each with the node type, vertical and role of its `NodeTypeEnum`. |
 
 ### `version.service.VersionNodeCsvImportIdentityTest` — real services on H2 (7); `VersionNodeCsvImportIdentityPostgreSqlIT` runs the same 7 on PostgreSQL
 

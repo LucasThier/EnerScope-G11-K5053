@@ -28,8 +28,38 @@ export const NODE_KIND_VERTICAL: Record<string, Vertical> = {
   FLNG_UNIT: 'LIQUEFACTION',
   LNG_CARRIER: 'EXPORT',
   SEAPORT_TERMINAL: 'EXPORT',
-  INDUSTRIAL_CONSUMPTION: 'EXPORT',
+  INDUSTRIAL_CONSUMPTION: 'INTERNAL_CONSUMPTION',
   INTERNAL_CONSUMPTION: 'INTERNAL_CONSUMPTION',
+};
+
+export type StructuralRole = 'GENERATOR' | 'INTERMEDIATE' | 'SINK';
+
+export interface NodeTypeRule {
+  vertical: Vertical;
+  role: StructuralRole;
+  /** The exact `type.nodeType` the backend expects: the spelling of `NodeTypeEnum`, which is not always `nodeKind`'s. */
+  nodeType: string;
+}
+
+/**
+ * What `type` must say for each `nodeKind`, copied from `NodeTypeEnum` (backend): the vertical and the structural role
+ * are derived from the node type, never chosen. `nodeType` keeps the enum's own spelling, which differs from
+ * `nodeKind` for three kinds (`PIPELINE_CONECTION`, `GROUND_LIQUEFACTION_PLANT`, `LNG_CAMER`).
+ * `NODE_KIND_VERTICAL` above must give the same vertical for every kind (a test checks it).
+ */
+export const NODE_TYPE_RULES: Record<string, NodeTypeRule> = {
+  WELL: { vertical: 'EXTRACTION', role: 'GENERATOR', nodeType: 'WELL' },
+  GATHERING_NETWORK: { vertical: 'EXTRACTION', role: 'INTERMEDIATE', nodeType: 'GATHERING_NETWORK' },
+  TREATMENT_PLANT: { vertical: 'EXTRACTION', role: 'INTERMEDIATE', nodeType: 'TREATMENT_PLANT' },
+  PIPELINE: { vertical: 'TRANSPORTATION', role: 'INTERMEDIATE', nodeType: 'PIPELINE' },
+  PIPELINE_CONNECTION: { vertical: 'TRANSPORTATION', role: 'INTERMEDIATE', nodeType: 'PIPELINE_CONECTION' },
+  COMPRESSING_PLANT: { vertical: 'TRANSPORTATION', role: 'INTERMEDIATE', nodeType: 'COMPRESSING_PLANT' },
+  GROUND_BASED_LIQUEFACTION_PLANT: { vertical: 'LIQUEFACTION', role: 'INTERMEDIATE', nodeType: 'GROUND_LIQUEFACTION_PLANT' },
+  FLNG_UNIT: { vertical: 'LIQUEFACTION', role: 'INTERMEDIATE', nodeType: 'FLNG_UNIT' },
+  LNG_CARRIER: { vertical: 'EXPORT', role: 'SINK', nodeType: 'LNG_CAMER' },
+  SEAPORT_TERMINAL: { vertical: 'EXPORT', role: 'SINK', nodeType: 'SEAPORT_TERMINAL' },
+  INTERNAL_CONSUMPTION: { vertical: 'INTERNAL_CONSUMPTION', role: 'SINK', nodeType: 'INTERNAL_CONSUMPTION' },
+  INDUSTRIAL_CONSUMPTION: { vertical: 'INTERNAL_CONSUMPTION', role: 'SINK', nodeType: 'INDUSTRIAL_CONSUMPTION' },
 };
 
 const RECORD_TYPES = ['NODE', 'CONNECTION', 'SCENARIO'];
@@ -130,7 +160,10 @@ export interface CsvProblem {
 }
 
 export interface CsvAnalysis {
+  /** The first MAX_PROBLEMS problems, in file order. */
   problems: CsvProblem[];
+  /** How many more problems there were beyond those shown. */
+  hiddenProblemCount: number;
   nodeCount: number;
   connectionCount: number;
   scenarioCount: number;
@@ -142,6 +175,7 @@ export interface CsvAnalysis {
 
 const EMPTY: CsvAnalysis = {
   problems: [],
+  hiddenProblemCount: 0,
   nodeCount: 0,
   connectionCount: 0,
   scenarioCount: 0,
@@ -151,10 +185,62 @@ const EMPTY: CsvAnalysis = {
 };
 
 const VERTICAL_ORDER = Object.keys(VERTICAL_LABELS) as Vertical[];
-const MAX_PROBLEMS = 20;
+export const MAX_PROBLEMS = 50;
 
 function blocked(message: string): CsvAnalysis {
   return { ...EMPTY, problems: [{ line: null, message }] };
+}
+
+function typeJsonExample(rule: NodeTypeRule): string {
+  return JSON.stringify({ vertical: rule.vertical, role: rule.role, nodeType: rule.nodeType });
+}
+
+/**
+ * Checks the `type` cell of a NODE row against what its `nodeKind` implies (the backend's `NodeTypeEnum`), one
+ * sentence per problem, to be shown after "Línea N: ". Empty when the cell is right or the kind is unknown.
+ */
+export function checkNodeTypeCell(kind: string, cell: string): string[] {
+  const rule = NODE_TYPE_RULES[kind];
+  if (!rule) {
+    return [];
+  }
+  const example = typeJsonExample(rule);
+  if (cell === '') {
+    return [`falta el valor de type. Para ${kind} es ${example}`];
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cell);
+  } catch {
+    return [`la columna type no contiene un JSON válido. Para ${kind} tiene que ser ${example}`];
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return [`la columna type debe ser un objeto JSON. Para ${kind} es ${example}`];
+  }
+  const fields = parsed as Record<string, unknown>;
+  const checks: [keyof NodeTypeRule, string][] = [
+    ['vertical', 'la vertical'],
+    ['role', 'el rol'],
+    ['nodeType', 'type.nodeType'],
+  ];
+  const problems: string[] = [];
+  for (const [key, label] of checks) {
+    const actual = fields[key];
+    if (actual === rule[key]) {
+      continue;
+    }
+    const said =
+      actual === undefined ? 'el archivo no lo indica' : `el archivo dice ${typeof actual === 'string' ? actual : JSON.stringify(actual)}`;
+    const spelling =
+      key === 'nodeType' && rule.nodeType !== kind ? `. Se escribe así aunque nodeKind use la ortografía ${kind}` : '';
+    problems.push(`${kind} debe tener ${label} ${rule[key]} (${said})${spelling}`);
+  }
+  return problems;
+}
+
+/** "Y N problemas más." for the problems beyond the ones listed. */
+export function hiddenProblemsMessage(count: number): string {
+  return count === 1 ? 'Y 1 problema más.' : `Y ${count} problemas más.`;
 }
 
 /** A first look at the file: what it carries and the problems the backend would certainly reject. Not a validator. */
@@ -188,13 +274,17 @@ export function analyzeNodesCsv(raw: string): CsvAnalysis {
     return blocked('Al encabezado le falta la columna nodeKind.');
   }
   const typeColumn = column('recordType');
+  const nodeTypeColumn = column('type');
   const profileColumn = column('economicProfile');
   const identityColumn = column('identity');
 
   const problems: CsvProblem[] = [];
+  let hiddenProblemCount = 0;
   const report = (line: number | null, message: string) => {
     if (problems.length < MAX_PROBLEMS) {
       problems.push({ line, message });
+    } else {
+      hiddenProblemCount += 1;
     }
   };
   const verticals = new Set<Vertical>();
@@ -234,6 +324,11 @@ export function analyzeNodesCsv(raw: string): CsvAnalysis {
       report(line, 'falta el valor de nodeKind (el tipo de nodo).');
     } else if (NODE_KIND_VERTICAL[kind]) {
       verticals.add(NODE_KIND_VERTICAL[kind]);
+      if (nodeTypeColumn >= 0) {
+        for (const message of checkNodeTypeCell(kind, row[nodeTypeColumn])) {
+          report(line, message);
+        }
+      }
     } else {
       report(line, `el tipo de nodo «${row[kindColumn]}» no existe. Valores admitidos: ${Object.keys(NODE_KIND_VERTICAL).join(', ')}.`);
     }
@@ -260,6 +355,7 @@ export function analyzeNodesCsv(raw: string): CsvAnalysis {
   }
   return {
     problems,
+    hiddenProblemCount,
     nodeCount,
     connectionCount,
     scenarioCount,
@@ -513,3 +609,8 @@ export function templateFileName(kind: TemplateKind): string {
 export const IDENTITY_HELP =
   'La columna identity es opcional. Si la incluís, cada valor tiene que ser un UUID que no exista ya en esta versión ' +
   'y que no se repita en el archivo; si la dejás vacía, el sistema genera una identidad nueva.';
+
+/** Help text under the file picker about `type`: the vertical and the role follow from the node type. */
+export const NODE_TYPE_HELP =
+  'En la columna type, el rol y la vertical se deducen del tipo de nodo: tienen que coincidir con nodeKind ' +
+  '(por ejemplo, un SEAPORT_TERMINAL es siempre SINK de la vertical EXPORT). Las plantillas traen el valor correcto.';
