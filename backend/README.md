@@ -553,8 +553,9 @@ again. Saving needs `EDIT_PROJECT` (the Ejecutivo only previews; the Simulador c
 `scenario_comparison_item` tables; **V28** stores the version and scenario names in each item, so a saved comparison keeps
 opening, with its data and an `deleted` flag, after a scenario or version is deleted.
 
-Demo data to try it (two projects, four scenarios ready to simulate): `node docs/examples/seed-comparison-demo.mjs [--simulate]`
-from the repository root against a local backend — see [demo data](../docs/scenario-comparison.md#demo-data).
+Demo data to try it (scenarios, simulations and a saved comparison): `node docs/examples/seed-local-demo.mjs --simulate`
+from the repository root against a local backend, with `ENERSCOPE_SEED_LOCAL=yes` and the passwords in the
+environment — see [docs/demo-data.md](../docs/demo-data.md).
 
 ## Backend structure
 

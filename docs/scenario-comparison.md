@@ -323,28 +323,16 @@ it is reviewed and run by hand with `psql -f docs/sql/cross-project-comparisons.
 
 ## Demo data
 
-[`docs/examples/seed-comparison-demo.mjs`](examples/seed-comparison-demo.mjs) loads,
-through the public API, an organization **EnerScope Demo** with:
-
-| Project | Version (physical base; each has its own "Escenario base") | Physical model | Equipment (CAPEX) |
-| --- | --- | --- | --- |
-| Demo · Cuenca Neuquina | "Escenario base" (version) | Pozo Norte (100), Pozo Sur (500) | USD 1.000 |
-| Demo · Cuenca Neuquina | "Ampliación de pozos" (child version of the base) | Pozo Sur → 800, new Pozo Este (300) | USD 1.800 |
-| Demo · Cuenca Neuquina | "Escenario conservador" (child version of the base) | Pozo Norte → 60, Pozo Sur → 250 | USD 1.000 |
-| Demo · Cuenca Austral | "Austral base" (version) | Pozo Austral 1 (200), Pozo Austral 2 (400) | USD 1.200 |
-
-The script creates four **versions** (it still names some of them "Escenario …"), each with its own empty
-"Escenario base" scenario that the script configures. All four scenarios are ready to simulate; comparisons are
-saved in one project, so compare the three of Neuquina with each other (the Austral one is in another project). The Neuquina child versions share node identities with the base, so
-per-node flows line up (Pozo Este appears as an added node).
+[`docs/examples/seed-local-demo.mjs`](examples/seed-local-demo.mjs) (it replaced `seed-comparison-demo.mjs` on
+2026-11-22) loads, through the public API and only against a local backend, the project **Demo - Cuenca Neuquina**
+whose root version "Demo - Base" has three scenarios: "Escenario base" and "Demo - Costos altos" (both configured
+and, with `--simulate`, simulated with 10 rounds) and "Demo - Borrador" (a pending draft). With `--simulate` it also
+saves the comparison **Demo - Base vs Costos altos**. A second project, **Demo - Cuenca Austral**, checks the
+cross-project `404`.
 
 ```bash
-node docs/examples/seed-comparison-demo.mjs                  # data only; simulate from the comparison screen
-node docs/examples/seed-comparison-demo.mjs --simulate       # also runs 10 rounds per scenario
-node docs/examples/seed-comparison-demo.mjs --api http://localhost:8081/api/v1 --mail … --password …
+ENERSCOPE_SEED_LOCAL=yes ENERSCOPE_ADMIN_PASSWORD= ENERSCOPE_DEMO_PASSWORD= node docs/examples/seed-local-demo.mjs --simulate
 ```
 
-It needs a backend from this branch (migrations V1–V28, 28 files with V8.5) and signs in as the
-dev seed admin unless `--mail/--password` (or `ENERSCOPE_ADMIN_MAIL` /
-`ENERSCOPE_ADMIN_PASSWORD`) say otherwise. It refuses to run twice and must never
-target production.
+It is idempotent, refuses any non-local target, needs both passwords from the environment, and has a `--cleanup`
+mode. Users, roles, contents and cleanup: [demo-data.md](demo-data.md).

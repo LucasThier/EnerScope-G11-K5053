@@ -15,7 +15,7 @@ const evaluations=await get('/projects/'+p.id+'/versions/'+v.id+'/economics/eval
 const browser=await chromium.launch({channel:'chrome',headless:true});
 try {
 const context=await browser.newContext({viewport:{width:1440,height:1000}});
-await context.addInitScript(({auth,p})=>{localStorage.setItem('accessToken',auth.accessToken);localStorage.setItem('refreshToken',auth.refreshToken);localStorage.setItem('authUser',JSON.stringify(auth.user));localStorage.setItem('lastProjectId',JSON.stringify(p.id));localStorage.setItem('sidebarPinned','true');},{auth,p});
+await context.addInitScript(({auth,p})=>{localStorage.setItem('accessToken',auth.accessToken);localStorage.setItem('refreshToken',auth.refreshToken);localStorage.setItem('authUser',JSON.stringify(auth.user));localStorage.setItem('lastProjectId',JSON.stringify(p.id));},{auth,p});
 const page=await context.newPage();const errors=[];page.on('response',r=>{if(r.url().includes('/api/')&&r.status()>=500)errors.push('API '+r.status()+' '+r.url());});page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!m.text().includes('Failed to load resource'))errors.push(m.text());});
 const root='/projects/'+p.id, economics=root+'/versions/'+v.id+'/economics';
 const paths=['/','/app','/projects','/editor','/versions',root+'/versions',root+'/team',root+'/scenario-configurations',root+'/simulations',economics,economics+'/configuration',economics+'/history',economics+'/results','/profile','/settings','/admin/users','/admin/organizations','/organizations/'+p.organizationId];

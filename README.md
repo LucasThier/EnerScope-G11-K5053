@@ -98,6 +98,22 @@ platform **`ADMIN`** role — registration is not self-service, so this account 
 the one that creates the first users (see [backend/README.md](backend/README.md)
 → Roles).
 
+## Demo data (local only)
+
+To try the whole flow without building it by hand, load the demo data into your **local** backend (on demand; nothing
+loads it on startup):
+
+```bash
+ENERSCOPE_SEED_LOCAL=yes ENERSCOPE_ADMIN_PASSWORD= ENERSCOPE_DEMO_PASSWORD= node docs/examples/seed-local-demo.mjs --simulate
+```
+
+Both passwords are mandatory and have no default: the admin one is the bootstrap admin's, the demo one becomes the
+password of the nine `…@enerscope.test` users. It creates the organization *Demo - EnerScope* with a user per role,
+two projects, a 13-node network with the 12 node types, a branch, three scenarios, a draft, two simulations and a
+saved comparison. It is idempotent, refuses any non-local API, and `--cleanup --dry-run` / `--cleanup --yes` remove
+it without touching anything else. Users, roles and details: [docs/demo-data.md](docs/demo-data.md). Never use
+`docker compose down -v` to "reset" it: that deletes the real local database.
+
 ## Documentation
 
 - [Backend README](backend/README.md) — run, env vars, Swagger, structure
@@ -108,6 +124,7 @@ the one that creates the first users (see [backend/README.md](backend/README.md)
 - [docs/technical-decisions.md](docs/technical-decisions.md) — technical decisions
 - [docs/considerations.md](docs/considerations.md) — running notes & expectations for future work
 - [docs/scenario-comparison.md](docs/scenario-comparison.md) — comparing the results of a project's scenarios
+- [docs/demo-data.md](docs/demo-data.md) — local demo data: what it creates, how to run and clean it up
 - [docs/deploy.md](docs/deploy.md) — deployment: pushes to `master` deploy the backend to AWS Lightsail and the frontend to Cloudflare Pages
 - [AGENTS.md](AGENTS.md) — guide for AI coding agents (and contributors)
 

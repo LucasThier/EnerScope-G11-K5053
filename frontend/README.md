@@ -129,13 +129,15 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   redirects to `/projects/{active}/versions`, otherwise it lists the projects.
   Switching project in the top bar keeps the module and drops version and
   evaluation ids of the old one.
-- **Sidebar.** At **80rem and wider** (`PIN_QUERY`) and with the pin on — the
-  default — the sidebar is fixed and pushes the content. The pin button at its
-  foot (only shown at that width) or `Ctrl`/`Cmd`+`B` unpins it and the choice is
-  stored in LocalStorage as `sidebarPinned`. Unpinned, or between 64rem and 80rem,
-  it is an overlay: it opens once on `/app`, the left screen edge and
-  `Ctrl`/`Cmd`+`B` open it, any navigation closes it. Below **64rem** it is a
-  drawer. Exactly one item is highlighted as current (`activeLeaf` in
+- **Sidebar.** Two modes, no preference (`hooks/sidebarMode.ts`, one media
+  query, `FIXED_QUERY = (min-width: 80rem)`). At **80rem (1280px) and wider** it
+  is always a fixed column: full height, the logo inside it, the top bar to its
+  right, the content pushed; no hamburger, and `Ctrl`/`Cmd`+`B` does nothing.
+  Below **80rem** it is a drawer under the top bar (56px, 64px from `lg`):
+  the hamburger (*Abrir/Cerrar menú*) or `Ctrl`/`Cmd`+`B` opens it over a scrim,
+  `Tab` is trapped, and `Escape`, a press outside, any navigation or crossing
+  80rem closes it, returning focus to the hamburger. There is no pin; the old
+  `sidebarPinned` LocalStorage key is removed once per load. Exactly one item is highlighted as current (`activeLeaf` in
   `navItems.tsx` picks the best match). The sections the caller cannot reach are
   hidden (`useNavigationTree`); entries without a `to` render locked on purpose
   (padlock, lighter weight, never dimmed — dimming made them unreadable).
@@ -352,22 +354,30 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   is genuinely needed. The ramps are anchored on the logo's colours
   (`brand-500 #4CAF50`, `brand-900 #1B5E20`, `ink-800 #232B33`) — never
   hard-code a hex in a component.
-- **Where colour goes.** The page is `ink-50`; cards, the top bar, the sidebar,
-  the menus and the form controls are white. That one step of separation, plus
+- **Where colour goes.** The page is `ink-50`; cards, the top bar, the menus
+  and the form controls are white. That one step of separation, plus
   a `shadow-sm`, is what makes a card read as a sheet — never tint the card.
   Brand green is an *accent, never a surface*: primary buttons, links, and the
   active navigation item, and nothing else. Every other surface, border, icon
   and text colour comes from the ink ramp. Analysts sit in this tool for hours;
-  green earns attention because it is rare.
+  green earns attention because it is rare. **One exception: the sidebar** is a
+  deep forest-green rail (`bg-sidebar`, `#114636`, the same in both themes),
+  styled only from its own `sidebar-*` tokens — white labels (10.75:1), section
+  titles at 85% white (8.24:1), a `#D6F5C3` pill with `#1B5E20` text for the
+  current row (6.64:1), a white focus ring. Never reuse those tokens elsewhere,
+  and never point `nav-*` at them: the top bar and its popovers use `nav-*`.
+  `tests/sidebarTheme.test.mjs` holds every pair to AA.
 - **Surfaces come from tokens.** `body` carries the page background in
   `index.css`; a full-height page container must use `bg-ink-50` rather than a
   hard-coded white, so a change to the token reaches every screen.
 - **Brand mark.** `<Logo variant="mark">` is the monogram for tight spots (the
   top bar); `<Logo variant="full">` adds the wordmark, for sign-in. Both are
-  sized by height only (`size="sm" | "lg"`), never by width. `tone` names the
+  sized by height only (`size="sm" | "md" | "lg"`; `md` — 44px for the mark — is the green sidebar's logo cell), never by width. `tone` names the
   **artwork**, not the surface: the default `dark` is the charcoal original for
-  light backgrounds, `tone="light"` is the white cut for `ink-900` ones. Never
-  fake either with a CSS filter — inverting turns the brand green magenta.
+  light backgrounds, `tone="light"` is the white cut for `ink-900` ones, and
+  `tone="sidebar"` is the white cut with its dark greens lifted to clear 3:1 on
+  the green rail (where the pinned sidebar carries the logo). Never fake any
+  of them with a CSS filter — inverting turns the brand green magenta.
 - **Contrast.** Every text/background pair meets WCAG AA (4.5:1), including the
   tinted hovers. The practical rules that follow from the ramp:
   - `ink-500` (5.69:1 on white, 5.30:1 on the `ink-50` page) is the **floor for

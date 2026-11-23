@@ -10,7 +10,7 @@ await page.locator('input[type="password"]').waitFor();
 assert.deepEqual(errors,[]);
 const user={id:'u1',mail:'test@example.com',firstName:'Test',lastName:'User',platformRole:'ADMIN'};
 await context.addInitScript(user=>{
-localStorage.setItem('accessToken','test');localStorage.setItem('refreshToken','test');localStorage.setItem('authUser',JSON.stringify(user));localStorage.setItem('sidebarPinned','true');
+localStorage.setItem('accessToken','test');localStorage.setItem('refreshToken','test');localStorage.setItem('authUser',JSON.stringify(user));
 },user);
 await page.route('**/api/v1/**',route=>{
 const path=new URL(route.request().url()).pathname.replace('/api/v1','');

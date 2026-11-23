@@ -18,7 +18,7 @@ import { UserMenu } from './UserMenu';
  * its 44px hit area is optically flush with the edge rather than indented.
  */
 export function TopBar() {
-  const { isDrawer, isFixed, isVisible, menuId, menuButtonRef, toggleFromButton } = useSidebar();
+  const { isFixed, isVisible, menuId, menuButtonRef, toggle } = useSidebar();
   const { resolved } = useTheme();
   const { pathname } = useLocation();
   const routeMatch = useMatch(PROJECT_ROUTE_PATTERN);
@@ -27,13 +27,7 @@ export function TopBar() {
   const routeProjectId = routeMatch?.params.projectId ?? null;
   const projectName = projects.find((project) => project.id === routeProjectId)?.name ?? null;
   const crumbs = breadcrumbsFor(pathname, projectName);
-  const action = isDrawer
-    ? isVisible
-      ? 'Cerrar menú'
-      : 'Abrir menú'
-    : isVisible
-      ? 'Ocultar menú'
-      : 'Mostrar menú';
+  const action = isVisible ? 'Cerrar menú' : 'Abrir menú';
 
   return (
     <header
@@ -43,13 +37,15 @@ export function TopBar() {
       }
     >
       <div
-        className="flex h-full shrink-0 items-center gap-2 px-4 sm:gap-3 lg:w-60 lg:px-6"
+        className={
+          'flex h-full shrink-0 items-center gap-2 px-4 sm:gap-3 lg:px-6 ' + (isFixed ? 'w-60' : '')
+        }
       >
         {!isFixed && (
           <button
             ref={menuButtonRef}
             type="button"
-            onClick={(event) => toggleFromButton(event.detail === 0)}
+            onClick={toggle}
             aria-label={action}
             aria-expanded={isVisible}
             aria-controls={menuId}
@@ -60,16 +56,21 @@ export function TopBar() {
               'focus-visible:ring-2 focus-visible:ring-focus'
             }
           >
-            {isDrawer && isVisible ? <CloseIcon /> : <MenuIcon />}
+            {isVisible ? <CloseIcon /> : <MenuIcon />}
           </button>
         )}
-        <Link
-          to="/app"
-          aria-label="EnerScope, ir al inicio"
-          className="flex shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-        >
-          <Logo variant="mark" tone={resolved === 'dark' ? 'light' : 'dark'} />
-        </Link>
+        {/* Fixed, the green sidebar runs the full height and carries the logo
+            over this cell, which stays as an empty 240px spacer so the trail
+            still starts to the rail's right. */}
+        {!isFixed && (
+          <Link
+            to="/app"
+            aria-label="EnerScope, ir al inicio"
+            className="flex shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            <Logo variant="mark" tone={resolved === 'dark' ? 'light' : 'dark'} />
+          </Link>
+        )}
       </div>
 
       {crumbs.length > 1 && (

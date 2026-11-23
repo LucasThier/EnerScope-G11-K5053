@@ -25,6 +25,10 @@ Two automated suites exist:
   [*Frontend unit tests*](#frontend-unit-tests-npm-test) for the per-file
   counts.
 
+A third, small suite covers the local demo seed (`docs/examples/seed-local-demo.mjs`): 18 `node:test` unit tests
+with no server, plus 2 integration tests that need a backend on a disposable database. See
+[*Local demo seed*](#local-demo-seed-node-test).
+
 What neither suite covers — layout, focus, keyboard and the screens as a user
 sees them — stands on the by-hand checklist at the end of the backend catalog,
 [*Manual verification (frontend)*](#manual-verification-frontend), plus the
@@ -1587,10 +1591,10 @@ do not infer a pass from the fact that the feature was built.
 | M14 | A platform admin does not bypass either guard | Repeat M12 and M13 signed in as `admin@enerscope.org` | Real backend, platform admin | Pendiente de verificación |
 | M15 | Removing someone from an organization is refused when it would orphan a project | Make a user the only Administrador of a project, then remove them from the organization; the error must name the project problem and the member must still be there afterwards | Real backend | Pendiente de verificación |
 | M16 | Removing someone from an organization removes them from its projects | Same with a second administrator present on the project; after the removal they must be gone from both lists | Real backend | Pendiente de verificación |
-| M17 | The sidebar is fixed at wide widths and opens itself once below that | At ≥ `80rem` (and with the pin on, which is the default) the sidebar must be fixed and push the content on every page. Between `64rem` and `80rem`, or with the pin off, it must open on `/app` and push the content, and close on the first navigation | None | Pendiente de verificación |
-| M18 | The pin and the left edge | The pin button at the foot of the sidebar (only shown at ≥ `80rem`) must toggle `sidebarPinned` and survive a reload. With the sidebar hidden, move the mouse to the left edge below the top bar and hold ~150 ms; it must slide over the content, and close ~300 ms after leaving it | None | Pendiente de verificación |
-| M19 | `Ctrl`/`Cmd`+`B` toggles it, and is ignored where it should be | Press it on a page, then with the caret in a text field, then with a modal open. When the sidebar is fixed it must unpin it (and set `sidebarPinned` to false); otherwise it opens or closes the overlay | None | Pendiente de verificación |
-| M20 | Below `64rem` it is a drawer | Narrow the window; it must overlay under a scrim, trap `Tab`, close on a row click and on `Escape`, and closing the breakpoint gap must not leave it open | None | Pendiente de verificación |
+| M17 | At 1280px and wider the sidebar is always a fixed column | At ≥ `80rem` (e.g. 1280 and 1440px) on every page: the rail runs the full height with the logo, the top bar starts to its right, the content is pushed, there is no hamburger and no pin button, and nothing (route, mouse at the left edge) hides it | None | Pendiente de verificación |
+| M18 | Between 1024 and 1279px it is a drawer under a 64px top bar | At 1100px: the logo is in the top bar next to the hamburger *Abrir menú*; opening it slides the drawer in **below** the 64px bar (it must not cover its bottom 8px) over a scrim, focus moves into it, the label becomes *Cerrar menú*; `Escape`, a press on the scrim and a row click close it and return focus to the hamburger. Resize across 1280px both ways: wide shows the column, back below shows the drawer closed. A `sidebarPinned` left in LocalStorage by an old build is gone after a load | None | Pendiente de verificación |
+| M19 | `Ctrl`/`Cmd`+`B` toggles the drawer only | Below 1280px it opens and closes the drawer, but not with the caret in a text field nor with a modal open. At ≥ 1280px it does **nothing** (the column stays, nothing is stored) | None | Pendiente de verificación |
+| M20 | Below 1024px it is the same drawer under a 56px top bar | At 390px: hamburger, drawer under the 56px bar over a scrim, `Tab` trapped inside it, closed by a row click and by `Escape` | None | Pendiente de verificación |
 | M21 | Sections the caller cannot reach are hidden, not disabled | Compare the sidebar as a platform admin, an organization owner and a plain member: *Usuarios* and *Todas las organizaciones* only for the admin, *Mi organización* only for an owner, *Equipo del proyecto* only where the caller administers the active project | Real backend, three accounts | Pendiente de verificación |
 | M22 | A module left with one child collapses into a plain row | As a plain member with one project, *Proyectos* must be a single row and not a disclosure | Real backend | Pendiente de verificación |
 | M23 | Locked sections are legible | Check *Reportes* (*Comparaciones* is no longer locked since 2026-11-12): padlock or "próximamente", full-contrast label, not dimmed | None | Pendiente de verificación |
@@ -1601,7 +1605,8 @@ do not infer a pass from the fact that the feature was built.
 | M28 | Field errors are announced | Submit an invalid form and check with a screen reader that the error is tied to its input (`aria-describedby`) and the input is marked `aria-invalid` | None | Pendiente de verificación |
 | M29 | The sign-in hero's subtitle contrast | Measure it in the **light** theme at 1440px and wider; it currently reads 4.21:1 against a 4.5:1 bar (known debt) | None | Pendiente de verificación |
 | M30 | A dropped connection mid-import is survivable | Start an import of more than 50 rows (so it goes out in several batches of 50), kill the backend halfway, and check: the progress stopped, the warning about possibly partial writes appears, the credentials of the batches already confirmed are downloadable, and the member list reflects whatever was created. Also press *Cancelar* mid-import and check the same | Real backend | Pendiente de verificación |
-| M31 | Scenario comparison against real evaluations | Simulate two scenarios of a project (one deterministic, one probabilistic), open *Comparaciones*, compare them, save, reopen by URL and delete; the values must match each scenario's results screen and nothing may show `0` where the results screen says unavailable | Real backend (PostgreSQL, V25 applied) | API verified 2026-11-12 on PostgreSQL 16 with `seed-comparison-demo.mjs --simulate` (preview, save, read, delete, cross-project 404); the screen itself was only checked against a mock API — UI pass on the real backend pending |
+| M31 | Scenario comparison against real evaluations | Simulate two scenarios of a project (one deterministic, one probabilistic), open *Comparaciones*, compare them, save, reopen by URL and delete; the values must match each scenario's results screen and nothing may show `0` where the results screen says unavailable | Real backend (PostgreSQL, V25 applied) | API verified 2026-11-12 on PostgreSQL 16 with `seed-comparison-demo.mjs --simulate` (preview, save, read, delete, cross-project 404; that script was replaced by `seed-local-demo.mjs` on 2026-11-22); the screen itself was only checked against a mock API — UI pass on the real backend pending |
+| M32 | The green sidebar, in both themes | In the light and the dark theme: rail `#114636`, white labels, section titles slightly dimmer, current row on a light-green pill with dark-green text and no side marker, its module (e.g. *Proyectos*) on the soft hover fill in semi-bold white, never a second pill; hover lightens the row; `Tab` shows a white ring on the rail and on a hovered row; *Proyectos* opened shows its children with a faint guide line; locked rows keep a white label with a dimmer icon and padlock. At ≥ `80rem` (always), the rail runs the full height with the logo, centred horizontally, in a cell as tall as the top bar, sitting 6px below that cell's centre (16px above it, 4px below) so it reads level between the top edge and *TRABAJO* without touching it and the top bar starts to its right; below `80rem` (the drawer, M18–M20) the logo is in the top bar | None | Pendiente de verificación |
 
 ## `economic.controller.EconomicControllerTest` — Web
 
@@ -2934,6 +2939,8 @@ which add up to the same 173). The previous pass recorded 157 in 24 files; the
 | `projectTeamNav.test.mjs` | 4 | The *Equipo del proyecto* entry: visible to every member with an active project, a group for an editor, absent without a project or while projects load. |
 | `resultsCsv.test.mjs` | 4 | Results CSV export. |
 | `scenarioConfiguration.test.mjs` | 8 | Scenario configuration adapter. |
+| `sidebarMode.test.mjs` | 5 | New 2026-11-23. The sidebar's two modes (fixed ≥ `80rem`, drawer below), the layout of each, the one-off removal of the retired `sidebarPinned` key (also with a throwing or missing storage), and that `SidebarProvider` asks only `FIXED_QUERY`. |
+| `sidebarTheme.test.mjs` | 23 | New 2026-11-23. Every `--color-sidebar-*` token in both themes and identical across them; WCAG ratios of each pair (text ≥ 4.5:1 on the rail, the hover and the active pill, the parent of the current row included; focus ring, locked icons and pill ≥ 3:1); every opaque pixel of `logo-mark-sidebar.png` / `logo-full-sidebar.png` ≥ 3:1 on the rail. |
 | `sidebarActive.test.mjs` | 6 | At most one current sidebar leaf on every route, with and without a project; *Proyectos* current on `/projects`; the route → current item matrix; *Versionado* as a single entry; analysis items without a project; the short and full label of *Configuración*. |
 | `summaryVisuals.test.mjs` | 9 | Summary charts. |
 | `versionAccessApi.test.mjs` | 4 | `versionAccessApi`: `GET /projects/{id}/access`, list members, grant a role (with the vertical when there is one), revoke by member and role id. |
@@ -2946,8 +2953,9 @@ which add up to the same 173). The previous pass recorded 157 in 24 files; the
 | `workspaceRoutes.test.mjs` | 2 | Configuration and results routes never activate version management; switching projects keeps the module and drops foreign ids. |
 | **Total (27 files, 2026-11-15)** | **173** | |
 
-> **Current total: 315 tests in 35 files**, verified with `npm test` on 2026-11-22 (315 pass, 0 fail, 0 skipped). The
-> table above is the 2026-11-15 snapshot; the 7 files and 95 tests added since are spread over the dated sections below.
+> **Current total: 343 tests in 37 files**, verified with `npm test` on 2026-11-23 (343 pass, 0 fail, 0 skipped; was
+> 315 in 35 on 2026-11-22, plus `sidebarTheme` 23 and `sidebarMode` 5). The table above is the 2026-11-15 snapshot
+> with those two rows added; the other files and tests added since are spread over the dated sections below.
 > Five files are **not named anywhere in this catalog yet**: `accessInvalidationApi`, `editorPermissions`, `newVersion`,
 > `projectAccessState` and `userDetail` (`*.test.mjs`); cataloguing them is pending.
 
@@ -2967,11 +2975,15 @@ difference. When the menu changes **on purpose**, regenerate it with
 with the change — never regenerate it to silence a failure you did not expect.
 
 **Playwright scripts (not run for this catalog).** `tests/*-browser.mjs`
-(`sidebarPin`, `startup`, `routes-live`, `projectScoping`, `economic`,
+(`sidebarLayout`, `startup`, `routes-live`, `projectScoping`, `economic`,
 `results`, `probabilistic`, `consumption`, `formInputs`, `scenarioPresentation`,
 `summaryVisuals`) drive a local Vite server with isolated HTTP fixtures; set
-`APP_URL` and `PLAYWRIGHT_MODULE`. `sidebarPin-browser.mjs` is the one that
-exercises the pin and the `80rem` threshold.
+`APP_URL` and `PLAYWRIGHT_MODULE`. `sidebarLayout-browser.mjs` (2026-11-23,
+replacing `sidebarPin-browser.mjs`) covers the fixed column at ≥ `80rem`, the
+drawer at 1100 and 390px, the logo's placement, `Ctrl`/`Cmd`+`B` and the
+retired `sidebarPinned` key. **It has never been run and, like every other
+`*-browser.mjs`, is not part of `npm test` and must be treated as out of
+date** until someone runs it against a local Vite server.
 
 ## Version roles, cascade delete, root versions and CSV limit — 2026-11-15
 
@@ -4030,4 +4042,48 @@ The two rejection cases fail if the identity guard is removed, and the draft cas
 | `cloningAnInheritedNodeRemapsTheLegacyEconomicDraftReferences` | Same for the legacy `economic_draft`. |
 | `cloningAnInheritedNodeRemapsTheDraftsOfEveryScenarioAndLeavesUnrelatedDraftsAlone` | Three scenarios in one version: the `scenario_draft` of the base, the `scenario_draft` and the `economic_draft` of the second follow the clone; the third scenario's draft (another node) and its `{}` legacy draft keep their exact text. |
 
+## Local demo seed (`node --test`)
 
+Added 2026-11-22 with `docs/examples/seed-local-demo.mjs` (see [demo-data.md](demo-data.md)). **20 tests in 2 files.**
+
+`node --test docs/examples/seed-local-demo.test.mjs` — Unit, no server, no network (fetch is replaced by one that fails
+the test where it matters). **18 tests**; run 2026-11-22: 18 pass, 0 fail.
+
+| Test | What it verifies |
+| --- | --- |
+| `guardAcceptsLoopbackHttpWithExplicitConfirmation` | `localhost`, `127.0.0.1` and `[::1]` over `http://` pass when `ENERSCOPE_SEED_LOCAL=yes`; the trailing slash is dropped. |
+| `guardRejectsMissingOrWrongLocalConfirmation` | Missing, empty, `true` or `YES` instead of exactly `yes` stops the script. |
+| `guardRejectsRemoteHosts` | Public names, private IPs and `localhost.enerscope.org` are refused as non-local. |
+| `guardRejectsHttpsInvalidUrlsAndEmbeddedCredentials` | `https://`, a malformed URL and `user:pw@` in the URL are refused. |
+| `mainStopsAtTheGuardBeforeAnyNetworkCall` | The seed and `--cleanup --yes` fail at the guard (flag, env var or `ENERSCOPE_API`) without ever calling `fetch`. |
+| `passwordsAreRequiredWithoutDefaults` | Both passwords are mandatory for the seed, the demo one needs 8+ characters, cleanup needs only the admin one; the admin mail defaults to `admin@enerscope.org`. |
+| `missingPasswordErrorNeverEchoesValues` | The error message never contains the password values. |
+| `parseArgsAcceptsTheDocumentedModes` | `--simulate`, `--cleanup --dry-run`, `--cleanup --yes` and `--api` parse as documented. |
+| `cleanupRequiresDryRunOrExplicitYes` | `--cleanup` alone, both `--dry-run` and `--yes`, either without `--cleanup`, `--simulate` with `--cleanup`, unknown flags and `--api` without a value are refused. |
+| `cleanupSelectsOnlyDemoMarkedData` | Only `Demo - ` organizations, `Demo - ` projects **of a demo organization** and `@enerscope.test` mails (case-insensitive, not `…test.evil.com`) are selected. |
+| `cleanupNeverSelectsTheBootstrapAdminEvenWithADemoMail` | The bootstrap admin is excluded even if its mail uses the demo domain. |
+| `demoMarkersAreStrict` | The prefix is exact (`Demo - `, case-sensitive) and the domain is exactly `@enerscope.test`. |
+| `everyDemoNameCarriesThePrefixAndEveryMailTheDemoDomain` | Organization, projects and versions carry the prefix; 9 distinct demo mails. |
+| `usersCoverEveryRoleAndRespectTheRoleRules` | One OWNER, one platform ADMIN, the project roles ADMIN/EDITOR×4/EXECUTIVE; version roles only for project members, never for the EXECUTIVE, vertical only on EDITOR; the version admin is project EDITOR + branch ADMIN; the no-access user has no project. |
+| `rootNetworkCoversAllTwelveNodeTypesWithCoherentConnections` | 13 uniquely named nodes of 12 types; every connection exists, no sink feeds anything, nothing feeds a generator, no node is left unconnected (Austral too). |
+| `nodeVerticalAndRoleFollowTheBackendTypeTable` | Each node's vertical and role match `NodeTypeEnum.java`, read from the backend source, so a change there fails here. |
+| `economicConfigurationPointsTheFixtureAtTheGivenWells` | The backend fixture's placeholder node ids are replaced, the equipment cost and the fixed-expense factor apply, and the fixture is not mutated. |
+| `advancedEditorCarriesEveryCollectionAsAnArray` | The editor payload has the eight collections as arrays, as the backend requires for `advanced`. |
+
+`docs/examples/seed-local-demo.integration.test.mjs` — Integration against a running backend; skipped unless
+`ENERSCOPE_SEED_IT_API` is set. **2 tests.**
+
+| Test | What it verifies |
+| --- | --- |
+| `seedRunsOnAnEmptyDatabaseAndASecondRunDuplicatesNothing` | On an empty database the seed (with `--simulate`) creates everything; the second run creates nothing and the API snapshot (users, organization members, projects, members, versions, nodes, connections, version roles, scenarios with configured/draft/evaluations, comparisons) is identical; the promised contents are there (9 users, 13 nodes / 12 connections, 3 scenarios, the branch-only version admin, the comparison, Austral with its admin only). |
+| `seededRolesSeeOnlyWhatTheyShould` | Signed in as each user: the no-access user sees no project, the Ejecutivo and an Editor see only Neuquina, the Ejecutivo cannot read Austral's comparisons, and the branch's version admin cannot list version roles (403) but has the branch in `/access`. |
+
+Run 2026-11-22 against the backend of this branch on port 18080 and a throwaway PostgreSQL 16 on 55432 (28 migrations,
+starting with only the bootstrap admin): **2 pass, 0 fail** (first run `39 cambio(s)`, second `0 cambio(s)`, about
+100 s in total). The first attempt failed: the second run re-applied the branch edit
+because the node detail returns its values under `attributes`; fixed in the script, then green. Checked by hand in
+the same database: a third CLI run left the exact row count of all 52 tables unchanged; the guard stops the CLI
+without `ENERSCOPE_SEED_LOCAL`, with `https://enerscope.org` and with `ENERSCOPE_API=http://qa.enerscope.org`;
+`--cleanup --dry-run` changed 0 rows; `--cleanup --yes` left a control organization, user and a `Demo - …` project of
+that other organization active and untouched; a seed after the cleanup reactivated the demo users and organization and
+the next run was `0 cambio(s)`.

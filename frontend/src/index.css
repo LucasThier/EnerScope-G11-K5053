@@ -13,6 +13,11 @@
  *   buttons, links, and the active navigation item. Nothing else. Analysts sit
  *   in front of this tool for hours, and large saturated areas tire the eye;
  *   green earns attention precisely because it is rare.
+ *   ONE EXCEPTION: the navigation sidebar is a deep forest-green rail
+ *   (--color-sidebar, #114636), the same value in both themes. It is a narrow,
+ *   dark, low-saturation column, not a bright area, and it carries its own
+ *   sidebar-* tokens so nothing else in the app inherits it. Its pairs are
+ *   measured by tests/sidebarTheme.test.mjs (see the tokens for the ratios).
  * - The page itself is ink-50; cards, the top bar, the sidebar, the menus and
  *   the form controls are white. That one step of separation is what makes a
  *   card read as a sheet, so it replaces a tinted card background — the card
@@ -126,6 +131,21 @@
   --color-nav: #ecf0f5; /* the navigation rail and the mobile drawer: one step under the page, so the chrome recedes and the content reads first */
   --color-nav-hover: #e0e7ee; /* the hover fill on that rail, one step further from the page in the same direction */
   --color-nav-active: #ddeedf; /* the fill behind the current section's row — the one place green is a surface, and never a large one */
+
+  /* THE SIDEBAR RAIL — the one green surface (see the exception at the top).
+     Identical in both themes, restated in the dark block so it reads as one
+     list. Ratios are WCAG, measured against --color-sidebar unless noted, and
+     asserted by tests/sidebarTheme.test.mjs: text >= 4.5:1, focus and icons
+     >= 3:1. The nav-* tokens above stay for the top bar and its popovers. */
+  --color-sidebar: #114636; /* the rail, logo cell included */
+  --color-sidebar-hover: #245546; /* a resting row under the pointer: white at 8% over the rail */
+  --color-sidebar-text: #ffffff; /* resting and locked rows — 10.75:1; 8.53:1 on the hover */
+  --color-sidebar-muted: #dbe3e1; /* the uppercase section titles: white at 85% — 8.24:1 */
+  --color-sidebar-icon-muted: #a0b5af; /* a locked row's icon and padlock: white at 60% — 4.98:1 */
+  --color-sidebar-line: #356254; /* borders and dividers, decorative: white at 15% — 1.55:1 */
+  --color-sidebar-active: #d6f5c3; /* the pill behind the current row — 9.07:1 against the rail */
+  --color-sidebar-active-text: #1b5e20; /* label and icon on that pill — 6.64:1 on it */
+  --color-sidebar-focus: #ffffff; /* keyboard ring — 10.75:1 on the rail, 8.53:1 on the hover */
 
   --color-spotlight: #1d4541; /* the flat petrol plate behind the recent project on Inicio, identical in both themes */
   --color-spotlight-text: #dcebe3; /* secondary text on that plate: its label and metadata captions */
@@ -324,6 +344,16 @@ html[data-theme='dark'] {
   --color-nav: #141a21;
   --color-nav-hover: #1f2731;
   --color-nav-active: #1b3a22;
+
+  --color-sidebar: #114636; /* unchanged in the dark theme, like the spotlight plate */
+  --color-sidebar-hover: #245546;
+  --color-sidebar-text: #ffffff;
+  --color-sidebar-muted: #dbe3e1;
+  --color-sidebar-icon-muted: #a0b5af;
+  --color-sidebar-line: #356254;
+  --color-sidebar-active: #d6f5c3;
+  --color-sidebar-active-text: #1b5e20;
+  --color-sidebar-focus: #ffffff;
 
   --color-spotlight: #1d4541; /* unchanged in the dark theme: the plate keeps its petrol and stands off the page by luminance */
   --color-spotlight-text: #dcebe3; /* unchanged */

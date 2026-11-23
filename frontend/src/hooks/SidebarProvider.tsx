@@ -1,32 +1,19 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useLocalPreference } from './useLocalPreference';
-import { SidebarContext, type SidebarContextValue, type SidebarOrigin } from './useSidebar';
+import {
+  FIXED_QUERY,
+  forgetRetiredPreference,
+  sidebarLayout,
+  sidebarMode,
+} from './sidebarMode';
+import { SidebarContext, type SidebarContextValue } from './useSidebar';
 
-const PINNED_KEY = 'sidebarPinned';
-const DESKTOP_QUERY = '(min-width: 64rem)';
-const PIN_QUERY = '(min-width: 80rem)';
-const HOME_PATH = '/app';
-const ENTRY_PATH = '/';
-const EDGE_TRIGGER_PX = 4;
-const TOP_BAR_PX = 64;
-const HOVER_INTENT_MS = 150;
-const HOVER_LEAVE_MS = 300;
-
-function readQuery(query: string): boolean {
+function readWide(): boolean {
   try {
-    return window.matchMedia(query).matches;
+    return window.matchMedia(FIXED_QUERY).matches;
   } catch {
     return true;
   }
-}
-
-function readDesktop(): boolean {
-  return readQuery(DESKTOP_QUERY);
-}
-
-function readWide(): boolean {
-  return readQuery(PIN_QUERY);
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -45,126 +32,50 @@ function hasOpenMenu(): boolean {
   return document.querySelector('[role="menu"]') !== null;
 }
 
+/**
+ * Owns the sidebar's one media query (80rem) and, below it, whether the drawer
+ * is open. See `sidebarMode.ts` for why there are only two modes.
+ */
 export function SidebarProvider({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
-  const [pinnedPreference, setPinned] = useLocalPreference<boolean>(PINNED_KEY, true);
-  const isPinned = pinnedPreference !== false;
-  const [origin, setOrigin] = useState<SidebarOrigin | null>(() =>
-    !(isPinned && readWide()) && pathname === HOME_PATH && readDesktop() ? 'route' : null,
-  );
-  const [isDesktop, setIsDesktop] = useState(readDesktop);
   const [isWide, setIsWide] = useState(readWide);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
-  const leaveTimer = useRef<number | null>(null);
   const menuId = useId();
 
-  const isDrawer = !isDesktop;
-  const isFixed = isDesktop && isWide && isPinned;
-  const isVisible = isFixed || origin !== null;
-  const pushes = isFixed || (isDesktop && origin === 'route');
+  const { isFixed, isDrawer, isVisible, pushes } = sidebarLayout(sidebarMode(isWide), drawerOpen);
 
-  const clearLeaveTimer = useCallback(() => {
-    if (leaveTimer.current !== null) {
-      window.clearTimeout(leaveTimer.current);
-      leaveTimer.current = null;
-    }
-  }, []);
+  const close = useCallback(() => setDrawerOpen(false), []);
 
-  const close = useCallback(() => {
-    clearLeaveTimer();
-    setOrigin(null);
-  }, [clearLeaveTimer]);
-
-  const open = useCallback(
-    (next: SidebarOrigin) => {
-      clearLeaveTimer();
-      setOrigin(next);
-    },
-    [clearLeaveTimer],
-  );
-
-  const toggleFromButton = useCallback(
-    (viaKeyboard: boolean) => {
-      clearLeaveTimer();
-      if (isFixed) {
-        setPinned(false);
-        setOrigin(null);
-        return;
-      }
-      if (isVisible) {
-        setOrigin(null);
-        return;
-      }
-      setOrigin(viaKeyboard ? 'keyboard' : 'pointer');
-    },
-    [isFixed, isVisible, setPinned, clearLeaveTimer],
-  );
-
-  const togglePin = useCallback(
-    (viaKeyboard: boolean) => {
-      clearLeaveTimer();
-      if (isPinned) {
-        setPinned(false);
-        if (viaKeyboard) {
-          setOrigin('keyboard');
-          return;
-        }
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-        setOrigin('pointer');
-        return;
-      }
-      setPinned(true);
-      setOrigin(null);
-    },
-    [isPinned, setPinned, clearLeaveTimer],
-  );
-
-  const keepOpen = useCallback(() => {
-    clearLeaveTimer();
-    setOrigin((current) => (current === 'hover' ? 'pointer' : current));
-  }, [clearLeaveTimer]);
-
-  const scheduleClose = useCallback(() => {
-    if (leaveTimer.current !== null) {
+  /* In fixed mode there is nothing to toggle: the hamburger is not rendered and
+     Ctrl/Cmd+B does nothing. */
+  const toggle = useCallback(() => {
+    if (isFixed) {
       return;
     }
-    leaveTimer.current = window.setTimeout(() => {
-      leaveTimer.current = null;
-      if (panelRef.current?.contains(document.activeElement)) {
-        return;
-      }
-      setOrigin((current) => (current === 'hover' || current === 'pointer' ? null : current));
-    }, HOVER_LEAVE_MS);
-  }, []);
+    setDrawerOpen((open) => !open);
+  }, [isFixed]);
 
-  useEffect(() => clearLeaveTimer, [clearLeaveTimer]);
+  useEffect(() => {
+    forgetRetiredPreference(typeof window === 'undefined' ? undefined : window.localStorage);
+  }, []);
 
   useEffect(() => {
     let query: MediaQueryList;
-    let pinQuery: MediaQueryList;
     try {
-      query = window.matchMedia(DESKTOP_QUERY);
-      pinQuery = window.matchMedia(PIN_QUERY);
+      query = window.matchMedia(FIXED_QUERY);
     } catch {
       return;
     }
-    const onChange = () => {
-      setIsDesktop(query.matches);
-      setIsWide(pinQuery.matches);
-    };
+    const onChange = () => setIsWide(query.matches);
     onChange();
     query.addEventListener('change', onChange);
-    pinQuery.addEventListener('change', onChange);
-    return () => {
-      query.removeEventListener('change', onChange);
-      pinQuery.removeEventListener('change', onChange);
-    };
+    return () => query.removeEventListener('change', onChange);
   }, []);
 
+  /* Crossing 80rem either way starts the drawer closed. */
   const wasWide = useRef(isWide);
   useEffect(() => {
     if (wasWide.current === isWide) {
@@ -174,97 +85,19 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     close();
   }, [isWide, close]);
 
-  const wasDesktop = useRef(isDesktop);
-  useEffect(() => {
-    if (wasDesktop.current === isDesktop) {
-      return;
-    }
-    wasDesktop.current = isDesktop;
-    close();
-  }, [isDesktop, close]);
-
+  /* Any navigation closes the drawer. */
   const previousPath = useRef(pathname);
-  const hasEntered = useRef(pathname !== ENTRY_PATH);
   useEffect(() => {
     if (previousPath.current === pathname) {
       return;
     }
     previousPath.current = pathname;
-    if (!hasEntered.current) {
-      hasEntered.current = true;
-      if (isDesktop && !isFixed && pathname === HOME_PATH) {
-        setOrigin('route');
-        return;
-      }
-    }
     close();
-  }, [pathname, close, isDesktop, isFixed]);
+  }, [pathname, close]);
 
+  /* A press outside the open drawer (the scrim included) closes it. */
   useEffect(() => {
-    if (!isDesktop || isVisible) {
-      return;
-    }
-    let intentTimer: number | null = null;
-    const cancel = () => {
-      if (intentTimer !== null) {
-        window.clearTimeout(intentTimer);
-        intentTimer = null;
-      }
-    };
-    function onPointerMove(event: PointerEvent) {
-      if (event.pointerType !== 'mouse' || event.buttons !== 0) {
-        cancel();
-        return;
-      }
-      if (event.clientX > EDGE_TRIGGER_PX || event.clientY <= TOP_BAR_PX) {
-        cancel();
-        return;
-      }
-      if (intentTimer === null) {
-        intentTimer = window.setTimeout(() => {
-          intentTimer = null;
-          open('hover');
-        }, HOVER_INTENT_MS);
-      }
-    }
-    window.addEventListener('pointermove', onPointerMove);
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove);
-      cancel();
-    };
-  }, [isDesktop, isVisible, open]);
-
-  useEffect(() => {
-    if (!isDesktop || (origin !== 'hover' && origin !== 'pointer')) {
-      return;
-    }
-    function onPointerMove(event: PointerEvent) {
-      if (event.pointerType !== 'mouse') {
-        return;
-      }
-      const panel = panelRef.current;
-      if (!panel) {
-        return;
-      }
-      const bounds = panel.getBoundingClientRect();
-      const inside =
-        event.clientX >= bounds.left &&
-        event.clientX <= bounds.right &&
-        event.clientY >= bounds.top &&
-        event.clientY <= bounds.bottom;
-      if (inside) {
-        clearLeaveTimer();
-        setOrigin((current) => (current === 'hover' ? 'pointer' : current));
-        return;
-      }
-      scheduleClose();
-    }
-    window.addEventListener('pointermove', onPointerMove);
-    return () => window.removeEventListener('pointermove', onPointerMove);
-  }, [isDesktop, origin, clearLeaveTimer, scheduleClose]);
-
-  useEffect(() => {
-    if (!isVisible || pushes) {
+    if (!isDrawer || !isVisible) {
       return;
     }
     function onPointerDown(event: PointerEvent) {
@@ -276,10 +109,10 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     }
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [isVisible, pushes, close]);
+  }, [isDrawer, isVisible, close]);
 
   useEffect(() => {
-    if (!isVisible || isFixed) {
+    if (!isDrawer || !isVisible) {
       return;
     }
     function onKeyDown(event: KeyboardEvent) {
@@ -291,7 +124,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     }
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
-  }, [isVisible, isFixed, close]);
+  }, [isDrawer, isVisible, close]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -301,47 +134,29 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
       if (event.key.toLowerCase() !== 'b') {
         return;
       }
-      if (isTypingTarget(event.target) || hasOpenDialog()) {
+      if (isFixed || isTypingTarget(event.target) || hasOpenDialog()) {
         return;
       }
       event.preventDefault();
-      toggleFromButton(true);
+      toggle();
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [toggleFromButton]);
+  }, [isFixed, toggle]);
 
   const value = useMemo<SidebarContextValue>(
     () => ({
-      origin,
       isVisible,
       pushes,
       isDrawer,
-      isPinned,
       isFixed,
-      canPin: isWide,
       menuId,
       menuButtonRef,
       panelRef,
-      toggleFromButton,
-      togglePin,
+      toggle,
       close,
-      keepOpen,
     }),
-    [
-      origin,
-      isVisible,
-      pushes,
-      isDrawer,
-      isPinned,
-      isFixed,
-      isWide,
-      menuId,
-      toggleFromButton,
-      togglePin,
-      close,
-      keepOpen,
-    ],
+    [isVisible, pushes, isDrawer, isFixed, menuId, toggle, close],
   );
 
   return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;
