@@ -18,4 +18,7 @@ public interface EconomicConfigurationRepository extends JpaRepository<EconomicC
 
     /** Only valid while a version has a single scenario; tests and the E7 clean-up use it, services read by scenario. */
     Optional<EconomicConfigurationEntity> findByVersionId(UUID versionId);
+
+    /** Used by the physical delete of a version subtree (cascades in the PostgreSQL schema, not in the H2 one Hibernate generates). */
+    void deleteByVersionIdIn(java.util.Collection<UUID> versionIds);
 }

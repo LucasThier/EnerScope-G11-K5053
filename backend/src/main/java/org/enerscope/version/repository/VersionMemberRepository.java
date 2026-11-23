@@ -40,6 +40,12 @@ public interface VersionMemberRepository extends JpaRepository<VersionMember, UU
     List<VersionMember> findByUserIdAndProjectIdIn(@Param("userId") UUID userId,
                                                    @Param("projectIds") Collection<UUID> projectIds);
 
+    /**
+     * Removes every membership (and, by cascade, its roles and permissions) of the given versions. Needed before a physical
+     * delete of the versions: {@code version_member.version_id} has no ON DELETE CASCADE.
+     */
+    void deleteByVersionIdIn(Collection<UUID> versionIds);
+
     Optional<VersionMember> findByIdAndVersionId(UUID id, UUID versionId);
 
     /**

@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -62,6 +63,14 @@ class VersionServiceTest {
         private org.enerscope.economic.repository.EconomicEvaluationRepository economicEvaluations;
         @Mock
         private org.enerscope.comparison.repository.ScenarioComparisonItemRepository comparisonItems;
+        @Mock
+        private org.enerscope.version.repository.VersionMemberRepository versionMembers;
+        @Mock
+        private org.enerscope.scenario.repository.ScenarioDraftRepository scenarioDrafts;
+        @Mock
+        private org.enerscope.scenario.repository.EconomicDraftRepository economicDrafts;
+        @Mock
+        private org.enerscope.economic.repository.EconomicConfigurationRepository economicConfigurations;
 
         @Mock
         private VersionRepository versionRepository;
@@ -145,7 +154,11 @@ class VersionServiceTest {
                                 scenarioDefaults,
                                 economicJobs,
                                 economicEvaluations,
-                                comparisonItems);
+                                comparisonItems,
+                                versionMembers,
+                                scenarioDrafts,
+                                economicDrafts,
+                                economicConfigurations);
         }
 
         @Test
@@ -1057,6 +1070,42 @@ class VersionServiceTest {
         verify(accessGuard).assertCanManageDescendant(rootId, childId);
         verify(accessGuard).assertCanManageDescendant(rootId, grandchildId);
         verify(versionRepository).deleteAllById(List.of(grandchildId, childId, rootId));
+    }
+
+    @Test
+    void deleteVersionRemovesMembershipsAndDraftsOfTheWholeSubtreeBeforeTheVersions() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        when(versionRepository.findById(rootId)).thenReturn(Optional.of(versionWithId(rootId)));
+        when(versionRepository.findByParentVersionId(rootId)).thenReturn(List.of(versionWithId(childId)));
+        when(versionRepository.findByParentVersionId(childId)).thenReturn(List.of());
+
+        versionService.deleteVersion(rootId);
+
+        var order = org.mockito.Mockito.inOrder(versionMembers, scenarioDrafts, economicDrafts, economicConfigurations, versionRepository);
+        order.verify(versionMembers).deleteByVersionIdIn(argThat(ids -> java.util.Set.copyOf(ids).equals(java.util.Set.of(rootId, childId))));
+        order.verify(scenarioDrafts).deleteByVersionIdIn(argThat(ids -> java.util.Set.copyOf(ids).equals(java.util.Set.of(rootId, childId))));
+        order.verify(economicDrafts).deleteByVersionIdIn(argThat(ids -> java.util.Set.copyOf(ids).equals(java.util.Set.of(rootId, childId))));
+        order.verify(economicConfigurations).deleteByVersionIdIn(argThat(ids -> java.util.Set.copyOf(ids).equals(java.util.Set.of(rootId, childId))));
+        order.verify(versionRepository).deleteAllById(List.of(childId, rootId));
+    }
+
+    @Test
+    void deleteVersionKeepsMembershipsAndDraftsWhenTheSubtreeHasSavedResults() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        when(versionRepository.findById(rootId)).thenReturn(Optional.of(versionWithId(rootId)));
+        when(versionRepository.findByParentVersionId(rootId)).thenReturn(List.of(versionWithId(childId)));
+        when(versionRepository.findByParentVersionId(childId)).thenReturn(List.of());
+        when(economicJobs.existsByVersionIdIn(List.of(rootId, childId))).thenReturn(true);
+
+        assertThrows(org.enerscope.version.service.VersionHasResultsException.class, () -> versionService.deleteVersion(rootId));
+
+        verify(versionMembers, org.mockito.Mockito.never()).deleteByVersionIdIn(any());
+        verify(scenarioDrafts, org.mockito.Mockito.never()).deleteByVersionIdIn(any());
+        verify(economicDrafts, org.mockito.Mockito.never()).deleteByVersionIdIn(any());
+        verify(economicConfigurations, org.mockito.Mockito.never()).deleteByVersionIdIn(any());
+        verify(versionRepository, org.mockito.Mockito.never()).deleteAllById(any());
     }
 
     @Test

@@ -14,4 +14,6 @@ public interface ScenarioDraftRepository extends JpaRepository<ScenarioDraft,UUI
     java.util.List<ScenarioDraft> findAllByVersionId(UUID versionId);
     boolean existsByVersionId(UUID versionId);
     void deleteByVersionId(UUID versionId);
+    /** Used by the physical delete of a version subtree: {@code scenario_draft.version_id} has no ON DELETE CASCADE. */
+    void deleteByVersionIdIn(java.util.Collection<UUID> versionIds);
 }

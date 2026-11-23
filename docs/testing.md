@@ -9,10 +9,10 @@ Run the backend with `cd backend && mvn test` (H2, no database), and with `cd ba
 ten `*IT` classes (failsafe) against a **disposable** PostgreSQL pointed to by `ECONOMIC_TEST_DATABASE_URL` (see
 [*PostgreSQL classes*](#postgresql-classes-it-by-hand)). CI runs `mvn --batch-mode verify` in the `backend-it` job.
 Last reported counts, verified on 2026-11-22 from `backend/target/{surefire,failsafe}-reports` and `npm test`:
-Surefire **107 classes / 1813 executions**, failsafe **11 classes / 108 executions**, frontend **296 tests in 35 files**
+Surefire **107 classes / 1818 executions**, failsafe **11 classes / 111 executions**, frontend **296 tests in 35 files**
 (`npm test`, 2026-11-22), all with 0 failures, errors and skips.
-Run on 2026-11-22 with `mvn -B verify` against a throwaway PostgreSQL 16 on port 55432: Surefire 1813 run / 0 failures / 0 errors / 0 skipped,
-failsafe 108 run / 0 failures / 0 errors / 0 skipped, `BUILD SUCCESS`.
+Run on 2026-11-22 with `mvn -B verify` against a throwaway PostgreSQL 16 on port 55432: Surefire 1818 run / 0 failures / 0 errors / 0 skipped,
+failsafe 111 run / 0 failures / 0 errors / 0 skipped, `BUILD SUCCESS`.
 
 Two automated suites exist:
 
@@ -61,7 +61,7 @@ are the `tests` attribute of its Surefire report from the latest `mvn test`
 into one execution per argument.
 
 > **Superseded by the later reconciliations at the end of this file — the current figures are 107 classes /
-> 1813 executions and failsafe 11 classes / 108 executions (the table below sums to them).** The note that follows
+> 1818 executions and failsafe 11 classes / 111 executions (the table below sums to them).** The note that follows
 > is kept as the history of the first reconciliation. **Reconciled 2026-11-22** (first pass) against
 > `mvn -B clean verify` (PostgreSQL 16 throwaway database, port 55432): Surefire **98 classes, 1647 executions,
 > 0 failures/errors/skips**; failsafe **6 classes, 58 executions**; at that moment the table summed to those
@@ -181,15 +181,15 @@ executions differ; for every other class they are the same number. No class uses
 | `version.service.VersionAccessTest` | Unit | 11 | 11 |
 | `version.service.VersionConflictIntegrationTest` | Integration | 11 | 11 |
 | `version.service.VersionConflictServiceTest` | Unit | 30 | 30 |
-| `version.service.VersionDeletionTest` | Unit | 6 | 6 |
+| `version.service.VersionDeletionTest` | Unit | 9 | 9 |
 | `version.service.VersionLineageTest` | Unit | 10 | 10 |
 | `version.service.VersionMemberServiceTest` | Unit | 39 | 39 |
 | `version.service.VersionNodeCsvImportIdentityTest` | Integration | 7 | 7 |
 | `version.service.VersionNodeCsvImportServiceTest` | Unit | 32 | 43 |
 | `version.service.VersionNodeCsvImportTemplatesTest` | Integration | 2 | 2 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 | 10 |
-| `version.service.VersionServiceTest` | Unit | 67 | 67 |
-| **Total (107 classes)** | | **1516** | **1813** |
+| `version.service.VersionServiceTest` | Unit | 69 | 69 |
+| **Total (107 classes)** | | **1521** | **1818** |
 
 > **`mvn test` on 2026-11-15 (13:35, run for this update): 1362 executions,
 > 0 failures, 0 errors, 0 skipped**, in 80 classes (`1238` methods). Executions
@@ -257,7 +257,7 @@ Counts below treat each JUnit test method as one case; parameterized methods
 are counted once in the table, with their extra executions explained below.
 
 Not run by `mvn test`; they need a PostgreSQL the test connects to (see each
-class). **Today: 11 classes, 108 executions** (table below), read on 2026-11-22 from the eleven
+class). **Today: 11 classes, 111 executions** (table below), read on 2026-11-22 from the eleven
 `TEST-*IT.xml` failsafe reports in `backend/target/failsafe-reports` (written that day by
 `mvn -B verify`, 0 failures, 0 errors, 0 skipped). The first version of this section counted **49 executions in
 five classes** from a manual run on 2026-11-15; that figure is history and no longer applies.
@@ -320,11 +320,11 @@ five classes** from a manual run on 2026-11-15; that figure is history and no lo
 | `scenario.repository.ScenarioMigrationIT` | 13 | 13 |
 | `scenario.service.ScenarioLifecyclePostgreSqlIT` | 20 inherited from `ScenarioLifecycleTest` | 20 |
 | `scenario.service.VersionDefaultScenarioPostgreSqlIT` | 6 inherited from `VersionDefaultScenarioTest` | 6 |
-| `version.service.VersionDeletionPostgreSqlIT` | 6 inherited from `VersionDeletionTest` | 6 |
+| `version.service.VersionDeletionPostgreSqlIT` | 9 inherited from `VersionDeletionTest` | 9 |
 | `version.service.VersionNodeCsvImportIdentityPostgreSqlIT` | 7 inherited from `VersionNodeCsvImportIdentityTest` | 7 |
 | `version.service.VersionNodeCsvImportTemplatesPostgreSqlIT` | 2 inherited from `VersionNodeCsvImportTemplatesTest` | 2 |
 | `version.repository.VersionMemberRepositoryPostgreSqlIT` | 16 | 16 |
-| **Total (11 classes)** | | **108** |
+| **Total (11 classes)** | | **111** |
 
 `ProjectRepositoryPostgreSqlIT` and `ProjectVersionCreationPostgreSqlIT` are new
 in the 2026-11-15 section; the two new `VersionMemberRepositoryPostgreSqlIT`
@@ -3965,7 +3965,7 @@ A version with none of that is deleted as before, with its scenarios. Validation
 55432 — Surefire **105 classes, 1797 executions**, failsafe **9 classes, 99 executions**, zero failures/errors/skips (the table above sums to those 1797);
 frontend `npm test` **268 cases** (one translation case extended), `tsc -b`, `eslint .` and `npm run build` clean.
 
-### `version.service.VersionDeletionTest` — real services on H2 (6); `VersionDeletionPostgreSqlIT` runs the same 6 on PostgreSQL (real foreign keys)
+### `version.service.VersionDeletionTest` — real services on H2 (9); `VersionDeletionPostgreSqlIT` runs the same 9 on PostgreSQL (real foreign keys)
 
 | Case | Verifies |
 | --- | --- |
@@ -3975,6 +3975,11 @@ frontend `npm test` **268 cases** (one translation case extended), `tsc -b`, `es
 | `anEmptyVersionIsDeletedWithAllItsScenariosAndTheRestIsUntouched` | An empty version with two scenarios is deleted with both; another version with an evaluation is untouched. |
 | `aSubtreeWithAChildThatHasSimulationsIsRefusedForEverything` | An empty parent with one simulated child and one empty child: deleting the parent is refused and removes nothing; the empty child alone can still be deleted. |
 | `permissionIsCheckedBeforeTheConflictAndAnUnknownVersionStaysNotFound` | A caller who cannot manage the version gets 403 (not a hint that results exist); an unknown id stays 404; the administrator gets the 409. |
+| `aVersionWithMembersAndRolesIsDeletedTogetherWithThem` | A version with one member holding one role is deleted; no `VersionMember` row is left (the `version_member` FK has no cascade; this was a 500 on PostgreSQL). |
+| `deletingASubtreeWithEverythingItCanOwnLeavesNoRowsBehindAndKeepsTheRest` | A parent and a child, each with 3 scenarios, 3 stored configurations, 3 scenario drafts, 3 legacy economic drafts, 2 members with 2 roles each, 2 wells and 1 connection (plus a third, unrelated version filled the same way). The fixture asserts every table is populated (6 scenario drafts and 6 economic drafts in the subtree); after `deleteVersion(parent)` every table is at 0 for the subtree (`scenario`, `economic_configuration`, `economic_draft`, `scenario_draft`, `version_member`, `version_member_role`, `versionxnode`, `versionxconnection`, `version`), there are no orphan roles, role permissions or scenario drafts, and the unrelated version keeps all its rows. |
+| `aSubtreeWithEverythingButAChildWithAnEvaluationIsRefusedAndNothingIsDeleted` | Same fixture, but the child has a saved evaluation: `409`, and the row counts of every table above are identical before and after (no draft, member or scenario touched). |
+
+`version.service.VersionServiceTest` (+2, 67 → 69): `deleteVersionRemovesMembershipsAndDraftsOfTheWholeSubtreeBeforeTheVersions` (members, scenario drafts, economic drafts and configurations of the whole subtree are deleted, in that order, before `deleteAllById`) and `deleteVersionKeepsMembershipsAndDraftsWhenTheSubtreeHasSavedResults` (409: none of those deletes runs).
 
 Also: `scenario.controller.ScenarioApiHttpTest.deletingAVersionThatHasSavedResultsIs409WithAClearMessageAndNothingIsDeleted` (79 executions, was 78) checks the
 `409` envelope over HTTP (`success: false` and the message), that the scenarios are still listed, and that a Simulador gets `403`.

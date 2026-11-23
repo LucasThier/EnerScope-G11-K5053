@@ -15,4 +15,6 @@ public interface EconomicDraftRepository extends JpaRepository<EconomicDraftEnti
     /** Every scenario of the version can hold its own legacy draft (one per scenario). */
     java.util.List<EconomicDraftEntity> findAllByVersionId(UUID versionId);
     void deleteByVersionId(UUID versionId);
+    /** Used by the physical delete of a version subtree (the FK cascades today; explicit so it does not depend on that). */
+    void deleteByVersionIdIn(java.util.Collection<UUID> versionIds);
 }

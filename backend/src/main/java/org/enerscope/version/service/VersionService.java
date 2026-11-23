@@ -117,6 +117,10 @@ public class VersionService {
     private final org.enerscope.economic.repository.EconomicJobRepository economicJobs;
     private final org.enerscope.economic.repository.EconomicEvaluationRepository economicEvaluations;
     private final org.enerscope.comparison.repository.ScenarioComparisonItemRepository comparisonItems;
+    private final org.enerscope.version.repository.VersionMemberRepository versionMembers;
+    private final org.enerscope.scenario.repository.ScenarioDraftRepository scenarioDrafts;
+    private final org.enerscope.scenario.repository.EconomicDraftRepository economicDrafts;
+    private final org.enerscope.economic.repository.EconomicConfigurationRepository economicConfigurations;
 
     /**
      * Creates a version detached from every project, for
@@ -230,6 +234,13 @@ public class VersionService {
             throw new VersionHasResultsException();
         }
 
+        // Rows that reference the version without ON DELETE CASCADE must go first or the DELETE hits the FK: the members
+        // (and, by cascade, their roles) and the scenario drafts. The legacy economic drafts and the stored economic
+        // configurations cascade in PostgreSQL but are removed here too, so the delete does not depend on that. All of it is in this transaction and after the 403/404/409 checks, so a refusal leaves them intact.
+        versionMembers.deleteByVersionIdIn(versionsToDelete);
+        scenarioDrafts.deleteByVersionIdIn(versionsToDelete);
+        economicDrafts.deleteByVersionIdIn(versionsToDelete);
+        economicConfigurations.deleteByVersionIdIn(versionsToDelete);
         Collections.reverse(versionsToDelete);
         versionRepository.deleteAllById(versionsToDelete);
         logger.info("Deleted {} versions in tree starting from root version ID: {}",

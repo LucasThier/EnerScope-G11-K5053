@@ -481,8 +481,8 @@ and Hibernate validation and rolls back its example records.
 
 Two levels of tests (counts in [`docs/testing.md`](../docs/testing.md)):
 
-- `mvn test` — the `*Test` classes on H2; no database needed (last reported run: 107 classes, 1813 executions).
-- `mvn -B verify` — also runs the eleven `*IT` classes with failsafe (last reported run: 11 classes, 108 executions)
+- `mvn test` — the `*Test` classes on H2; no database needed (last reported run: 107 classes, 1818 executions).
+- `mvn -B verify` — also runs the eleven `*IT` classes with failsafe (last reported run: 11 classes, 111 executions)
   against a **disposable** PostgreSQL named `enerscope_economic_test`, pointed to by `ECONOMIC_TEST_DATABASE_URL`
   (`ECONOMIC_TEST_DATABASE_USER` / `ECONOMIC_TEST_DATABASE_PASSWORD` if needed). The ITs are
   `PostgreSqlEconomicIT`, `ScenarioConfigurationPostgreSqlIT`, `ProjectRepositoryPostgreSqlIT`,

@@ -217,4 +217,178 @@ class VersionDeletionTest {
         assertThrows(org.enerscope.common.VersionNotFoundException.class, () -> versions.deleteVersion(UUID.randomUUID()));
         assertThrows(VersionHasResultsException.class, () -> versions.deleteVersion(version.getId()));
     }
+
+    @Test
+    void aVersionWithMembersAndRolesIsDeletedTogetherWithThem() {
+        Version version = create("Con miembros", null);
+        User member = new User("member-" + UUID.randomUUID() + "@example.com", "Version", "Member", "hashed");
+        em.persist(member);
+        var membership = new org.enerscope.version.model.VersionMember(member, version);
+        membership.addRole(new org.enerscope.version.model.VersionMemberRole("ADMIN",
+                org.enerscope.version.model.enums.VersionMemberType.ADMIN,
+                new java.util.HashSet<>(org.enerscope.version.model.VersionMember.defaultPermissionsFor(
+                        org.enerscope.version.model.enums.VersionMemberType.ADMIN)), null));
+        em.persist(membership);
+        detach();
+
+        versions.deleteVersion(version.getId());
+        em.flush();
+        em.clear();
+
+        assertFalse(exists(version.getId()));
+        assertEquals(0, em.createQuery("select count(m) from VersionMember m where m.version.id = :id", Long.class)
+                .setParameter("id", version.getId()).getSingleResult());
+    }
+
+    // ---- everything a version can own without results -------------------------------------------------------------
+
+    @Autowired org.enerscope.version.repository.VersionMemberRepository versionMembers;
+    @Autowired org.enerscope.scenario.repository.ScenarioDraftRepository scenarioDrafts;
+    @Autowired org.enerscope.scenario.repository.EconomicDraftRepository economicDrafts;
+
+    static final java.util.List<String> OWNED_BY_VERSION = java.util.List.of(
+            "scenario|version_id", "economic_configuration|version_id", "economic_draft|version_id", "scenario_draft|version_id",
+            "version_member|version_id", "versionxnode|version_id", "versionxconnection|version_id");
+
+    /** Rows each table holds for the given versions (plus roles, via their members). */
+    java.util.Map<String, Long> ownedRows(java.util.Collection<UUID> versionIds) {
+        var counts = new java.util.LinkedHashMap<String, Long>();
+        for (String spec : OWNED_BY_VERSION) {
+            String[] parts = spec.split("\\|");
+            counts.put(parts[0], ((Number) em.createNativeQuery(
+                    "select count(*) from " + parts[0] + " where " + parts[1] + " in (:ids)")
+                    .setParameter("ids", versionIds).getSingleResult()).longValue());
+        }
+        counts.put("version_member_role", ((Number) em.createNativeQuery(
+                "select count(*) from version_member_role where version_member_id in "
+                        + "(select id from version_member where version_id in (:ids))")
+                .setParameter("ids", versionIds).getSingleResult()).longValue());
+        counts.put("version", ((Number) em.createNativeQuery("select count(*) from version where id in (:ids)")
+                .setParameter("ids", versionIds).getSingleResult()).longValue());
+        return counts;
+    }
+
+    org.enerscope.node.dto.WellDTO wellDto(String name) {
+        var dto = new org.enerscope.node.dto.WellDTO();
+        dto.setName(name);
+        dto.setType(new org.enerscope.node.dto.NodeTypeDataDTO(org.enerscope.node.model.enums.VerticalEnum.EXTRACTION,
+                org.enerscope.node.model.enums.StructuralRoleEnum.GENERATOR, org.enerscope.node.model.enums.NodeTypeEnum.WELL));
+        dto.setState(org.enerscope.node.model.enums.NodeStateEnum.RUNNING);
+        dto.setStartupDate(Instant.parse("2030-01-01T00:00:00Z"));
+        dto.setLifespanInMonths(240);
+        dto.setMaintenanceIntervalInDays(30);
+        dto.setWastePercentage(0.02f);
+        dto.setGasRichness(0.85f);
+        dto.setMaxCollectionCapacity(250f);
+        dto.setUpkeepCosts(2f);
+        dto.setOperatingCosts(3f);
+        dto.setDTMCost(4f);
+        dto.setDTMTime(0);
+        dto.setSurface(1200f);
+        var investment = new org.enerscope.node.dto.InvestmentCostDTO();
+        investment.setComponents(new java.util.ArrayList<>());
+        dto.setInvestmentCost(investment);
+        dto.setDeclineCurve(new org.enerscope.node.dto.ProbabilisticDistributionDTO("CONSTANT", 0f, null));
+        return dto;
+    }
+
+    /** Fills a version with everything it can have before any simulation: scenarios, config, both drafts, members, nodes, connection. */
+    void fillWithEverything(Version version) {
+        scenarioService.create(project.getId(), version.getId(), new ScenarioNameRequest("Ampliación " + version.getName()));
+        scenarioService.create(project.getId(), version.getId(), new ScenarioNameRequest("Optimista " + version.getName()));
+        em.flush();
+        for (Scenario scenario : scenarios.findByVersionIdAndActiveTrueOrderByCreatedAtAscIdAsc(version.getId())) {
+            var configuration = new org.enerscope.economic.model.EconomicConfigurationEntity(version, "{}");
+            configuration.assignScenario(scenario);
+            em.persist(configuration);
+            var scenarioDraft = new org.enerscope.scenario.model.ScenarioDraft(version, "{}");
+            scenarioDraft.assignScenario(scenario);
+            em.persist(scenarioDraft);
+            var economicDraft = new org.enerscope.scenario.model.EconomicDraftEntity(version, "{}");
+            economicDraft.assignScenario(scenario);
+            em.persist(economicDraft);
+        }
+        for (String mail : List.of("uno", "dos")) {
+            User user = new User(mail + "-" + UUID.randomUUID() + "@example.com", "Version", mail, "hashed");
+            em.persist(user);
+            var membership = new org.enerscope.version.model.VersionMember(user, version);
+            membership.addRole(new org.enerscope.version.model.VersionMemberRole("SIMULATOR",
+                    org.enerscope.version.model.enums.VersionMemberType.SIMULATOR,
+                    new java.util.HashSet<>(org.enerscope.version.model.VersionMember.defaultPermissionsFor(
+                            org.enerscope.version.model.enums.VersionMemberType.SIMULATOR)), null));
+            membership.addRole(new org.enerscope.version.model.VersionMemberRole("EDITOR",
+                    org.enerscope.version.model.enums.VersionMemberType.EDITOR,
+                    new java.util.HashSet<>(org.enerscope.version.model.VersionMember.defaultPermissionsFor(
+                            org.enerscope.version.model.enums.VersionMemberType.EDITOR)),
+                    org.enerscope.node.model.enums.VerticalEnum.EXTRACTION));
+            em.persist(membership);
+        }
+        em.flush();
+        var from = versions.addNodeToVersion(version.getId(), wellDto("Pozo A " + version.getName()));
+        var to = versions.addNodeToVersion(version.getId(), wellDto("Pozo B " + version.getName()));
+        var connection = new org.enerscope.node.dto.ConnectionDTO();
+        connection.setFromNodeId(from.getId());
+        connection.setToNodeId(to.getId());
+        versions.addConnectionToVersion(version.getId(), connection);
+        em.flush();
+    }
+
+    @Test
+    void deletingASubtreeWithEverythingItCanOwnLeavesNoRowsBehindAndKeepsTheRest() {
+        Version root = create("Raíz completa", null);
+        Version child = create("Hija completa", root.getId());
+        Version other = create("Otra completa", null);
+        fillWithEverything(root);
+        fillWithEverything(child);
+        fillWithEverything(other);
+        detach();
+
+        List<UUID> subtree = List.of(root.getId(), child.getId());
+        var before = ownedRows(subtree);
+        var otherBefore = ownedRows(List.of(other.getId()));
+        for (var entry : before.entrySet()) {
+            assertTrue(entry.getValue() > 0, "the fixture must populate " + entry.getKey());
+        }
+        assertEquals(6, before.get("scenario_draft"), "one draft per scenario (3 each) in both versions");
+        assertEquals(6, before.get("economic_draft"));
+
+        versions.deleteVersion(root.getId());
+        em.flush();
+        em.clear();
+
+        for (var entry : ownedRows(subtree).entrySet()) {
+            assertEquals(0L, entry.getValue(), "no " + entry.getKey() + " row is left behind");
+        }
+        assertEquals(otherBefore, ownedRows(List.of(other.getId())), "an unrelated version keeps all of its rows");
+        assertEquals(0L, ((Number) em.createNativeQuery(
+                "select count(*) from version_member_role r where not exists (select 1 from version_member m where m.id = r.version_member_id)")
+                .getSingleResult()).longValue(), "no role without a member");
+        assertEquals(0L, ((Number) em.createNativeQuery(
+                "select count(*) from version_member_role_permission p where not exists (select 1 from version_member_role r where r.id = p.version_member_role_id)")
+                .getSingleResult()).longValue(), "no permission without a role");
+        assertEquals(0L, ((Number) em.createNativeQuery(
+                "select count(*) from scenario_draft d where not exists (select 1 from version v where v.id = d.version_id)")
+                .getSingleResult()).longValue(), "no scenario draft without a version");
+    }
+
+    @Test
+    void aSubtreeWithEverythingButAChildWithAnEvaluationIsRefusedAndNothingIsDeleted() {
+        Version root = create("Raíz refugiada", null);
+        Version child = create("Hija simulada", root.getId());
+        fillWithEverything(root);
+        fillWithEverything(child);
+        evaluation(child);
+        detach();
+
+        List<UUID> subtree = List.of(root.getId(), child.getId());
+        var before = ownedRows(subtree);
+        var error = assertThrows(VersionHasResultsException.class, () -> versions.deleteVersion(root.getId()));
+        assertEquals(MESSAGE, error.getMessage());
+        em.flush();
+        em.clear();
+
+        assertEquals(before, ownedRows(subtree), "a refused delete touches no draft, member or scenario");
+        assertTrue(exists(root.getId()));
+        assertTrue(exists(child.getId()));
+    }
 }

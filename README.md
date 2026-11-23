@@ -85,8 +85,8 @@ cd frontend && npm run build  # type-check + build
 
 `mvn -B verify` needs `ECONOMIC_TEST_DATABASE_URL` (and optionally `_USER` / `_PASSWORD`) pointing at a throwaway
 `enerscope_economic_test` database — never at one with real data. CI runs the same command in the `backend-it`
-job, which fails the build when an `*IT` fails. Last reported counts: backend 107 classes / 1813 executions
-(`mvn test`) and 11 classes / 108 executions (failsafe); frontend 296 tests in 35 files. The case-by-case catalog is in
+job, which fails the build when an `*IT` fails. Last reported counts: backend 107 classes / 1818 executions
+(`mvn test`) and 11 classes / 111 executions (failsafe); frontend 296 tests in 35 files. The case-by-case catalog is in
 [docs/testing.md](docs/testing.md). The Playwright scripts `frontend/tests/*-browser.mjs` are not part of any of
 these and are out of date (see [docs/testing.md](docs/testing.md)).
 
