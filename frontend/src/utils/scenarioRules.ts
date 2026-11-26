@@ -98,6 +98,20 @@ export function scenarioStatusView(status: ScenarioStatus): ScenarioStatusView {
   }
 }
 
+/**
+ * One-line meaning of each status, for a chip's tooltip. Same facts as `scenarioStatusView().detail` (and
+ * `ScenarioStatus` in backend/README.md, "Fields and states worth knowing"), shortened to a line.
+ */
+export const SCENARIO_STATUS_HINTS: Record<ScenarioStatus, string> = {
+  UP_TO_DATE: 'Su última simulación coincide con la configuración y los nodos actuales.',
+  OUTDATED: 'La configuración o los nodos de la versión cambiaron desde la última simulación.',
+  SIMULATING: 'Hay una simulación en cola o en curso.',
+  NEVER_SIMULATED: 'Todavía no tiene resultados.',
+};
+
+/** `draftPending` (ScenarioDTO.java): an unpublished draft exists, so the scenario cannot be simulated. */
+export const DRAFT_HINT = 'Tiene un borrador sin publicar: completalo o descartalo para poder simular.';
+
 /** Which scenario the old version-level routes act on. */
 export function defaultScenarioOf(scenarios: ScenarioSummary[]): ScenarioSummary | null {
   return scenarios.find(scenario => scenario.defaultScenario) ?? scenarios[0] ?? null;

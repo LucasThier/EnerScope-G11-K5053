@@ -6,6 +6,7 @@ import { scenariosApi } from '../api/scenarios';
 import { AccessFailureAlert } from '../components/versionRoles/AccessFailureAlert';
 import { SimulationDialog } from '../components/economics/SimulationDialog';
 import { DeleteScenarioDialog, ScenarioNameDialog } from '../components/scenarios/ScenarioDialogs';
+import { ScenarioStatusChip } from '../components/scenarios/ScenarioStatusChip';
 import { Alert } from '../components/ui/Alert';
 import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingState } from '../components/ui/LoadingState';
@@ -19,20 +20,13 @@ import type { ScenarioSummary } from '../types/scenario';
 import { isProjectAccessLoss } from '../utils/activeProject';
 import { formatDate } from '../utils/date';
 import {
-  createBlockedReason, scenarioPermissions, scenarioStatusView, simulateBlockedReason, type StatusTone,
+  SCENARIO_STATUS_HINTS, createBlockedReason, scenarioPermissions, scenarioStatusView, simulateBlockedReason,
 } from '../utils/scenarioRules';
 import {
   projectSimulationsPath, projectVersionsPath, scenarioConfigurationPath, scenarioHistoryPath, scenarioResultsPath, versionOperationPath,
 } from '../utils/scenarioRoutes';
 
 const POLL_MS = 2500;
-
-const TONES: Record<StatusTone, string> = {
-  good: 'bg-brand-50 text-brand-800 ring-brand-200',
-  warn: 'bg-warn-50 text-warn-800 ring-warn-200',
-  info: 'bg-info-50 text-info-800 ring-info-200',
-  neutral: 'bg-ink-50 text-ink-700 ring-ink-200',
-};
 
 type Dialog =
   | { kind: 'create' }
@@ -149,7 +143,7 @@ function Workspace({ projectId, versionId, mode }: { projectId: string; versionI
                     {!scenario.configured && <p className="mt-1 text-xs text-ink-500">Sin configuración económica todavía.</p>}
                   </td>
                   <td className={tableBodyCell}>
-                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${TONES[status.tone]}`}>{status.label}</span>
+                    <ScenarioStatusChip label={status.label} tone={status.tone} hint={SCENARIO_STATUS_HINTS[scenario.status]} />
                     {scenario.status === 'OUTDATED' && <p className="mt-1 max-w-xs text-xs text-ink-600">La base cambió: revisá este escenario.</p>}
                   </td>
                   <td className={tableBodyCell}>{scenario.latestEvaluatedAt ? formatDate(scenario.latestEvaluatedAt) : '—'}</td>

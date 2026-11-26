@@ -3,7 +3,7 @@
  * look like one (see ButtonLink) cannot drift from the real thing, in the same
  * way controlClasses.ts holds the form controls.
  */
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'link' | 'on-dark';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline' | 'link' | 'on-dark';
 export type ButtonSize = 'md' | 'compact';
 type Variant = ButtonVariant;
 type Size = ButtonSize;
@@ -26,6 +26,9 @@ const variants: Record<Variant, string> = {
     'bg-fill-neutral text-on-accent hover:bg-fill-neutral-strong focus-visible:ring-focus',
   danger: 'bg-danger-600 text-on-accent hover:bg-danger-700 focus-visible:ring-danger-700',
   ghost: 'bg-transparent text-ink-600 hover:bg-ink-50 hover:text-ink-800 focus-visible:ring-focus',
+  /* A secondary action that must not outweigh the primary one on its screen: an edge, no fill. */
+  outline:
+    'border border-control-border bg-transparent text-ink-700 hover:bg-ink-50 hover:text-ink-800 focus-visible:ring-focus',
   'on-dark':
     'bg-spotlight-action text-spotlight-action-text hover:bg-spotlight-action/90 ' +
     'focus-visible:ring-white focus-visible:ring-offset-spotlight!',

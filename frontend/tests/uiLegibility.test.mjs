@@ -48,7 +48,6 @@ test('the scan reaches the app', () => {
 const INK_TEXT_EXCEPTIONS = {
   'components/ui/SearchField.tsx': 1, // the magnifier icon, drawn with currentColor
   'components/dashboard/RecentProjectsList.tsx': 1, // a chevron icon
-  'components/dashboard/QuickActions.tsx': 1, // a chevron icon
   'components/layout/TopBar.tsx': 1, // an aria-hidden separator glyph
 };
 

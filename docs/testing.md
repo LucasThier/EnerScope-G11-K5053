@@ -9,8 +9,8 @@ Run the backend with `cd backend && mvn test` (H2, no database), and with `cd ba
 twelve `*IT` classes (failsafe) against a **disposable** PostgreSQL pointed to by `ECONOMIC_TEST_DATABASE_URL` (see
 [*PostgreSQL classes*](#postgresql-classes-it-by-hand)). CI runs `mvn --batch-mode verify` in the `backend-it` job.
 Last reported counts, verified on 2026-11-22 from `backend/target/{surefire,failsafe}-reports` and `npm test`:
-Surefire **108 classes / 1822 executions**, failsafe **12 classes / 113 executions**, frontend **315 tests in 35 files**
-(`npm test`, 2026-11-22), all with 0 failures, errors and skips.
+Surefire **108 classes / 1822 executions**, failsafe **12 classes / 113 executions**, frontend **435 tests in 46 files**
+(`npm test`, 2026-11-23), all with 0 failures, errors and skips.
 Run on 2026-11-22 with `mvn -B verify` against a throwaway PostgreSQL 16 on port 55432: Surefire 1822 run / 0 failures / 0 errors / 0 skipped,
 failsafe 113 run / 0 failures / 0 errors / 0 skipped, `BUILD SUCCESS`.
 
@@ -4095,3 +4095,53 @@ without `ENERSCOPE_SEED_LOCAL`, with `https://enerscope.org` and with `ENERSCOPE
 `--cleanup --dry-run` changed 0 rows; `--cleanup --yes` left a control organization, user and a `Demo - …` project of
 that other organization active and untouched; a seed after the cleanup reactivated the demo users and organization and
 the next run was `0 cambio(s)`.
+
+
+## Inicio: Escenarios, accesos rápidos y layout — 2026-11-23
+
+Frontend total after this change: **435 tests in 46 files** (416 before, plus the 19 below), 0 failures, 0 skips; `tsc -b`,
+`eslint .` and `npm run build` clean. `uiLegibility.test.mjs` lost the `QuickActions.tsx` entry of its `ink-400` exceptions
+(the chevron it justified is gone from the chips); no case was added or removed there.
+
+### `frontend/tests/homeScenarios.test.mjs` — unit, **19 cases** (`utils/homeScenarios.ts`, `utils/scenarioRules.ts`, `utils/date.ts`, `utils/recentProjects.ts`)
+
+| Case | Verification |
+| --- | --- |
+| each status chip keeps the app wording and carries a one-line meaning | Al día / Desactualizado / Simulando… / Sin simular, their tones, and a one-line hint for each status (`SCENARIO_STATUS_HINTS`) and for the draft (`DRAFT_HINT`). |
+| a draft adds a "Borrador" chip after the status, never instead of it | With `draftPending` every status yields `[status, draft]`; the draft chip is `warn` with its hint; without the flag there is one chip. |
+| when only one chip fits, Simulando > Borrador > Desactualizado/Sin simular > Al día | Which chip is `essential` (the one that stays when the row is narrow) for each status with and without a draft. |
+| Simular for what needs a run and may be run; Ver (to the right screen) for the rest | Simular for outdated / never simulated with permission; Ver to results (up to date), to the configuration (draft or unconfigured) or to the history. |
+| a person who cannot simulate gets no Simular, and nothing while it is running or when the version is not visible | A reader and the read-only Ejecutivo get Ver; a simulating scenario and a version without view access get no action. |
+| the version is the oldest visible root; a branch only when no root is visible | `pickHomeVersion` over roots, branches, invisible versions and an empty list. |
+| 5 rows, 4 on a short screen; the default scenario first, then the most recently modified | `scenarioRowLimit`, the order and the `hidden` count of `homeScenarioRows`; the input is not reordered. |
+| an administrator gets Nuevo proyecto, Comparar escenarios, Usuarios and Organizaciones | `quickActionsFor` for an administrator: ids, labels, addresses, and a hint for every chip. |
+| everyone else gets Nuevo proyecto, Comparar escenarios, Mis organizaciones and Mi perfil | The same for a non-administrator. |
+| what the sidebar does not reach is left out, and there are never more than four chips | No active project (no Comparar), not an organization member, no admin sections, an empty tree; at most 4. |
+| Comparar points at the project Inicio shows when there is one, else at the sidebar address | `compareProjectId` (URL-encoded) over the sidebar leaf's address. |
+| relative dates read in plain Spanish and fall back to the short date after a month | `formatRelative`: recién, hace N min / h, ayer, hace N días, the short date past 30 days, future dates, null and invalid input. |
+| the recent project is the most recently modified one, and none when recency is unreliable | `mostRecentProject`. |
+| no scenario: say so and offer Crear escenario only to who may create | `scenarioFooter` for 0 scenarios, with and without permission. |
+| one scenario: suggest a second one, with the button only for who may create | 1 scenario, with and without permission; it wins over a pending state or a saved comparison. |
+| two or three rows with something to simulate: just the count, and a singular | `pending` footer, `pendingLabel` singular/plural, `pendingScenarios` (a running scenario is not pending). |
+| everything up to date: the last saved comparison when there is one, else nothing | `comparison` footer, or none. |
+| four or more rows fill the block and take no footer | `FILLED_ROWS`; no footer with 4+ rows even with pending scenarios and a saved comparison. |
+| Comparar warns about the two-scenario minimum below it, and the secondary action has an outline variant | `compareHint` for 0, 1 and 2 scenarios; `buttonClasses('outline')` has an edge and no fill. |
+
+### Browser: `frontend/tests/homeLayout-browser.mjs` (manual, not part of `npm test`)
+
+Mocks the API (no backend, no database) and checks, in light **and** dark: at **1440×800** and **1280×720** with full data
+(4 projects, 6 scenarios with drafts, long names, a saved comparison) the `<main>` has no vertical scroll, the Escenarios
+block shows **5** rows (**4** at 1280×720), Proyectos recientes **3**, Accesos rápidos **4** chips, no chip title is cut off,
+no page error; with **0, 1, 2, 4 and 5** scenarios (light and dark, both sizes) there is no scroll, the first row sits under
+the block's header at a small, constant distance, and the footer of the case appears (*Todavía no hay escenarios* + Crear
+escenario, *Agregá otro escenario…* + Nuevo escenario, *1 escenario por simular*, none with 4–5 rows) and Comparar carries
+the *Se necesitan al menos 2 escenarios* title only below 2; at **1024×768, 768 and 390** there is no horizontal overflow. Run it against a local Vite server on any
+port except 8080/5432/5173:
+
+```
+cd frontend && npx vite --port 5199 --strictPort &
+APP_URL=http://127.0.0.1:5199 PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tests/homeLayout-browser.mjs
+```
+
+`PW_CHANNEL=chrome` uses an installed Chrome instead of Playwright's Chromium; `SHOT_DIR=/some/dir` also saves a screenshot per
+theme and size. Run on 2026-11-23: PASS (it does not need a Vite on 5173 or the backend).

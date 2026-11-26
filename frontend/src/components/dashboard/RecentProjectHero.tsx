@@ -76,40 +76,37 @@ export function RecentProjectHero({ canCreateProject, onNewProject }: RecentProj
   return (
     <section
       aria-label="Proyecto reciente"
-      className={`rounded-card bg-spotlight bg-[linear-gradient(160deg,var(--color-spotlight),var(--color-spotlight-end))] sm:bg-[linear-gradient(135deg,var(--color-spotlight),var(--color-spotlight-end))] p-6 text-white shadow-raise sm:p-8`}
+      className={`flex h-full flex-col justify-center gap-3 rounded-card bg-spotlight bg-[linear-gradient(160deg,var(--color-spotlight),var(--color-spotlight-end))] sm:bg-[linear-gradient(135deg,var(--color-spotlight),var(--color-spotlight-end))] p-6 text-white shadow-raise lg:px-8 lg:py-7 [@media(max-height:760px)]:lg:py-4`}
     >
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-spotlight-text">
-        PROYECTO RECIENTE
-      </p>
-      <h2
-        className="mt-2 break-words text-3xl font-bold leading-tight sm:text-4xl"
-        title={project.name}
-      >
-        {project.name}
-      </h2>
-      <dl className="mt-5 flex flex-col gap-4 sm:flex-row sm:gap-0">
-        <div className="min-w-0 sm:pr-6">
-          <dt className="text-sm text-spotlight-text">Organización</dt>
-          <dd className="mt-0.5 break-words text-base font-semibold">
-            {project.organizationName || 'Sin organización'}
-          </dd>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-spotlight-text">
+            PROYECTO RECIENTE
+          </p>
+          <h2 className="mt-1 truncate text-3xl font-bold leading-tight" title={project.name}>
+            {project.name}
+          </h2>
         </div>
-        <div className="min-w-0 sm:border-l sm:border-spotlight-text/30 sm:pl-6">
-          <dt className="text-sm text-spotlight-text">Última modificación</dt>
-          <dd className="mt-0.5 text-base font-semibold">
-            {formatDateShort(project.lastModified) ?? 'Sin fecha registrada'}
-          </dd>
+        <Button
+          variant="on-dark"
+          className="w-full shrink-0 sm:w-auto"
+          onClick={() => openProject(project)}
+          aria-label={`Continuar proyecto ${project.name}`}
+        >
+          Continuar proyecto
+          <ArrowRightIcon className="h-4 w-4" />
+        </Button>
+      </div>
+      <dl className="flex flex-col gap-1 text-sm sm:flex-row sm:flex-wrap sm:gap-x-0">
+        <div className="flex min-w-0 items-baseline gap-2 sm:pr-4">
+          <dt className="text-spotlight-text">Organización</dt>
+          <dd className="min-w-0 truncate font-semibold">{project.organizationName || 'Sin organización'}</dd>
+        </div>
+        <div className="flex items-baseline gap-2 sm:border-l sm:border-spotlight-text/30 sm:pl-4">
+          <dt className="text-spotlight-text">Última modificación</dt>
+          <dd className="font-semibold">{formatDateShort(project.lastModified) ?? 'Sin fecha registrada'}</dd>
         </div>
       </dl>
-      <Button
-        variant="on-dark"
-        className="mt-6 w-full sm:w-auto"
-        onClick={() => openProject(project)}
-        aria-label={`Continuar proyecto ${project.name}`}
-      >
-        Continuar proyecto
-        <ArrowRightIcon className="h-4 w-4" />
-      </Button>
     </section>
   );
 }
@@ -120,7 +117,7 @@ function HeroSkeleton() {
     <div
       role="status"
       aria-live="polite"
-      className={`min-h-60 rounded-card bg-spotlight bg-[linear-gradient(160deg,var(--color-spotlight),var(--color-spotlight-end))] sm:bg-[linear-gradient(135deg,var(--color-spotlight),var(--color-spotlight-end))] p-6 shadow-raise sm:p-8`}
+      className={`min-h-36 h-full rounded-card bg-spotlight bg-[linear-gradient(160deg,var(--color-spotlight),var(--color-spotlight-end))] sm:bg-[linear-gradient(135deg,var(--color-spotlight),var(--color-spotlight-end))] p-6 shadow-raise sm:p-8`}
     >
       <span className="sr-only">Cargando proyecto reciente</span>
       <div className={`h-3 w-32 ${bar}`} />

@@ -241,6 +241,29 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   **read-only** for them: `/access` grants no edit, so `editorGates` returns
   `readOnly`. In the projects table, members who cannot administer see **Ver
   equipo** instead of the manage button.
+- **Inicio** (`/app`, "Tu espacio de trabajo") fits a 1280×720 screen without scrolling. From `lg` it is a 12-column grid
+  (`gap-6`, `gap-5` on a viewport ≤ 760px tall): the recent project (hero, 8 columns) and the project counter (4); below,
+  **Escenarios** (7) and, on the right (5), **Proyectos recientes** (up to 3) and **Accesos rápidos** (up to 4 chips, an
+  icon and a title each; the description is the tooltip and the accessible name). Below `lg` the blocks stack in that order.
+  **Escenarios** shows the recent project's scenarios from calls that already exist: `GET /projects/:p/access` (cached),
+  `GET /projects/:p/versions`, and `GET /projects/:p/versions/:v/scenarios` for the **root version** (the oldest root the
+  person can view; with none visible, the oldest visible version) — nothing was added to the backend. Up to 5 rows (4 on a
+  viewport ≤ 760px tall): the default scenario first, then the most recently modified; each row has the name, the status chip
+  (the same texts as the version lists, plus **Borrador** when `draftPending`), the relative date and one action — *Simular*
+  (opens the existing simulation dialog) when it needs a run and the person may start it, *Ver* otherwise, nothing while it
+  is simulating. Rows sit at the top at their natural height; the card has its own height (it does not stretch to the right
+  column), at least about three rows. Under the rows, a **next-step footer** (`scenarioFooter`): no scenario → *Todavía no hay
+  escenarios* + **Crear escenario**; one → *Agregá otro escenario para poder compararlos* + **Nuevo escenario** (both buttons
+  only if `createBlockedReason` allows it, and they open the scenario list's own name dialog); two or three with something to
+  simulate → *N escenarios por simular* + *Ver todos*; all up to date → the last saved comparison (`GET /projects/:p/comparisons`,
+  when the person can read it); four or more rows → no footer. **Comparar** (header, `outline` button variant) and the
+  **Comparar escenarios** chip appear when the sidebar reaches Comparaciones; below 2 scenarios in the shown version Comparar
+  carries the title *Se necesitan al menos 2 escenarios* (the comparison screen needs 2 in the whole project and never disables
+  itself). Chips: administrators
+  get *Nuevo proyecto, Comparar escenarios, Usuarios, Organizaciones*; everyone else *Nuevo proyecto, Comparar escenarios,
+  Mis organizaciones, Mi perfil*, each only if the sidebar's rules offer it (`quickActionsFor`, built on `useNavigationTree`).
+  The logic lives in `src/utils/homeScenarios.ts` (tests: `tests/homeScenarios.test.mjs`); the layout is checked by the
+  manual `tests/homeLayout-browser.mjs`.
 - **Escenarios** (flow: version → its scenarios → one scenario). A **version** is the physical base; a **scenario** is the
   economic and simulation configuration that rests on it. `Configuración del Escenario` (`/projects/:p/scenario-configurations`)
   and `Simulación de Escenarios` (`/projects/:p/simulations`) first list the **versions** ("Versión (base física)", with
@@ -421,8 +444,8 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
   Every section heading (`h2`) is `text-lg`; `tests/uiLegibility.test.mjs` fails
   on a `text-xl` one. *What the code does today that this table does not say:*
   some `h3` are `text-sm`, KPI figures are `text-xl` / `text-3xl` / `text-5xl`
-  (`PlatformIndicators`, `EconomicSummary`, `ExecutiveSummary`, `MetricBars`),
-  the Inicio hero is `text-3xl sm:text-4xl`, and the value-chain editor has two
+  (`ProjectsCounter`, `EconomicSummary`, `ExecutiveSummary`, `MetricBars`),
+  the Inicio hero is `text-3xl`, and the value-chain editor has two
   `text-[10px]` (`EnerNode`, `EditorPage`).
 - **Spacing is on the 4px grid, and sections are 24px apart.** Sections and
   cards of a page: `gap-6` or `space-y-6`, and the page header's own `mb-6`
