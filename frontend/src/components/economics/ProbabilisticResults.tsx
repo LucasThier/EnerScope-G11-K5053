@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { economicsApi } from '../../api/economics';
+import { scenariosApi } from '../../api/scenarios';
 import { getErrorMessage } from '../../api/errors';
 import type { Evaluation, EconomicRound, NumericStatistics, PaybackStatistics } from '../../types/economics';
 import { money, percent } from '../../utils/economicFormat';
@@ -11,6 +11,7 @@ import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Alert } from '../ui/Alert';
 import { SelectField } from '../ui/SelectField';
+import { tableBodyCellCompact, tableHeaderCellCompact } from '../ui/tableClasses';
 import { BandChart, PercentileRange, StatisticalDetail, SummaryCard } from './SummaryVisuals';
 import { finite, recoveryView } from '../../utils/summaryVisuals';
 import type { OperationalField } from '../../utils/operationalResults';
@@ -18,10 +19,10 @@ import type { OperationalField } from '../../utils/operationalResults';
 const statusLabels: Record<string, string> = { CALCULATED: 'Calculable', NO_SIGN_CHANGE: 'Sin cambio de signo', NON_CONVENTIONAL: 'Flujos no convencionales', NUMERICAL_FAILURE: 'Fallo numérico', INSUFFICIENT_DATA: 'Datos insuficientes', RECOVERED: 'Recuperada', NOT_RECOVERED_WITHIN_HORIZON: 'Sin recuperar en el horizonte', NOT_APPLICABLE: 'No aplicable' };
 const statistics = ['mean','min','max','p10','p50','p90'] as const;
 function StatisticsTable({ rows, format }: { rows: { label: string; values: NumericStatistics }[]; format: (n: number | null) => string }) {
-  return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Indicador / período','Muestra','Media','Mínimo','Máximo','P10','P50','P90'].map(h => <th key={h} className="p-3">{h}</th>)}</tr></thead>
-    <tbody>{rows.map(row => <tr key={row.label} className="border-t border-ink-100"><th className="p-3 font-medium">{row.label}</th><td className="p-3">{row.values.count}</td>{statistics.map(key => <td className="whitespace-nowrap p-3" key={key}>{format(row.values[key])}</td>)}</tr>)}</tbody></table></div>;
+  return <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Indicador / período','Muestra','Media','Mínimo','Máximo','P10','P50','P90'].map(h => <th key={h} className={tableHeaderCellCompact}>{h}</th>)}</tr></thead>
+    <tbody>{rows.map(row => <tr key={row.label} className="border-t border-ink-100"><th className={`${tableBodyCellCompact} font-medium`}>{row.label}</th><td className={tableBodyCellCompact}>{row.values.count}</td>{statistics.map(key => <td className={`${tableBodyCellCompact} whitespace-nowrap`} key={key}>{format(row.values[key])}</td>)}</tr>)}</tbody></table></div>;
 }
-export function ProbabilisticResults({ evaluation, projectId, versionId }: { evaluation: Evaluation; projectId: string; versionId: string }) {
+export function ProbabilisticResults({ evaluation, projectId, scenarioId }: { evaluation: Evaluation; projectId: string; scenarioId: string }) {
   const [selection, setSelection] = useState('summary');
   const [round, setRound] = useState<EconomicRound | null>(null);
   const [error, setError] = useState('');
@@ -30,11 +31,11 @@ export function ProbabilisticResults({ evaluation, projectId, versionId }: { eva
   useEffect(() => {
     if (selection === 'summary') return;
     let cancelled = false;
-    economicsApi.round(projectId, versionId, evaluation.id, Number(selection))
+    scenariosApi.round(projectId, scenarioId, evaluation.id, Number(selection))
       .then(value => { if (!cancelled) setRound(value); })
       .catch(e => { if (!cancelled) setError(getErrorMessage(e, 'No se pudo leer la ronda.')); });
     return () => { cancelled = true; };
-  }, [projectId, versionId, evaluation.id, selection]);
+  }, [projectId, scenarioId, evaluation.id, selection]);
   const summary = evaluation.snapshot.summary;
   if (!summary) return <Alert>No hay estadísticas disponibles.</Alert>;
   const currency = evaluation.snapshot.configuration?.currency;
@@ -52,12 +53,11 @@ export function ProbabilisticResults({ evaluation, projectId, versionId }: { eva
   });
   const selectedMetric = operational.filter(row => row.metric === metric);
   const discounted = recoveryView(summary.discountedPayback, evaluation.snapshot.configuration?.startYear);
-  return <div className="space-y-5">
-    <Card><label className="block text-sm font-semibold" htmlFor="round-selection">Vista de resultados</label>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><select id="round-selection" value={selection} onChange={e => { setSelection(e.target.value); setError(''); setRound(null); }} className="w-full rounded-lg border border-ink-200 bg-white p-3 sm:max-w-sm">
+  return <div className="space-y-6">
+    <Card><div className="flex flex-wrap items-end justify-between gap-3"><div className="w-full sm:max-w-sm"><SelectField id="round-selection" label="Vista de resultados" value={selection} onChange={e => { setSelection(e.target.value); setError(''); setRound(null); }}>
         <option value="summary">Resumen de {summary.rounds} rondas</option>
         {Array.from({ length: summary.rounds }, (_, i) => <option key={i + 1} value={i + 1}>Ronda {i + 1}</option>)}
-      </select><Button variant="secondary" onClick={() => downloadCsv('resumen-rondas-' + evaluation.id, summaryCsv(evaluation))}>Descargar resumen CSV</Button></div><p className="mt-3 text-sm text-ink-600">{summary.rounds} rondas · {currency ?? 'Moneda no disponible'} · WACC anual: {percent(evaluation.snapshot.configuration?.wacc)}</p>
+      </SelectField></div><Button variant="secondary" onClick={() => downloadCsv('resumen-rondas-' + evaluation.id, summaryCsv(evaluation))}>Descargar resumen CSV</Button></div><p className="mt-3 text-sm text-ink-600">{summary.rounds} rondas · {currency ?? 'Moneda no disponible'} · WACC anual: {percent(evaluation.snapshot.configuration?.wacc)}</p>
       <details className="mt-3 text-sm"><summary className="cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-brand-800">Datos de la ejecución</summary><p className="mt-2 break-all">Semilla principal: {evaluation.snapshot.simulation?.seed ?? 'No disponible'}</p><p>Versión: {evaluation.snapshot.simulation?.calculationVersion ?? 'No disponible'}</p></details>
     </Card>
     {error && <Alert tone="error">{error}</Alert>}

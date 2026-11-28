@@ -31,6 +31,38 @@ public final class EconomicExample {
         return metrics;
     }
 
+    /** The id of the default scenario {@link #scenarioDefaults()} gives a version, so tests can stub reads by scenario. */
+    public static UUID scenarioIdOf(UUID versionId) {
+        return UUID.nameUUIDFromBytes(("default-scenario:" + versionId).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /** A ScenarioDefaults whose default scenario of any version always exists, with the id {@link #scenarioIdOf}. */
+    public static org.enerscope.scenario.service.ScenarioDefaults scenarioDefaults() {
+        var defaults = org.mockito.Mockito.mock(org.enerscope.scenario.service.ScenarioDefaults.class);
+        org.mockito.Mockito.when(defaults.existing(org.mockito.ArgumentMatchers.any())).thenAnswer(call -> {
+            var scenario = new org.enerscope.scenario.model.Scenario(null, org.enerscope.scenario.model.Scenario.DEFAULT_NAME, true);
+            ReflectionTestUtils.setField(scenario, "id", scenarioIdOf(call.getArgument(0)));
+            return java.util.Optional.of(scenario);
+        });
+        org.mockito.Mockito.when(defaults.forVersion(org.mockito.ArgumentMatchers.any())).thenAnswer(call -> {
+            Version version = call.getArgument(0);
+            var scenario = new org.enerscope.scenario.model.Scenario(version, org.enerscope.scenario.model.Scenario.DEFAULT_NAME, true);
+            ReflectionTestUtils.setField(scenario, "id", scenarioIdOf(version.getId()));
+            return scenario;
+        });
+        return defaults;
+    }
+
+    /** A scenario repository with no scenarios yet: the default one is created (and returned) on first use. */
+    public static org.enerscope.scenario.repository.ScenarioRepository noScenariosYet() {
+        var repository = org.mockito.Mockito.mock(org.enerscope.scenario.repository.ScenarioRepository.class);
+        org.mockito.Mockito.when(repository.findByVersionIdAndDefaultScenarioTrueAndActiveTrue(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.empty());
+        org.mockito.Mockito.when(repository.saveAndFlush(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(call -> call.getArgument(0));
+        return repository;
+    }
+
     public static Version version() {
         Well first = well(FIRST, 100, "2031-01-01T00:00:00Z");
         Well second = well(SECOND, 500, "2032-01-01T00:00:00Z");

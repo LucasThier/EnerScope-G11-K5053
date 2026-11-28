@@ -19,7 +19,9 @@ import org.enerscope.scenario.dto.EconomicDraftDTO;
 import org.enerscope.scenario.model.EconomicDraftEntity;
 import org.enerscope.scenario.repository.EconomicDraftRepository;
 import org.enerscope.scenario.repository.ScenarioDraftRepository;
+import org.enerscope.scenario.model.Scenario;
 import org.enerscope.scenario.service.ScenarioChangeScope;
+import org.enerscope.scenario.service.ScenarioDefaults;
 import org.enerscope.user.model.enums.PlatformRole;
 import org.enerscope.util.AuthUtil;
 import org.enerscope.version.model.Version;
@@ -44,6 +46,7 @@ public class EconomicService {
     private final AppLogger logger;
     private final VersionAccessGuard versionAccessGuard;
     private final ScenarioChangeScope changeScope;
+    private final ScenarioDefaults scenarioDefaults;
 
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
@@ -60,20 +63,33 @@ public class EconomicService {
 
     void assertNoDraft(Version version) {
         lock(version);
-        if ((scenarioDrafts != null && scenarioDrafts.existsByVersionId(version.getId())) || drafts.findByVersionId(version.getId()).isPresent())
+        var scenarioId = scenarioDefaults.existing(version.getId()).map(BaseEntity::getId);
+        if (scenarioId.isPresent() && ((scenarioDrafts != null && scenarioDrafts.existsByScenarioId(scenarioId.get())) || drafts.findByScenarioId(scenarioId.get()).isPresent()))
             throw new IllegalArgumentException("Hay un borrador pendiente. Completá o descartá los cambios en Configuración del Escenario.");
     }
+    /** Refuses to simulate a scenario that still has an unpublished draft. */
+    public void assertNoDraft(Version version, Scenario scenario) {
+        lock(version);
+        if ((scenarioDrafts != null && scenarioDrafts.existsByScenarioId(scenario.getId())) || drafts.findByScenarioId(scenario.getId()).isPresent())
+            throw new IllegalArgumentException("Hay un borrador pendiente. Completá o descartá los cambios en Configuración del Escenario.");
+    }
+
     public EconomicConfiguration save(UUID projectId, UUID versionId, EconomicConfiguration configuration) {
         Version version = authorizeConfigurationEdit(projectId, versionId);
         lock(version);
-        var stored = configurations.findByVersionId(versionId);
+        return saveIn(version, scenarioDefaults.forVersion(version), configuration);
+    }
+
+    /** Publishes {@code configuration} as the economic configuration of {@code scenario}; the caller has authorized and locked. */
+    public EconomicConfiguration saveIn(Version version, Scenario scenario, EconomicConfiguration configuration) {
+        var stored = configurations.findByScenarioId(scenario.getId());
         changeScope.assertCanSave(version, null,
                 stored.map(e -> read(e.getConfigurationJson(), EconomicConfiguration.class)).orElse(null), configuration);
         validateConfiguration(configuration, version);
         var entity = stored.orElseGet(() -> new EconomicConfigurationEntity(version, ""));
-        entity.replace(json(configuration)); configurations.save(entity);
-        drafts.deleteByVersionId(versionId);
-        logger.info("Economic configuration saved for version {}", versionId);
+        entity.replace(json(configuration)); entity.assignScenario(scenario); configurations.save(entity);
+        drafts.deleteByScenarioId(scenario.getId());
+        logger.info("Economic configuration saved for scenario {} of version {}", scenario.getId(), version.getId());
         return configuration;
     }
 
@@ -85,7 +101,10 @@ public class EconomicService {
         return save(projectId, versionId, configuration);
     }
 
-    @Transactional(noRollbackFor = IllegalArgumentException.class)
+    // noRollbackFor RuntimeException on the three reads a scenario list makes per element (this one, configuration and
+    // evaluationOf): the list contains a failure to its scenario, which would otherwise leave the shared transaction
+    // rollback-only and fail the whole request at commit. A failure that propagates still rolls back its caller.
+    @Transactional(noRollbackFor = RuntimeException.class)
     public void validateConfiguration(EconomicConfiguration configuration, Version version) {
         validator.validate(configuration, nodeIds(version));
         validateExportNodes(configuration, version);
@@ -101,11 +120,12 @@ public class EconomicService {
         Version version = authorizeConfigurationEdit(projectId, versionId);
         lock(version);
         EconomicValidator.require(draft != null, "Draft is required");
-        changeScope.assertCanSaveDraft(version, drafts.findByVersionId(versionId)
+        var scenario = scenarioDefaults.forVersion(version);
+        changeScope.assertCanSaveDraft(version, drafts.findByScenarioId(scenario.getId())
                 .map(e -> read(e.getDraftJson(), EconomicDraftDTO.class).draft()).orElse(null), draft.draft());
         draft.validateStructure();
-        var entity = drafts.findByVersionId(versionId).orElseGet(() -> new EconomicDraftEntity(version, ""));
-        entity.replace(json(draft)); drafts.save(entity);
+        var entity = drafts.findByScenarioId(scenario.getId()).orElseGet(() -> new EconomicDraftEntity(version, ""));
+        entity.replace(json(draft)); entity.assignScenario(scenario); drafts.save(entity);
         logger.info("Economic draft saved for version {}", versionId);
         return draft;
     }
@@ -113,8 +133,13 @@ public class EconomicService {
     @Transactional(readOnly = true)
     public EconomicDraftDTO getDraft(UUID projectId, UUID versionId) {
         authorize(projectId, versionId, ProjectMemberPermission.VIEW_PROJECT);
-        return drafts.findByVersionId(versionId).map(e -> read(e.getDraftJson(),
-                EconomicDraftDTO.class)).orElse(null);
+        return scenarioDefaults.existing(versionId).map(this::draftOf).orElse(null);
+    }
+
+    /** The legacy economic draft of a scenario, or null. */
+    @Transactional(readOnly = true)
+    public EconomicDraftDTO draftOf(Scenario scenario) {
+        return drafts.findByScenarioId(scenario.getId()).map(e -> read(e.getDraftJson(), EconomicDraftDTO.class)).orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -139,7 +164,9 @@ public class EconomicService {
         // Node entities have no back-reference to versions; Jackson captures their concrete physical parameters.
         Snapshot snapshot = new Snapshot(2, c, codec.displayNodes(input),
                 input.connections(), operational.rawMetrics(), result, input.simulation(), null);
-        EconomicEvaluation stored = evaluations.saveAndFlush(new EconomicEvaluation(version, json(snapshot)));
+        var evaluation = new EconomicEvaluation(version, json(snapshot));
+        evaluation.assignScenario(scenarioDefaults.forVersion(version));
+        EconomicEvaluation stored = evaluations.saveAndFlush(evaluation);
         logger.info("Economic evaluation {} completed for version {}", stored.getId(), versionId);
         return new EvaluationDTO(stored.getId(), stored.getCreatedAt(), snapshot);
     }
@@ -147,20 +174,49 @@ public class EconomicService {
     @Transactional(readOnly = true)
     public List<EvaluationDTO> list(UUID projectId, UUID versionId) {
         authorize(projectId, versionId, ProjectMemberPermission.VIEW_PROJECT);
-        return evaluations.findByVersionIdOrderByCreatedAtDesc(versionId).stream().map(this::dto).toList();
+        return scenarioDefaults.existing(versionId).stream().flatMap(s -> evaluationsOf(s).stream()).toList();
+    }
+
+    /** The evaluations of a scenario, newest first. */
+    @Transactional(readOnly = true)
+    public List<EvaluationDTO> evaluationsOf(Scenario scenario) {
+        return evaluations.findByScenarioIdOrderByCreatedAtDesc(scenario.getId()).stream().map(this::dto).toList();
     }
 
     @Transactional(readOnly = true)
     public EvaluationDTO getEvaluation(UUID projectId, UUID versionId, UUID evaluationId) {
         authorize(projectId, versionId, ProjectMemberPermission.VIEW_PROJECT);
-        return dto(evaluations.findByIdAndVersionId(evaluationId, versionId)
+        return dto(scenarioDefaults.existing(versionId).flatMap(s -> evaluations.findByIdAndScenarioId(evaluationId, s.getId()))
+                .orElseThrow(() -> new EntityNotFoundException("Economic evaluation not found")));
+    }
+
+    /**
+     * A saved evaluation by its own id, with no requirement on its scenario or version being active: saved comparisons read
+     * the simulations they were made with even after the scenario or the version was deleted. The caller authorizes.
+     */
+    @Transactional(readOnly = true)
+    public EvaluationDTO evaluationById(UUID evaluationId) {
+        return dto(evaluations.findById(evaluationId).orElseThrow(() -> new EntityNotFoundException("Economic evaluation not found")));
+    }
+
+    /** One evaluation of a scenario; another scenario's evaluation is a 404. */
+    @Transactional(readOnly = true, noRollbackFor = RuntimeException.class)
+    public EvaluationDTO evaluationOf(Scenario scenario, UUID evaluationId) {
+        return dto(evaluations.findByIdAndScenarioId(evaluationId, scenario.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Economic evaluation not found")));
     }
 
     //TODO: revisar parametros de entrada
     @Transactional(noRollbackFor = EntityNotFoundException.class)
     public EconomicConfiguration configuration(UUID versionId) {
-        return read(configurations.findByVersionId(versionId)
+        return read(scenarioDefaults.existing(versionId).flatMap(s -> configurations.findByScenarioId(s.getId()))
+                .orElseThrow(() -> new EntityNotFoundException("Economic configuration not found")).getConfigurationJson(), EconomicConfiguration.class);
+    }
+
+    /** The published economic configuration of a scenario. */
+    @Transactional(noRollbackFor = RuntimeException.class)
+    public EconomicConfiguration configuration(Scenario scenario) {
+        return read(configurations.findByScenarioId(scenario.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Economic configuration not found")).getConfigurationJson(), EconomicConfiguration.class);
     }
 

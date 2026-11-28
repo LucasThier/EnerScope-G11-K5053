@@ -55,7 +55,7 @@ test('a node of an unknown type blocks the vertical check', () => {
   assert.deepEqual(rules.uneditableVerticals([{ type: 'MYSTERY' }], ['EXTRACTION']), [rules.UNKNOWN_VERTICAL]);
 });
 
-function mergeLabels(canMergeInto) {
+function treeLabels(canMergeInto, canImportInto = () => false) {
   const version = (id, parentVersionId) => ({ id, name: id, parentVersionId, createdAt: null });
   const tree = VersionTree({
     nodes: [
@@ -66,8 +66,10 @@ function mergeLabels(canMergeInto) {
     ],
     canEdit: true,
     canMergeInto,
+    canImportInto,
     unresolvedConflicts: {},
     onDelete: () => undefined,
+    onImport: () => undefined,
     onMerge: () => undefined,
     onResolveConflicts: () => undefined,
   });
@@ -79,7 +81,15 @@ function mergeLabels(canMergeInto) {
       walk(node.props?.children);
     }
   })(tree);
-  return labels.filter((label) => label?.startsWith('Mergear'));
+  return labels;
+}
+
+function mergeLabels(canMergeInto) {
+  return treeLabels(canMergeInto).filter((label) => label?.startsWith('Mergear'));
+}
+
+function importLabels(canImportInto) {
+  return treeLabels(() => false, canImportInto).filter((label) => label?.startsWith('Importar'));
 }
 
 test('the merge button appears only when the parent can be managed', () => {
@@ -87,6 +97,14 @@ test('the merge button appears only when the parent can be managed', () => {
     'Mergear child con root',
   ]);
   assert.deepEqual(mergeLabels(() => false), []);
+});
+
+test('the import button appears only on the versions the caller can import into', () => {
+  assert.deepEqual(importLabels(() => false), []);
+  assert.deepEqual(importLabels((versionId) => versionId === 'child'), ['Importar CSV en child']);
+  assert.deepEqual(importLabels(() => true), ['Importar CSV en root', 'Importar CSV en child']);
+  const noRoot = { ...access, versions: access.versions.map((v) => (v.versionId === 'root' ? { ...v, canEdit: false } : v)) };
+  assert.deepEqual(importLabels((versionId) => rules.findVersionAccess(noRoot, versionId)?.canEdit === true), ['Importar CSV en child']);
 });
 
 const full = (overrides = {}) => ({

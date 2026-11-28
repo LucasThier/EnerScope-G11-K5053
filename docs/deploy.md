@@ -29,6 +29,11 @@ docker compose up --build -d
 This starts PostgreSQL and the API. The API waits for the database health check
 before booting.
 
+> **Do not run `docker compose down -v`.** `backend/docker-compose.yml` keeps PostgreSQL's data in the named volume
+> `enerscope_pgdata` (mounted at `/var/lib/postgresql/data` of the `db` service). It survives `docker compose down`,
+> `stop` and API rebuilds; `-v` deletes it together with every project, version, scenario, simulation and saved
+> comparison. Take a `pg_dump` first if you really need a fresh database.
+
 ## Building images manually
 
 ```bash

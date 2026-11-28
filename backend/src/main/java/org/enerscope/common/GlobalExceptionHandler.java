@@ -2,6 +2,8 @@ package org.enerscope.common;
 
 import org.enerscope.logging.AppLogger;
 import org.enerscope.scenario.service.ScenarioConflictException;
+import org.enerscope.scenario.service.ScenarioRuleConflictException;
+import org.enerscope.version.service.VersionHasResultsException;
 import org.enerscope.util.ApiResponse;
 import org.enerscope.util.Responses;
 import org.springframework.http.HttpStatus;
@@ -57,6 +59,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArg(IllegalArgumentException ex) {
+        return Responses.badRequest(ex.getMessage());
+    }
+
+    /** A stored graph the simulator cannot process: the caller gets the reason, the log keeps what failed. */
+    @ExceptionHandler(org.enerscope.simulator.InvalidSimulationGraphException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidSimulationGraph(
+            org.enerscope.simulator.InvalidSimulationGraphException ex) {
+        logger.warn("Rejected a simulation: {} (cause: {})", ex.getMessage(),
+                ex.getCause() == null ? "none" : ex.getCause().getClass().getSimpleName());
         return Responses.badRequest(ex.getMessage());
     }
 
@@ -143,6 +154,16 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ScenarioConflictException.class)
     public ResponseEntity<ApiResponse<Void>> handleScenarioConflict(ScenarioConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(VersionHasResultsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleVersionHasResults(VersionHasResultsException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ScenarioRuleConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleScenarioRuleConflict(ScenarioRuleConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
     }
 

@@ -100,7 +100,6 @@ jobs:
   backend-it:
     name: Backend integration tests (PostgreSQL)
     runs-on: ubuntu-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: backend

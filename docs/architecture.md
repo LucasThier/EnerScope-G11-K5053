@@ -25,6 +25,16 @@ EnerScope is a two-tier web application kept in a single repository (monorepo).
 - **Cross-cutting concerns.** A global exception handler returns a uniform
   `ApiResponse` envelope; all logging flows through the `AppLogger` abstraction.
 
+### Versions and scenarios
+
+A **version** is the physical base of a project (nodes, connections, branches); a **scenario** is the economic and
+simulation configuration that rests on it. One version holds several scenarios (up to 20), and every version is born
+with its own "Escenario base". Configurations, drafts, simulation jobs, saved results and the items of saved
+comparisons belong to a scenario (package `org.enerscope.scenario`; comparisons in `org.enerscope.comparison` compare
+scenarios of one project). Routes: `/projects/{p}/versions/{v}/scenarios`, `/projects/{p}/scenarios/{s}/...`; the older
+`/versions/{v}/...` economics routes act on the version's default scenario. Details: [`domain-model.md`](domain-model.md),
+[`../backend/README.md`](../backend/README.md#scenario-api) and [`scenario-comparison.md`](scenario-comparison.md).
+
 ### Request flow (authenticated call)
 
 1. Client sends a request with `Authorization: Bearer <access token>`.

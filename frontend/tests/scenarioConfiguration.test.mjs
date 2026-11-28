@@ -28,6 +28,10 @@ test('joint draft keeps its original source token after map changes',()=>{
  const input=initialScenario(state);assert.equal(input.token,'1');assert.equal(input.sourceToken,'old');
  assert.equal(state.draft.token,'old');
 });
+test('a recovered draft never resends stale node values: they are always the nodes\' current ones',()=>{
+ const state=base();state.draft={...initialScenario(state),operations:{n1:{name:'Old',maxCollectionCapacity:1}}};
+ assert.equal(initialScenario(state).operations.n1.maxCollectionCapacity,123);
+});
 test('complete simple saves publish economics while incomplete saves retain raw input only',()=>{
  const input=initialScenario(base());assert.ok(prepareScenario(input,[]).configuration);
  input.editor.value.years='';const pending=prepareScenario(input,[]);

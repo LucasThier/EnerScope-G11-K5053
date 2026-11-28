@@ -85,32 +85,44 @@ class ScenarioVerticalAccessHttpTest {
         nodeOf.put(VerticalEnum.LIQUEFACTION, fixture.addNode(NodeTypeEnum.FLNG_UNIT));
         nodeOf.put(VerticalEnum.INTERNAL_CONSUMPTION, fixture.addNode(NodeTypeEnum.INTERNAL_CONSUMPTION));
         configurationJson = fixture.remapNodeIds(mapper.writeValueAsString(EconomicExample.configuration()));
-        em.persist(new EconomicConfigurationEntity(fixture.version(), configurationJson));
+        var defaultScenario = org.enerscope.scenario.ScenarioFixtures.defaultScenario(em, fixture.version());
+        var storedConfiguration = new EconomicConfigurationEntity(fixture.version(), configurationJson);
+        storedConfiguration.assignScenario(defaultScenario);
+        em.persist(storedConfiguration);
         em.flush();
     }
 
     @ParameterizedTest
-    @EnumSource(value = VerticalEnum.class, names = {"EXTRACTION", "TRANSPORTATION", "LIQUEFACTION", "EXPORT"})
-    void editorPublishesAChangeToANodeOfItsOwnVertical(VerticalEnum vertical) throws Exception {
+    @EnumSource(value = VerticalEnum.class, names = {"EXTRACTION", "EXPORT"})
+    void editorPublishesAChangeToARuleOfItsOwnVerticalsNode(VerticalEnum vertical) throws Exception {
         User editor = fixture.versionEditorOf(vertical);
 
-        saveScenario(editor, rename(readScenario(editor), nodeOf.get(vertical), "Edited " + vertical))
+        saveScenario(editor, withConfiguration(readScenario(editor), raiseCostsOf(vertical)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.errors").isEmpty());
 
-        assertTrue(nodeNames(editor).containsValue("Edited " + vertical));
+        assertTrue(storedConfiguration().contains("99"));
         assertFalse(scenarioDrafts.existsByVersionId(versionId()));
     }
 
     @ParameterizedTest
     @EnumSource(value = VerticalEnum.class, names = {"EXTRACTION", "TRANSPORTATION", "LIQUEFACTION", "EXPORT"})
-    void editorChangingANodeOfAnotherVerticalGets403AndNothingIsSaved(VerticalEnum vertical) throws Exception {
+    void editorChangingARuleOfAnotherVerticalsNodeGets403AndNothingIsSaved(VerticalEnum vertical) throws Exception {
         User editor = fixture.versionEditorOf(vertical);
         VerticalEnum other = vertical == VerticalEnum.EXPORT ? VerticalEnum.EXTRACTION : VerticalEnum.EXPORT;
-        Map<UUID, String> before = nodeNames(editor);
 
-        expectDenied(saveScenario(editor, rename(readScenario(editor), nodeOf.get(other), "Hijacked")), VERTICAL_DENIED);
+        expectDenied(saveScenario(editor, withConfiguration(readScenario(editor), raiseCostsOf(other))), VERTICAL_DENIED);
 
-        assertEquals(before, nodeNames(editor));
+        assertNothingWritten();
+    }
+
+    @Test
+    void aScenarioSaveThatWouldChangeNodeValuesIsRefusedWithAClearMessageNotSilentlyDropped() throws Exception {
+        User admin = fixture.projectEditorWithVersionRoles(VersionMemberType.ADMIN);
+
+        saveScenario(admin, rename(readScenario(admin), nodeOf.get(VerticalEnum.EXTRACTION), "Renamed from the scenario"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("se editan en cada nodo de la versión")));
+
         assertNothingWritten();
     }
 
@@ -155,17 +167,9 @@ class ScenarioVerticalAccessHttpTest {
     }
 
     @Test
-    void anyEditorChangesAnInternalConsumptionNode() throws Exception {
-        User editor = fixture.versionEditorOf(VerticalEnum.LIQUEFACTION);
-
-        saveScenario(editor, rename(readScenario(editor), nodeOf.get(VerticalEnum.INTERNAL_CONSUMPTION), "Shared"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.errors").isEmpty());
-    }
-
-    @Test
-    void draftWithAnInvalidValueOnAnotherVerticalsNodeGets403AndIsNotStored() throws Exception {
+    void draftWithAnInvalidRuleOnAnotherVerticalsNodeGets403AndIsNotStored() throws Exception {
         User editor = fixture.versionEditorOf(VerticalEnum.EXTRACTION);
-        JsonNode request = setValue(readScenario(editor), nodeOf.get(VerticalEnum.EXPORT), "maxCollectionCapacity", "-1");
+        JsonNode request = withConfiguration(readScenario(editor), invalidCostsOf(VerticalEnum.EXPORT));
 
         expectDenied(saveScenario(editor, request), VERTICAL_DENIED);
 
@@ -173,9 +177,9 @@ class ScenarioVerticalAccessHttpTest {
     }
 
     @Test
-    void draftWithAnInvalidValueOnItsOwnVerticalsNodeIsStored() throws Exception {
+    void draftWithAnInvalidRuleOnItsOwnVerticalsNodeIsStored() throws Exception {
         User editor = fixture.versionEditorOf(VerticalEnum.EXTRACTION);
-        JsonNode request = setValue(readScenario(editor), nodeOf.get(VerticalEnum.EXTRACTION), "maxCollectionCapacity", "-1");
+        JsonNode request = withConfiguration(readScenario(editor), invalidCostsOf(VerticalEnum.EXTRACTION));
 
         saveScenario(editor, request).andExpect(status().isOk()).andExpect(jsonPath("$.data.errors").isNotEmpty());
 
@@ -186,8 +190,8 @@ class ScenarioVerticalAccessHttpTest {
     @Test
     void editorOfAnyVerticalDiscardsADraftHoldingAnotherVerticalsChange() throws Exception {
         User admin = fixture.projectEditorWithVersionRoles(VersionMemberType.ADMIN);
-        saveScenario(admin, setValue(readScenario(admin), nodeOf.get(VerticalEnum.EXPORT), "maxCollectionCapacity", "-1"))
-                .andExpect(status().isOk());
+        saveScenario(admin, withConfiguration(readScenario(admin), invalidCostsOf(VerticalEnum.EXPORT)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.errors").isNotEmpty());
         assertTrue(scenarioDrafts.existsByVersionId(versionId()));
         User editor = fixture.versionEditorOf(VerticalEnum.LIQUEFACTION);
 
@@ -353,25 +357,21 @@ class ScenarioVerticalAccessHttpTest {
         ObjectNode request = (ObjectNode) saveRequest(copy);
         request.set("configuration", mapper.readTree(configuration));
         ((ObjectNode) request.path("editor")).set("value", mapper.readTree(configuration));
-        String exportCopy = copyNodeId(copy, parent, nodeOf.get(VerticalEnum.EXPORT));
-        ((ObjectNode) request.path("operations").path(exportCopy)).put("name", "Renamed in copy");
 
         return new ChildCopy(child, saveScenario(editor, request, child));
     }
 
     private void assertChangesEveryVertical(User user) throws Exception {
-        JsonNode request = readScenario(user);
-        for (VerticalEnum vertical : VerticalEnum.values()) {
-            request = rename(request, nodeOf.get(vertical), "Admin " + vertical);
-        }
-        ObjectNode withCosts = (ObjectNode) request;
-        withCosts.set("configuration", mutated(raiseExportCosts()));
-        ((ObjectNode) withCosts.path("editor")).set("value", withCosts.path("configuration"));
+        JsonNode request = withConfiguration(readScenario(user), tree -> {
+            raiseCostsOf(VerticalEnum.EXTRACTION).accept(tree);
+            raiseCostsOf(VerticalEnum.EXPORT).accept(tree);
+            tree.put("wacc", 0.12);
+        });
 
-        saveScenario(user, withCosts).andExpect(status().isOk()).andExpect(jsonPath("$.data.errors").isEmpty());
+        saveScenario(user, request).andExpect(status().isOk()).andExpect(jsonPath("$.data.errors").isEmpty());
 
-        assertTrue(nodeNames(user).values().containsAll(java.util.Arrays.stream(VerticalEnum.values())
-                .map(v -> "Admin " + v).toList()));
+        assertTrue(storedConfiguration().contains("99"));
+        assertEquals(0.12, mapper.readTree(storedConfiguration()).path("wacc").asDouble());
     }
 
     private void assertNothingWritten() throws Exception {
@@ -388,10 +388,24 @@ class ScenarioVerticalAccessHttpTest {
     }
 
     private Consumer<ObjectNode> raiseExportCosts() {
-        String exportId = nodeOf.get(VerticalEnum.EXPORT).toString();
+        return raiseCostsOf(VerticalEnum.EXPORT);
+    }
+
+    /** Sets every rule of the node profile of the given vertical's node to a unit value of 99. */
+    private Consumer<ObjectNode> raiseCostsOf(VerticalEnum vertical) {
+        return setCostsOf(vertical, 99);
+    }
+
+    /** A rule value the economic validator refuses (negative), so the save becomes a draft. */
+    private Consumer<ObjectNode> invalidCostsOf(VerticalEnum vertical) {
+        return setCostsOf(vertical, -1);
+    }
+
+    private Consumer<ObjectNode> setCostsOf(VerticalEnum vertical, int unitValue) {
+        String nodeId = nodeOf.get(vertical).toString();
         return tree -> tree.withArray("nodeProfiles").forEach(profile -> {
-            if (profile.path("nodeId").asText().equals(exportId)) {
-                profile.withArray("rules").forEach(rule -> ((ObjectNode) rule).put("unitValue", 99));
+            if (profile.path("nodeId").asText().equals(nodeId)) {
+                profile.withArray("rules").forEach(rule -> ((ObjectNode) rule).put("unitValue", unitValue));
             }
         });
     }
@@ -435,19 +449,6 @@ class ScenarioVerticalAccessHttpTest {
         return request;
     }
 
-    private String copyNodeId(JsonNode copy, JsonNode parent, UUID parentNodeId) {
-        for (JsonNode node : parent.path("nodes")) {
-            if (node.path("id").asText().equals(parentNodeId.toString())) {
-                for (JsonNode candidate : copy.path("nodes")) {
-                    if (candidate.path("identity").equals(node.path("identity"))) {
-                        return candidate.path("id").asText();
-                    }
-                }
-            }
-        }
-        throw new AssertionError("Copied node not found");
-    }
-
     private String economicDraft(String nodeId, String value) {
         ObjectNode draft = mapper.createObjectNode();
         for (String field : new String[]{"startYear", "years", "currency", "wacc", "entityId", "entityName", "taxRate"}) {
@@ -461,14 +462,6 @@ class ScenarioVerticalAccessHttpTest {
         ObjectNode body = mapper.createObjectNode().put("schemaVersion", 1);
         body.set("draft", draft);
         return body.toString();
-    }
-
-    private Map<UUID, String> nodeNames(User user) throws Exception {
-        Map<UUID, String> names = new HashMap<>();
-        for (JsonNode node : readScenario(user).path("nodes")) {
-            names.put(UUID.fromString(node.path("identity").asText()), node.path("name").asText());
-        }
-        return names;
     }
 
     private String storedConfiguration() {

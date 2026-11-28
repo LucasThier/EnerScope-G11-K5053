@@ -141,7 +141,7 @@ export function NodeDataPanel({
         <div className="border-t border-ink-100 pt-3">
           <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Datos</span>
           <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-            <dt className="text-ink-400">Vida útil (meses)</dt>
+            <dt className="text-ink-500">Vida útil (meses)</dt>
             <dd className="text-ink-700">{fmt(detail.lifespanInMonths)}</dd>
             <dt className="text-ink-500">Intervalo de mantenimiento (días)</dt>
             <dd className="text-ink-700">{fmt(detail.maintenanceIntervalInDays)}</dd>
@@ -149,7 +149,7 @@ export function NodeDataPanel({
             <dd className="text-ink-700">{fmt(detail.wastePercentage)}</dd>
             {spec && operationalFields(spec).map((f) => (
               <Fragment key={f.key}>
-                <dt className="text-ink-400">{f.label}</dt>
+                <dt className="text-ink-500">{f.label}</dt>
                 <dd className="text-ink-700">{f.key === 'declineCurve' && detail.declineCurve ? `${DECLINE_LABELS[detail.declineCurve.type]}: ${detail.declineCurve.val_a}${detail.declineCurve.val_b == null ? '' : ` / ${detail.declineCurve.val_b}`}` : fmt(detail.attributes[f.key])}</dd>
               </Fragment>
             ))}
@@ -174,14 +174,13 @@ export function NodeDataPanel({
           onClick={() => {
             if (canEdit) onRestore(node.id);
           }}
-          className="border-brand-300 text-brand-700 hover:bg-brand-50"
         >
           Restaurar nodo
         </Button>
       ) : (
         <Button
           variant="ghost"
-          className="text-danger-600! hover:bg-danger-50"
+          className="text-danger-600!"
           disabled={!canEdit}
           onClick={() => {
             if (canEdit) onDelete(node.id);

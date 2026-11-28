@@ -2,12 +2,13 @@ import { emptyDraft, fromConfiguration, toConfiguration, validateDraft } from '.
 import type { ScenarioConfiguration, ScenarioEditor, ScenarioSave } from '../types/scenarioConfiguration';
 import type { Scenario } from '../types/economics';
 export function initialScenario(state: ScenarioConfiguration): ScenarioSave {
+ // Node values belong to the version: they are always the nodes' current ones (a recovered draft's old copy is not resent).
+ const operations = Object.fromEntries(state.nodes.map(n => [n.id, n.values]));
  const simple = state.legacyDraft?.draft ?? (state.configuration ? fromConfiguration(state.configuration) : emptyDraft());
  const editor: ScenarioEditor = simple ? { mode: 'simple', value: simple } :
    { mode: 'advanced', value: state.configuration! };
- return state.draft ? { ...state.draft, token: state.token } : {
-  token: state.token, sourceToken: state.sourceToken, editor, configuration: state.configuration,
-  operations: Object.fromEntries(state.nodes.map(n => [n.id, n.values])),
+ return state.draft ? { ...state.draft, token: state.token, operations } : {
+  token: state.token, sourceToken: state.sourceToken, editor, configuration: state.configuration, operations,
  };
 }
 export function prepareScenario(state: ScenarioSave, nodes: Scenario['nodes']): ScenarioSave {

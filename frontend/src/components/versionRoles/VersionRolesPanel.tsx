@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert } from '../ui/Alert';
+import { tableBodyCellCompact, tableHeaderCellCompact } from '../ui/tableClasses';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { SearchField } from '../ui/SearchField';
@@ -165,13 +166,13 @@ export function VersionRolesPanel({
                   <tr className="border-b border-ink-100 bg-ink-50">
                     <th
                       scope="col"
-                      className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500"
+                      className={tableHeaderCellCompact}
                     >
                       Persona
                     </th>
                     <th
                       scope="col"
-                      className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500"
+                      className={tableHeaderCellCompact}
                     >
                       Roles
                     </th>
@@ -182,7 +183,7 @@ export function VersionRolesPanel({
                     const projectAdmin = projectMemberOf(member.userId)?.memberType === 'ADMIN';
                     return (
                       <tr key={member.id} className="border-b border-ink-100 last:border-b-0">
-                        <td className="px-3 py-2 align-top text-sm">
+                        <td className={`${tableBodyCellCompact} align-top`}>
                           <div className="font-semibold text-ink-800">{fullName(member)}</div>
                           <div className="text-ink-500">{member.userMail}</div>
                           <div className="mt-1 flex flex-wrap gap-1">

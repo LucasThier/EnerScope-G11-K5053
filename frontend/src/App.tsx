@@ -23,6 +23,8 @@ import { OrganizationTeamPage } from './pages/OrganizationTeamPage';
 import { ProjectTeamPage } from './pages/ProjectTeamPage';
 import { VersionsPage } from './pages/VersionsPage';
 import { VersionsIndexPage } from './pages/VersionsIndexPage';
+import { VersionScenariosPage } from './pages/VersionScenariosPage';
+import { LegacyEconomicsRedirect } from './pages/LegacyEconomicsRedirect';
 import { OrganizationMemberRoute } from './routes/OrganizationMemberRoute';
 import { OrganizationOwnerRoute } from './routes/OrganizationOwnerRoute';
 import { MyOrganizationsPage } from './pages/MyOrganizationsPage';
@@ -45,9 +47,13 @@ const router = createBrowserRouter(createRoutesFromElements(<>
                     <Route path="/projects/:projectId/versions" element={<VersionsPage />} />
                     <Route path="/projects/:projectId/comparisons" element={<ComparisonsPage />} />
                     <Route path="/projects/:projectId/comparisons/:comparisonId" element={<ComparisonResultPage />} />
-                    <Route path="/projects/:projectId/versions/:versionId/economics" element={<ScenarioConfigurationPage />} />
-                    <Route path="/projects/:projectId/versions/:versionId/economics/configuration" element={<ScenarioConfigurationPage />} />
-                    <Route path="/projects/:projectId/versions/:versionId/economics/:tab/:evaluationId?" element={<EconomicsPage />} />
+                    {/* Scenario flow: version -> its scenarios -> one scenario (configuration, history, results). */}
+                    <Route path="/projects/:projectId/versions/:versionId/scenarios" element={<VersionScenariosPage mode="configuration" />} />
+                    <Route path="/projects/:projectId/versions/:versionId/simulations" element={<VersionScenariosPage mode="simulation" />} />
+                    <Route path="/projects/:projectId/versions/:versionId/scenarios/:scenarioId/configuration" element={<ScenarioConfigurationPage />} />
+                    <Route path="/projects/:projectId/versions/:versionId/scenarios/:scenarioId/:tab/:evaluationId?" element={<EconomicsPage />} />
+                    {/* Earlier version-level economics routes lead to the version's default scenario. */}
+                    <Route path="/projects/:projectId/versions/:versionId/economics/*" element={<LegacyEconomicsRedirect />} />
                   </Route>
                   <Route path="/versions" element={<VersionsIndexPage />} />
                   <Route path="/profile" element={<ProfilePage />} />

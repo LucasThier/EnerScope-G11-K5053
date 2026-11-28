@@ -8,7 +8,7 @@ import { useActiveProject } from '../../hooks/useActiveProject';
 import { formatDateShort } from '../../utils/date';
 import { hasReliableRecency, sortByRecency } from '../../utils/recentProjects';
 
-const RECENT_COUNT = 5;
+const RECENT_COUNT = 3;
 
 export function RecentProjectsList() {
   const { projects, activeProject, isLoading, error, selectProject, reload } = useActiveProject();
@@ -21,7 +21,7 @@ export function RecentProjectsList() {
 
   return (
     <Card padded={false} className="min-w-0">
-      <div className="flex items-center justify-between gap-4 px-6 py-5">
+      <div className="flex items-center justify-between gap-4 px-6 py-3">
         <h2 className="text-lg font-semibold text-ink-800">
           {reliable || isLoading ? 'Proyectos recientes' : 'Proyectos'}
         </h2>
@@ -72,7 +72,7 @@ export function RecentProjectsList() {
                   onClick={() => selectProject(project.id)}
                   aria-current={isSelected ? 'true' : undefined}
                   className={
-                    'flex min-h-control items-center gap-3 rounded-control border-l-[3px] px-3 py-2 ' +
+                    'flex min-h-control items-center gap-3 rounded-control border-l-[3px] px-3 py-2 [@media(max-height:760px)]:min-h-11 [@media(max-height:760px)]:py-1 ' +
                     'transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
                     'motion-reduce:transition-none ' +
                     (isSelected

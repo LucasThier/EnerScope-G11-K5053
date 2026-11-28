@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
+import { PageHeader } from '../components/ui/PageHeader';
 import { Avatar } from '../components/ui/Avatar';
 import { ChangePasswordForm } from '../components/auth/ChangePasswordForm';
 import { AppearanceSettings } from '../components/settings/AppearanceSettings';
@@ -233,8 +234,7 @@ export function ProfilePage() {
 
   return (
     <div ref={pageRef}>
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold text-ink-800">Mi perfil</h1>
+      <PageHeader title="Mi perfil">
         <div className="mt-4 flex items-center gap-3">
           <Avatar firstName={user.firstName} lastName={user.lastName} />
           <div className="min-w-0">
@@ -246,7 +246,7 @@ export function ProfilePage() {
             </p>
           </div>
         </div>
-      </header>
+      </PageHeader>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
         <nav

@@ -2,6 +2,8 @@ package org.enerscope.version.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.enerscope.common.CsvUtil;
+import org.enerscope.node.model.enums.NodeTypeEnum;
+import org.enerscope.node.model.enums.VerticalEnum;
 import org.enerscope.common.ForbiddenException;
 import org.enerscope.economic.model.configuration.EconomicConfiguration;
 import org.enerscope.economic.service.EconomicService;
@@ -133,7 +135,7 @@ class VersionNodeCsvImportServiceTest {
             case "GATHERING_NETWORK", "TREATMENT_PLANT", "WELL" -> "EXTRACTION";
             case "PIPELINE", "PIPELINE_CONNECTION", "COMPRESSING_PLANT" -> "TRANSPORTATION";
             case "GROUND_BASED_LIQUEFACTION_PLANT", "FLNG_UNIT" -> "LIQUEFACTION";
-            case "INTERNAL_CONSUMPTION" -> "INTERNAL_CONSUMPTION";
+            case "INTERNAL_CONSUMPTION", "INDUSTRIAL_CONSUMPTION" -> "INTERNAL_CONSUMPTION";
             default -> "EXPORT";
         };
     }
@@ -184,7 +186,7 @@ class VersionNodeCsvImportServiceTest {
                         "{\"vertical\":\"TRANSPORTATION\",\"role\":\"INTERMEDIATE\",\"nodeType\":\"PIPELINE\"}",
                         "{\"components\":[]}", "120", "10", "0.1", ""),
                 List.of("INDUSTRIAL_CONSUMPTION", "Factory", "RUNNING", "240", "10", "30", "20", "0.1",
-                        "{\"vertical\":\"EXPORT\",\"role\":\"SINK\",\"nodeType\":\"INDUSTRIAL_CONSUMPTION\"}",
+                        "{\"vertical\":\"INTERNAL_CONSUMPTION\",\"role\":\"SINK\",\"nodeType\":\"INDUSTRIAL_CONSUMPTION\"}",
                         "{\"components\":[]}", "", "", "", "75")));
 
         int count = importCsv(versionId, csv);
@@ -430,6 +432,34 @@ class VersionNodeCsvImportServiceTest {
     }
 
     @Test
+    void importsIndustrialConsumptionDeclaredInTheVerticalOfNodeTypeEnum() {
+        UUID versionId = UUID.randomUUID();
+        String csv = withCell(validRow("INDUSTRIAL_CONSUMPTION"), "type",
+                "{\"vertical\":\"INTERNAL_CONSUMPTION\",\"role\":\"SINK\",\"nodeType\":\"INDUSTRIAL_CONSUMPTION\"}");
+
+        assertEquals(1, importCsv(versionId, csv));
+
+        ArgumentCaptor<BaseNodeDTO> dtoCaptor = ArgumentCaptor.forClass(BaseNodeDTO.class);
+        verify(versionService).addNodeToVersion(eq(versionId), dtoCaptor.capture());
+        IndustrialConsumptionDTO node = assertInstanceOf(IndustrialConsumptionDTO.class, dtoCaptor.getValue());
+        assertEquals(VerticalEnum.INTERNAL_CONSUMPTION, node.getType().getVertical());
+        assertEquals(NodeTypeEnum.INDUSTRIAL_CONSUMPTION.vertical(), node.getType().getVertical());
+    }
+
+    @Test
+    void rejectsIndustrialConsumptionDeclaredAsExportBeforePersisting() {
+        String csv = withCell(validRow("INDUSTRIAL_CONSUMPTION"), "type",
+                "{\"vertical\":\"EXPORT\",\"role\":\"SINK\",\"nodeType\":\"INDUSTRIAL_CONSUMPTION\"}");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(UUID.randomUUID(), csv));
+
+        assertEquals("CSV record 2 (INDUSTRIAL_CONSUMPTION) has type.vertical 'EXPORT'; expected 'INTERNAL_CONSUMPTION'",
+                exception.getMessage());
+        verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @Test
     void rejectsUnknownNodeKindWithSupportedKinds() {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
                 () -> importCsv(UUID.randomUUID(), "nodeKind,name\nUNKNOWN,Sample"));
@@ -569,6 +599,140 @@ class VersionNodeCsvImportServiceTest {
                 () -> csvImportService.importNodes(UUID.randomUUID(), oversizedCsv));
 
         assertTrue(exception.getMessage().contains("10 MB or smaller"));
+    }
+
+    @Test
+    void rejectsIdentityThatAlreadyExistsInTheVersionBeforePersisting() {
+        UUID versionId = UUID.randomUUID();
+        UUID identity = UUID.randomUUID();
+        when(versionService.nodeIdentities(versionId)).thenReturn(java.util.Set.of(identity));
+        String csv = withCell(validRow("WELL"), "identity", identity.toString());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(versionId, csv));
+
+        assertEquals("Invalid CSV record 2 (NODE): identity %s already exists in this version".formatted(identity),
+                exception.getMessage());
+        verify(versionService, never()).addNodeToVersion(any(), any());
+        verify(versionService, never()).addConnectionToVersion(any(), any());
+        verify(economicService, never()).saveImportedConfiguration(any(), any());
+    }
+
+    @Test
+    void rejectsExistingIdentityOnALaterRowWithoutWritingTheEarlierValidRows() {
+        UUID versionId = UUID.randomUUID();
+        UUID existing = UUID.randomUUID();
+        when(versionService.nodeIdentities(versionId)).thenReturn(java.util.Set.of(existing));
+        List<List<String>> rows = CsvUtil.parseStrict(withCell(validRow("WELL"), "identity", UUID.randomUUID().toString()), 3);
+        List<String> second = new java.util.ArrayList<>(rows.get(1));
+        second.set(rows.get(0).indexOf("identity"), existing.toString());
+        rows.add(second);
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(versionId, CsvUtil.write(rows)));
+
+        assertEquals("Invalid CSV record 3 (NODE): identity %s already exists in this version".formatted(existing),
+                exception.getMessage());
+        verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @Test
+    void rejectsIdentityRepeatedInTheFileBeforePersisting() {
+        UUID versionId = UUID.randomUUID();
+        UUID identity = UUID.randomUUID();
+        when(versionService.nodeIdentities(versionId)).thenReturn(java.util.Set.of());
+        List<List<String>> rows = CsvUtil.parseStrict(withCell(validRow("WELL"), "identity", identity.toString()), 3);
+        rows.add(new java.util.ArrayList<>(rows.get(1)));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(versionId, CsvUtil.write(rows)));
+
+        assertEquals("Invalid CSV record 3 (NODE): identity %s is repeated in the file".formatted(identity),
+                exception.getMessage());
+        verify(versionService, never()).addNodeToVersion(any(), any());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "second connection {0} -> {1}")
+    @org.junit.jupiter.params.provider.CsvSource({"b,a", "a,b"})
+    void rejectsAConnectionIdentityRepeatedInTheFileBeforePersisting(String from, String to) {
+        UUID versionId = UUID.randomUUID();
+        UUID identity = UUID.randomUUID();
+        when(versionService.connectionIdentities(versionId)).thenReturn(java.util.Set.of());
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> importCsv(versionId,
+                csvWithConnections(identity, List.of("a", "b"), List.of(from, to))));
+
+        assertEquals("Invalid CSV record 5 (CONNECTION): identity %s is repeated in the file".formatted(identity),
+                exception.getMessage());
+        verify(versionService, never()).addNodeToVersion(any(), any());
+        verify(versionService, never()).addConnectionToVersion(any(), any());
+    }
+
+    @Test
+    void rejectsAConnectionIdentityThatAlreadyExistsInTheVersionBeforePersisting() {
+        UUID versionId = UUID.randomUUID();
+        UUID identity = UUID.randomUUID();
+        when(versionService.connectionIdentities(versionId)).thenReturn(java.util.Set.of(identity));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> importCsv(versionId, csvWithConnections(identity, List.of("a", "b"))));
+
+        assertEquals("Invalid CSV record 4 (CONNECTION): identity %s already exists in this version".formatted(identity),
+                exception.getMessage());
+        verify(versionService, never()).addNodeToVersion(any(), any());
+        verify(versionService, never()).addConnectionToVersion(any(), any());
+        verify(economicService, never()).saveImportedConfiguration(any(), any());
+    }
+
+    /** Two WELL rows with ids "a" and "b", then one CONNECTION row per [from, to] pair, all with {@code identity}. */
+    @SafeVarargs
+    private String csvWithConnections(UUID identity, List<String>... pairs) {
+        List<List<String>> rows = CsvUtil.parseStrict(validRow("WELL"), 3);
+        rows.get(0).addAll(List.of("id", "recordType", "fromNodeId", "toNodeId"));
+        if (!rows.get(0).contains("identity")) {
+            rows.get(0).add("identity");
+        }
+        while (rows.get(1).size() < rows.get(0).size()) {
+            rows.get(1).add("");
+        }
+        rows.get(1).set(rows.get(0).indexOf("recordType"), "NODE");
+        rows.get(1).set(rows.get(0).indexOf("id"), "a");
+        List<String> second = new java.util.ArrayList<>(rows.get(1));
+        second.set(rows.get(0).indexOf("id"), "b");
+        rows.add(second);
+        for (List<String> pair : pairs) {
+            List<String> row = new java.util.ArrayList<>(java.util.Collections.nCopies(rows.get(0).size(), ""));
+            row.set(rows.get(0).indexOf("recordType"), "CONNECTION");
+            row.set(rows.get(0).indexOf("fromNodeId"), pair.get(0));
+            row.set(rows.get(0).indexOf("toNodeId"), pair.get(1));
+            row.set(rows.get(0).indexOf("identity"), identity.toString());
+            rows.add(row);
+        }
+        return CsvUtil.write(rows);
+    }
+
+    @Test
+    void importsANewIdentityThatIsNotInTheVersion() {
+        UUID versionId = UUID.randomUUID();
+        UUID identity = UUID.randomUUID();
+        when(versionService.nodeIdentities(versionId)).thenReturn(java.util.Set.of(UUID.randomUUID()));
+
+        int count = importCsv(versionId, withCell(validRow("WELL"), "identity", identity.toString()));
+
+        assertEquals(1, count);
+        ArgumentCaptor<BaseNodeDTO> dtoCaptor = ArgumentCaptor.forClass(BaseNodeDTO.class);
+        verify(versionService).addNodeToVersion(eq(versionId), dtoCaptor.capture());
+        assertEquals(identity, dtoCaptor.getValue().getIdentity());
+    }
+
+    @Test
+    void aFileWithoutIdentityColumnNeverLooksUpTheVersionIdentities() {
+        UUID versionId = UUID.randomUUID();
+
+        assertEquals(1, importCsv(versionId, validRow("WELL")));
+
+        verify(versionService, never()).nodeIdentities(any());
+        verify(versionService).addNodeToVersion(eq(versionId), any(WellDTO.class));
     }
 
     private int importCsv(UUID versionId, String csv) {

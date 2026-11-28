@@ -5,7 +5,18 @@ case verifies. **Keep this in sync with the code** — whenever you add, remove 
 change a test, update the matching entry here (see `AGENTS.md` → Definition of
 done).
 
-Run everything with `cd backend && mvn test`.
+Run the backend with `cd backend && mvn test` (H2, no database), and with `cd backend && mvn -B verify` to also run the
+thirteen `*IT` classes (failsafe) against a **disposable** PostgreSQL pointed to by `ECONOMIC_TEST_DATABASE_URL` (see
+[*PostgreSQL classes*](#postgresql-classes-it-by-hand)). CI runs `mvn --batch-mode verify` in the `backend-it` job.
+Last reported counts, verified on 2026-11-22 from `backend/target/{surefire,failsafe}-reports` and `npm test`:
+Surefire **108 classes / 1822 executions**, failsafe **12 classes / 113 executions**, all with 0 failures, errors and
+skips. Current totals (2026-11-28, see
+[*Identity de conexión y grafo inválido*](#identity-de-conexión-y-grafo-inválido--2026-11-28)): Surefire
+**112 classes / 1863 executions** (`mvn -o -B test`, 0 failures, errors and skips); failsafe **13 classes / 124
+executions**, of which the changes of that date were not run on PostgreSQL locally. Frontend **458 tests in 48 files**
+(`npm test`), 0 failures and skips.
+Run on 2026-11-22 with `mvn -B verify` against a throwaway PostgreSQL 16 on port 55432: Surefire 1822 run / 0 failures / 0 errors / 0 skipped,
+failsafe 113 run / 0 failures / 0 errors / 0 skipped, `BUILD SUCCESS`.
 
 Two automated suites exist:
 
@@ -18,12 +29,18 @@ Two automated suites exist:
   [*Frontend unit tests*](#frontend-unit-tests-npm-test) for the per-file
   counts.
 
+A third, small suite covers the local demo seed (`docs/examples/seed-local-demo.mjs`): 18 `node:test` unit tests
+with no server, plus 2 integration tests that need a backend on a disposable database. See
+[*Local demo seed*](#local-demo-seed-node-test).
+
 What neither suite covers — layout, focus, keyboard and the screens as a user
 sees them — stands on the by-hand checklist at the end of the backend catalog,
 [*Manual verification (frontend)*](#manual-verification-frontend), plus the
 Playwright scripts `frontend/tests/*-browser.mjs` (not part of `npm test`; they
 need a local Vite server and a Playwright install, see
-[`frontend/README.md`](../frontend/README.md)). Keep those in sync when a screen
+[`frontend/README.md`](../frontend/README.md)). **Those scripts are out of date**: they still mock the old
+version-level endpoints (`/versions/:v/economics/...`) and were not run or updated for the scenario flow
+(`considerations.md`, *Deuda de escenarios*). Update them before relying on them, and keep them in sync when a screen
 changes.
 
 ## Conventions
@@ -51,6 +68,18 @@ are the `tests` attribute of its Surefire report from the latest `mvn test`
 (`backend/target/surefire-reports`), which expands each parameterized method
 into one execution per argument.
 
+> **Superseded by the later reconciliations at the end of this file — the current figures are 107 classes /
+> 1818 executions and failsafe 11 classes / 111 executions (the table below sums to them).** The note that follows
+> is kept as the history of the first reconciliation. **Reconciled 2026-11-22** (first pass) against
+> `mvn -B clean verify` (PostgreSQL 16 throwaway database, port 55432): Surefire **98 classes, 1647 executions,
+> 0 failures/errors/skips**; failsafe **6 classes, 58 executions**; at that moment the table summed to those
+> 1647 executions and 1415 cases. The previous total
+> (1541 executions) had drifted: four classes were stale (`common.CsvUtilTest` 5 → 8,
+> `common.GlobalExceptionHandlerTest` 1 → 3, `version.controller.VersionControllerTest` 20 → 27,
+> `version.service.VersionServiceTest` 63 → 66) and `version.service.VersionNodeCsvImportServiceTest`
+> (27 cases, documented further down) was missing from this table. The per-case sections of those four
+> classes were **not** rewritten, only their counts.
+
 Six classes use `@ParameterizedTest` — `economic.controller.ScenarioVerticalAccessHttpTest`,
 `node.controller.NodeCreateAccessHttpTest`, `node.model.enums.NodeTypeEnumTest`,
 `version.controller.VersionBranchAccessHttpTest`,
@@ -64,28 +93,30 @@ executions differ; for every other class they are the same number. No class uses
 | `ApplicationContextTest` | Integration | 1 | 1 |
 | `auth.controller.AuthControllerTest` | Web | 16 | 16 |
 | `auth.filter.SessionRevocationHttpTest` | Integration | 9 | 9 |
-| `common.CsvUtilTest` | Unit | 5 | 5 |
-| `comparison.controller.ScenarioComparisonControllerTest` | Web | 5 | 5 |
+| `common.CsvUtilTest` | Unit | 8 | 8 |
+| `comparison.controller.ScenarioComparisonControllerTest` | Web | 6 | 6 |
 | `comparison.repository.ScenarioComparisonMigrationTest` | Data (JDBC/H2) | 3 | 3 |
-| `comparison.service.ScenarioComparisonCalculatorTest` | Unit | 15 | 15 |
-| `comparison.service.ScenarioComparisonServiceTest` | Unit | 12 | 12 |
+| `comparison.service.BrokenGraphScenarioTest` | Integration | 10 | 15 |
+| `comparison.service.ScenarioComparisonCalculatorTest` | Unit | 16 | 16 |
+| `comparison.service.ScenarioComparisonServiceTest` | Unit | 22 | 22 |
 | `comparison.service.ScenarioMetricsExtractorTest` | Unit | 6 | 6 |
 | `comparison.service.ScenarioStatusServiceTest` | Unit | 6 | 6 |
-| `common.GlobalExceptionHandlerTest` | Unit | 1 | 1 |
+| `common.GlobalExceptionHandlerTest` | Unit | 4 | 4 |
+| `comparison.controller.ScenarioComparisonHttpTest` | Integration | 10 | 15 |
 | `economic.controller.EconomicControllerTest` | Web | 12 | 12 |
 | `economic.controller.EconomicJobControllerTest` | Web | 4 | 4 |
 | `economic.controller.EconomicWriteAccessHttpTest` | Integration | 9 | 9 |
 | `economic.controller.ScenarioConfigurationControllerTest` | Web | 4 | 4 |
-| `economic.controller.ScenarioVerticalAccessHttpTest` | Integration | 22 | 28 |
+| `economic.controller.ScenarioVerticalAccessHttpTest` | Integration | 22 | 26 |
 | `economic.service.EconomicEngineTest` | Unit | 21 | 21 |
 | `economic.service.EconomicIndicatorsCalculatorTest` | Unit | 17 | 17 |
 | `economic.service.EconomicJobServiceTest` | Unit | 10 | 10 |
 | `economic.service.EconomicJobWorkerTest` | Unit | 4 | 4 |
-| `economic.service.EconomicServiceTest` | Unit | 33 | 33 |
+| `economic.service.EconomicServiceTest` | Unit | 34 | 34 |
 | `economic.service.EconomicSimulationAdapterTest` | Unit | 2 | 2 |
 | `economic.service.EconomicStatisticsCalculatorTest` | Unit | 5 | 5 |
 | `economic.service.ProbabilisticSimulationTest` | Unit | 8 | 8 |
-| `economic.service.ScenarioConfigurationTest` | Integration | 14 | 14 |
+| `economic.service.ScenarioConfigurationTest` | Integration | 16 | 16 |
 | `economic.service.ScenarioOperationsTest` | Unit | 6 | 6 |
 | `jwt.JwtServiceTest` | Unit | 5 | 5 |
 | `logging.ConsoleAppLoggerTest` | Unit | 1 | 1 |
@@ -98,6 +129,7 @@ executions differ; for every other class they are the same number. No class uses
 | `node.model.enums.NodeTypeEnumTest` | Unit | 6 | 50 |
 | `node.repository.ConsumptionPersistenceTest` | Data | 1 | 1 |
 | `node.service.NodeClonerRoleTest` | Unit | 2 | 2 |
+| `node.service.NodeServiceOptionalBaseValuesTest` | Unit | 4 | 48 |
 | `node.service.NodeServiceTest` | Unit | 7 | 7 |
 | `organization.controller.BulkUploadSizeLimitHttpTest` | Integration | 2 | 2 |
 | `organization.controller.OrganizationControllerTest` | Web | 47 | 47 |
@@ -105,15 +137,24 @@ executions differ; for every other class they are the same number. No class uses
 | `organization.repository.OrganizationRepositoryTest` | Data | 24 | 24 |
 | `organization.service.OrganizationBulkRegistrationServiceTest` | Unit | 18 | 18 |
 | `organization.service.OrganizationServiceTest` | Unit | 88 | 88 |
-| `project.controller.ProjectControllerTest` | Web | 45 | 45 |
+| `project.controller.ProjectControllerTest` | Web | 46 | 46 |
 | `project.model.ProjectMemberTest` | Unit | 3 | 3 |
 | `project.repository.ProjectMemberRepositoryTest` | Data | 21 | 21 |
 | `project.repository.ProjectRepositoryTest` | Data | 18 | 18 |
 | `project.service.ProjectAccessGuardTest` | Unit | 26 | 26 |
 | `project.service.ProjectServiceTest` | Unit | 108 | 108 |
+| `scenario.controller.ScenarioApiHttpTest` | Integration | 17 | 79 |
+| `scenario.service.ScenarioAccessTest` | Unit | 7 | 7 |
 | `scenario.service.ScenarioChangeScopeTest` | Unit | 16 | 16 |
+| `scenario.service.ScenarioCheckFailuresTest` | Unit | 4 | 4 |
+| `scenario.service.ScenarioDefaultsTest` | Unit | 4 | 4 |
+| `scenario.service.ScenarioLifecycleTest` | Unit | 20 | 20 |
+| `scenario.service.ScenarioLimitsTest` | Unit | 2 | 2 |
+| `scenario.service.ScenarioReferenceServiceTest` | Unit | 4 | 4 |
+| `scenario.service.VersionDefaultScenarioTest` | Unit | 6 | 6 |
 | `session.service.SessionServiceTest` | Unit | 9 | 9 |
 | `simulator.EconomicMetricsTest` | Unit | 7 | 7 |
+| `simulator.InvalidSimulationGraphExceptionTest` | Unit | 5 | 5 |
 | `simulator.ResultMappingTest` | Data | 8 | 8 |
 | `simulator.ResultPerRoundTest` | Unit | 12 | 12 |
 | `simulator.SimulatorTest` | Unit | 15 | 15 |
@@ -132,7 +173,7 @@ executions differ; for every other class they are the same number. No class uses
 | `version.controller.VersionAccessHttpTest` | Integration | 15 | 15 |
 | `version.controller.VersionBranchAccessHttpTest` | Integration | 25 | 29 |
 | `version.controller.VersionConflictsListAccessHttpTest` | Integration | 8 | 8 |
-| `version.controller.VersionControllerTest` | Web | 20 | 20 |
+| `version.controller.VersionControllerTest` | Web | 28 | 28 |
 | `version.controller.VersionGetJsonOpenInViewHttpTest` | Integration | 1 | 1 |
 | `version.controller.VersionGetJsonWithoutOpenInViewHttpTest` | Integration | 3 | 3 |
 | `version.controller.VersionInactiveAccessHttpTest` | Integration | 5 | 5 |
@@ -151,11 +192,17 @@ executions differ; for every other class they are the same number. No class uses
 | `version.service.VersionAccessTest` | Unit | 11 | 11 |
 | `version.service.VersionConflictIntegrationTest` | Integration | 11 | 11 |
 | `version.service.VersionConflictServiceTest` | Unit | 30 | 30 |
+| `version.service.VersionConnectionIdentityTest` | Integration | 9 | 10 |
+| `version.service.VersionDeletionTest` | Unit | 9 | 9 |
 | `version.service.VersionLineageTest` | Unit | 10 | 10 |
 | `version.service.VersionMemberServiceTest` | Unit | 39 | 39 |
+| `version.service.VersionNodeCsvImportAllKindsTest` | Integration | 2 | 2 |
+| `version.service.VersionNodeCsvImportIdentityTest` | Integration | 7 | 7 |
+| `version.service.VersionNodeCsvImportServiceTest` | Unit | 36 | 48 |
+| `version.service.VersionNodeCsvImportTemplatesTest` | Integration | 3 | 3 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 | 10 |
-| `version.service.VersionServiceTest` | Unit | 63 | 63 |
-| **Total (94 classes)** | | **1363** | **1540** |
+| `version.service.VersionServiceTest` | Unit | 70 | 70 |
+| **Total (108 classes)** | | **1525** | **1822** |
 
 > **`mvn test` on 2026-11-15 (13:35, run for this update): 1362 executions,
 > 0 failures, 0 errors, 0 skipped**, in 80 classes (`1238` methods). Executions
@@ -175,8 +222,8 @@ executions differ; for every other class they are the same number. No class uses
 > `version.controller.VersionAccessHttpTest`,
 > `version.controller.VersionInactiveAccessHttpTest`,
 > `version.controller.VersionReadWithoutOpenInViewHttpTest` and
-> `version.controller.VersionRoleCopyDeactivatedUsersHttpTest`. The five
-> PostgreSQL classes — the `*IT` — are **not** part of that run and not in the
+> `version.controller.VersionRoleCopyDeactivatedUsersHttpTest`. The
+> PostgreSQL classes — the `*IT`, ten today — are **not** part of that run and not in the
 > table; they are run by hand against a disposable PostgreSQL (see below). The
 > per-class sections below keep their historical case catalogs; where one
 > disagrees with this table, this table wins. The cases added since the
@@ -223,14 +270,10 @@ Counts below treat each JUnit test method as one case; parameterized methods
 are counted once in the table, with their extra executions explained below.
 
 Not run by `mvn test`; they need a PostgreSQL the test connects to (see each
-class). **49 executions in total**, read from the `tests` attribute of the five
-`TEST-*IT.xml` Surefire reports left in `backend/target/surefire-reports`
-(written at 13:31 on 2026-11-15, 0 failures, 0 errors, 0 skipped in each). That
-is the report of **a manual run somebody made before this update, not of one
-made for it**: it was **not** re-run here (no PostgreSQL was started), so the
-numbers are only as current as that run. It does include
-`VersionMemberRepositoryPostgreSqlIT` at 14 cases, i.e. after the two cases
-added in `b4dfa71`.
+class). **Today: 11 classes, 111 executions** (table below), read on 2026-11-22 from the eleven
+`TEST-*IT.xml` failsafe reports in `backend/target/failsafe-reports` (written that day by
+`mvn -B verify`, 0 failures, 0 errors, 0 skipped). The first version of this section counted **49 executions in
+five classes** from a manual run on 2026-11-15; that figure is history and no longer applies.
 
 | Test class | Cases | Executions |
 | --- | --- | --- |
@@ -284,11 +327,19 @@ added in `b4dfa71`.
 | `strategyCost.CostBasisCalculatorsTest` | Unit | 10 |
 | **Total** | | **460 [^p]** |
 | `economic.service.PostgreSqlEconomicIT` | 4 | 4 |
-| `economic.service.ScenarioConfigurationPostgreSqlIT` | 1 own + 14 inherited from `ScenarioConfigurationTest` | 15 |
+| `economic.service.ScenarioConfigurationPostgreSqlIT` | 1 own + 16 inherited from `ScenarioConfigurationTest` | 17 |
 | `project.repository.ProjectRepositoryPostgreSqlIT` | 7 | 7 |
 | `project.service.ProjectVersionCreationPostgreSqlIT` | 10 | 10 |
+| `scenario.repository.ScenarioMigrationIT` | 13 | 13 |
+| `scenario.service.ScenarioLifecyclePostgreSqlIT` | 20 inherited from `ScenarioLifecycleTest` | 20 |
+| `scenario.service.VersionDefaultScenarioPostgreSqlIT` | 6 inherited from `VersionDefaultScenarioTest` | 6 |
+| `version.service.VersionConnectionIdentityPostgreSqlIT` | 10 inherited from `VersionConnectionIdentityTest` (no test transaction) | 10 |
+| `version.service.VersionDeletionPostgreSqlIT` | 9 inherited from `VersionDeletionTest` | 9 |
+| `version.service.VersionNodeCsvImportAllKindsPostgreSqlIT` | 2 inherited from `VersionNodeCsvImportAllKindsTest` | 2 |
+| `version.service.VersionNodeCsvImportIdentityPostgreSqlIT` | 7 inherited from `VersionNodeCsvImportIdentityTest` | 7 |
+| `version.service.VersionNodeCsvImportTemplatesPostgreSqlIT` | 3 inherited from `VersionNodeCsvImportTemplatesTest` | 3 |
 | `version.repository.VersionMemberRepositoryPostgreSqlIT` | 16 | 16 |
-| **Total (5 classes)** | | **52** |
+| **Total (13 classes)** | | **124** |
 
 `ProjectRepositoryPostgreSqlIT` and `ProjectVersionCreationPostgreSqlIT` are new
 in the 2026-11-15 section; the two new `VersionMemberRepositoryPostgreSqlIT`
@@ -1043,6 +1094,7 @@ non-`/auth` route); `ProjectService` is mocked.
 | `listProjectsForwardsOrganizationFilter` | `?organizationId=` reaches `ProjectService.listForCurrentUser` unchanged. |
 | `listProjectsRequiresAuthenticationWith401` | Without a Bearer token → `401`; the service is never called. |
 | `createVersionReturnsCreatedVersion` | `POST /projects/{id}/version` → `200` `Version created successfully` with the version's `name` (previously always `500`). |
+| `createVersionWithParentReturnsParentIdWithoutSerializingEntity` | Creating a child version returns a summary DTO with `parentVersionId` instead of serializing the entity (the lazy `parentVersion` proxy caused a `500` although the version was saved). |
 | `createVersionRequiresAuthenticationWith401` | Without a Bearer token → `401`; `ProjectService.saveVersion` is never called. |
 | `createProjectReturnsCreatedProject` | `POST /projects` with a valid body → `201` and an envelope with `success=true`, message `Project created`, and the created project's `name`/`description`. |
 | `createProjectRejectsBlankFieldsWithValidationError` | Blank `name`/`description` → `400` `Validation error`; `ProjectService.createProject` is never called. |
@@ -1341,6 +1393,8 @@ separate `SCENARIO` row.
 | `rejectsMalformedEconomicProfileJsonBeforePersisting` | Malformed node economic JSON is rejected before node persistence. |
 | `rejectsScenarioRowsContainingNodeDataBeforePersisting` | Scenario-level rows cannot contain node columns. |
 | `rejectsDuplicateScenarioRowsBeforePersisting` | More than one scenario-wide economic row is rejected before node persistence. |
+| `importsIndustrialConsumptionDeclaredInTheVerticalOfNodeTypeEnum` | An `INDUSTRIAL_CONSUMPTION` row with `type.vertical` `INTERNAL_CONSUMPTION` (the `NodeTypeEnum` vertical) is accepted and handed to the save as an `IndustrialConsumptionDTO` in that vertical. |
+| `rejectsIndustrialConsumptionDeclaredAsExportBeforePersisting` | The same row with `EXPORT` is rejected with `CSV record 2 (INDUSTRIAL_CONSUMPTION) has type.vertical 'EXPORT'; expected 'INTERNAL_CONSUMPTION'` and nothing is saved. |
 | `rejectsUnknownNodeKindWithSupportedKinds` | An unsupported discriminator is rejected with the accepted values and no node is added. |
 | `rejectsUnknownHeaders` | A misspelled header is rejected instead of silently dropping data. |
 | `rejectsRowsWithDifferentColumnCounts` | A row with the wrong number of fields is rejected with its record number. |
@@ -1355,6 +1409,11 @@ separate `SCENARIO` row.
 | `rejectsInvalidUtf8` | Invalid UTF-8 input bytes are rejected rather than silently replaced. |
 | `rejectsImportsOverMaximumRowCount` | More than 10,000 data rows are rejected before node persistence. |
 | `rejectsFilesOverMaximumSize` | The service rejects CSV byte arrays larger than 10 MB. |
+| `rejectsIdentityThatAlreadyExistsInTheVersionBeforePersisting` | A NODE row whose `identity` is already in the target version → `Invalid CSV record 2 (NODE): identity <uuid> already exists in this version`; no node, connection or economics written. |
+| `rejectsExistingIdentityOnALaterRowWithoutWritingTheEarlierValidRows` | The colliding identity is on record 3: the valid record 2 is not written either (the check runs before any write). |
+| `rejectsIdentityRepeatedInTheFileBeforePersisting` | Two rows with the same `identity` → `Invalid CSV record 3 (NODE): identity <uuid> is repeated in the file`; nothing written. |
+| `importsANewIdentityThatIsNotInTheVersion` | An `identity` the version does not have is accepted and reaches `addNodeToVersion` unchanged. |
+| `aFileWithoutIdentityColumnNeverLooksUpTheVersionIdentities` | A file with no `identity` column imports as before and never reads the version's identities. |
 
 ## `node.service.NodeServiceTest` — Unit
 
@@ -1541,10 +1600,10 @@ do not infer a pass from the fact that the feature was built.
 | M14 | A platform admin does not bypass either guard | Repeat M12 and M13 signed in as `admin@enerscope.org` | Real backend, platform admin | Pendiente de verificación |
 | M15 | Removing someone from an organization is refused when it would orphan a project | Make a user the only Administrador of a project, then remove them from the organization; the error must name the project problem and the member must still be there afterwards | Real backend | Pendiente de verificación |
 | M16 | Removing someone from an organization removes them from its projects | Same with a second administrator present on the project; after the removal they must be gone from both lists | Real backend | Pendiente de verificación |
-| M17 | The sidebar is fixed at wide widths and opens itself once below that | At ≥ `80rem` (and with the pin on, which is the default) the sidebar must be fixed and push the content on every page. Between `64rem` and `80rem`, or with the pin off, it must open on `/app` and push the content, and close on the first navigation | None | Pendiente de verificación |
-| M18 | The pin and the left edge | The pin button at the foot of the sidebar (only shown at ≥ `80rem`) must toggle `sidebarPinned` and survive a reload. With the sidebar hidden, move the mouse to the left edge below the top bar and hold ~150 ms; it must slide over the content, and close ~300 ms after leaving it | None | Pendiente de verificación |
-| M19 | `Ctrl`/`Cmd`+`B` toggles it, and is ignored where it should be | Press it on a page, then with the caret in a text field, then with a modal open. When the sidebar is fixed it must unpin it (and set `sidebarPinned` to false); otherwise it opens or closes the overlay | None | Pendiente de verificación |
-| M20 | Below `64rem` it is a drawer | Narrow the window; it must overlay under a scrim, trap `Tab`, close on a row click and on `Escape`, and closing the breakpoint gap must not leave it open | None | Pendiente de verificación |
+| M17 | At 1280px and wider the sidebar is always a fixed column | At ≥ `80rem` (e.g. 1280 and 1440px) on every page: the rail runs the full height with the logo, the top bar starts to its right, the content is pushed, there is no hamburger and no pin button, and nothing (route, mouse at the left edge) hides it | None | Pendiente de verificación |
+| M18 | Between 1024 and 1279px it is a drawer under a 64px top bar | At 1100px: the logo is in the top bar next to the hamburger *Abrir menú*; opening it slides the drawer in **below** the 64px bar (it must not cover its bottom 8px) over a scrim, focus moves into it, the label becomes *Cerrar menú*; `Escape`, a press on the scrim and a row click close it and return focus to the hamburger. Resize across 1280px both ways: wide shows the column, back below shows the drawer closed. A `sidebarPinned` left in LocalStorage by an old build is gone after a load | None | Pendiente de verificación |
+| M19 | `Ctrl`/`Cmd`+`B` toggles the drawer only | Below 1280px it opens and closes the drawer, but not with the caret in a text field nor with a modal open. At ≥ 1280px it does **nothing** (the column stays, nothing is stored) | None | Pendiente de verificación |
+| M20 | Below 1024px it is the same drawer under a 56px top bar | At 390px: hamburger, drawer under the 56px bar over a scrim, `Tab` trapped inside it, closed by a row click and by `Escape` | None | Pendiente de verificación |
 | M21 | Sections the caller cannot reach are hidden, not disabled | Compare the sidebar as a platform admin, an organization owner and a plain member: *Usuarios* and *Todas las organizaciones* only for the admin, *Mi organización* only for an owner, *Equipo del proyecto* only where the caller administers the active project | Real backend, three accounts | Pendiente de verificación |
 | M22 | A module left with one child collapses into a plain row | As a plain member with one project, *Proyectos* must be a single row and not a disclosure | Real backend | Pendiente de verificación |
 | M23 | Locked sections are legible | Check *Reportes* (*Comparaciones* is no longer locked since 2026-11-12): padlock or "próximamente", full-contrast label, not dimmed | None | Pendiente de verificación |
@@ -1555,7 +1614,8 @@ do not infer a pass from the fact that the feature was built.
 | M28 | Field errors are announced | Submit an invalid form and check with a screen reader that the error is tied to its input (`aria-describedby`) and the input is marked `aria-invalid` | None | Pendiente de verificación |
 | M29 | The sign-in hero's subtitle contrast | Measure it in the **light** theme at 1440px and wider; it currently reads 4.21:1 against a 4.5:1 bar (known debt) | None | Pendiente de verificación |
 | M30 | A dropped connection mid-import is survivable | Start an import of more than 50 rows (so it goes out in several batches of 50), kill the backend halfway, and check: the progress stopped, the warning about possibly partial writes appears, the credentials of the batches already confirmed are downloadable, and the member list reflects whatever was created. Also press *Cancelar* mid-import and check the same | Real backend | Pendiente de verificación |
-| M31 | Scenario comparison against real evaluations | Simulate two scenarios of a project (one deterministic, one probabilistic), open *Comparaciones*, compare them, save, reopen by URL and delete; the values must match each scenario's results screen and nothing may show `0` where the results screen says unavailable | Real backend (PostgreSQL, V25 applied) | API verified 2026-11-12 on PostgreSQL 16 with `seed-comparison-demo.mjs --simulate` (preview, save, read, delete, cross-project 404); the screen itself was only checked against a mock API — UI pass on the real backend pending |
+| M31 | Scenario comparison against real evaluations | Simulate two scenarios of a project (one deterministic, one probabilistic), open *Comparaciones*, compare them, save, reopen by URL and delete; the values must match each scenario's results screen and nothing may show `0` where the results screen says unavailable | Real backend (PostgreSQL, V25 applied) | API verified 2026-11-12 on PostgreSQL 16 with `seed-comparison-demo.mjs --simulate` (preview, save, read, delete, cross-project 404; that script was replaced by `seed-local-demo.mjs` on 2026-11-22); the screen itself was only checked against a mock API — UI pass on the real backend pending |
+| M32 | The green sidebar, in both themes | In the light and the dark theme: rail `#114636`, white labels, section titles slightly dimmer, current row on a light-green pill with dark-green text and no side marker, its module (e.g. *Proyectos*) on the soft hover fill in semi-bold white, never a second pill; hover lightens the row; `Tab` shows a white ring on the rail and on a hovered row; *Proyectos* opened shows its children with a faint guide line; locked rows keep a white label with a dimmer icon and padlock. At ≥ `80rem` (always), the rail runs the full height with the logo, centred horizontally, in a cell as tall as the top bar, sitting 6px below that cell's centre (16px above it, 4px below) so it reads level between the top edge and *TRABAJO* without touching it and the top bar starts to its right; below `80rem` (the drawer, M18–M20) the logo is in the top bar | None | Pendiente de verificación |
 
 ## `economic.controller.EconomicControllerTest` — Web
 
@@ -2296,7 +2356,7 @@ Scenarios are compared with each other; there is no reference scenario.
 | `scenariosFromDifferentProjectsAreNamedWithTheirProject` | Mixed projects name scenarios "Base (Cuenca Austral)" in the findings. |
 | `fewerThanTwoScenariosAreRejected` | Fewer than two scenarios throw `IllegalArgumentException`. |
 
-### `comparison.service.ScenarioComparisonServiceTest` — Unit (12)
+### `comparison.service.ScenarioComparisonServiceTest` — Unit (13)
 
 | Case | Verifies |
 | --- | --- |
@@ -2304,8 +2364,9 @@ Scenarios are compared with each other; there is no reference scenario.
 | `scenarioThatChangedSinceItsLastSimulationMustBeSimulatedAgain` | An outdated scenario is refused (`Scenario changed since its last simulation: …`) by preview and save; nothing is stored. |
 | `scenarioNeverSimulatedCannotBeCompared` | A scenario with no simulation answers `Scenario has never been simulated: …`. |
 | `unknownVersionIsNotFoundBeforeReadingAnyEvaluation` | An unknown or deleted version is a 404 before any evaluation is read. |
-| `scenariosOfAnotherProjectAreComparedWhenTheCallerCanViewIt` | A version of another project is compared after `VIEW_PROJECT` is checked on that project, read through its own project, and the result carries each project's name. |
-| `scenarioOfAProjectTheCallerCannotViewIsForbidden` | A version of a project the caller cannot see is a 403 and its evaluations are never read. |
+| `scenarioOfAnotherProjectIsNotFoundEvenWhenTheCallerCanViewIt` | (E1) A version of another project is a generic 404 for preview and save, even if the caller can view that project; that project's permission is never checked and its evaluations are never read. |
+| `scenarioOfAProjectTheCallerCannotViewIsAlsoAGenericNotFound` | (E1) A version of a project the caller cannot see is the same generic 404 (`Version not found`): nothing about that project is revealed. |
+| `withoutAccessToThePathProjectTheWholeRequestIsForbiddenBeforeAnyLookup` | (E1) Without `VIEW_PROJECT` on the URL project the whole request is a 403 before any version or evaluation is looked up. |
 | `fewerThanTwoItemsTheSameScenarioTwiceAndInvalidThresholdsAreRejected` | One item, no body, the same scenario twice, a zero threshold, an item without version and more than 8 items are rejected. |
 | `saveNeedsEditPermissionNamesItAfterItsScenariosAndStoresTheSimulationsCompared` | Saving needs `EDIT_PROJECT`, is named after its scenarios ("Base vs Ampliación") unless given a name (trimmed), applies default thresholds and stores the simulations compared, in order. |
 | `userWithoutEditPermissionCannotSave` | A 403 from the permission check stores nothing. |
@@ -2366,7 +2427,7 @@ Scenarios are compared with each other; there is no reference scenario.
 | `scenario colours follow the position and never cycle past the palette` | Position → `series-n` classes; the cap is 8. |
 | `comparing needs two to eight scenarios, all simulated and up to date` | The Compare button's rule and its reason; which pending scenarios can be simulated from the screen and which are blocked. |
 | `scenario status reads in plain words, with progress and failed runs` | Tile labels for up to date / changed / never simulated / simulating (with rounds) and a failed last run. |
-| `the selection round-trips through the URL and the request keeps its order` | `?escenarios=project:version,…` round trip (duplicates and broken parts dropped) and the request order. |
+| `the selection round-trips through the URL and the request keeps its order` | `?escenarios=project:version,…` round trip (duplicates and broken parts dropped), the request order, and (E1) scenarios of any other project are dropped when the project is given. |
 
 Also updated: `economicNavigation.test.mjs` and `workspaceRoutes.test.mjs` (Comparaciones links to `/projects/{id}/comparisons`; comparison routes keep their title and drop the run id when switching projects).
 
@@ -2885,18 +2946,37 @@ which add up to the same 173). The previous pass recorded 157 in 24 files; the
 | `probabilisticResults.test.mjs` | 4 | Probabilistic results (catalogued above). |
 | `projectsTableTeam.test.mjs` | 4 | `ProjectsTable`: a member who does not administer sees *Ver equipo* instead of the manage button, a project administrator keeps *Administrar integrantes* and gets no *Ver equipo*, *Ver equipo* reports its own project, and the project member types are labelled *Administrador del proyecto* / *Editor del proyecto*. |
 | `projectTeamNav.test.mjs` | 4 | The *Equipo del proyecto* entry: visible to every member with an active project, a group for an editor, absent without a project or while projects load. |
+| `buttonLink.test.mjs` | 6 | New 2026-11-23. `ButtonLink` is an anchor to its `to` with the label inside; for every variant and size it wears exactly the classes a `Button` of the same variant and size renders (both read `buttonClasses`); the default is the primary button at control height; `compact` is the 40px control and the `link` variant has no box; every variant keeps the standard focus ring and `secondary` is the neutral fill; a custom class and the router props (`replace`) go through. |
+| `economicsControls.test.mjs` | 6 | New 2026-11-23. Static scan of the economic module: the scan reaches it; no hand-written `<select>` (use `SelectField` / `FilterSelect`); no hand-written `<button>` beyond an exact, documented list (the two section menus and the Operación / Económico segmented tablist; the count is exact, so removing one without updating the list also fails); no card drawn by hand (rounded border + `bg-surface`) in the economic components and `ScenarioConfigurationPage`; no native `<dialog>` / `showModal()` anywhere in `src/`; and `SimulationDialog` is a `Modal` that ignores close requests while it submits. |
+| `emptyState.test.mjs` | 5 | New 2026-11-23. `EmptyState` is the centred `px-4 py-8 text-sm text-ink-500` block; its action goes in a `mt-4` wrapper and only when given; `LoadingState` is a `role="status"` paragraph with the same look; a custom class is appended to both; and a static scan: no screen under `src/` writes `px-4 py-8 text-center` itself. |
+| `pageHeader.test.mjs` | 10 | New 2026-11-23. `PageHeader`: the title is the only `h1` and carries `text-2xl font-semibold text-ink-800`; description, back link, eyebrow and actions are absent unless given; the description and back link use the standard classes and sit in the right order (back link, eyebrow, title); actions stack below the title under `sm` (`flex-col sm:flex-row`); children render under the description; `mb-6` by default and none with `spaced={false}`; a long title and a custom class are kept; and a static scan: no file under `src/` writes an `<h1>` except `PageHeader` and the sign-in page. |
 | `resultsCsv.test.mjs` | 4 | Results CSV export. |
 | `scenarioConfiguration.test.mjs` | 8 | Scenario configuration adapter. |
+| `sidebarMode.test.mjs` | 5 | New 2026-11-23. The sidebar's two modes (fixed ≥ `80rem`, drawer below), the layout of each, the one-off removal of the retired `sidebarPinned` key (also with a throwing or missing storage), and that `SidebarProvider` asks only `FIXED_QUERY`. |
+| `sidebarTheme.test.mjs` | 26 | New 2026-11-23; per-theme since the dark sidebar entry. Every `--color-sidebar-*` token is declared in both themes; the light values are frozen exactly; the dark rail is its own (`#0e2f26`, 1.3–1.5:1 above the dark page, pill different from the light one); the same WCAG ratios on each theme's own tokens (text ≥ 4.5:1 on the rail, the hover and the active pill, the parent of the current row included; the current pill ≥ 1.8:1 against the rail; focus ring and locked icons ≥ 3:1); every opaque pixel of `logo-mark-sidebar.png` / `logo-full-sidebar.png` ≥ 3:1 on each theme's rail. |
 | `sidebarActive.test.mjs` | 6 | At most one current sidebar leaf on every route, with and without a project; *Proyectos* current on `/projects`; the route → current item matrix; *Versionado* as a single entry; analysis items without a project; the short and full label of *Configuración*. |
+| `tableClasses.test.mjs` | 4 | New 2026-11-23. Both header densities are the small uppercase `ink-500` label; the two densities differ only in padding (`px-4 py-3` standard, `px-3 py-2` compact); the body cell is `text-sm text-ink-700` and leaves vertical alignment to the table; and a static scan: no table defines its own `headerCell`/`bodyCell` literal or repeats the header classes outside `tableClasses.ts`. |
+| `darkThemeContrast.test.mjs` | 26 | New 2026-11-23. Reads the `html[data-theme='dark']` block of `index.css` and measures it: the tokens the contracts read are declared; `ink-500`…`ink-900` clear 4.5:1 on `surface`, `raised` and the hover fill `ink-50` (15 cases); a `brand-800` link clears 4.5:1 on `page`, `surface` and `raised` (3); the primary label `on-accent` clears 4.5:1 on `brand-800` and its hover `brand-900`, and on the neutral fills (secondary button, avatar, tooltips); every status tint keeps its text at 4.5:1 (`brand`, `danger`, `warn`, `info`); the focus ring and `control-border` clear 3:1 on `surface` and `raised` (2); the layers separate (`surface`/`page` ≥ 1.2:1, `raised`/`surface` ≥ 1.15:1); the inner highlight rule exists only under the dark selector. |
+| `themeTokens.test.mjs` | 5 | New 2026-11-23. Static scan of every `src/**/*.tsx`: the scan reaches the app and both patterns match what they should (and not `bg-surface`, `text-white`, `danger-*`, `warn-*`); no component paints a surface with the literal `bg-white` (use `bg-surface`, which follows the theme); no component uses `red-*` or `amber-*` (use `danger-*` and `warn-*`). Exceptions go in the `EXCEPTIONS` map of the file with a reason; it is empty. 2026-11-23 (dark theme, phase 2A): the same scan also rejects a literal `fill-white`, `stroke-white` or `text-white` outside `WHITE_INK_EXCEPTIONS` (today only `RecentProjectHero.tsx`, with its reason: the spotlight plate is the same in both themes), and a second case fails when an exception no longer needs to be one. |
 | `summaryVisuals.test.mjs` | 9 | Summary charts. |
+| `uiLegibility.test.mjs` | 8 | New 2026-11-23. Static scan of `src/`: the scan reaches the app; `text-ink-300` / `text-ink-400` is not a text colour except in an exact list of decorative uses (two chevron icons, the search icon, an `aria-hidden` separator); the tabs are 44px tall (padding 2×8 + `text-sm` 20 + `::after` 2×4) and the area does not widen; a `RowButton` is 24px with a 24×44 area (`after:-inset-y-2.5`, `after:inset-x-0`) that stays inside a standard row (extension 10px ≤ the 12px of cell padding); no `<Button>` carries a colour, border or radius its variant already sets (only `!` overrides); arbitrary pixel font sizes appear only in the six documented places; no `space-y-5` or `space-y-10`; and no `h2` is `text-xl`. |
 | `versionAccessApi.test.mjs` | 4 | `versionAccessApi`: `GET /projects/{id}/access`, list members, grant a role (with the vertical when there is one), revoke by member and role id. |
-| `versionAccessRules.test.mjs` | 5 | `utils/versionAccessRules.ts`: merging needs to manage the parent (`canMergeIntoParent`), branching needs to edit the chosen parent (`canBranchFromParent`), `uneditableVerticals` lists the scenario verticals the caller cannot edit, a node of an unknown type blocks that check, and `VersionTree` shows *Mergear* only where the parent can be managed. |
-| `versionRoleErrors.test.mjs` | 9 | The Spanish translation of the version endpoints' `403`/`400`/`404` messages, including "ask a project administrator" for managing roles and the cascading-delete `403` that names no version; and, new, the branch / merge / vertical `403`s (*edit this version*, *this vertical's nodes*, *simulate*, *manage this project*) and the `400`/`404` ones (*Resource not found*, *Node vertical does not match its type*, versions of different projects, parent of another project, a version as its own ancestor, a cycle in the simulation graph). |
+| `importVersionCsvModal.test.mjs` | 9 | Import window markup: Spanish file picker, templates, collapsed help, economic permission, confirm button. |
+| `scenarioReadiness.test.mjs` | 6 | Reasons a scenario cannot be simulated, and the comparison tile. |
+| `versionCsvImport.test.mjs` | 54 (was 27; connection identity messages 2; the `type` check added 17, the `INDUSTRIAL_CONSUMPTION` fix 2, templates and confirm button 6) | New file. Node CSV import into a version: the identity messages (exists / repeated, with uuid, upper-case uuid, without a record number, malformed uuid) and the other importer messages translated by regex, previous translations unchanged; the CSV parser (quotes, BOM, CRLF, blank lines) and the analysis (line numbering, identity, file-level problems, kinds, connections, scenario row); both example files clean and without an `identity` column; the identity help text; permissions (deny by default, verticals, connections, economics); confirmation warnings; start conditions; failure classification (rejected vs uncertain); result messages and destinations. Type / role / vertical coherence of each `NODE` row against a hand-written `NodeTypeEnum` matrix (the `type.nodeType` enum spelling included): every kind clean, every wrong role and every wrong vertical for every kind with its expected value and line, the "line 9" message, several errors in one file in order with the header as line 1, empty / non-JSON / non-object / missing-key `type`, case-insensitive kind, no check without a `type` column or on non-`NODE` rows, the 50-problem cap with the remaining count, no import with problems, the help text, the templates agreeing with the rules; `NODE_KIND_VERTICAL` (the edit-permission vertical) equal to the `NodeTypeEnum` vertical for every kind, and an `INDUSTRIAL_CONSUMPTION` file needing *Consumo interno*, not *Exportación*; and the backend `Node role/vertical does not match its type` messages translated (wrapped with a record number or not, unknown shape left alone). |
+| `versionAccessRules.test.mjs` | 14 (was catalogued as 5; this change adds 1) | `utils/versionAccessRules.ts`: merging needs to manage the parent (`canMergeIntoParent`), branching needs to edit the chosen parent (`canBranchFromParent`), `uneditableVerticals` lists the scenario verticals the caller cannot edit, a node of an unknown type blocks that check, and `VersionTree` shows *Mergear* only where the parent can be managed and *Importar CSV* only on the versions the caller can import into. |
+| `versionRoleErrors.test.mjs` | 9 | The Spanish translation of the version endpoints' `403`/`400`/`404` messages, including "ask a project administrator" for managing roles and the cascading-delete `403` that names no version; and, new, the branch / merge / vertical `403`s (*edit this version*, *this vertical's nodes*, *simulate*, *manage this project*) and the `400`/`404` ones (*Resource not found*, *Node vertical does not match its type* (now translated with the type and the expected vertical), versions of different projects, parent of another project, a version as its own ancestor, a cycle in the simulation graph). |
 | `versionRoles.test.mjs` | 18 | `utils/versionRoles.ts`: role labels, grant ordering, "project administrator administers every version", explicit versus inherited access, `canManageRoles` (not `canManage`) deciding who manages roles, assignable people, role choices, one request per vertical, last-role detection, the version tree and its filters, default version, sorting. |
 | `versionRolesPanel.test.mjs` | 2 | `VersionRolesPanel`: a version administrator who cannot manage roles sees only their own access and a notice; someone who can loads the members and gets the assignment form. |
 | `visibleDiagram.test.mjs` | 2 | Removed nodes and touching edges disappear without changing saved history; empty and restored diagrams. |
 | `workspaceRoutes.test.mjs` | 2 | Configuration and results routes never activate version management; switching projects keeps the module and drops foreign ids. |
-| **Total (27 files)** | **173** | |
+| **Total (27 files, 2026-11-15)** | **173** | |
+
+> **Current total: 416 tests in 45 files**, verified with `npm test` on 2026-11-23 (416 pass, 0 fail, 0 skipped; was
+> 413 before three more `sidebarTheme` cases (26 in all: the dark rail has its own tokens and logo checks), 385 in 44 before `darkThemeContrast` 26 and two more `themeTokens` cases (5 in all), 382 before three more `uiLegibility` cases (8 in all), 377 in 43 before `uiLegibility` 5, 365 in 41 before `buttonLink` 6 and `economicsControls` 6, 346 in 38 before `pageHeader` 10, `tableClasses` 4 and `emptyState` 5, and 343 in 37 before `themeTokens` 3, and 315 in 35 on 2026-11-22 before `sidebarTheme` 23 and `sidebarMode` 5). The table above is the 2026-11-15 snapshot
+> with those two rows added; the other files and tests added since are spread over the dated sections below.
+> Five files are **not named anywhere in this catalog yet**: `accessInvalidationApi`, `editorPermissions`, `newVersion`,
+> `projectAccessState` and `userDetail` (`*.test.mjs`); cataloguing them is pending.
 
 Per-file counts of the older files (economic, results, node editor) come from
 running each file; their case-by-case catalogs are in the dated sections above.
@@ -2914,11 +2994,15 @@ difference. When the menu changes **on purpose**, regenerate it with
 with the change — never regenerate it to silence a failure you did not expect.
 
 **Playwright scripts (not run for this catalog).** `tests/*-browser.mjs`
-(`sidebarPin`, `startup`, `routes-live`, `projectScoping`, `economic`,
+(`sidebarLayout`, `startup`, `routes-live`, `projectScoping`, `economic`,
 `results`, `probabilistic`, `consumption`, `formInputs`, `scenarioPresentation`,
 `summaryVisuals`) drive a local Vite server with isolated HTTP fixtures; set
-`APP_URL` and `PLAYWRIGHT_MODULE`. `sidebarPin-browser.mjs` is the one that
-exercises the pin and the `80rem` threshold.
+`APP_URL` and `PLAYWRIGHT_MODULE`. `sidebarLayout-browser.mjs` (2026-11-23,
+replacing `sidebarPin-browser.mjs`) covers the fixed column at ≥ `80rem`, the
+drawer at 1100 and 390px, the logo's placement, `Ctrl`/`Cmd`+`B` and the
+retired `sidebarPinned` key. **It has never been run and, like every other
+`*-browser.mjs`, is not part of `npm test` and must be treated as out of
+date** until someone runs it against a local Vite server.
 
 ## Version roles, cascade delete, root versions and CSV limit — 2026-11-15
 
@@ -3595,3 +3679,586 @@ unrelated (`VersionGetJson*HttpTest` golden JSON: `dtmcost`/`dtmtime` property o
 same two fail on a clean `master` checkout). Frontend `npm test` — **249 cases, 1 failure**, also pre-existing on
 Windows (`permissionsCharacterization.test.mjs` compares `/`-separated allowed paths with `\`-separated walked
 paths); `npm run build` and `npm run lint` pass.
+
+## Scenario table, expand only (V26) — 2026-11-22 (E3)
+
+`mvn test` runs on H2 with Hibernate-built schema and Flyway disabled, so V26 is verified only by the
+PostgreSQL integration test below (`mvn -B verify` with `ECONOMIC_TEST_DATABASE_URL` pointing at a
+disposable database whose name contains `enerscope_economic_test`). Validation on this delivery:
+`mvn -B clean verify` against a throwaway PostgreSQL 16 — **1598 unit executions** and **58 integration
+executions**, zero failures/errors/skips. `node.migration.MigrationCatalogTest.executableCatalogUsesOnlyVersionedMigrations` now expects **26** migrations.
+
+### `scenario.repository.ScenarioMigrationIT` — PostgreSQL/Flyway (10; 6 for V26, 4 for V27 added in E4a)
+
+Each case migrates a disposable schema to V25, inserts rows (one version with every kind of row, one with
+only an evaluation, one inactive with a configuration, one with nothing, and a comparison with two items),
+applies V26 and checks the result.
+
+| Case | Verifies |
+| --- | --- |
+| `everyPreviousRowSurvivesAndPointsAtTheDefaultScenarioOfItsVersion` | V26 runs once; row counts of the six linked tables and of `version` are identical before and after; no `scenario_id` is null; every row points at the default scenario of its own version. |
+| `everyVersionGetsExactlyOneEscenarioBase` | Four versions give four scenarios, each the single default named "Escenario base"; a version with no economics and an inactive one get one too (the flag follows the version). |
+| `aScenarioNameIsUniqueInItsVersionIgnoringCaseAmongActiveScenariosOnly` | Same name in a different case is refused in the same version, allowed in another version and again after the first is deactivated; a blank name is refused. |
+| `aVersionCannotHaveTwoActiveDefaultScenarios` | A second active default is refused; it is accepted once the first is deactivated. |
+| `runningTheMigrationAgainChangesNothing` | Flyway applies 0 migrations the second time, and executing the V26 file by hand again adds no scenario, moves no link and changes no count. |
+| `theUniqueConstraintsOnVersionIdStayUntilV27` | A second economic configuration for the same version is still refused (the `UNIQUE (version_id)` is dropped in V27, not here). |
+
+### `scenario.service.ScenarioDefaultsTest` — Unit (4)
+
+| Case | Verifies |
+| --- | --- |
+| `createsTheEscenarioBaseOfAVersionThatHasNone` | With no default scenario, one named "Escenario base", flagged default and bound to the version, is saved and returned. |
+| `reusesTheExistingDefaultScenarioWithoutCreatingAnother` | An existing default is returned as is; nothing is saved. |
+| `lookingForTheDefaultScenarioOfAVersionWithoutOneNeverCreatesIt` | (E4a) `existing` answers empty for a version with no default scenario and saves nothing (reads never write). |
+| `lookingForTheDefaultScenarioReturnsTheExistingOne` | (E4a) `existing` returns the stored default scenario without saving. |
+
+### `scenario.service.ScenarioLimitsTest` — Unit (2)
+
+| Case | Verifies |
+| --- | --- |
+| `theDefaultLimitIsTwentyScenariosPerVersion` | The default is 20. |
+| `aLimitBelowOneIsRejectedAtStartup` | A configured maximum below 1 fails fast. |
+
+Existing cases extended (no change in counts): `EconomicServiceTest.editorCanSaveValidatedConfiguration` and
+`newEvaluationStoresVersionTwoAndSimulatesOnce`, `EconomicJobServiceTest.submissionFreezesInputsAndQueuesWithoutPublishingEvaluation`
+and `ScenarioComparisonServiceTest.saveNeedsEditPermissionNamesItAfterItsScenariosAndStoresTheSimulationsCompared`
+now also check that the new row records the default scenario of its version (double write).
+
+## Start-up date and maintenance duration survive an edit — 2026-11-22 (E3b)
+
+Bug: editing a node from the map erased its `startupDate` in all 12 node types (`NodeService.edit*` copied
+`dto.getStartupDate()` unconditionally and the editor never sent it), and `maintenanceDuration` could not be
+set through the node DTO at all. Now an absent value keeps the stored one (so a start-up date cannot be cleared
+with `null`), a present one updates it, and a negative duration is rejected.
+
+### `node.service.NodeServiceOptionalBaseValuesTest` — Unit (4 cases × 12 node types = 48 executions)
+
+Each case runs once per node type (Well, GatheringNetwork, TreatmentPlant, Pipeline, PipelineConnection,
+CompressingPlant, GroundBasedLiquefactionPlant, FLNGUnit, SeaportTerminal, LNGCarrier, InternalConsumption,
+IndustrialConsumption), creating the node through `NodeService.save*` and editing it through `edit*`.
+
+| Case | Verifies |
+| --- | --- |
+| `creatingANodeStoresItsStartupDateAndMaintenanceDuration` | Creating a node with both values stores them (the constructors do not take the duration). |
+| `editingWithoutStartupDateOrMaintenanceDurationKeepsTheStoredValues` | Editing with neither value keeps both, and the rest of the edit (name) is still applied. |
+| `editingWithANewStartupDateOrMaintenanceDurationUpdatesThem` | Editing with new values updates both. |
+| `aNegativeMaintenanceDurationIsRejectedOnCreateAndEdit` | A negative duration is refused on create and edit, and the node keeps its value. |
+
+Checked by mutation: restoring the old unconditional copy makes the "keeps the stored values" case fail for all 12 types.
+
+### `version.service.VersionServiceTest` — Unit (66, was 65 before this change)
+
+| Case | Verifies |
+| --- | --- |
+| `nodeDetailReportsTheStartupDateAndMaintenanceDurationSoTheEditFormCanSendThemBack` | `getNodeDetail` returns the node's `startupDate` and `maintenanceDuration`, which the edit form sends back. |
+
+### `frontend/tests/nodeOperationalEditor.test.mjs` — 3 new cases (frontend `npm test`: 252 cases, 0 failures)
+
+| Case | Verifies |
+| --- | --- |
+| `a loaded node round-trips its start-up date and maintenance duration into the edit payload` | `baseValuesFromDetail` then `buildNodePayload` keep `startupDate`, `maintenanceDuration` and `wastePercentage`. |
+| `a node without a start-up date sends none (never null), so the backend keeps whatever is stored` | The payload omits `startupDate` when there is none, and a missing duration becomes 0. |
+| `the edit form shows start-up date, maintenance duration in hours and losses, and states that a date cannot be cleared` | The three new fields render with the loaded values and the "no borrar" hint. |
+
+CI: `backend-it` (PostgreSQL integration tests) no longer has `continue-on-error`, so a failing `*IT` — including `ScenarioMigrationIT` — fails the job.
+
+## Reads by scenario and V27 (E4a) — 2026-11-22
+
+`V27__scenario_unique_per_scenario.sql` drops the `UNIQUE (version_id)` of `economic_configuration`,
+`economic_draft` and `scenario_draft` and adds `UNIQUE (scenario_id)`; every read now goes by `scenario_id`
+(see `considerations.md`). Validation: `mvn -B clean verify` against a throwaway PostgreSQL 16 on port 55432 —
+Surefire **99 classes, 1652 executions**, failsafe **6 classes, 62 executions**, zero failures/errors/skips;
+`MigrationCatalogTest` now expects **27** migrations. The table above sums to those 1652 executions and 1420 cases.
+
+### `scenario.repository.ScenarioMigrationIT` — 4 cases added for V27 (PostgreSQL)
+
+| Case | Verifies |
+| --- | --- |
+| `v27KeepsEveryRowOfAV26DatabaseAndLosesNoLink` | On a V26 database with rows, only V27 is applied; row counts are identical and no `scenario_id` is null. |
+| `aSecondScenarioOfTheSameVersionCanHaveItsOwnConfigurationDraftAndScenarioDraft` | A non-default scenario of the same version can hold its own `economic_configuration`, `economic_draft` and `scenario_draft` (two rows per version). |
+| `aScenarioStillHasAtMostOneConfigurationDraftAndScenarioDraft` | A second row for the same scenario is refused in all three tables. |
+| `v27IsRepeatable` | Flyway applies V26 and V27, then 0; running the V27 file twice by hand changes no count; the three unique indexes exist and no `UNIQUE (version_id)` remains. |
+
+The V26 cases now migrate only up to V26 (`flyway.target("26")`), so they keep describing V26.
+
+### `scenario.service.ScenarioReferenceServiceTest` — Unit (4, was 2)
+
+| Case | Verifies |
+| --- | --- |
+| `aClonedNodeIsRemappedInTheConfigurationOfEveryScenarioOfTheVersion` | Both scenarios' configurations get the new node id; unrelated nodes are untouched. |
+| `aClonedNodeIsRemappedInTheScenarioDraftAndTheLegacyDraftOfEveryScenario` | Two `scenario_draft`s and one legacy `economic_draft` of the version all get the new node id (in `configuration`, `editor` and `draft` sub-trees); another node's reference in the same draft is left alone. |
+| `draftsWithoutTheNodeOrWithBlankJsonAreLeftExactlyAsTheyAre` | A draft that references only another node, a blank draft (`""`), `{}` and a draft whose old id is under a key that is not `nodeId`/`deliveryNodeId` keep their exact text (not even re-serialized). |
+| `remappingANodeOntoItselfTouchesNothing` | Old id equal to new id reads no configuration and no draft. |
+
+### `economic.service.EconomicServiceTest` — Unit (34, was 33)
+
+| Case | Verifies |
+| --- | --- |
+| `readingAVersionWithoutAScenarioFindsNothingAndNeverCreatesOne` | Configuration, draft and evaluation list of a version with no default scenario answer not-found / null / empty, never create a scenario and never touch the repositories. |
+
+Existing tests adjusted (no change in their counts): the mocked service tests now stub reads by scenario
+(`EconomicExample.scenarioIdOf(versionId)`, `EconomicExample.scenarioDefaults()`), and the tests that persist
+rows straight through the `EntityManager` (`EconomicWriteAccessHttpTest`, `ScenarioVerticalAccessHttpTest`,
+`ProjectExecutiveHttpTest`, `PostgreSqlEconomicIT`) attach the default scenario (`ScenarioFixtures`).
+
+## Scenario API, roles and the end of node edits from a scenario (E4b) — 2026-11-22
+
+Scenarios can be created, renamed, duplicated and deleted, and their configuration, simulations and results are
+served per scenario (`backend/README.md#scenario-api`). Saving a scenario no longer saves node values. Validation:
+`mvn -B clean verify` against a throwaway PostgreSQL 16 on port 55432 — Surefire **102 classes, 1756 executions**,
+failsafe **7 classes, 82 executions**, zero failures/errors/skips. The table above sums to those 1756 executions
+(1464 cases).
+
+### `scenario.controller.ScenarioApiHttpTest` — HTTP, real security and persistence on H2 (16 cases, 78 executions)
+
+| Case | Verifies |
+| --- | --- |
+| `everyRoleGetsTheExpectedAnswerForEveryAction` (×63) | The role matrix. Roles: Ejecutivo, Simulador, version Editor of Extraction, version Editor of Export, version administrator, project administrator, platform administrator. Actions: list, read, create, rename, duplicate, delete, simulate, save configuration, list evaluations. Ejecutivo reads only; Simulador reads and simulates (202); Editors do everything except delete (403); the three administrators do everything. |
+| `anEditorSavesRulesOfItsOwnVerticalAndGets403ForAnotherVerticalsRules` | On the scenario endpoint an Export editor saves a change to the Export node's rules (200) and an Extraction editor gets `403`. |
+| `duplicatingAConfiguredScenarioNeedsTheRightToEditEveryVerticalItsRulesTouch` | Duplicating a scenario whose rules touch two verticals is `403` for a one-vertical editor and `201` for a version administrator. |
+| `aNonMemberGets403BeforeAnythingIsLookedUpEvenForAScenarioThatDoesNotExist` | A caller with no project permission gets `403` for an existing and for an unknown scenario id (403 before 404). |
+| `anUnknownDeletedOrForeignScenarioIsTheSameGeneric404` | Unknown, deleted and other-project scenarios answer the same `404` "Scenario not found" on every route (read, rename, delete, duplicate, configuration get/put, simulate, evaluations). |
+| `aMemberOfAnotherProjectCannotReachThisProjectsScenarios` | With the other project's id in the URL the caller is not a member there: `403`. |
+| `anInactiveVersionHidesItsScenarios` | List, read and create answer `404` once the version is inactive. |
+| `theVersionCapabilityIs403BeforeTheNameIsValidatedAndTheNameIs400BeforeAConflict` | Blank name: Ejecutivo and Simulador `403`, administrator `400`; a repeated name is `409`. |
+| `repeatedNamesAndTheLimitAnswer409WithAClearMessage` | Repeated name (different case/accent) `409`; the 21st scenario `409` naming 20; duplicating at the limit `409`. |
+| `createReturnsTheScenarioAndNeverCreatesAVersion` | `201` with name, version id, not default, not configured; the project still has the same versions; the list is oldest first. |
+| `duplicatingGivesTheCopyTheSameConfigurationAndTheSourceStaysTheSame` | The copy's configuration equals the source's; the source is unchanged. |
+| `theLastScenarioCannotBeDeletedAndTheDefaultIsPromotedWhenItIsDeleted` | Deleting the default promotes the remaining one (`defaultScenario: true`); deleting the last is `409`. |
+| `theOldVersionEndpointsFollowTheDefaultScenarioAndTheNewOnesKeepToTheirOwn` | Saving a copy does not change what the old `/versions/{v}/economics/configuration` returns; after the default is deleted it returns the promoted scenario's. |
+| `aSimulationBelongsToItsScenarioAndAPendingDraftBlocksIt` | A job is listed under its scenario only (another scenario's job id is `404`); a pending draft makes simulating that scenario `400`. |
+| `anEvaluationOfAnotherScenarioIsNotFoundUnderThisOne` | Listing another scenario's evaluations is empty and reading one (or its rounds) is `404`. |
+| `aScenarioSaveThatWouldChangeNodeValuesIsABadRequestWithAClearMessage` | A save carrying changed node values is `400` with "se editan en cada nodo de la versión". |
+
+### `scenario.service.ScenarioLifecycleTest` — real services on H2 (18); `ScenarioLifecyclePostgreSqlIT` runs the same 18 on PostgreSQL
+
+| Case | Verifies |
+| --- | --- |
+| `createsAnEmptyNonDefaultScenarioNamedByThePersonAndListsThemOldestFirst` | Trimmed name, not default, not configured; list order. |
+| `theFirstScenarioOfAVersionThatHasNoDefaultBecomesIt` | In a version with no scenario the first created is the default. |
+| `aNameIsUniqueInTheVersionIgnoringCaseAndTheDefaultNameIsTakenToo` | "AMPLIACIÓN", "escenario BASE" and padded names are refused. |
+| `renamingChecksTheNameAgainstTheOthersButNotAgainstItself` | Renaming to another's name is refused; changing only the case of its own is allowed. |
+| `aMissingBlankOrTooLongNameIsABadRequest` | Null body, null, blank and 121-character names are `IllegalArgumentException`; 120 is accepted. |
+| `aVersionHoldsAtMostTwentyActiveScenariosAndADeletedOneFreesItsPlace` | The 21st (and a duplicate at the limit) is refused; deleting one frees a place. |
+| `aDeletedScenarioFreesItsName` | A deleted scenario's name can be reused. |
+| `duplicatingCopiesOnlyTheConfigurationAndLeavesTheSourceIntact` | Same configuration, no draft, no evaluations in the copy; source configuration, drafts and evaluations untouched. |
+| `duplicatingAnEmptyScenarioGivesAnEmptyOne` | An empty scenario duplicates to an empty one; its name is checked. |
+| `theLastScenarioOfAVersionCannotBeDeleted` | `ScenarioDeletionRefusedException` and the scenario stays active. |
+| `aScenarioWithAQueuedOrRunningSimulationCannotBeDeleted` | Refused while a job is queued, then while running; allowed once completed. |
+| `deletingTheDefaultPromotesTheOldestRemainingOneInTheSameTransaction` | Old mark removed, oldest remaining becomes the only default, old endpoints follow it. |
+| `deletingANonDefaultScenarioLeavesTheDefaultAlone` | The default is unchanged. |
+| `deletingKeepsItsEvaluationsJobsAndTheSavedComparisonsThatUsedIt` | After deleting, its evaluation, job and a saved comparison with both items are all still there and point at the deleted scenario. |
+| `theOldEndpointsKeepActingOnTheDefaultScenarioWhenOthersExist` | Saving a copy's configuration leaves the default's (and the version-level read) unchanged. |
+| `aDraftOfAnotherScenarioDoesNotBlockTheDefaultOneNorItsReadiness` | Readiness is the default scenario's; another scenario's draft shows only on that scenario. |
+| `editingANodeRemapsTheConfigurationOfEveryScenarioOfTheVersion` | After editing a node from the map (clone-on-write) both scenarios reference the new node and none the old one. |
+| `editingANodeLeavesEveryScenarioOutdatedByDesign` | A node edit changes the source token of every scenario of the version. |
+
+### `scenario.service.ScenarioAccessTest` — Unit (7)
+
+| Case | Verifies |
+| --- | --- |
+| `withoutTheProjectPermissionTheAnswerIs403AndNothingIsLookedUp` | The scenario repository and the version guard are never touched. |
+| `anUnknownInactiveOrForeignScenarioIsTheSameGeneric404BeforeTheVersionGuard` | Same "Scenario not found" for unknown, inactive and other-project scenarios; no guard call. |
+| `aScenarioOfAnInactiveVersionIs404` | An inactive version hides its scenarios. |
+| `readingNeedsOnlyTheProjectPermission` | `VIEW_PROJECT` and no version guard. |
+| `editingNeedsEditProjectThenTheRightToEditTheVersion` | `EDIT_PROJECT` first, then `assertCanEditVersion`, in that order. |
+| `deletingNeedsToAdministerTheVersionAndSimulatingToSimulateIt` | `assertCanManageVersion` / `assertCanSimulateVersion`, never the edit guard. |
+| `aRefusedVersionCapabilityIsA403AfterTheScenarioWasFound` | The version `403` comes after the lookup. |
+
+### Cases added or changed in existing classes
+
+| Class and case | Verifies |
+| --- | --- |
+| `comparison.service.ScenarioComparisonServiceTest.aSavedComparisonReadsEachItemThroughItsOwnScenarioEvenWhenItIsDeletedOrNoLongerTheDefault` | (14, was 13) A saved item is read through the scenario recorded in it; an item with no scenario still reads through the version. |
+| `economic.service.ScenarioConfigurationTest.publishesOnlyTheEconomicsAndLeavesTheNodesOfTheVersionUntouched` | Replaces the old "publishes physics and economics together": a save changes the configuration and never clones or replaces a node. |
+| `economic.service.ScenarioConfigurationTest.aSaveThatWouldChangeNodeValuesIsRefusedAndNothingIsWritten` | Changed node values are `IllegalArgumentException`; nothing is written. |
+| `economic.service.ScenarioConfigurationTest.incompleteSavePreservesPublishedValuesAndBlocksJobUntilDiscarded` | Rewritten around an incomplete economic save (no configuration) instead of an invalid node value. |
+| `economic.service.ScenarioConfigurationTest.aDraftThatCarriesNodeValuesIsMarkedSoTheScreenCanExplainThatTheyAreNoLongerApplied` | A stored draft whose node values differ from the nodes is flagged `draftOperationsIgnored`; discarding clears the flag. |
+| `economic.controller.ScenarioVerticalAccessHttpTest` | (22 cases, 26 executions) The vertical tests that changed node values now change the **rules** of a vertical's node (the only thing a scenario saves): own vertical `200`, another vertical `403`, invalid rule of another vertical `403`, invalid rule of its own stored as a draft; the three "changes every vertical" cases and the two child-copy cases no longer rename nodes; `aScenarioSaveThatWouldChangeNodeValuesIsRefusedWithAClearMessageNotSilentlyDropped` is new. The case `anyEditorChangesAnInternalConsumptionNode` was removed (it renamed a node; the internal-consumption exemption stays covered by `ScenarioChangeScopeTest`). |
+| `economic.service.EconomicJobServiceTest` | Stubs read the configuration by scenario. |
+
+## Frontend scenario flow (E5) — 2026-11-22
+
+Version → its scenarios → one scenario. Validation: `mvn -B clean verify` against a throwaway PostgreSQL 16 on port 55432
+— Surefire **102 classes, 1758 executions**, failsafe **7 classes, 84 executions**, zero failures/errors/skips (the table
+above sums to those 1758 executions); frontend `npm test` **265 cases, 0 failures** (252 before), `tsc -b`, `eslint .` and
+`npm run build` clean. The browser (Playwright) scripts `frontend/tests/*-browser.mjs` mock the endpoints of the old
+version-level flow and were **not run and not updated**; they must be rewritten before they are used again.
+
+### Backend: status per scenario (the one backend change of E5)
+
+`ScenarioDTO` gains `status` (`UP_TO_DATE`, `OUTDATED`, `NEVER_SIMULATED`, `SIMULATING`) and `latestEvaluatedAt`
+(`ScenarioStatusService.standingOf`), because the only status the API returned was the comparison's, for the default
+scenario only.
+
+| Case | Verifies |
+| --- | --- |
+| `scenario.service.ScenarioLifecycleTest.eachScenarioReportsItsOwnStatusAndANodeEditOutdatesEveryOneThatWasSimulated` | A never-simulated scenario is `NEVER_SIMULATED` with no date; after simulating the default one it is `UP_TO_DATE` with a date while the copy stays `NEVER_SIMULATED`; after a node of the version changes the simulated one is `OUTDATED`. |
+| `scenario.service.ScenarioLifecycleTest.aScenarioWithAQueuedOrRunningSimulationIsSimulating` | A queued job makes the scenario `SIMULATING`. |
+
+### `frontend/tests/scenarioFlow.test.mjs` — 13 cases (pure logic: `utils/scenarioRules.ts`, `utils/scenarioRoutes.ts`, `utils/workspaceRoutes.ts`, `api/errors.ts`)
+
+| Case | Verifies |
+| --- | --- |
+| `each role gets the scenario permissions the backend matrix gives it` | Ejecutivo, Simulador, Editor, version administrator, project administrator and platform administrator: view / edit / delete / simulate flags, and a reason exactly when an action is denied. |
+| `permissions deny by default: no access data, or a version the person has no entry for` | `null`/`undefined` access and an unknown version allow nothing. |
+| `a role that cannot edit never edits even with version flags: the project permission is required too` | Version flags without `EDIT_PROJECT` give nothing. |
+| `the reason of a blocked action says why: read-only role, missing right, or the state of the scenario` | Read-only, missing right, not configured, draft pending, simulating, limit of 20 reached. |
+| `a scenario name is required, trimmed, at most 120 characters and unique in the version ignoring case` | Blank, 120/121 characters, repeated names ignoring case and accents. |
+| `renaming lets a scenario keep or re-case its own name but not take another one` | `selfId` handling. |
+| `the status the API returns reads in plain words, and a changed base carries the notice` | Four labels and tones, "La base cambió: revisá este escenario.", the ignored-operations and delete notices. |
+| `the default scenario is the one marked, else the first` | `defaultScenarioOf`. |
+| `every scenario error the backend can answer has its own plain Spanish message` | Repeated name, limit of 20, last scenario, running simulation, stale token, node values in a scenario save, "Scenario not found", name required / too long. |
+| `scenario routes are built under the version and keep each module to its own sidebar entry` | Path builders and that configuration and simulation patterns match their own routes only (never version management). |
+| `switching projects from any scenario screen opens that module list of the new project, never a foreign id` | `projectDestination` for the new routes. |
+| `the old version-level economics routes are read and sent to the default scenario` | `parseLegacyEconomicsPath` / `legacyEconomicsTarget` for configuration, history and results (with evaluation id) and the paths that must not match. |
+
+`frontend/tests/scenarioConfiguration.test.mjs` gains `a recovered draft never resends stale node values: they are always the nodes' current ones`.
+
+## Comparison by scenario and V28 (E6) — 2026-11-22
+
+Items name a scenario; saved comparisons keep the version and scenario names and open after either is deleted
+(`scenario-comparison.md`). Validation: `mvn -B clean verify` against a throwaway PostgreSQL 16 on port 55432 — Surefire
+**103 classes, 1782 executions**, failsafe **7 classes, 87 executions**, zero failures/errors/skips (the table above sums to those
+1782 executions); `MigrationCatalogTest` expects **28** migrations; frontend `npm test` **268 cases, 0 failures** (265 before),
+`tsc -b`, `eslint .` and `npm run build` clean. The Playwright scripts are still not updated (see the E5 note).
+
+### `comparison.controller.ScenarioComparisonHttpTest` — HTTP, real security and persistence on H2 (14 executions)
+
+| Case | Verifies |
+| --- | --- |
+| `everyRolePreviewsButOnlyThoseWhoCanEditTheProjectSave` (×6) | Everyone with `VIEW_PROJECT` previews (200); saving: Ejecutivo `403`, **Simulador `201`**, Editor, version administrator, project administrator and platform administrator `201`. |
+| `twoScenariosOfTheSameVersionAreComparedAndNamedByTheirScenario` | Scenarios of one version are compared; the result carries scenario names, scenario ids and the shared version. |
+| `thePickerListsEveryScenarioGroupedByVersionWithItsOwnStatus` | `GET /comparisons/scenarios` lists each scenario (default first) with its own status and its version. |
+| `anItemThatNamesOnlyAVersionMeansItsDefaultScenario` | The deprecated `{versionId}` item compares that version's default scenario. |
+| `anUnknownDeletedOrForeignScenarioIsTheSameGeneric404` | Unknown, deleted and other-project scenarios answer one `404` "Scenario not found". |
+| `withoutAccessToTheProjectTheWholeRequestIs403WithNoPartialResult` | A non-member gets `403` with no data, also when an item does not exist, and for the picker. |
+| `tooFewTheSameTwiceAndNeverSimulatedAreBadRequests` | One item, the same scenario twice and a never-simulated scenario are `400`. |
+| `aSavedComparisonKeepsOpeningWithItsDataAfterItsScenarioIsDeleted` | After deleting a scenario the saved comparison opens (`200`), the item is `deleted` with its stored name, the result keeps its data, the list says it includes deleted scenarios. |
+| `aSavedComparisonKeepsOpeningAfterItsVersionIsDeactivated` | Same when the version is deactivated. |
+
+### `comparison.service.ScenarioComparisonServiceTest` — Unit (22, was 14; rewritten around scenarios)
+
+Scenarios of the same version and of different versions; same-named scenarios told apart by version; changed / never simulated;
+unknown scenario `404` before any evaluation is read and a single unknown is `404` (not "too few"); other-project, deleted and
+inactive-version scenarios are the same generic `404`; `403` for the whole request with nothing looked up; the deprecated version item
+and its cross-project `404`; shape errors (null body, no items, item without id, nine items, the same scenario twice, thresholds, name
+length); save stores the scenario and the names as they were; a saved comparison reads each item by its own evaluation and keeps the
+stored names even if the scenario was renamed; a deleted scenario and a deleted version are flagged `deleted`; an old comparison without
+scenario or names still opens and lists by version name; soft delete.
+
+### Other backend changes
+
+| Class and case | Verifies |
+| --- | --- |
+| `comparison.controller.ScenarioComparisonControllerTest.aRequestThatNamesOnlyAVersionStillBindsForCompatibility` | (6, was 5) `{versionId}` binds to `Item.ofVersion`; `{scenarioId}` to `Item(scenarioId)`. |
+| `comparison.service.ScenarioComparisonCalculatorTest` | (16, was 15) The project-name test became two: same scenario names across versions read "versión · escenario"; distinct names read as the scenario; the `deleted` flag reaches the result and a scenario without a name falls back to its version. |
+| `comparison.service.ScenarioStatusServiceTest.listReportsEachScenarioItsOwnStatusReadinessAndWhetherTheCallerCanSimulateGroupedByVersion` | The list has one entry per scenario, two scenarios of one version have their own statuses (up to date / simulating), grouped by version. |
+| `scenario.repository.ScenarioMigrationIT` | (13, was 10) `v28GivesEveryExistingComparisonItemTheCurrentNamesWithoutLosingARow`, `aSavedItemKeepsItsNamesWhenTheScenarioIsRenamedAndTheVersionDeleted` and `v28IsRepeatableAndNeverOverwritesAStoredName`; the V27 cases now migrate up to V27 only. |
+
+### Frontend (`frontend/tests/comparison.test.mjs`, 5 cases added or rewritten)
+
+| Case | Verifies |
+| --- | --- |
+| `scenarios are named by their scenario name, and by version · scenario when the names repeat` | `scenarioNames` mirrors the backend. |
+| `a deleted scenario of a saved comparison is marked and counted, and the label shows version and scenario` | "(eliminado)", `deletedCount`, `scenarioLabel` and the notice text. |
+| `the selection round-trips through the URL and the request keeps its order` | `scenarioId` in the URL and in the request; other projects dropped. |
+| `the picker groups scenarios by version in the server order and searches scenario and version names` | `groupByVersion`, `filterScenarios`. |
+| `a selection that arrives in the URL keeps scenario ids, turns old version ids into the default scenario and drops the rest` | `resolveSelection` and `selectionNotice`. |
+
+## Every version has its "Escenario base" from creation (E6b) — 2026-11-22
+
+`VersionService.saveVersion` (used by `ProjectService.saveVersion` for root versions and branches, and by `saveOrphanVersion`) calls
+`ScenarioDefaults.forVersion` in the same transaction. Validation: `mvn -B clean verify` against a throwaway PostgreSQL 16 on port
+55432 — Surefire **104 classes, 1790 executions**, failsafe **8 classes, 93 executions**, zero failures/errors/skips (the table above
+sums to those 1790 executions); frontend `npm test` **268 cases** (unchanged), `tsc -b`, `eslint .` and `npm run build` clean.
+
+### `scenario.service.VersionDefaultScenarioTest` — real services on H2 (6); `VersionDefaultScenarioPostgreSqlIT` runs the same 6 on PostgreSQL
+
+| Case | Verifies |
+| --- | --- |
+| `creatingARootVersionCreatesExactlyOneEmptyDefaultScenario` | A root version has exactly one active scenario, "Escenario base", default, with no configuration. |
+| `branchingCreatesItsOwnEmptyBaseScenarioAndInheritsNothingFromTheParent` | A branch has exactly one empty "Escenario base" of its own; the parent keeps its two scenarios and its configuration; the child has none. |
+| `aDetachedVersionAlsoGetsItsBaseScenario` | `saveOrphanVersion` also creates it. |
+| `severalVersionsEachGetTheirOwnSingleScenario` | Two roots and a branch give three scenarios in total, one each. |
+| `deletingAVersionRowAlsoRemovesItsScenariosAndLeavesTheOthersAlone` | Deleting a version (a physical delete today) removes its scenarios and no other version's. |
+| `theComparisonPickerListsTheNewVersionsScenario` | The comparison picker lists the new root and its branch, each with "Escenario base", default, `NEVER_SIMULATED` and not ready. |
+
+### Other changes
+
+| Class and case | Verifies |
+| --- | --- |
+| `version.service.VersionServiceTest.creatingARootVersionAndABranchEachCreateTheirDefaultScenarioInTheSameCall` | (67, was 66) `saveVersion` calls `ScenarioDefaults.forVersion` once for a root and once for a branch, and nothing else. |
+| `comparison.controller.ScenarioComparisonHttpTest.aVersionCreatedThroughTheApiAppearsInThePickerWithItsEmptyBaseScenario` | (15, was 14) A root and a branch created with `POST /projects/{id}/version` show up in `GET /comparisons/scenarios` with their base scenario. |
+| `version.service.VersionConflictIntegrationTest` | (11, unchanged) four cases that delete versions failed once every version had a scenario (the schema H2 builds had no cascade); `Scenario.version` is now mapped `@OnDelete(CASCADE)`, as V26's foreign key is on PostgreSQL. |
+
+## Deleting a version that has results (E6c) — 2026-11-22
+
+`DELETE /version/{id}` now answers **409** "La versión tiene simulaciones o comparaciones guardadas y no se puede eliminar." when the version, or any
+version in the subtree that would be deleted, has simulation jobs, saved evaluations or saved comparison items; nothing is touched. Order: 403, 404, 409.
+A version with none of that is deleted as before, with its scenarios. Validation: `mvn -B clean verify` against a throwaway PostgreSQL 16 on port
+55432 — Surefire **105 classes, 1797 executions**, failsafe **9 classes, 99 executions**, zero failures/errors/skips (the table above sums to those 1797);
+frontend `npm test` **268 cases** (one translation case extended), `tsc -b`, `eslint .` and `npm run build` clean.
+
+### `version.service.VersionDeletionTest` — real services on H2 (9); `VersionDeletionPostgreSqlIT` runs the same 9 on PostgreSQL (real foreign keys)
+
+| Case | Verifies |
+| --- | --- |
+| `aVersionWithASavedEvaluationIsRefusedAndNothingIsDeleted` | 409 (`VersionHasResultsException`, exact message); the version, its scenario and the evaluation are still there. |
+| `aVersionWithASimulationJobIsRefusedAndNothingIsDeleted` | Same for a job. |
+| `aVersionInASavedComparisonIsRefusedAndTheComparisonIsKept` | A version that only appears in a saved comparison item is refused; the comparison and the other version are kept. |
+| `anEmptyVersionIsDeletedWithAllItsScenariosAndTheRestIsUntouched` | An empty version with two scenarios is deleted with both; another version with an evaluation is untouched. |
+| `aSubtreeWithAChildThatHasSimulationsIsRefusedForEverything` | An empty parent with one simulated child and one empty child: deleting the parent is refused and removes nothing; the empty child alone can still be deleted. |
+| `permissionIsCheckedBeforeTheConflictAndAnUnknownVersionStaysNotFound` | A caller who cannot manage the version gets 403 (not a hint that results exist); an unknown id stays 404; the administrator gets the 409. |
+| `aVersionWithMembersAndRolesIsDeletedTogetherWithThem` | A version with one member holding one role is deleted; no `VersionMember` row is left (the `version_member` FK has no cascade; this was a 500 on PostgreSQL). |
+| `deletingASubtreeWithEverythingItCanOwnLeavesNoRowsBehindAndKeepsTheRest` | A parent and a child, each with 3 scenarios, 3 stored configurations, 3 scenario drafts, 3 legacy economic drafts, 2 members with 2 roles each, 2 wells and 1 connection (plus a third, unrelated version filled the same way). The fixture asserts every table is populated (6 scenario drafts and 6 economic drafts in the subtree); after `deleteVersion(parent)` every table is at 0 for the subtree (`scenario`, `economic_configuration`, `economic_draft`, `scenario_draft`, `version_member`, `version_member_role`, `versionxnode`, `versionxconnection`, `version`), there are no orphan roles, role permissions or scenario drafts, and the unrelated version keeps all its rows. |
+| `aSubtreeWithEverythingButAChildWithAnEvaluationIsRefusedAndNothingIsDeleted` | Same fixture, but the child has a saved evaluation: `409`, and the row counts of every table above are identical before and after (no draft, member or scenario touched). |
+
+`version.service.VersionServiceTest` (+2, 67 → 69): `deleteVersionRemovesMembershipsAndDraftsOfTheWholeSubtreeBeforeTheVersions` (members, scenario drafts, economic drafts and configurations of the whole subtree are deleted, in that order, before `deleteAllById`) and `deleteVersionKeepsMembershipsAndDraftsWhenTheSubtreeHasSavedResults` (409: none of those deletes runs).
+
+Also: `scenario.controller.ScenarioApiHttpTest.deletingAVersionThatHasSavedResultsIs409WithAClearMessageAndNothingIsDeleted` (79 executions, was 78) checks the
+`409` envelope over HTTP (`success: false` and the message), that the scenarios are still listed, and that a Simulador gets `403`.
+
+### `version.service.VersionNodeCsvImportTemplatesTest` — real services on H2 (3); `VersionNodeCsvImportTemplatesPostgreSqlIT` runs the same 3 on PostgreSQL
+
+The three example files of the frontend's «Importar CSV» screen, copied byte for byte (BOM included) from what
+`frontend/src/utils/versionCsvImport.ts` generates into `backend/src/test/resources/csv-templates/` (regenerate them if the
+frontend templates change), go through the real `VersionNodeCsvImportService` into an empty version made with `ProjectService.saveVersion`.
+
+| Case | Verifies |
+| --- | --- |
+| `theNodesTemplateImportsOneWellAndNoConnectionsNorEconomics` | `plantilla-nodos.csv` imports without error: 1 node («Pozo Norte»), no connections, no configuration in the «Escenario base», still one scenario. |
+| `theConnectionsTemplateImportsTwoNodesAndOneConnectionWithoutEconomics` | `plantilla-nodos-y-conexiones.csv` imports without error: count 2, one connection from «Planta de tratamiento 1» to «Gasoducto 1», no configuration, still one scenario. |
+| `theEconomicsTemplateImportsTwoNodesOneConnectionAndTheEconomicsOfTheBaseScenario` | `plantilla-nodos-con-economia.csv` imports without error: count 2, nodes «Planta de tratamiento 1» and «Gasoducto 1», one connection between them, one scenario («Escenario base») whose configuration (2030, 5 years, USD, boundary `empresa-1`) holds a profile for each generated node id. |
+
+### `version.service.VersionNodeCsvImportAllKindsTest` — real services on H2 (2); `VersionNodeCsvImportAllKindsPostgreSqlIT` runs the same 2 on PostgreSQL
+
+One CSV with a node of each of the 12 kinds goes through the real `VersionNodeCsvImportService` **and the real
+`VersionService` save** (nothing mocked), so the importer's `type` pre-check and `VersionService.alignDeclaredVertical`
+(vertical and role of `NodeTypeEnum`) run together. Each row's `type` is built from the `NodeTypeEnum` constant itself
+(`vertical()`, `role()`, `name()`), not from the importer. Added after `INDUSTRIAL_CONSUMPTION` could not be imported
+(pre-check `EXPORT`, save `INTERNAL_CONSUMPTION`); with that mismatch put back by hand, the import case fails on record 13
+(checked on 2026-11-22).
+
+| Case | Verifies |
+| --- | --- |
+| `theKindListCoversEveryNodeType` | The test's kind list has one entry per `NodeTypeEnum` constant, so a new type cannot be left out. |
+| `importsOneNodeOfEachOfTheTwelveKindsWithTheTypeOfNodeTypeEnum` | The import returns 12 and the version holds 12 nodes, each with the node type, vertical and role of its `NodeTypeEnum`. |
+
+### `version.service.VersionNodeCsvImportIdentityTest` — real services on H2 (7); `VersionNodeCsvImportIdentityPostgreSqlIT` runs the same 7 on PostgreSQL
+
+A version with three wells and an economic configuration (the "Escenario base") that references them, driven through the real
+`VersionNodeCsvImportService`, `VersionService` and `EconomicService` (class-level `@Transactional`; state is re-read after `flush` + `clear`).
+The two rejection cases fail if the identity guard is removed, and the draft cases fail if the draft rewrite in `ScenarioReferenceService` is removed
+(both checked by hand on 2026-11-22).
+
+| Case | Verifies |
+| --- | --- |
+| `anIdentityAlreadyInTheVersionIsRejectedAndTheVersionAndItsReferencesStayIntact` | A valid first row plus a second row with the identity of an existing well → `Invalid CSV record 3 (NODE): identity <uuid> already exists in this version`; the version has the same node ids and identities, the scenario configuration is byte for byte the same and still references the original well. |
+| `anIdentityRepeatedInTheFileIsRejectedAndNothingIsWritten` | The same new identity twice → `Invalid CSV record 3 (NODE): identity <uuid> is repeated in the file`; nothing written. |
+| `aNewIdentityIsImportedAndTheExistingNodesKeepTheirIds` | Control: a fresh identity imports one node and every earlier node keeps its id. |
+| `cloningAnInheritedNodeRemapsTheScenarioConfigurations` | Editing an inherited node clones it (new id) and the scenario configuration now references the clone, not the original. |
+| `cloningAnInheritedNodeRemapsTheScenarioDraftReferences` | A `scenario_draft` that references the node follows the clone (this was the pending finding; `remap` now rewrites it). |
+| `cloningAnInheritedNodeRemapsTheLegacyEconomicDraftReferences` | Same for the legacy `economic_draft`. |
+| `cloningAnInheritedNodeRemapsTheDraftsOfEveryScenarioAndLeavesUnrelatedDraftsAlone` | Three scenarios in one version: the `scenario_draft` of the base, the `scenario_draft` and the `economic_draft` of the second follow the clone; the third scenario's draft (another node) and its `{}` legacy draft keep their exact text. |
+
+## Local demo seed (`node --test`)
+
+Added 2026-11-22 with `docs/examples/seed-local-demo.mjs` (see [demo-data.md](demo-data.md)). **20 tests in 2 files.**
+
+`node --test docs/examples/seed-local-demo.test.mjs` — Unit, no server, no network (fetch is replaced by one that fails
+the test where it matters). **18 tests**; run 2026-11-22: 18 pass, 0 fail.
+
+| Test | What it verifies |
+| --- | --- |
+| `guardAcceptsLoopbackHttpWithExplicitConfirmation` | `localhost`, `127.0.0.1` and `[::1]` over `http://` pass when `ENERSCOPE_SEED_LOCAL=yes`; the trailing slash is dropped. |
+| `guardRejectsMissingOrWrongLocalConfirmation` | Missing, empty, `true` or `YES` instead of exactly `yes` stops the script. |
+| `guardRejectsRemoteHosts` | Public names, private IPs and `localhost.enerscope.org` are refused as non-local. |
+| `guardRejectsHttpsInvalidUrlsAndEmbeddedCredentials` | `https://`, a malformed URL and `user:pw@` in the URL are refused. |
+| `mainStopsAtTheGuardBeforeAnyNetworkCall` | The seed and `--cleanup --yes` fail at the guard (flag, env var or `ENERSCOPE_API`) without ever calling `fetch`. |
+| `passwordsAreRequiredWithoutDefaults` | Both passwords are mandatory for the seed, the demo one needs 8+ characters, cleanup needs only the admin one; the admin mail defaults to `admin@enerscope.org`. |
+| `missingPasswordErrorNeverEchoesValues` | The error message never contains the password values. |
+| `parseArgsAcceptsTheDocumentedModes` | `--simulate`, `--cleanup --dry-run`, `--cleanup --yes` and `--api` parse as documented. |
+| `cleanupRequiresDryRunOrExplicitYes` | `--cleanup` alone, both `--dry-run` and `--yes`, either without `--cleanup`, `--simulate` with `--cleanup`, unknown flags and `--api` without a value are refused. |
+| `cleanupSelectsOnlyDemoMarkedData` | Only `Demo - ` organizations, `Demo - ` projects **of a demo organization** and `@enerscope.test` mails (case-insensitive, not `…test.evil.com`) are selected. |
+| `cleanupNeverSelectsTheBootstrapAdminEvenWithADemoMail` | The bootstrap admin is excluded even if its mail uses the demo domain. |
+| `demoMarkersAreStrict` | The prefix is exact (`Demo - `, case-sensitive) and the domain is exactly `@enerscope.test`. |
+| `everyDemoNameCarriesThePrefixAndEveryMailTheDemoDomain` | Organization, projects and versions carry the prefix; 9 distinct demo mails. |
+| `usersCoverEveryRoleAndRespectTheRoleRules` | One OWNER, one platform ADMIN, the project roles ADMIN/EDITOR×4/EXECUTIVE; version roles only for project members, never for the EXECUTIVE, vertical only on EDITOR; the version admin is project EDITOR + branch ADMIN; the no-access user has no project. |
+| `rootNetworkCoversAllTwelveNodeTypesWithCoherentConnections` | 13 uniquely named nodes of 12 types; every connection exists, no sink feeds anything, nothing feeds a generator, no node is left unconnected (Austral too). |
+| `nodeVerticalAndRoleFollowTheBackendTypeTable` | Each node's vertical and role match `NodeTypeEnum.java`, read from the backend source, so a change there fails here. |
+| `economicConfigurationPointsTheFixtureAtTheGivenWells` | The backend fixture's placeholder node ids are replaced, the equipment cost and the fixed-expense factor apply, and the fixture is not mutated. |
+| `advancedEditorCarriesEveryCollectionAsAnArray` | The editor payload has the eight collections as arrays, as the backend requires for `advanced`. |
+
+`docs/examples/seed-local-demo.integration.test.mjs` — Integration against a running backend; skipped unless
+`ENERSCOPE_SEED_IT_API` is set. **2 tests.**
+
+| Test | What it verifies |
+| --- | --- |
+| `seedRunsOnAnEmptyDatabaseAndASecondRunDuplicatesNothing` | On an empty database the seed (with `--simulate`) creates everything; the second run creates nothing and the API snapshot (users, organization members, projects, members, versions, nodes, connections, version roles, scenarios with configured/draft/evaluations, comparisons) is identical; the promised contents are there (9 users, 13 nodes / 12 connections, 3 scenarios, the branch-only version admin, the comparison, Austral with its admin only). |
+| `seededRolesSeeOnlyWhatTheyShould` | Signed in as each user: the no-access user sees no project, the Ejecutivo and an Editor see only Neuquina, the Ejecutivo cannot read Austral's comparisons, and the branch's version admin cannot list version roles (403) but has the branch in `/access`. |
+
+Run 2026-11-22 against the backend of this branch on port 18080 and a throwaway PostgreSQL 16 on 55432 (28 migrations,
+starting with only the bootstrap admin): **2 pass, 0 fail** (first run `39 cambio(s)`, second `0 cambio(s)`, about
+100 s in total). The first attempt failed: the second run re-applied the branch edit
+because the node detail returns its values under `attributes`; fixed in the script, then green. Checked by hand in
+the same database: a third CLI run left the exact row count of all 52 tables unchanged; the guard stops the CLI
+without `ENERSCOPE_SEED_LOCAL`, with `https://enerscope.org` and with `ENERSCOPE_API=http://qa.enerscope.org`;
+`--cleanup --dry-run` changed 0 rows; `--cleanup --yes` left a control organization, user and a `Demo - …` project of
+that other organization active and untouched; a seed after the cleanup reactivated the demo users and organization and
+the next run was `0 cambio(s)`.
+
+
+## Inicio: Escenarios, accesos rápidos y layout — 2026-11-23
+
+Frontend total after this change: **435 tests in 46 files** (416 before, plus the 19 below), 0 failures, 0 skips; `tsc -b`,
+`eslint .` and `npm run build` clean. `uiLegibility.test.mjs` lost the `QuickActions.tsx` entry of its `ink-400` exceptions
+(the chevron it justified is gone from the chips); no case was added or removed there.
+
+### `frontend/tests/homeScenarios.test.mjs` — unit, **19 cases** (`utils/homeScenarios.ts`, `utils/scenarioRules.ts`, `utils/date.ts`, `utils/recentProjects.ts`)
+
+| Case | Verification |
+| --- | --- |
+| each status chip keeps the app wording and carries a one-line meaning | Al día / Desactualizado / Simulando… / Sin simular, their tones, and a one-line hint for each status (`SCENARIO_STATUS_HINTS`) and for the draft (`DRAFT_HINT`). |
+| a draft adds a "Borrador" chip after the status, never instead of it | With `draftPending` every status yields `[status, draft]`; the draft chip is `warn` with its hint; without the flag there is one chip. |
+| when only one chip fits, Simulando > Borrador > Desactualizado/Sin simular > Al día | Which chip is `essential` (the one that stays when the row is narrow) for each status with and without a draft. |
+| Simular for what needs a run and may be run; Ver (to the right screen) for the rest | Simular for outdated / never simulated with permission; Ver to results (up to date), to the configuration (draft or unconfigured) or to the history. |
+| a person who cannot simulate gets no Simular, and nothing while it is running or when the version is not visible | A reader and the read-only Ejecutivo get Ver; a simulating scenario and a version without view access get no action. |
+| the version is the oldest visible root; a branch only when no root is visible | `pickHomeVersion` over roots, branches, invisible versions and an empty list. |
+| 5 rows, 4 on a short screen; the default scenario first, then the most recently modified | `scenarioRowLimit`, the order and the `hidden` count of `homeScenarioRows`; the input is not reordered. |
+| an administrator gets Nuevo proyecto, Comparar escenarios, Usuarios and Organizaciones | `quickActionsFor` for an administrator: ids, labels, addresses, and a hint for every chip. |
+| everyone else gets Nuevo proyecto, Comparar escenarios, Mis organizaciones and Mi perfil | The same for a non-administrator. |
+| what the sidebar does not reach is left out, and there are never more than four chips | No active project (no Comparar), not an organization member, no admin sections, an empty tree; at most 4. |
+| Comparar points at the project Inicio shows when there is one, else at the sidebar address | `compareProjectId` (URL-encoded) over the sidebar leaf's address. |
+| relative dates read in plain Spanish and fall back to the short date after a month | `formatRelative`: recién, hace N min / h, ayer, hace N días, the short date past 30 days, future dates, null and invalid input. |
+| the recent project is the most recently modified one, and none when recency is unreliable | `mostRecentProject`. |
+| no scenario: say so and offer Crear escenario only to who may create | `scenarioFooter` for 0 scenarios, with and without permission. |
+| one scenario: suggest a second one, with the button only for who may create | 1 scenario, with and without permission; it wins over a pending state or a saved comparison. |
+| two or three rows with something to simulate: just the count, and a singular | `pending` footer, `pendingLabel` singular/plural, `pendingScenarios` (a running scenario is not pending). |
+| everything up to date: the last saved comparison when there is one, else nothing | `comparison` footer, or none. |
+| four or more rows fill the block and take no footer | `FILLED_ROWS`; no footer with 4+ rows even with pending scenarios and a saved comparison. |
+| Comparar warns about the two-scenario minimum below it, and the secondary action has an outline variant | `compareHint` for 0, 1 and 2 scenarios; `buttonClasses('outline')` has an edge and no fill. |
+
+### Browser: `frontend/tests/homeLayout-browser.mjs` (manual, not part of `npm test`)
+
+Mocks the API (no backend, no database) and checks, in light **and** dark: at **1440×800** and **1280×720** with full data
+(4 projects, 6 scenarios with drafts, long names, a saved comparison) the `<main>` has no vertical scroll, the Escenarios
+block shows **5** rows (**4** at 1280×720), Proyectos recientes **3**, Accesos rápidos **4** chips, no chip title is cut off,
+no page error; with **0, 1, 2, 4 and 5** scenarios (light and dark, both sizes) there is no scroll, the first row sits under
+the block's header at a small, constant distance, and the footer of the case appears (*Todavía no hay escenarios* + Crear
+escenario, *Agregá otro escenario…* + Nuevo escenario, *1 escenario por simular*, none with 4–5 rows) and Comparar carries
+the *Se necesitan al menos 2 escenarios* title only below 2; at **1024×768, 768 and 390** there is no horizontal overflow. Run it against a local Vite server on any
+port except 8080/5432/5173:
+
+```
+cd frontend && npx vite --port 5199 --strictPort &
+APP_URL=http://127.0.0.1:5199 PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tests/homeLayout-browser.mjs
+```
+
+`PW_CHANNEL=chrome` uses an installed Chrome instead of Playwright's Chromium; `SHOT_DIR=/some/dir` also saves a screenshot per
+theme and size. Run on 2026-11-23: PASS (it does not need a Vite on 5173 or the backend).
+
+
+## Importador CSV: plantillas y ventana de carga — 2026-11-28
+
+Frontend total after this change: **450 tests in 47 files** (435 before, plus the 15 below), 0 failures, 0 skips; `tsc -b`,
+`eslint .` and `npm run build` clean. Backend: only `VersionNodeCsvImportTemplatesTest` was run for this change
+(`mvn -o test -Dtest=VersionNodeCsvImportTemplatesTest`, H2, 3 run, 0 failures). Its PostgreSQL variant was not run
+locally, and the full backend suite was not re-run: the totals at the top add the one new case to each backend count.
+
+### `frontend/tests/importVersionCsvModal.test.mjs` — rendered markup, **9 cases** (`ImportVersionCsvModal`, `FilePicker`)
+
+The window is rendered to static markup with the import flow replaced by a fixed state. Keyboard behaviour, focus ring,
+sizes and downloads are not covered here.
+
+| Case | Verification |
+| --- | --- |
+| the file picker speaks Spanish and leaves no browser-written text on screen | «Elegir archivo», «Ningún archivo seleccionado», no English text; the native input is `sr-only`, not removed from the tab order or hidden. |
+| the hidden file input keeps its label, its status text and a visible focus ring | The «Archivo CSV» label points at the input, `aria-describedby` points at the status text, the box has a peer focus ring. |
+| a chosen file shows its name in the picker | The name replaces the empty text. |
+| the window asks for a single file and offers one main template plus two other examples | One file input without `multiple`; order of the three template links. |
+| the column help is a closed disclosure that keeps both texts unchanged | `<details>` without `open`, its summary, `NODE_TYPE_HELP` and `IDENTITY_HELP` verbatim. |
+| with economic permission the economics example can be downloaded | The link is enabled and no note is shown. |
+| without economic permission only the economics example is disabled, and the window says why | Disabled and described by the note, also with `access` null; the other two stay enabled. |
+| the confirm button carries what the chosen file brings | «Importar» without a file; «Importar 2 nodos y 1 conexión» with one. |
+| a file ready to confirm hides the examples and the help; a blocked one keeps them | Hidden only when clean and without blockers; the picker stays. |
+
+### Added to `frontend/tests/versionCsvImport.test.mjs` — **6 cases**
+
+| Case | Verification |
+| --- | --- |
+| every connection of every example file is one the editor allows | Each `CONNECTION` of the three templates joins two nodes of the file and satisfies `canConnect`. |
+| the nodes-and-connections example has no economics and needs no economic permission | No economic columns, no `SCENARIO`; clean analysis (2 nodes, 1 connection) and no blockers without the permission. |
+| the copies the backend imports are byte for byte what the screen downloads | `backend/src/test/resources/csv-templates/` equals the three generated files, BOM included. |
+| the button says plain "Importar" without a file, with problems or with no nodes | `importButtonLabel` fallback. |
+| the button counts nodes and mentions connections only when the file has them | Singular and plural for 1/N nodes and 0/1/M connections. |
+| the button writes large counts the Argentine way | Counts formatted with `es-AR`. |
+
+## Identity de conexión y grafo inválido — 2026-11-28
+
+Totals after this change: Surefire **112 classes / 1863 executions** (`mvn -o -B test`, H2, 0 failures, errors and skips);
+frontend **458 tests in 48 files** (`npm test`), with `tsc -b`, `eslint .` and `npm run build` clean. Failsafe becomes
+**13 classes / 124 executions** with the new `VersionConnectionIdentityPostgreSqlIT`, which was written but **not run**
+locally (no PostgreSQL); CI runs it.
+
+### `version.service.VersionConnectionIdentityTest` — Integration, H2, **no test transaction** (10); `VersionConnectionIdentityPostgreSqlIT` runs the same 10 on PostgreSQL
+
+State (snapshots, change history and table row counts) is read back after each real commit or rollback.
+
+| Case | Verification |
+| --- | --- |
+| `csvWithTheSameConnectionIdentityInTwoRowsIsRefusedAndWritesNothing` (2 executions: other pair, same pair) | `Invalid CSV record 6 (CONNECTION): identity <uuid> is repeated in the file`; nothing changes. |
+| `csvWithAConnectionIdentityAlreadyInTheVersionIsRefusedAndKeepsTheExistingConnection` | `… record 4 (CONNECTION): identity <uuid> already exists in this version`; the existing connection and history are intact. |
+| `csvIntoABranchRefusesAnInheritedConnectionIdentityAndNeitherBranchNorParentChanges` | An identity inherited by a branch is refused; branch and parent unchanged. |
+| `csvMayReuseAConnectionIdentityThatOnlyAnUnrelatedVersionHas` | Only the destination version counts. |
+| `anImportThatFailsAfterWritingNodesAndConnectionsLeavesNoData` | A `SCENARIO` rejected after nodes and connections were saved rolls everything back, rows included. |
+| `addingAConnectionWithAnIdentityAlreadyInTheVersionIsRefusedAndWritesNothing` | The editor call answers `Connection identity <uuid> already exists in this version`; nothing changes. |
+| `addingAConnectionToABranchRefusesAnInheritedIdentityAndTheMergeLosesNothing` | Refused in the branch, and the parent keeps its connection after the merge. |
+| `addingConnectionsWithoutAnIdentityStillGeneratesOneForEach` | Omitting `identity` works as before. |
+| `addingAConnectionWithANewExplicitIdentityKeepsIt` | A new explicit identity is accepted and kept. |
+
+### Added to existing classes (connection identity)
+
+| Class and case | Verification |
+| --- | --- |
+| `VersionNodeCsvImportServiceTest.rejectsAConnectionIdentityRepeatedInTheFileBeforePersisting` (2 executions) | Refused with its record number before any node or connection is added. |
+| `VersionNodeCsvImportServiceTest.rejectsAConnectionIdentityThatAlreadyExistsInTheVersionBeforePersisting` | The same for an identity of the version; no economics saved. |
+| `VersionServiceTest.addConnectionToVersionRefusesAnIdentityTheVersionAlreadyHasWithoutSaving` | Nothing saved, snapshot and history untouched. |
+| `VersionControllerTest.addingAConnectionWithARepeatedIdentityAnswers400WithTheServiceMessage` | `POST /version/{id}/connection` answers `400` with the message. |
+| `versionCsvImport.test.mjs` (2 cases) | Spanish text of both CSV messages (with line and uuid) and of the editor message. |
+
+### `comparison.service.BrokenGraphScenarioTest` — Integration, H2, **no test transaction** (10 cases, 15 executions)
+
+Real services. Cases marked ×2 run for a wrong predecessor (`WELL → TREATMENT_PLANT`) and for an LNG carrier with no terminal.
+
+| Case | Verification |
+| --- | --- |
+| `theComparisonScenarioListReturnsEveryVersionAndMarksOnlyTheBrokenOne` ×2 | Every version is listed; only the broken one is not ready, with its reason. |
+| `simulationReadinessReturnsEveryVersionAndMarksOnlyTheBrokenOne` ×2 | The same for `/simulation-readiness`. |
+| `askingToSimulateTheBrokenScenarioIsAControlledErrorWithItsReason` ×2 | Immediate and queued simulation throw `IllegalArgumentException` (400); no job is stored. |
+| `runningTheSimulatorOnTheBrokenGraphThrowsOnlyAControlledError` ×2 | The worker's path (no `freeze`) is controlled too. |
+| `savingTheConfigurationOfABrokenGraphKeepsItAsADraftWithTheReason` ×2 | Saving answers the reason and keeps a draft. |
+| `aSimulatedScenarioWhoseGraphLaterBreaksIsListedAsOutdated` | A later bad connection makes it outdated in both scenario lists. |
+| `anUnreadableStoredConfigurationMarksOnlyItsScenario` | An unforeseen failure marks only its scenario; no `UnexpectedRollbackException`. |
+| `anUnreadableStoredSimulationMarksOnlyItsScenario` | The same for an unreadable result, which is not offered for comparison. |
+| `aCarrierThatNeverStartsWithinTheHorizonStillSimulates` | No over-rejection: a run that used to succeed still does. |
+| `noPairOfNodeKindsLeaksAnUncontrolledExceptionFromTheSimulator` | All 144 two-node pairs: freeze and run throw nothing but `IllegalArgumentException`. |
+
+### Containment units
+
+| Class (type, cases) | Verification |
+| --- | --- |
+| `simulator.InvalidSimulationGraphExceptionTest` (Unit, 5) | Cast → invalid connection; other runtime failures → unprocessable graph; the simulator's own rejections, interruptions and `Error`s pass through. |
+| `scenario.service.ScenarioCheckFailuresTest` (Unit, 4) | Database, transaction and access failures are rethrown, wrapped or not; data failures are contained; readiness propagates a database failure and logs an unforeseen one with ids and stack trace. |
+| `common.GlobalExceptionHandlerTest.anInvalidSimulationGraphAnswers400WithItsReasonAndLogsItsCause` | Routed to `400` (not `500`) and logged with the cause type. |
+
+### `frontend/tests/scenarioReadiness.test.mjs` — **6 cases** (`utils/readiness.ts`, `ScenarioTile`, `ScenarioStatusChip`)
+
+| Case | Verification |
+| --- | --- |
+| every new reason is shown in Spanish, both in the list and when the simulate call answers 400 | The four new messages. |
+| a diagram problem sends to the editor, an incomplete configuration to the scenario, and an unchecked one nowhere | `readinessView(...).fix`. |
+| the comparison tile of a broken graph shows the reason and links to the diagram, not to the configuration | Rendered tile. |
+| an outdated simulation on a broken graph shows the reason instead of the simulate button | Rendered tile. |
+| other tiles keep their behaviour: configuration link, no link when unchecked, the button when ready | Rendered tile. |
+| the shared status chip is unaffected: no new status, and a broken scenario renders with the existing ones | `ScenarioStatusChip`. |

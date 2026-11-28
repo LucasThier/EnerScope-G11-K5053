@@ -12,22 +12,25 @@ import org.enerscope.economic.service.EconomicService;
 import org.enerscope.scenario.dto.EconomicDraftDTO;
 import org.enerscope.scenario.dto.ScenarioConfigurationDTO;
 import org.enerscope.scenario.dto.ScenarioConfigurationDTO.*;
+import org.enerscope.scenario.model.Scenario;
 import org.enerscope.scenario.model.ScenarioDraft;
 import org.enerscope.economic.model.configuration.EconomicConfiguration;
 import org.enerscope.economic.repository.*;
 import org.enerscope.node.model.*;
-import org.enerscope.node.model.enums.ChangeTypeEnum;
-import org.enerscope.node.service.NodeCloner;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.project.repository.ProjectRepository;
 import org.enerscope.scenario.repository.EconomicDraftRepository;
 import org.enerscope.scenario.repository.ScenarioDraftRepository;
 import org.enerscope.version.model.Version;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.simulator.InvalidSimulationGraphException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** One transaction publishes economic and physical edits; invalid input is stored only as a draft. */
+/**
+ * Publishes the economic configuration of a scenario in one transaction; incomplete input is stored only as its draft.
+ * Node values belong to the version and are no longer saved here.
+ */
 @Service @RequiredArgsConstructor @Transactional
 public class ScenarioConfigurationService {
  private final EconomicService economics;
@@ -39,32 +42,56 @@ public class ScenarioConfigurationService {
  private final EconomicInputCodec codec;
  private final ObjectMapper mapper;
  private final ProjectRepository projects;
+ private final ScenarioDefaults scenarioDefaults;
+ private final org.enerscope.scenario.repository.ScenarioRepository scenarioRepository;
  private final AppLogger logger;
  @PersistenceContext
  private EntityManager em;
 
  public ScenarioConfigurationDTO get(UUID project,UUID id) {
   Version version = economics.authorize(project,id,ProjectMemberPermission.VIEW_PROJECT);
-  return view(project,version,List.of());
+  return view(version,scenarioDefaults.existing(id).orElse(null),List.of());
  }
 
- private ScenarioConfigurationDTO view(UUID project,Version version,List<String> errors) {
-  var configuration=configurations.findByVersionId(version.getId()).map(e->read(e.getConfigurationJson(),EconomicConfiguration.class)).orElse(null);
-  var draft=drafts.findByVersionId(version.getId()).map(e->read(e.getDraftJson(),SaveRequest.class)).orElse(null);
+ /** The configuration screen's state for one scenario; the caller has authorized the read. */
+ @Transactional(readOnly=true)
+ public ScenarioConfigurationDTO viewOf(Version version,Scenario scenario) {
+  return view(version,scenario,List.of());
+ }
+
+ /** {@code scenario} is null while the version has no scenario yet: nothing is stored, so nothing is shown. */
+ private ScenarioConfigurationDTO view(Version version,Scenario scenario,List<String> errors) {
+  var scenarioId=Optional.ofNullable(scenario).map(s->s.getId());
+  var configuration=scenarioId.flatMap(configurations::findByScenarioId).map(e->read(e.getConfigurationJson(),EconomicConfiguration.class)).orElse(null);
+  var storedDraft=scenarioId.flatMap(drafts::findByScenarioId);
+  var draft=storedDraft.map(e->read(e.getDraftJson(),SaveRequest.class)).orElse(null);
   String source=source(version,configuration);
-  String token=hash(source+"|"+drafts.findByVersionId(version.getId()).map(e->e.getRevision()+":"+e.getDraftJson()).orElse("")+"|"+
-      legacyDrafts.findByVersionId(version.getId()).map(e->e.getRevision()+":"+e.getDraftJson()).orElse(""));
+  String token=hash(source+"|"+storedDraft.map(e->e.getRevision()+":"+e.getDraftJson()).orElse("")+"|"+
+      scenarioId.flatMap(legacyDrafts::findByScenarioId).map(e->e.getRevision()+":"+e.getDraftJson()).orElse(""));
+  // A draft saved before "Operación" moved to the version may carry node values that are no longer applied from here.
+  boolean ignored=draft!=null && draft.operations()!=null && !draft.operations().isEmpty()
+      && !changeScope.changedNodes(version,draft.operations(),null,null).isEmpty();
   return new ScenarioConfigurationDTO(token,source,configuration,
       CurrentScenarioNodes.nodes(version).stream().sorted(Comparator.comparing(n->n.getId().toString())).map(operations::describe).toList(),
-      draft,economics.getDraft(project,version.getId()),errors);
+      draft,scenario==null ? null : economics.draftOf(scenario),errors,ignored);
  }
 
  public ScenarioConfigurationDTO save(UUID project,UUID id,SaveRequest request) {
   var version=economics.authorizeConfigurationEdit(project,id);
   economics.lock(version);
-  var before=view(project,version,List.of());
-  if(request==null || !Objects.equals(request.token(),before.token()) || !Objects.equals(request.sourceToken(),before.sourceToken()))
-   throw new ScenarioConflictException();
+  return saveIn(version,scenarioDefaults.forVersion(version),request);
+ }
+
+ /**
+  * Publishes the economic configuration of {@code scenario}, or stores an incomplete one as its draft. Only the
+  * economic and simulation part is saved here: node values ("Operación") belong to the version and are edited on the
+  * node; a request that would change them is refused. Order: vertical scope (403), shape (400), stale token (409).
+  */
+ public ScenarioConfigurationDTO saveIn(Version version,Scenario scenario,SaveRequest request) {
+  economics.lock(version);
+  if(request==null) throw new IllegalArgumentException("Invalid scenario draft");
+  var before=view(version,scenario,List.of());
+  changeScope.assertCanSave(version,null,before.configuration(),parsed(request.configuration()));
   if(request.editor()==null || !request.editor().isObject() ||
      !Set.of("simple","advanced").contains(request.editor().path("mode").asText()) ||
      !request.editor().path("value").isObject() || mapper.valueToTree(request).toString().length()>2000000)
@@ -73,58 +100,39 @@ public class ScenarioConfigurationService {
    new EconomicDraftDTO(1,request.editor().path("value")).validateStructure();
   else for(String field:List.of("taxEntities","boundary","nodeProfiles","adjustments","contracts","assets","taxTreatments","conversions"))
    if(!request.editor().path("value").path(field).isArray()) throw new IllegalArgumentException("Invalid advanced editor collection: "+field);
-  changeScope.assertCanSave(version,request.operations(),before.configuration(),parsed(request.configuration()));
+  // A stale token is a conflict first: node values that differ from the current ones may only be the screen's old copy.
+  if(!Objects.equals(request.token(),before.token()) || !Objects.equals(request.sourceToken(),before.sourceToken()))
+   throw new ScenarioConflictException();
+  rejectNodeChanges(version,request.operations());
   var errors=new ArrayList<String>();
-  var prepared=new LinkedHashMap<UUID,BaseNode>();
-  var supplied=request.operations();
-  if(supplied==null || !supplied.keySet().equals(economics.nodeIds(version))) errors.add("La lista de nodos no coincide con el escenario.");
-  else for(var node:CurrentScenarioNodes.nodes(version)) {
-   try { prepared.put(node.getId(),operations.prepare(node,supplied.get(node.getId()))); }
-   catch(IllegalArgumentException e) { errors.add(e.getMessage()); }
-  }
   EconomicConfiguration configuration=null;
   try {
    if(request.configuration()==null || request.configuration().isNull()) throw new IllegalArgumentException("Completá las secciones económicas pendientes.");
    configuration=mapper.treeToValue(request.configuration(),EconomicConfiguration.class);
    economics.validateConfiguration(configuration,version);
-   if(errors.isEmpty()) codec.validatePrepared(version,configuration,prepared);
+   codec.freeze(version,configuration,1,0);
   } catch(com.fasterxml.jackson.core.JsonProcessingException | IllegalArgumentException e) { errors.add(e.getMessage()); }
   if(!errors.isEmpty()) {
-   var entity=drafts.findByVersionId(id).orElseGet(()->new ScenarioDraft(version,""));
-   entity.replace(json(request));drafts.saveAndFlush(entity);
-   logger.info("Scenario draft saved for version {}",id);
-   return view(project,version,errors);
+   var entity=drafts.findByScenarioId(scenario.getId()).orElseGet(()->new ScenarioDraft(version,""));
+   entity.replace(json(request));entity.assignScenario(scenario);drafts.saveAndFlush(entity);
+   logger.info("Scenario draft saved for scenario {} of version {}",scenario.getId(),version.getId());
+   return view(version,scenario,errors);
   }
-  var remap=new HashMap<String,String>();
-  for(int i=0;i<version.getNodeSnapshot().size();i++) {
-   var original=version.getNodeSnapshot().get(i);
-   if(!CurrentScenarioNodes.includes(original)) continue;
-   var candidate=prepared.get(original.getId());
-   if(operations.describe(original).values().equals(operations.describe(candidate).values())) continue;
-   // Always copy on a joint save: even a node originally created here may have been inherited by a child.
-   em.persist(candidate);
-   version.getNodeSnapshot().set(i,candidate);
-   version.getNodeChanges().add(new NodeChange(ChangeTypeEnum.EDIT,original,candidate));
-   remap.put(original.getId().toString(),candidate.getId().toString());
-  }
-  for(int i=0;i<version.getConnectionSnapshot().size();i++) {
-   var old=version.getConnectionSnapshot().get(i);
-   if(!remap.containsKey(old.getFromNodeId().toString()) && !remap.containsKey(old.getToNodeId().toString())) continue;
-   var next=NodeCloner.cloneConnection(old);
-   next.setFromNodeId(UUID.fromString(remap.getOrDefault(old.getFromNodeId().toString(),old.getFromNodeId().toString())));
-   next.setToNodeId(UUID.fromString(remap.getOrDefault(old.getToNodeId().toString(),old.getToNodeId().toString())));
-   em.persist(next);version.getConnectionSnapshot().set(i,next);
-   version.getConnectionChanges().add(new ConnectionChange(ChangeTypeEnum.EDIT,old,next));
-  }
-  JsonNode tree=mapper.valueToTree(configuration);
-  remapReferences(tree,remap);
-  configuration=mapper.convertValue(tree,EconomicConfiguration.class);
-  drafts.deleteByVersionId(id);
-  economics.save(project,id,configuration);
-  codec.freeze(version,configuration,1,0);
+  drafts.deleteByScenarioId(scenario.getId());
+  economics.saveIn(version,scenario,configuration);
   em.flush();
-  logger.info("Scenario configuration published for version {}",id);
-  return view(project,version,List.of());
+  logger.info("Scenario configuration published for scenario {} of version {}",scenario.getId(),version.getId());
+  return view(version,scenario,List.of());
+ }
+
+ /** Node values are edited on the node (version editor); a scenario save that would change them is refused, never silently dropped. */
+ private void rejectNodeChanges(Version version,Map<UUID,Map<String,JsonNode>> supplied) {
+  if(supplied==null || supplied.isEmpty()) return;
+  var changed=changeScope.changedNodes(version,supplied,null,null);
+  if(!changed.isEmpty())
+   throw new IllegalArgumentException("Los valores de operación de los nodos ("+
+     changed.stream().map(BaseNode::getName).sorted().collect(java.util.stream.Collectors.joining(", "))+
+     ") se editan en cada nodo de la versión, no en el escenario.");
  }
 
  public static void remapReferences(JsonNode tree, Map<String, String> ids) {
@@ -141,23 +149,79 @@ public class ScenarioConfigurationService {
 
  public ScenarioConfigurationDTO discard(UUID project,UUID id,String token) {
   var version = economics.authorizeConfigurationEdit(project,id);economics.lock(version);
-  if(!Objects.equals(token,view(project,version,List.of()).token())) throw new ScenarioConflictException();
-  drafts.deleteByVersionId(id);legacyDrafts.deleteByVersionId(id);em.flush();
-  return view(project,version,List.of());
+  var scenario=scenarioDefaults.existing(id).orElse(null);
+  if(scenario==null) {
+   if(!Objects.equals(token,view(version,null,List.of()).token())) throw new ScenarioConflictException();
+   return view(version,null,List.of());
+  }
+  return discardIn(version,scenario,token);
  }
 
+ /** Drops the drafts of {@code scenario} if {@code token} is still current (otherwise 409); the caller has authorized and locked. */
+ public ScenarioConfigurationDTO discardIn(Version version,Scenario scenario,String token) {
+  economics.lock(version);
+  if(!Objects.equals(token,view(version,scenario,List.of()).token())) throw new ScenarioConflictException();
+  drafts.deleteByScenarioId(scenario.getId());legacyDrafts.deleteByScenarioId(scenario.getId());
+  em.flush();
+  return view(version,scenario,List.of());
+ }
+
+ /** Whether one scenario can be simulated now: no pending draft, and a configuration that validates against its version. */
+ public Readiness readinessOf(Version version,Scenario scenario) {
+  var errors=new ArrayList<String>();
+  if(drafts.existsByScenarioId(scenario.getId()) || legacyDrafts.findByScenarioId(scenario.getId()).isPresent())
+   errors.add("Hay un borrador pendiente en Configuración del Escenario.");
+  try {
+   var config=economics.configuration(scenario);economics.validateConfiguration(config,version);codec.freeze(version,config,1,0);
+  } catch(EntityNotFoundException | IllegalArgumentException e) { errors.add(reason(e,version,scenario)); }
+  catch(RuntimeException unexpected) { errors.add(notChecked(unexpected,version,scenario)); }
+  return new Readiness(version.getId(),errors.isEmpty(),errors);
+ }
+
+ /** Whether each active version's default scenario can be simulated; the scenarios, drafts and configurations are read in batches. */
  public List<Readiness> readiness(UUID project) {
   var p=projects.findById(project).orElseThrow(()->new EntityNotFoundException("Project not found"));
   // Validate project access even when the project has no versions.
   economics.authorizeProject(project,ProjectMemberPermission.VIEW_PROJECT);
-  return p.getVersions().stream().filter(Version::isActive).map(v->{
+  var active=p.getVersions().stream().filter(Version::isActive).toList();
+  var versionIds=active.stream().map(Version::getId).toList();
+  Map<UUID,Scenario> defaults=new HashMap<>();
+  if(!versionIds.isEmpty()) scenarioRepository.findByVersionIdInAndDefaultScenarioTrueAndActiveTrue(versionIds).forEach(s->defaults.put(s.getVersion().getId(),s));
+  var scenarioIds=defaults.values().stream().map(Scenario::getId).toList();
+  Set<UUID> pending=new HashSet<>();
+  Map<UUID,String> stored=new HashMap<>();
+  if(!scenarioIds.isEmpty()) {
+   pending.addAll(drafts.scenarioIdsWithDraft(scenarioIds));pending.addAll(legacyDrafts.scenarioIdsWithDraft(scenarioIds));
+   configurations.findByScenarioIdIn(scenarioIds).forEach(c->stored.put(c.getScenario().getId(),c.getConfigurationJson()));
+  }
+  return active.stream().map(v->{
    var errors=new ArrayList<String>();
-   if(drafts.existsByVersionId(v.getId()) || legacyDrafts.findByVersionId(v.getId()).isPresent()) errors.add("Hay un borrador pendiente en Configuración del Escenario.");
+   var scenario=defaults.get(v.getId());
+   if(scenario!=null && pending.contains(scenario.getId())) errors.add("Hay un borrador pendiente en Configuración del Escenario.");
    try {
-    var config = economics.configuration(v.getId());economics.validateConfiguration(config,v);codec.freeze(v,config,1,0);
-   } catch(EntityNotFoundException | IllegalArgumentException e) { errors.add(e.getMessage()); }
+    String json=scenario==null ? null : stored.get(scenario.getId());
+    if(json==null) throw new EntityNotFoundException("Economic configuration not found");
+    var config=read(json,EconomicConfiguration.class);economics.validateConfiguration(config,v);codec.freeze(v,config,1,0);
+   } catch(EntityNotFoundException | IllegalArgumentException e) { errors.add(reason(e,v,scenario)); }
+   catch(RuntimeException unexpected) { errors.add(notChecked(unexpected,v,scenario)); }
    return new Readiness(v.getId(),errors.isEmpty(),errors);
   }).toList();
+ }
+
+ /** The reason a scenario is not ready. A graph the simulator cannot process is also logged: it is bad stored data. */
+ private String reason(RuntimeException rejection,Version version,Scenario scenario) {
+  if(rejection instanceof InvalidSimulationGraphException)
+   logger.warn("Scenario {} of version {} is not ready: {} (cause: {})",scenario==null ? null : scenario.getId(),version.getId(),
+       rejection.getMessage(),rejection.getCause()==null ? "none" : rejection.getCause().getClass().getSimpleName());
+  return rejection.getMessage();
+ }
+
+ /** An unforeseen failure checking ONE scenario: that one is not ready, the others are still answered. */
+ private String notChecked(RuntimeException unexpected,Version version,Scenario scenario) {
+  ScenarioCheckFailures.rethrowUnlessScenarioSpecific(unexpected);
+  logger.error("Readiness of scenario {} of version {} could not be checked",
+      scenario==null ? null : scenario.getId(),version.getId(),unexpected);
+  return ScenarioCheckFailures.NOT_CHECKED;
  }
 
  private String source(Version version,EconomicConfiguration configuration) {

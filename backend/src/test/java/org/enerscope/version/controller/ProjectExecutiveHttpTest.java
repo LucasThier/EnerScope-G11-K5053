@@ -82,11 +82,15 @@ class ProjectExecutiveHttpTest {
         fixture = new AccessHttpFixture(em, jwt);
         executive = fixture.projectMember(ProjectMemberType.EXECUTIVE);
         configurationJson = fixture.remapNodeIds(mapper.writeValueAsString(EconomicExample.configuration()));
-        em.persist(new EconomicConfigurationEntity(fixture.version(), configurationJson));
+        var defaultScenario = org.enerscope.scenario.ScenarioFixtures.defaultScenario(em, fixture.version());
+        var storedConfiguration = new EconomicConfigurationEntity(fixture.version(), configurationJson);
+        storedConfiguration.assignScenario(defaultScenario);
+        em.persist(storedConfiguration);
         EconomicConfiguration configuration = mapper.readValue(configurationJson, EconomicConfiguration.class);
         failedJob = new EconomicJob(fixture.version(),
                 mapper.writeValueAsString(codec.freeze(fixture.version(), configuration, 1, 42L)), 1, "42");
         ReflectionTestUtils.setField(failedJob, "status", EconomicJobStatus.FAILED);
+        failedJob.assignScenario(defaultScenario);
         em.persist(failedJob);
         em.flush();
     }

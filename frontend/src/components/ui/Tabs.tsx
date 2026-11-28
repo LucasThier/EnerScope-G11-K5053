@@ -46,6 +46,9 @@ export function Tabs({ label, idPrefix, tabs, active, onChange }: TabsProps) {
             className={
               '-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition-colors ' +
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
+              // 36px of padding box + 4px above and below = a 44px touch target; sideways the tabs
+              // already touch, so the area is not widened and cannot overlap a neighbour.
+              'relative after:absolute after:inset-x-0 after:-inset-y-1 ' +
               (selected
                 ? 'border-brand-800 text-brand-800'
                 : 'border-transparent text-ink-500 hover:text-ink-800')

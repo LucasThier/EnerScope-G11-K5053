@@ -43,6 +43,15 @@ public class EconomicJob extends BaseEntity {
     @Column(name="evaluation_id")
     private UUID evaluationId;
 
+    /** Default scenario of the version (double write, see ScenarioDefaults); nullable until E7. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "scenario_id")
+    private org.enerscope.scenario.model.Scenario scenario;
+
+    public void assignScenario(org.enerscope.scenario.model.Scenario scenario) {
+        this.scenario = scenario;
+    }
+
     public EconomicJob(Version version,String inputJson,int rounds,String seed) {
         this.version = version;
         this.inputJson = inputJson;

@@ -9,4 +9,5 @@ public record ComparisonSummaryDTO(UUID id,
                                    String name,
                                    String description,
                                    List<String> scenarios,
+                                   boolean hasDeletedScenarios,
                                    Instant createdAt) {}

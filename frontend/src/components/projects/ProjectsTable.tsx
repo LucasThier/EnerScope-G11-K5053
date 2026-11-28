@@ -1,5 +1,6 @@
 import type { ProjectSummary } from '../../types/project';
 import { BranchIcon, EyeIcon, PencilIcon, TeamIcon, TrashIcon } from '../ui/icons';
+import { tableBodyCell, tableHeaderCell } from '../ui/tableClasses';
 import { RowButton } from '../ui/RowButton';
 import { formatDate } from '../../utils/date';
 import { canManageProject } from '../../utils/projectPermissions';
@@ -16,8 +17,7 @@ interface ProjectsTableProps {
   onViewVersions: (project: ProjectSummary) => void;
 }
 
-const headerCell = 'px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
-const bodyCell = 'px-4 py-3 h-14 align-middle text-sm text-ink-700';
+const bodyCell = `${tableBodyCell} h-14 align-middle`;
 
 export function ProjectsTable({
   projects,
@@ -35,22 +35,22 @@ export function ProjectsTable({
       <table className="w-full min-w-[56rem] border-collapse">
         <thead>
           <tr className="border-b border-ink-100">
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCell}>
               Proyecto
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCell}>
               Organización
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCell}>
               Descripción
             </th>
-            <th scope="col" className={`${headerCell} text-center`}>
+            <th scope="col" className={`${tableHeaderCell} text-center`}>
               Integrantes
             </th>
-            <th scope="col" className={`${headerCell} whitespace-nowrap`}>
+            <th scope="col" className={`${tableHeaderCell} whitespace-nowrap`}>
               Actualizado
             </th>
-            <th scope="col" className={`${headerCell} text-right`}>
+            <th scope="col" className={`${tableHeaderCell} text-right`}>
               Acciones
             </th>
           </tr>

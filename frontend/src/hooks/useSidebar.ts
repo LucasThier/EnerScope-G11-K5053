@@ -1,22 +1,18 @@
 import { createContext, useContext, type RefObject } from 'react';
 
-export type SidebarOrigin = 'route' | 'pointer' | 'hover' | 'keyboard';
-
 export interface SidebarContextValue {
-  origin: SidebarOrigin | null;
+  /** On screen: always when fixed (>= 80rem), only while open as a drawer. */
   isVisible: boolean;
+  /** Fixed: takes its 240px out of the content instead of covering it. */
   pushes: boolean;
   isDrawer: boolean;
-  isPinned: boolean;
   isFixed: boolean;
-  canPin: boolean;
   menuId: string;
   menuButtonRef: RefObject<HTMLButtonElement | null>;
   panelRef: RefObject<HTMLElement | null>;
-  toggleFromButton: (viaKeyboard: boolean) => void;
-  togglePin: (viaKeyboard: boolean) => void;
+  /** Opens or closes the drawer; does nothing while the sidebar is fixed. */
+  toggle: () => void;
   close: () => void;
-  keepOpen: () => void;
 }
 
 export const SidebarContext = createContext<SidebarContextValue | undefined>(undefined);

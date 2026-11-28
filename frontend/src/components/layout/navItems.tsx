@@ -161,7 +161,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-function leavesOf(groups: NavGroup[]): NavItem[] {
+export function leavesOf(groups: NavGroup[]): NavItem[] {
   return groups.flatMap((group) => group.items.flatMap((item) => item.children ?? [item]));
 }
 

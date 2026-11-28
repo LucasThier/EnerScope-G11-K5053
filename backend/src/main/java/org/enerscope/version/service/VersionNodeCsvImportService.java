@@ -124,6 +124,8 @@ public class VersionNodeCsvImportService {
         List<PendingNode> pendingNodes = new ArrayList<>();
         List<PendingConnection> pendingConnections = new ArrayList<>();
         Set<String> externalNodeIds = new HashSet<>();
+        NodeIdentityGuard identityGuard = new NodeIdentityGuard(versionId);
+        ConnectionIdentityGuard connectionIdentityGuard = new ConnectionIdentityGuard(versionId);
         PendingScenario scenarioConfiguration = null;
         boolean hasRecordType = headers.contains(RECORD_TYPE_HEADER);
         for (int rowIndex = 1; rowIndex < rows.size(); rowIndex++) {
@@ -151,7 +153,9 @@ public class VersionNodeCsvImportService {
                 continue;
             }
             if (recordType == RecordType.CONNECTION) {
-                pendingConnections.add(parseConnection(values, headers, recordNumber));
+                PendingConnection connection = parseConnection(values, headers, recordNumber);
+                connectionIdentityGuard.check(connection.identity(), recordNumber);
+                pendingConnections.add(connection);
                 continue;
             }
 
@@ -172,6 +176,7 @@ public class VersionNodeCsvImportService {
                 throw new IllegalArgumentException(
                         "CSV record %d has duplicate node id '%s'".formatted(recordNumber, externalId));
             }
+            identityGuard.check(node.getIdentity(), recordNumber);
             pendingNodes.add(new PendingNode(nodeKind, node, profile, externalId, recordNumber));
         }
 
@@ -245,6 +250,74 @@ public class VersionNodeCsvImportService {
         int importedCount = pendingNodes.size();
         logger.info("Imported {} nodes into version {}", importedCount, versionId);
         return importedCount;
+    }
+
+    /**
+     * Rejects a NODE row whose {@code identity} is already in the destination version or appears twice in the file.
+     * {@code addNodeToVersion} would otherwise replace the existing row with a new one under a new id, leaving the
+     * scenarios' economic references dangling. It runs while the rows are validated, before anything is written, so
+     * the batch stays atomic. The version's identities are read only once, and only if some row carries an identity.
+     */
+    private final class NodeIdentityGuard {
+        private final UUID versionId;
+        private final Set<UUID> inFile = new HashSet<>();
+        private Set<UUID> inVersion;
+
+        private NodeIdentityGuard(UUID versionId) {
+            this.versionId = versionId;
+        }
+
+        void check(UUID identity, int recordNumber) {
+            if (identity == null) {
+                return;
+            }
+            if (!inFile.add(identity)) {
+                throw new IllegalArgumentException(
+                        "Invalid CSV record %d (NODE): identity %s is repeated in the file"
+                                .formatted(recordNumber, identity));
+            }
+            if (inVersion == null) {
+                inVersion = versionService.nodeIdentities(versionId);
+            }
+            if (inVersion.contains(identity)) {
+                throw new IllegalArgumentException(
+                        "Invalid CSV record %d (NODE): identity %s already exists in this version"
+                                .formatted(recordNumber, identity));
+            }
+        }
+    }
+
+    /**
+     * The same rule for CONNECTION rows, in their own namespace: an {@code identity} already in the destination version
+     * or repeated in the file is refused while the rows are validated, before anything is written.
+     */
+    private final class ConnectionIdentityGuard {
+        private final UUID versionId;
+        private final Set<UUID> inFile = new HashSet<>();
+        private Set<UUID> inVersion;
+
+        private ConnectionIdentityGuard(UUID versionId) {
+            this.versionId = versionId;
+        }
+
+        void check(UUID identity, int recordNumber) {
+            if (identity == null) {
+                return;
+            }
+            if (!inFile.add(identity)) {
+                throw new IllegalArgumentException(
+                        "Invalid CSV record %d (CONNECTION): identity %s is repeated in the file"
+                                .formatted(recordNumber, identity));
+            }
+            if (inVersion == null) {
+                inVersion = versionService.connectionIdentities(versionId);
+            }
+            if (inVersion.contains(identity)) {
+                throw new IllegalArgumentException(
+                        "Invalid CSV record %d (CONNECTION): identity %s already exists in this version"
+                                .formatted(recordNumber, identity));
+            }
+        }
     }
 
     private Set<String> discoverKnownHeaders() {
@@ -1024,34 +1097,38 @@ public class VersionNodeCsvImportService {
     private record PendingScenario(JsonNode configuration, int recordNumber) {
     }
 
+    /**
+     * The node kinds the importer accepts. The vertical a kind requires in {@code type.vertical} is not listed here: it
+     * is the one of its {@link NodeTypeEnum}, the same rule {@code VersionService.alignDeclaredVertical} enforces when
+     * the node is saved, so the pre-check and the save cannot disagree.
+     */
     private enum NodeKind {
-        WELL(WellDTO.class, NodeTypeEnum.WELL, VerticalEnum.EXTRACTION,
+        WELL(WellDTO.class, NodeTypeEnum.WELL,
                 List.of("maxCollectionCapacity", "declineCurve", "gasRichness", "dtmTime", "dtmCost", "surface")),
-        GATHERING_NETWORK(GatheringNetworkDTO.class, NodeTypeEnum.GATHERING_NETWORK, VerticalEnum.EXTRACTION,
+        GATHERING_NETWORK(GatheringNetworkDTO.class, NodeTypeEnum.GATHERING_NETWORK,
                 List.of("maxTransportCapacity", "length", "lossPerMeter", "connectedWells")),
-        TREATMENT_PLANT(TreatmentPlantDTO.class, NodeTypeEnum.TREATMENT_PLANT, VerticalEnum.EXTRACTION,
+        TREATMENT_PLANT(TreatmentPlantDTO.class, NodeTypeEnum.TREATMENT_PLANT,
                 List.of("maxTreatmentCapacity", "contaminantWaste", "intermediateStorage", "treatmentCost")),
-        PIPELINE(PipelineDTO.class, NodeTypeEnum.PIPELINE, VerticalEnum.TRANSPORTATION,
+        PIPELINE(PipelineDTO.class, NodeTypeEnum.PIPELINE,
                 List.of("maxFlowCapacity", "length", "lossPerKm")),
-        PIPELINE_CONNECTION(PipelineConnectionDTO.class, NodeTypeEnum.PIPELINE_CONECTION, VerticalEnum.TRANSPORTATION,
+        PIPELINE_CONNECTION(PipelineConnectionDTO.class, NodeTypeEnum.PIPELINE_CONECTION,
                 List.of("transferCapacity", "outputPriority")),
-        COMPRESSING_PLANT(CompressingPlantDTO.class, NodeTypeEnum.COMPRESSING_PLANT, VerticalEnum.TRANSPORTATION,
+        COMPRESSING_PLANT(CompressingPlantDTO.class, NodeTypeEnum.COMPRESSING_PLANT,
                 List.of("maxCompressionCapacity", "processWaste", "gasConsumption")),
         GROUND_BASED_LIQUEFACTION_PLANT(GroundBasedLiquefactionPlantDTO.class,
-                NodeTypeEnum.GROUND_LIQUEFACTION_PLANT, VerticalEnum.LIQUEFACTION,
+                NodeTypeEnum.GROUND_LIQUEFACTION_PLANT,
                 List.of("maxProcessingCapacity", "mtpaRatio", "intermediateStorage", "gasConsumption")),
-        FLNG_UNIT(FLNGUnitDTO.class, NodeTypeEnum.FLNG_UNIT, VerticalEnum.LIQUEFACTION,
+        FLNG_UNIT(FLNGUnitDTO.class, NodeTypeEnum.FLNG_UNIT,
                 List.of("maxProcessingCapacity", "mtpaRatio", "intermediateStorage", "vesselDepth",
                         "hiringCost", "shipCapacity", "gasConsumption")),
-        LNG_CARRIER(LNGCarrierDTO.class, NodeTypeEnum.LNG_CAMER, VerticalEnum.EXPORT,
+        LNG_CARRIER(LNGCarrierDTO.class, NodeTypeEnum.LNG_CAMER,
                 List.of("exportFrequency", "shipCapacity", "fullLoadTime", "hiringCost", "timeToDestination")),
-        SEAPORT_TERMINAL(SeaportTerminalDTO.class, NodeTypeEnum.SEAPORT_TERMINAL, VerticalEnum.EXPORT,
+        SEAPORT_TERMINAL(SeaportTerminalDTO.class, NodeTypeEnum.SEAPORT_TERMINAL,
                 List.of("intermediateStorage", "portDepth", "shipCapacity")),
         INTERNAL_CONSUMPTION(InternalConsumptionDTO.class, NodeTypeEnum.INTERNAL_CONSUMPTION,
-                VerticalEnum.INTERNAL_CONSUMPTION,
                 List.of("consumptionSummer", "consumptionAutumn", "consumptionWinter", "consumptionSpring")),
         INDUSTRIAL_CONSUMPTION(IndustrialConsumptionDTO.class, NodeTypeEnum.INDUSTRIAL_CONSUMPTION,
-                VerticalEnum.EXPORT, List.of("consumption"));
+                List.of("consumption"));
 
         private final Class<? extends BaseNodeDTO> dtoClass;
         private final NodeTypeEnum expectedNodeType;
@@ -1061,11 +1138,10 @@ public class VersionNodeCsvImportService {
         NodeKind(
                 Class<? extends BaseNodeDTO> dtoClass,
                 NodeTypeEnum expectedNodeType,
-                VerticalEnum expectedVertical,
                 List<String> requiredFields) {
             this.dtoClass = dtoClass;
             this.expectedNodeType = expectedNodeType;
-            this.expectedVertical = expectedVertical;
+            this.expectedVertical = expectedNodeType.vertical();
             this.requiredFields = requiredFields;
         }
     }

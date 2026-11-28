@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { isProjectAccessLoss } from '../utils/activeProject';
 import { Alert } from '../components/ui/Alert';
+import { EmptyState } from '../components/ui/EmptyState';
+import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { PageLoader } from '../components/ui/PageLoader';
@@ -13,12 +15,15 @@ import {
   NewVersionModal,
 } from '../components/versions/NewVersionModal';
 import { ResolveConflictsDialog } from '../components/versions/ResolveConflictsDialog';
+import { ImportVersionCsvModal } from '../components/versions/ImportVersionCsvModal';
 import { VersionTree } from '../components/versions/VersionTree';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useGuardedProjectAccess } from '../hooks/useGuardedProjectAccess';
 import { AccessFailureAlert } from '../components/versionRoles/AccessFailureAlert';
+import { canImportInto as canImportIntoVersion } from '../utils/versionCsvImport';
 import {
   canBranchFromParent,
+  findVersionAccess,
   canMergeIntoParent,
   projectVersioning,
 } from '../utils/versionAccessRules';
@@ -48,6 +53,7 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
   const [deleting, setDeleting] = useState<PendingDeletion | null>(null);
   const [merging, setMerging] = useState<VersionSummary | null>(null);
   const [resolving, setResolving] = useState<VersionSummary | null>(null);
+  const [importing, setImporting] = useState<VersionSummary | null>(null);
 
   const project = projects.find((candidate) => candidate.id === projectId);
   const { access, failure: accessFailure, retry: retryAccess } = useGuardedProjectAccess(projectId);
@@ -61,6 +67,11 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
   );
   const canBranchFrom = useCallback(
     (parentVersionId: string) => canBranchFromParent(access, parentVersionId),
+    [access],
+  );
+
+  const canImportInto = useCallback(
+    (versionId: string) => canImportIntoVersion(access, versionId),
     [access],
   );
 
@@ -113,6 +124,7 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
     setDeleting(null);
     setMerging(null);
     setResolving(null);
+    setImporting(null);
   }, [projectId]);
 
   useEffect(() => {
@@ -130,21 +142,20 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
 
   return (
     <div>
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link to="/projects" className="text-sm font-semibold text-brand-800 hover:underline">
-            ← Proyectos
-          </Link>
-          <h1 className="mt-2 text-2xl font-semibold text-ink-800">Versionado</h1>
-          <p className="mt-1 text-sm text-ink-500">{project?.name ?? 'el proyecto'}</p>
-        </div>
-        {!error && canCreateVersion && (
-          <Button onClick={() => setIsModalOpen(true)}>
-            <PlusIcon className="h-4 w-4" />
-            Nueva versión
-          </Button>
-        )}
-      </header>
+      <PageHeader
+        back={{ to: '/projects', label: '← Proyectos' }}
+        title="Versionado"
+        description={project?.name ?? 'el proyecto'}
+        actions={
+          !error &&
+          canCreateVersion && (
+            <Button onClick={() => setIsModalOpen(true)}>
+              <PlusIcon className="h-4 w-4" />
+              Nueva versión
+            </Button>
+          )
+        }
+      />
 
       <AccessFailureAlert message={accessFailure} onRetry={() => void retryAccess()} />
 
@@ -154,25 +165,30 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
             <Alert tone="error">{error}</Alert>
           </div>
         ) : versions.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <p className="text-sm text-ink-500">Este proyecto todavía no tiene versiones.</p>
-            {canCreateRoot && (
-              <Button className="mt-4" onClick={() => setIsModalOpen(true)}>
-                <PlusIcon className="h-4 w-4" />
-                Nueva versión
-              </Button>
-            )}
+          <EmptyState
+            action={
+              canCreateRoot && (
+                <Button onClick={() => setIsModalOpen(true)}>
+                  <PlusIcon className="h-4 w-4" />
+                  Nueva versión
+                </Button>
+              )
+            }
+          >
+            Este proyecto todavía no tiene versiones.
             {canEdit && !canCreateRoot && (
               <p className="mt-2 text-sm text-ink-500">{FIRST_VERSION_ADMIN_MESSAGE}</p>
             )}
-          </div>
+          </EmptyState>
         ) : (
           <VersionTree
             nodes={tree}
             canEdit={canEdit}
             canMergeInto={canMergeInto}
+            canImportInto={canImportInto}
             unresolvedConflicts={unresolvedByVersion}
             onDelete={(version, isRoot) => setDeleting({ version, isRoot })}
+            onImport={setImporting}
             onMerge={setMerging}
             onResolveConflicts={setResolving}
           />
@@ -187,6 +203,17 @@ function VersionsWorkspace({ projectId }: { projectId?: string }) {
         onMergeNow={handleMergeNow}
         onClose={() => setResolving(null)}
       />
+
+      {importing && (
+        <ImportVersionCsvModal
+          key={importing.id}
+          projectId={projectId}
+          version={importing}
+          access={findVersionAccess(access, importing.id)}
+          onImported={reload}
+          onClose={() => setImporting(null)}
+        />
+      )}
 
       {canEdit && (
         <>

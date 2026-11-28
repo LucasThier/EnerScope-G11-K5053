@@ -12,3 +12,8 @@ export function hasReliableRecency(projects: ProjectSummary[]): boolean {
 export function sortByRecency(projects: ProjectSummary[]): ProjectSummary[] {
   return [...projects].sort((a, b) => timestampOf(b) - timestampOf(a));
 }
+
+/** The project Inicio calls "reciente": the most recently modified one, or null when recency cannot be trusted. */
+export function mostRecentProject(projects: ProjectSummary[]): ProjectSummary | null {
+  return hasReliableRecency(projects) ? sortByRecency(projects)[0] ?? null : null;
+}

@@ -113,6 +113,14 @@ public class VersionService {
     private final VersionConflictService versionConflictService;
     private final VersionAccessGuard accessGuard;
     private final VersionLineage lineage;
+    private final org.enerscope.scenario.service.ScenarioDefaults scenarioDefaults;
+    private final org.enerscope.economic.repository.EconomicJobRepository economicJobs;
+    private final org.enerscope.economic.repository.EconomicEvaluationRepository economicEvaluations;
+    private final org.enerscope.comparison.repository.ScenarioComparisonItemRepository comparisonItems;
+    private final org.enerscope.version.repository.VersionMemberRepository versionMembers;
+    private final org.enerscope.scenario.repository.ScenarioDraftRepository scenarioDrafts;
+    private final org.enerscope.scenario.repository.EconomicDraftRepository economicDrafts;
+    private final org.enerscope.economic.repository.EconomicConfigurationRepository economicConfigurations;
 
     /**
      * Creates a version detached from every project, for
@@ -127,7 +135,7 @@ public class VersionService {
     }
 
     /**
-     * Creates a version. Deliberately unguarded: it is reached either through
+     * Creates a version and its default scenario ("Escenario base", empty) in the same transaction. Deliberately unguarded: it is reached either through
      * {@code ProjectService.saveVersion}, which authorizes the owning project
      * before calling it, or through {@link #saveOrphanVersion}, which requires a
      * platform ADMIN. There is no version id to check yet at this point.
@@ -193,6 +201,10 @@ public class VersionService {
                 new ArrayList<>(), new ArrayList<>());
 
         Version saved = versionRepository.save(version);
+        // Every active version always has its default scenario, "Escenario base", created in this same transaction. A branch
+        // does not inherit its parent's scenarios or economics (only the physical nodes and connections are copied above):
+        // it is born with its own empty base scenario.
+        scenarioDefaults.forVersion(saved);
 
         logger.info("Registered the {} version", saved.getName());
         return saved;
@@ -212,6 +224,23 @@ public class VersionService {
             }
         }
 
+        // 403 (above) comes first, then 404 (above), then this 409. A version's simulations and the saved comparisons that use it
+        // must not be lost or break a foreign key: one version in the subtree with any of them refuses the whole delete, before
+        // anything is touched. Versions with nothing of the sort are deleted as before, together with their scenarios.
+        if (economicJobs.existsByVersionIdIn(versionsToDelete)
+                || economicEvaluations.existsByVersionIdIn(versionsToDelete)
+                || comparisonItems.existsByVersionIdIn(versionsToDelete)) {
+            logger.warn("Deleting version {} refused: it or a version below it has simulations or saved comparisons", id);
+            throw new VersionHasResultsException();
+        }
+
+        // Rows that reference the version without ON DELETE CASCADE must go first or the DELETE hits the FK: the members
+        // (and, by cascade, their roles) and the scenario drafts. The legacy economic drafts and the stored economic
+        // configurations cascade in PostgreSQL but are removed here too, so the delete does not depend on that. All of it is in this transaction and after the 403/404/409 checks, so a refusal leaves them intact.
+        versionMembers.deleteByVersionIdIn(versionsToDelete);
+        scenarioDrafts.deleteByVersionIdIn(versionsToDelete);
+        economicDrafts.deleteByVersionIdIn(versionsToDelete);
+        economicConfigurations.deleteByVersionIdIn(versionsToDelete);
         Collections.reverse(versionsToDelete);
         versionRepository.deleteAllById(versionsToDelete);
         logger.info("Deleted {} versions in tree starting from root version ID: {}",
@@ -378,7 +407,7 @@ public class VersionService {
                 type, toGraphDataDTO(node.getGraphData()),
                 money(node.getUpkeepCosts()), money(node.getOperatingCosts()),
                 node.getLifespanInMonths(), node.getMaintenanceIntervalInDays(),
-                (double) node.getWastePercentage(),
+                (double) node.getWastePercentage(), node.getStartupDate(), node.getMaintenanceDuration(),
                 typeAttributes(node), node instanceof Well w
                     ? org.enerscope.node.dto.ProbabilisticDistributionDTO.from(w.getDeclineCurve()) : null);
     }
@@ -569,6 +598,44 @@ public class VersionService {
         return saved;
     }
 
+    /**
+     * Cross-version identities of the nodes currently in the version's own snapshot. Read-only and unguarded: the caller
+     * (the CSV importer) has already checked edit permission. The importer uses it to reject a node row whose identity is
+     * already present, because {@link #addNodeToVersion} would otherwise swap that row for a new one with a new id.
+     */
+    @Transactional(readOnly = true)
+    public Set<UUID> nodeIdentities(UUID versionId) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+        Set<UUID> identities = new HashSet<>();
+        if (version.getNodeSnapshot() != null) {
+            for (BaseNode node : version.getNodeSnapshot()) {
+                if (node != null && node.getIdentityId() != null) {
+                    identities.add(node.getIdentityId());
+                }
+            }
+        }
+        return identities;
+    }
+
+    /** The cross-version identities of the connections currently in {@code versionId}'s own snapshot. */
+    @Transactional(readOnly = true)
+    public Set<UUID> connectionIdentities(UUID versionId) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+        Set<UUID> identities = new HashSet<>();
+        if (version.getConnectionSnapshot() != null) {
+            for (NodeConnection connection : version.getConnectionSnapshot()) {
+                if (connection != null && connection.getIdentityId() != null) {
+                    identities.add(connection.getIdentityId());
+                }
+            }
+        }
+        return identities;
+    }
+
     @Transactional
     public BaseNode addNodeToVersion(UUID versionId, BaseNodeDTO nodeDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
@@ -639,6 +706,16 @@ public class VersionService {
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         lockScenario(version);
 
+        // Refused before anything is saved: reusing an identity of this version used to drop the connection that had
+        // it, without any DELETE in the history, and a later merge carried that loss into the parent.
+        UUID requestedIdentity = connectionDTO.getIdentity();
+        if (requestedIdentity != null
+                && findConnectionByIdentity(version.getConnectionSnapshot(), requestedIdentity).isPresent()) {
+            logger.warn("Refused a connection with identity {}: version {} already has it", requestedIdentity, versionId);
+            throw new IllegalArgumentException(
+                    "Connection identity %s already exists in this version".formatted(requestedIdentity));
+        }
+
         nodeRepository.findById(connectionDTO.getFromNodeId())
                 .orElseThrow(
                         () -> new EntityNotFoundException("Node not found with id: " + connectionDTO.getFromNodeId()));
@@ -647,13 +724,6 @@ public class VersionService {
                         () -> new EntityNotFoundException("Node not found with id: " + connectionDTO.getToNodeId()));
 
         NodeConnection savedConnection = nodeService.saveConnection(connectionDTO);
-
-        // Guard against ending up with two rows for one identity in this version's
-        // own snapshot, same as addNodeToVersion.
-        UUID connectionIdentityId = savedConnection.getIdentityId();
-        version.getConnectionSnapshot()
-                .removeIf(existing -> existing != null && connectionIdentityId != null
-                        && connectionIdentityId.equals(existing.getIdentityId()));
         version.getConnectionSnapshot().add(savedConnection);
 
         ConnectionChange connectionChange = new ConnectionChange();

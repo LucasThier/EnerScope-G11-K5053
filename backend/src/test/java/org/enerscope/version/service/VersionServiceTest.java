@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -53,6 +54,23 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class VersionServiceTest {
+
+        @Mock
+        private org.enerscope.scenario.service.ScenarioDefaults scenarioDefaults;
+        @Mock
+        private org.enerscope.economic.repository.EconomicJobRepository economicJobs;
+        @Mock
+        private org.enerscope.economic.repository.EconomicEvaluationRepository economicEvaluations;
+        @Mock
+        private org.enerscope.comparison.repository.ScenarioComparisonItemRepository comparisonItems;
+        @Mock
+        private org.enerscope.version.repository.VersionMemberRepository versionMembers;
+        @Mock
+        private org.enerscope.scenario.repository.ScenarioDraftRepository scenarioDrafts;
+        @Mock
+        private org.enerscope.scenario.repository.EconomicDraftRepository economicDrafts;
+        @Mock
+        private org.enerscope.economic.repository.EconomicConfigurationRepository economicConfigurations;
 
         @Mock
         private VersionRepository versionRepository;
@@ -132,7 +150,15 @@ class VersionServiceTest {
                                 nodeService,
                                 versionConflictService,
                                 accessGuard,
-                                lineage);
+                                lineage,
+                                scenarioDefaults,
+                                economicJobs,
+                                economicEvaluations,
+                                comparisonItems,
+                                versionMembers,
+                                scenarioDrafts,
+                                economicDrafts,
+                                economicConfigurations);
         }
 
         @Test
@@ -1047,6 +1073,42 @@ class VersionServiceTest {
     }
 
     @Test
+    void deleteVersionRemovesMembershipsAndDraftsOfTheWholeSubtreeBeforeTheVersions() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        when(versionRepository.findById(rootId)).thenReturn(Optional.of(versionWithId(rootId)));
+        when(versionRepository.findByParentVersionId(rootId)).thenReturn(List.of(versionWithId(childId)));
+        when(versionRepository.findByParentVersionId(childId)).thenReturn(List.of());
+
+        versionService.deleteVersion(rootId);
+
+        var order = org.mockito.Mockito.inOrder(versionMembers, scenarioDrafts, economicDrafts, economicConfigurations, versionRepository);
+        order.verify(versionMembers).deleteByVersionIdIn(argThat(ids -> java.util.Set.copyOf(ids).equals(java.util.Set.of(rootId, childId))));
+        order.verify(scenarioDrafts).deleteByVersionIdIn(argThat(ids -> java.util.Set.copyOf(ids).equals(java.util.Set.of(rootId, childId))));
+        order.verify(economicDrafts).deleteByVersionIdIn(argThat(ids -> java.util.Set.copyOf(ids).equals(java.util.Set.of(rootId, childId))));
+        order.verify(economicConfigurations).deleteByVersionIdIn(argThat(ids -> java.util.Set.copyOf(ids).equals(java.util.Set.of(rootId, childId))));
+        order.verify(versionRepository).deleteAllById(List.of(childId, rootId));
+    }
+
+    @Test
+    void deleteVersionKeepsMembershipsAndDraftsWhenTheSubtreeHasSavedResults() {
+        UUID rootId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        when(versionRepository.findById(rootId)).thenReturn(Optional.of(versionWithId(rootId)));
+        when(versionRepository.findByParentVersionId(rootId)).thenReturn(List.of(versionWithId(childId)));
+        when(versionRepository.findByParentVersionId(childId)).thenReturn(List.of());
+        when(economicJobs.existsByVersionIdIn(List.of(rootId, childId))).thenReturn(true);
+
+        assertThrows(org.enerscope.version.service.VersionHasResultsException.class, () -> versionService.deleteVersion(rootId));
+
+        verify(versionMembers, org.mockito.Mockito.never()).deleteByVersionIdIn(any());
+        verify(scenarioDrafts, org.mockito.Mockito.never()).deleteByVersionIdIn(any());
+        verify(economicDrafts, org.mockito.Mockito.never()).deleteByVersionIdIn(any());
+        verify(economicConfigurations, org.mockito.Mockito.never()).deleteByVersionIdIn(any());
+        verify(versionRepository, org.mockito.Mockito.never()).deleteAllById(any());
+    }
+
+    @Test
     void deleteVersionDeletesNothingWhenAnyDescendantIsForbidden() {
         UUID rootId = UUID.randomUUID();
         UUID childId = UUID.randomUUID();
@@ -1266,6 +1328,23 @@ class VersionServiceTest {
                 versionService.getDiagram(versionId).getNodes().get(0).getType().getVertical());
         assertEquals(VerticalEnum.EXTRACTION,
                 versionService.getNodeDetail(versionId, nodeId).getType().getVertical());
+    }
+
+    @Test
+    void nodeDetailReportsTheStartupDateAndMaintenanceDurationSoTheEditFormCanSendThemBack() {
+        UUID versionId = UUID.randomUUID();
+        UUID nodeId = UUID.randomUUID();
+        Well well = wellTyped(nodeId, VerticalEnum.EXTRACTION);
+        well.setStartupDate(java.time.Instant.parse("2030-01-01T00:00:00Z"));
+        well.setMaintenanceDuration(7);
+        Version version = new Version("V", null, new ArrayList<>(List.of(well)), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(nodeRepository.findById(nodeId)).thenReturn(Optional.of(well));
+
+        var detail = versionService.getNodeDetail(versionId, nodeId);
+
+        assertEquals(java.time.Instant.parse("2030-01-01T00:00:00Z"), detail.getStartupDate());
+        assertEquals(7, detail.getMaintenanceDuration());
     }
 
     @Test
@@ -1563,6 +1642,30 @@ class VersionServiceTest {
     }
 
     @Test
+    void addConnectionToVersionRefusesAnIdentityTheVersionAlreadyHasWithoutSaving() {
+        UUID versionId = UUID.randomUUID();
+        UUID identity = UUID.randomUUID();
+        org.enerscope.node.model.NodeConnection existing = new org.enerscope.node.model.NodeConnection(
+                identity, UUID.randomUUID(), UUID.randomUUID());
+        Version version = new Version("v", null, new java.util.ArrayList<>(),
+                new java.util.ArrayList<>(java.util.List.of(existing)), new java.util.ArrayList<>(),
+                new java.util.ArrayList<>(), new java.util.ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        org.enerscope.node.dto.ConnectionDTO dto = connectionDto();
+        dto.setIdentity(identity);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> versionService.addConnectionToVersion(versionId, dto));
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "Connection identity " + identity + " already exists in this version", error.getMessage());
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(existing), version.getConnectionSnapshot());
+        org.junit.jupiter.api.Assertions.assertTrue(version.getConnectionChanges().isEmpty());
+        verifyNoInteractions(nodeService);
+        org.mockito.Mockito.verify(versionRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void editConnectionInVersionIsRefusedBeforeTouchingAnythingWhenTheCallerCannotEditConnections() {
         UUID versionId = UUID.randomUUID();
         org.mockito.Mockito.doThrow(denied()).when(accessGuard).assertCanEditConnection(versionId);
@@ -1610,6 +1713,19 @@ class VersionServiceTest {
         assertThrows(org.enerscope.common.ForbiddenException.class, () -> versionService.modifyVersion(
                 versionId, new org.enerscope.version.dto.VersionDTO("New", null)));
         verifyNoInteractions(versionRepository, lineage);
+    }
+
+    @Test
+    void creatingARootVersionAndABranchEachCreateTheirDefaultScenarioInTheSameCall() {
+        when(versionRepository.save(any(Version.class))).thenAnswer(call -> call.getArgument(0));
+        Version parent = versionService.saveVersion(new org.enerscope.version.dto.VersionDTO("Raíz", null));
+        when(versionRepository.findById(any())).thenReturn(Optional.of(parent));
+
+        Version child = versionService.saveVersion(new org.enerscope.version.dto.VersionDTO("Hija", UUID.randomUUID()));
+
+        org.mockito.Mockito.verify(scenarioDefaults).forVersion(parent);
+        org.mockito.Mockito.verify(scenarioDefaults).forVersion(child);
+        org.mockito.Mockito.verifyNoMoreInteractions(scenarioDefaults);
     }
 
     @Test

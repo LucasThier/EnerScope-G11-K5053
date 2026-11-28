@@ -56,6 +56,50 @@ un ID nuevo al guardar cada nodo y nunca persiste el valor de esta columna.
 Puede ser cualquier texto no vacío, pero debe ser único entre los nodos que lo
 incluyan.
 
+### `identity` repetida o ya existente
+
+El importador solo **agrega** nodos nuevos; no actualiza los existentes. Por eso
+una fila `NODE` con `identity` se rechaza, antes de guardar nada, en dos casos:
+
+- la `identity` ya existe en la versión destino. Guardarla reemplazaría el nodo
+  actual por uno nuevo con otro ID y dejaría colgando las referencias
+  (perfiles, activos, conversiones y contratos) de las configuraciones
+  económicas de los escenarios;
+- la misma `identity` aparece en dos filas del archivo.
+
+El error es un `400` con el número de registro (el encabezado es el 1) y estos
+mensajes exactos:
+
+```text
+Invalid CSV record 3 (NODE): identity 6f1c2a9e-0b7d-4c1e-9a52-3d8f7e4b1a10 already exists in this version
+Invalid CSV record 3 (NODE): identity 6f1c2a9e-0b7d-4c1e-9a52-3d8f7e4b1a10 is repeated in the file
+```
+
+La comprobación se hace con el resto de las validaciones de cada fila (después de
+las demás reglas de esa fila) y antes de crear nodos, conexiones o economía, así
+que el lote sigue siendo atómico: si falla, la versión queda exactamente igual.
+El orden de errores no cambia (401, `400` por archivo vacío o de más de 10 MB,
+403/404 por permisos, y recién después los errores de contenido). Solo se
+compara con la versión destino: la misma `identity` en otra versión (por ejemplo
+la versión padre) es válida. Un archivo sin columna `identity`, o con la celda
+vacía, se importa como siempre y recibe identidades nuevas.
+
+### `identity` de conexión repetida o ya existente
+
+Las filas `CONNECTION` siguen la misma regla, con su propio espacio de nombres
+(se comparan solo con otras conexiones): se rechaza una `identity` que ya tenga
+una conexión de la versión destino (incluidas las heredadas por una rama) o que
+aparezca en dos filas `CONNECTION`, sin importar qué nodos unan.
+
+```text
+Invalid CSV record 6 (CONNECTION): identity 6f1c2a9e-0b7d-4c1e-9a52-3d8f7e4b1a10 is repeated in the file
+Invalid CSV record 4 (CONNECTION): identity 6f1c2a9e-0b7d-4c1e-9a52-3d8f7e4b1a10 already exists in this version
+```
+
+Es un `400` y no se guarda nada. La pantalla lo traduce a «Línea N: …». Que
+una identidad esté repetida entre conexiones todavía no se detecta en el
+navegador: lo informa el servidor al importar.
+
 Además, cada `nodeKind` requiere los siguientes encabezados y valores no vacíos:
 
 | `nodeKind` | `type.vertical` | `type.nodeType` | Campos específicos obligatorios |
@@ -71,13 +115,45 @@ Además, cada `nodeKind` requiere los siguientes encabezados y valores no vacío
 | `LNG_CARRIER` | `EXPORT` | `LNG_CAMER` | `exportFrequency`, `shipCapacity`, `fullLoadTime`, `hiringCost`, `timeToDestination` |
 | `SEAPORT_TERMINAL` | `EXPORT` | `SEAPORT_TERMINAL` | `intermediateStorage`, `portDepth`, `shipCapacity` |
 | `INTERNAL_CONSUMPTION` | `INTERNAL_CONSUMPTION` | `INTERNAL_CONSUMPTION` | `consumptionSummer`, `consumptionAutumn`, `consumptionWinter`, `consumptionSpring` |
-| `INDUSTRIAL_CONSUMPTION` | `EXPORT` | `INDUSTRIAL_CONSUMPTION` | `consumption` |
+| `INDUSTRIAL_CONSUMPTION` | `INTERNAL_CONSUMPTION` | `INDUSTRIAL_CONSUMPTION` | `consumption` |
 
 Los valores de `type.vertical` y `type.nodeType` deben coincidir con la fila.
 Los nombres `PIPELINE_CONECTION`, `GROUND_LIQUEFACTION_PLANT` y `LNG_CAMER`
 son los valores exactos que usa actualmente el enum del backend, aunque no
 coincidan con la ortografía de `nodeKind`. `type.role` debe ser `GENERATOR`,
 `INTERMEDIATE` o `SINK`.
+
+### El rol y la vertical se deducen del tipo de nodo
+
+El rol estructural y la vertical no se eligen: los fija el tipo de nodo
+(`NodeTypeEnum` del backend), y el archivo tiene que repetirlos tal cual en la
+columna `type`. Un valor distinto se rechaza.
+
+| Rol | Tipos de nodo (`nodeKind`) |
+| --- | --- |
+| `GENERATOR` | `WELL` |
+| `INTERMEDIATE` | `GATHERING_NETWORK`, `TREATMENT_PLANT`, `PIPELINE`, `PIPELINE_CONNECTION`, `COMPRESSING_PLANT`, `GROUND_BASED_LIQUEFACTION_PLANT`, `FLNG_UNIT` |
+| `SINK` | `SEAPORT_TERMINAL`, `LNG_CARRIER`, `INDUSTRIAL_CONSUMPTION`, `INTERNAL_CONSUMPTION` |
+
+Por ejemplo, un `SEAPORT_TERMINAL` es siempre `SINK` de la vertical `EXPORT`:
+`{"vertical":"EXPORT","role":"SINK","nodeType":"SEAPORT_TERMINAL"}`. Las
+plantillas descargables traen el valor correcto para los tipos que muestran.
+
+La pantalla lo comprueba en el navegador antes de enviar y lista **todos** los
+problemas del archivo juntos (los primeros 50 y cuántos faltan), con su línea y
+el valor esperado, por ejemplo: «Línea 9: SEAPORT_TERMINAL debe tener el rol
+SINK (el archivo dice INTERMEDIATE)». También marca una celda `type` vacía, que
+no sea un JSON válido o que no sea un objeto, o a la que le falte `vertical`,
+`role` o `nodeType`. Con problemas, el botón *Importar* queda deshabilitado. Si
+aun así el backend lo rechaza, se muestra el mismo mensaje traducido.
+
+La vertical exigida para cada `nodeKind` (tabla de arriba) sale del mismo
+`NodeTypeEnum` que se aplica al guardar el nodo, así que la verificación previa
+del importador y el guardado no pueden contradecirse. `INDUSTRIAL_CONSUMPTION`
+va en `INTERNAL_CONSUMPTION` (hasta el 2026-11-22 el importador exigía `EXPORT`
+y el guardado `INTERNAL_CONSUMPTION`, por lo que ese tipo no se podía importar).
+Para importar ese tipo hace falta permiso de edición en la vertical *Consumo
+interno*.
 
 Los campos numéricos deben ser números finitos. Los campos enteros deben
 contener un entero dentro del rango de su tipo. Para los nodos, el importador
@@ -212,3 +288,48 @@ los nodos importados, no la fila `SCENARIO`.
 
 Este importador crea nodos (incluido `PIPELINE_CONNECTION`) y aristas del
 diagrama (`NodeConnection`) a partir de filas `CONNECTION`.
+
+## Cómo se muestran los errores en la pantalla
+
+La pantalla *Versionado → Importar CSV* traduce el mensaje del backend (en
+inglés, uno por vez) a «Línea N: …», donde N es el número de registro de esta
+guía (el encabezado es 1). Se reconocen por expresión regular, entre otros:
+
+| Mensaje del backend | Se muestra |
+| --- | --- |
+| `Invalid CSV record N (NODE): identity <uuid> already exists in this version` | Línea N: la identidad `<uuid>` ya existe en esta versión. Este importador solo agrega nodos nuevos: quitá esa fila o dejá la columna identity vacía. |
+| `Invalid CSV record N (NODE): identity <uuid> is repeated in the file` | Línea N: la identidad `<uuid>` aparece repetida en el archivo. Cada nodo debe tener una identidad única. |
+| `Invalid CSV record N (TIPO): Node role does not match its type: TIPO is SINK, not INTERMEDIATE` | Línea N: TIPO debe tener el rol SINK (el archivo dice INTERMEDIATE) |
+| `Invalid CSV record N (TIPO): Node vertical does not match its type: TIPO belongs to EXPORT, not LIQUEFACTION` | Línea N: TIPO debe tener la vertical EXPORT (el archivo dice LIQUEFACTION) |
+
+El resto de los mensajes con número de registro (columnas faltantes, JSON
+inválido, referencias desconocidas, tipos incoherentes, etc.) y los de archivo
+(UTF-8, tamaño, encabezado, filas de más) tienen su traducción en
+`frontend/src/api/errors.ts`. Un mensaje con número de registro que no se
+reconoce se muestra como «Línea N: la fila no es válida.» con el texto original
+como detalle; uno sin número, como «El importador rechazó el archivo.» con el
+original como detalle. Antes de enviar, la pantalla ya detecta en el cliente
+una `identity` repetida en el archivo o que no es un UUID; que una `identity`
+ya exista en la versión solo lo sabe el backend.
+
+## Plantillas descargables
+
+Se sube **un solo archivo**: nodos, conexiones y economía van juntos. Las tres
+plantillas de la pantalla son ejemplos **alternativos**, cada uno completo por
+sí mismo:
+
+| Enlace en la pantalla | Archivo | Contenido |
+| --- | --- | --- |
+| *Descargar plantilla (nodos y conexiones)* | `plantilla-nodos-y-conexiones.csv` | `TREATMENT_PLANT` y `PIPELINE` con su conexión, sin economía. No requiere permiso de economía. |
+| *solo nodos* | `plantilla-nodos.csv` | Un `WELL`. |
+| *con economía* | `plantilla-nodos-con-economia.csv` | Los mismos dos nodos y la conexión, con un `economicProfile` por nodo y la fila `SCENARIO`. El enlace se deshabilita sin permiso para editar la economía. |
+
+La conexión de los ejemplos es `TREATMENT_PLANT → PIPELINE`, un par que el
+editor permite (`ALLOWED_CONNECTIONS` en
+`frontend/src/components/editor/nodeCatalog.ts`); un test comprueba que toda
+conexión de toda plantilla cumpla `canConnect`. Esa regla vive solo en el
+frontend: el importador **no** valida los pares de tipos. El ejemplo es un tramo
+de la cadena, sin pozo que lo alimente.
+
+Ninguna plantilla incluye la columna `identity`: es opcional y, si viene, no
+puede existir ya en la versión ni repetirse en el archivo.

@@ -246,6 +246,23 @@ class VersionControllerTest {
     }
 
     @Test
+    void addingAConnectionWithARepeatedIdentityAnswers400WithTheServiceMessage() throws Exception {
+        UUID versionId = UUID.randomUUID();
+        String message = "Connection identity " + UUID.randomUUID() + " already exists in this version";
+        doThrow(new IllegalArgumentException(message))
+                .when(versionService).addConnectionToVersion(eq(versionId), any());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/version/" + versionId + "/connection")
+                        .contentType("application/json")
+                        .content("{}")
+                        .header("Authorization", "Bearer " + ACCESS_TOKEN))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(message));
+    }
+
+    @Test
     void importNodesFromCsvReturnsBadRequestForInvalidRows() throws Exception {
         UUID versionId = UUID.randomUUID();
         MockMultipartFile file = new MockMultipartFile(

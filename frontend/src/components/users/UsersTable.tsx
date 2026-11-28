@@ -1,6 +1,7 @@
 import type { UserListItem } from '../../types/auth';
 import { useAuth } from '../../hooks/useAuth';
 import { InfoIcon, LockIcon, TrashIcon, UndoIcon } from '../ui/icons';
+import { tableBodyCell, tableHeaderCell } from '../ui/tableClasses';
 import { RoleBadge } from '../ui/RoleBadge';
 import { RowButton } from '../ui/RowButton';
 
@@ -12,8 +13,7 @@ interface UsersTableProps {
   onReactivate: (user: UserListItem) => Promise<void>;
 }
 
-const headerCell = 'px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-ink-500';
-const bodyCell = 'px-4 py-3 text-sm text-ink-700 align-top';
+const bodyCell = `${tableBodyCell} align-top`;
 
 export function UsersTable({
   users,
@@ -28,25 +28,25 @@ export function UsersTable({
       <table className="w-full min-w-[56rem] border-collapse">
         <thead>
           <tr className="border-b border-ink-100">
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCell}>
               Nombre
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCell}>
               Email
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCell}>
               Puesto
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCell}>
               Rol
             </th>
-            <th scope="col" className={`${headerCell} text-right`}>
+            <th scope="col" className={`${tableHeaderCell} text-right`}>
               Organizaciones
             </th>
-            <th scope="col" className={headerCell}>
+            <th scope="col" className={tableHeaderCell}>
               Estado
             </th>
-            <th scope="col" className={`${headerCell} text-right`}>
+            <th scope="col" className={`${tableHeaderCell} text-right`}>
               Acciones
             </th>
           </tr>

@@ -1,4 +1,5 @@
 import { Alert } from '../ui/Alert';
+import { tableBodyCellCompact, tableHeaderCellCompact } from '../ui/tableClasses';
 import { Card } from '../ui/Card';
 import { ALL_VERSIONS_ADMIN_LABEL, versionRoleLabel } from '../projects/versionRoleLabels';
 import {
@@ -59,19 +60,19 @@ export function MyAccessCard({ access, onOpenVersion }: MyAccessCardProps) {
                   <tr className="border-b border-ink-100 bg-ink-50">
                     <th
                       scope="col"
-                      className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500"
+                      className={tableHeaderCellCompact}
                     >
                       Versión
                     </th>
                     <th
                       scope="col"
-                      className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500"
+                      className={tableHeaderCellCompact}
                     >
                       Mis roles
                     </th>
                     <th
                       scope="col"
-                      className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-ink-500"
+                      className={tableHeaderCellCompact}
                     >
                       Puedo
                     </th>
@@ -80,7 +81,7 @@ export function MyAccessCard({ access, onOpenVersion }: MyAccessCardProps) {
                 <tbody>
                   {summary.explicit.map((entry) => (
                     <tr key={entry.versionId} className="border-b border-ink-100 last:border-b-0">
-                      <td className="px-3 py-2 align-top text-sm">
+                      <td className={`${tableBodyCellCompact} align-top`}>
                         <button
                           type="button"
                           onClick={() => onOpenVersion(entry.versionId)}

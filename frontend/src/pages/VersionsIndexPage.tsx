@@ -2,6 +2,9 @@ import { useId, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { versionsIndexRedirect } from '../utils/activeProject';
 import { Alert } from '../components/ui/Alert';
+import { EmptyState } from '../components/ui/EmptyState';
+import { LoadingState } from '../components/ui/LoadingState';
+import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { SearchField } from '../components/ui/SearchField';
@@ -40,12 +43,10 @@ export function VersionsIndexPage() {
 
   return (
     <div>
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-ink-800">Versionado</h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Elegí un proyecto para ver y gestionar sus versiones.
-        </p>
-      </header>
+      <PageHeader
+        title="Versionado"
+        description="Elegí un proyecto para ver y gestionar sus versiones."
+      />
 
       <Card padded={false} className="overflow-hidden">
         {projects.length > 1 && (
@@ -62,7 +63,7 @@ export function VersionsIndexPage() {
         )}
 
         {isLoading ? (
-          <p className="px-4 py-8 text-center text-sm text-ink-500">Cargando proyectos…</p>
+          <LoadingState>Cargando proyectos…</LoadingState>
         ) : error ? (
           <div className="px-4 py-6">
             <Alert tone="error">{error}</Alert>
@@ -78,18 +79,17 @@ export function VersionsIndexPage() {
             </div>
           </div>
         ) : projects.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <p className="text-sm text-ink-500">
-              Todavía no tenés proyectos. Creá uno para empezar a versionar.
-            </p>
-            <Button className="mt-4" onClick={() => navigate('/projects')}>
-              Ir a Proyectos
-            </Button>
-          </div>
+          <EmptyState
+            action={
+              <Button onClick={() => navigate('/projects')}>
+                  Ir a Proyectos
+                </Button>
+            }
+          >
+            Todavía no tenés proyectos. Creá uno para empezar a versionar.
+          </EmptyState>
         ) : visibleProjects.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-ink-500">
-            Ningún proyecto coincide con la búsqueda.
-          </p>
+          <EmptyState>Ningún proyecto coincide con la búsqueda.</EmptyState>
         ) : (
           <ul aria-label="Proyectos" className="divide-y divide-ink-100">
             {visibleProjects.map((project) => (

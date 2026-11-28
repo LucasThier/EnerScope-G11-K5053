@@ -13,6 +13,7 @@ import org.enerscope.node.model.export.*;
 import org.enerscope.node.model.liquefaction.*;
 import org.enerscope.node.model.transportation.*;
 import org.enerscope.probabilistic.*;
+import org.enerscope.simulator.InvalidSimulationGraphException;
 import org.enerscope.simulator.Simulator;
 import org.enerscope.version.model.Version;
 import org.springframework.stereotype.Service;
@@ -69,7 +70,10 @@ public class EconomicInputCodec {
                 mapper.valueToTree(CurrentScenarioNodes.connections(version)),
                 new SimulationMetadata(rounds, Long.toString(seed), Simulator.ALGORITHM, Simulator.CALCULATION_VERSION));
         // Validate reconstruction and graph before accepting any background work.
-        new Simulator(thaw(input), configuration.startYear() + 1, Simulator.seedForRound(seed, 0));
+        Version rebuilt = thaw(input);
+        InvalidSimulationGraphException.translating(
+                () -> new Simulator(rebuilt, configuration.startYear() + 1, Simulator.seedForRound(seed, 0)))
+                .requireTerminalForOperatingCarriers(configuration.years());
         return input;
     }
 

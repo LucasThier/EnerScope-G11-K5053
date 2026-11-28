@@ -275,6 +275,58 @@ seat warm, and a guard that does not apply is not even queried.
 `src/api/errors.ts` translates all three backend messages. The backend remains
 the authority: the UI mirror only sees the members of the screen it is on.
 
+## Version and Scenario (glossary)
+
+- **Versión = base física.** The network model of a project (nodes, connections, branches
+  through `parentVersion`). Entity `Version`, table `version`.
+- **Escenario = configuración económica y de simulación.** The economic rules and simulation
+  settings that rest on a version, with the simulations and results produced from them.
+- **Current state:** `Scenario` is its own entity (table `scenario`) and a version holds **several** of them (up
+  to 20; `1 version → N scenarios`, a scenario never belongs to two versions). The economic configuration, drafts,
+  jobs and evaluations (`economic_configuration`, `economic_draft`, `scenario_draft`, `economic_job`,
+  `economic_evaluation`) and the items of saved comparisons (`scenario_comparison_item`) hang from `scenario_id`;
+  they still also carry `version_id` (double write) until the final "contract" migration (E7, **not done**).
+  The screens say "Versión" for the physical base and "Escenario" for its economic configuration. The steps E3 to
+  E6c below tell how it got here, in order.
+- **E3 (migration `V26`, expand only):** table `scenario` (`Scenario`: `version`, `name` ≤ 120,
+  `defaultScenario`). Each version has one **default scenario, "Escenario base"** (created by V26
+  for every existing version, active or not, and, for new versions, when the version is created — see E6b below).
+  A name is unique inside its version ignoring case among the *active* scenarios (a deleted one
+  frees it); at most one active default per version (both are partial/expression unique indexes).
+  The limit of scenarios per version (20, `enerscope.scenarios.max-per-version`) is enforced by the
+  service, not the database. The six tables that hang from a version's economics
+  (`economic_configuration`, `economic_draft`, `scenario_draft`, `economic_evaluation`,
+  `economic_job`, `scenario_comparison_item`) gain a **nullable `scenario_id`**, backfilled to the
+  version's default scenario and written together with `version_id` on every new write ("double
+  write").
+- **E4a (migration `V27`):** the `UNIQUE (version_id)` of `economic_configuration`, `economic_draft` and
+  `scenario_draft` are dropped and replaced by unique indexes on `scenario_id` (one configuration, one draft
+  and one scenario draft **per scenario**; a version may now hold several scenarios). **Every read of those
+  tables and of `economic_evaluation` / `economic_job` now goes by `scenario_id`**, resolving the version's
+  default scenario inside the services (`ScenarioDefaults.existing` for reads, which never creates one;
+  `forVersion` for writes). The endpoints and service signatures are unchanged (still addressed by version)
+  (creating a second scenario arrived in E4b, below). `version_id` keeps being written everywhere; dropping it, with
+  the `NOT NULL` on `scenario_id`, is the last "contract" migration (E7), **not done**: those columns are still debt.
+- **Every active version has its default scenario from creation (E6b):** `VersionService.saveVersion` creates "Escenario base" (empty) in the same
+  transaction, for a root version, a branch and a detached version. A branch does **not** inherit its parent's scenarios or economics (branching
+  copies only nodes, connections and version roles); it is born with its own empty base scenario. Deleting a version row (physical today) deletes its
+  scenarios (`ON DELETE CASCADE`). **A version that has simulation jobs, saved evaluations or saved comparison items — or has a version below it that does — cannot
+  be deleted: `DELETE /version/{id}` answers `409` and deletes nothing (E6c).** Logical deletion of versions is a pending product decision.
+- **Scenario fields and status:** `Scenario` has `name` (≤ 120, trimmed), `defaultScenario`, `active` (a deleted
+  scenario is only deactivated) and its `version`. The API adds `configured`, `draftPending` and a `status`
+  (`UP_TO_DATE`, `OUTDATED`, `NEVER_SIMULATED`, `SIMULATING`); `OUTDATED` does not say whether the scenario's own
+  configuration or its version's nodes changed. The limit comes from `ScenarioLimits`
+  (`enerscope.scenarios.max-per-version`, default 20, at least 1).
+- **E4b (scenario API):** scenarios can now be created, renamed, duplicated and deleted (logically,
+  `active = false`) through `/projects/{p}/versions/{v}/scenarios` and `/projects/{p}/scenarios/{s}`; the economic
+  configuration, drafts, simulations and results of a scenario are served under `/scenarios/{s}/...`
+  (see [`backend/README.md`](../backend/README.md#scenario-api)). `EconomicConfigurationEntity`,
+  `EconomicDraftEntity` and `ScenarioDraft` map `version` as `@ManyToOne` (no longer unique) and `scenario` as unique.
+  **The scenario holds only the economic and simulation part**: node values ("Operación") belong to the version and
+  are edited on the node, so saving a scenario never clones or changes nodes. A scenario is *up to date* only while
+  its configuration **and** its version's nodes and connections equal what its last simulation froze: editing a node
+  makes every scenario of that version outdated; editing one scenario's economics outdates only that one.
+
 ## Version
 
 Persistent entity mapped to the `version` table. **Minimal slice** — only
@@ -340,6 +392,11 @@ returns both. Earlier edits copied one into the other — see
 `TreatmentPlant.contaminantWaste` is accepted by the DTO but **not persisted**
 (it reads back as `0`).
 
+`startupDate` and `maintenanceDuration` (hours) are optional base values: an edit that **omits** them keeps the
+stored value (`NodeService.keepOptionalBaseValues`), a present one updates it, a negative duration is refused (`400`).
+**A start-up date cannot be cleared by sending `null`**; that needs an explicit mechanism that does not exist yet
+(see *Deuda de escenarios* in [`considerations.md`](considerations.md)).
+
 ### NodeGraphData
 
 Presentation data of a node, holding **two independent, nullable positions**:
@@ -359,14 +416,11 @@ Edge between two nodes (`node_connection` table): `identityId`, `fromNodeId`,
 
 ## Economic And Configuration
 
-Persistent entity mapped to the `version` table. **Minimal slice** — only
-`name`, the owning `project` and an optional `parentVersion` self-reference.
-No creation timestamp field of its own; it reuses `createdAt` from
-`BaseEntity` instead of duplicating it.
+The economic configuration of a **scenario** (see [Version and Scenario](#version-and-scenario-glossary)).
 
-`EconomicConfigurationEntity` has a unique, required Version reference, a typed
-configuration serialized as JSON text and an optimistic-lock revision.
-`EconomicEvaluation` has a required Version reference and immutable input/output
+`EconomicConfigurationEntity` has a required Version reference, a **unique Scenario reference** (one
+configuration per scenario, V27), a typed configuration serialized as JSON text and an optimistic-lock revision.
+`EconomicEvaluation` has a required Version reference, a Scenario reference and immutable input/output
 snapshot JSON. Both inherit `BaseEntity`. The configuration records below are
 owned values, not separate shared JPA entities:
 
@@ -581,13 +635,13 @@ if the email is not already present.
 
 ## EconomicDraftEntity
 
-Version-owned editor draft, unique version_id, schema-versioned draft_json text 
+Scenario-owned editor draft (`version_id` kept, unique `scenario_id`), schema-versioned draft_json text 
 and optimistic-lock revision. Raw strings preserve partial amounts and dates. 
 V13 adds the table independently of economic_configuration and economic_evaluation.
 
 ## Probabilistic economic jobs and rounds
 
-A Version has many EconomicJob records. Each holds immutable inputJson, rounds, seed, state, 
+A Scenario (and, through it, its Version) has many EconomicJob records. Each holds immutable inputJson, rounds, seed, state, 
 completedRounds, lifecycle timestamps/error and an optional unique evaluationId. Each job owns
 up to rounds EconomicRound records, unique by (job, round number), with full snapshotJson and 
 small summaryJson. A completed job links one EconomicEvaluation; failed/interrupted jobs publish 
@@ -595,12 +649,13 @@ none. FrozenEconomicInput and ProbabilisticSummary are value records, not shared
 
 ## ScenarioComparison
 
-A saved comparison run of two to eight scenarios, saved under one Project but able to include scenarios of other projects
-(`scenario_comparison`, V25). It holds a `name`, an optional `description` and
+A saved comparison run of two to eight **scenarios** of **one Project** (the one it is saved in; the same or different versions;
+a scenario of any other project is rejected with a generic `404`) (`scenario_comparison`, V25). It holds a `name`, an optional `description` and
 two relevance thresholds (`relevanceThreshold`, relative; `rateThreshold`,
 absolute in fraction points). It owns 2–8 ordered `ScenarioComparisonItem`s
-(`scenario_comparison_item`), each pointing at a `Version` and one of its
-`EconomicEvaluation`s, unique by (comparison, position) and (comparison,
+(`scenario_comparison_item`), each pointing at a `Version`, a `Scenario` and the
+`EconomicEvaluation` of that scenario it was made with, plus the **names of the version and the scenario as they were when it was saved**
+(`version_name`, `scenario_name`, V28) so it still opens, flagged `deleted`, after either is deleted, unique by (comparison, position) and (comparison,
 evaluation). Positions keep the order the scenarios were picked in (it only decides their colour); scenarios are compared with each other. Only the definition is stored: the
 result is recalculated from the immutable evaluations on every read. Deleting is
 a soft delete. See [`scenario-comparison.md`](scenario-comparison.md).

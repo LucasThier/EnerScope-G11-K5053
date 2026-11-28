@@ -12,8 +12,8 @@ import java.util.UUID;
  *                            difference is reported as relevant; {@code null} uses the default
  * @param rateThreshold       absolute change (fraction, 0.01 = 1 percentage point) from which a rate
  *                            difference (IRR, ROI, ROE) is reported as relevant; {@code null} uses the default
- * @param items               two to eight scenarios, from any project the caller can see; each one is
- *                            compared through its latest simulation, which must be up to date
+ * @param items               two to eight scenarios of the path project, from the same or from different versions; each
+ *                            one is compared through its latest simulation, which must be up to date
  */
 public record ComparisonRequestDTO(String name,
                                    String description,
@@ -21,6 +21,21 @@ public record ComparisonRequestDTO(String name,
                                    BigDecimal rateThreshold,
                                    List<Item> items) {
 
-    /** One compared scenario (version). */
-    public record Item(UUID versionId) {}
+    /**
+     * One compared scenario.
+     *
+     * @param scenarioId the scenario to compare
+     * @param versionId  <b>deprecated</b>, accepted only so requests written before scenarios existed keep working: it is
+     *                   resolved to the default scenario of that version. Send {@code scenarioId}.
+     */
+    public record Item(UUID scenarioId, @Deprecated UUID versionId) {
+        public Item(UUID scenarioId) {
+            this(scenarioId, null);
+        }
+
+        /** A compatibility item naming only a version (its default scenario is compared). */
+        public static Item ofVersion(UUID versionId) {
+            return new Item(null, versionId);
+        }
+    }
 }

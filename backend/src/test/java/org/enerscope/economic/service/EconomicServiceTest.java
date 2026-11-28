@@ -36,12 +36,14 @@ class EconomicServiceTest {
     final EconomicSimulationAdapter simulator=spy(new EconomicSimulationAdapter());
     final ProjectMemberRepository projectMembers=mock(ProjectMemberRepository.class);
     final VersionMemberRepository versionMembers=mock(VersionMemberRepository.class);
+    final org.enerscope.scenario.service.ScenarioDefaults scenarioDefaults=org.enerscope.economic.service.EconomicExample.scenarioDefaults();
     final VersionAccessGuard versionAccessGuard=new VersionAccessGuard(projects,versionMembers,
             new ProjectAccessGuard(projectMembers,mock(AppLogger.class)),mock(AppLogger.class));
     final EconomicService service=new EconomicService(projects,configs,evaluations,drafts,new EconomicValidator(),new EconomicEngine(new EconomicValidator(), new EconomicIndicatorsCalculator()),
             new EconomicIndicatorsCalculator(), simulator,MAPPER,mock(AppLogger.class),versionAccessGuard,
             new org.enerscope.scenario.service.ScenarioChangeScope(new org.enerscope.scenario.service.ScenarioOperations(MAPPER),
-                    versionAccessGuard,MAPPER,mock(AppLogger.class)));
+                    versionAccessGuard,MAPPER,mock(AppLogger.class)),
+            scenarioDefaults);
     final UUID projectId=UUID.randomUUID(); final varHolder holder=new varHolder();
     static class varHolder { final org.enerscope.version.model.Version version=version(); }
     Project project; User user;
@@ -81,7 +83,7 @@ class EconomicServiceTest {
     @Test
     void viewerCanReadButCannotEvaluate() throws Exception {
         grant(ProjectMemberPermission.VIEW_PROJECT);
-        when(configs.findByVersionId(holder.version.getId())).thenReturn(Optional.of(new EconomicConfigurationEntity(holder.version,MAPPER.writeValueAsString(configuration()))));
+        when(configs.findByScenarioId(scenarioIdOf(holder.version.getId()))).thenReturn(Optional.of(new EconomicConfigurationEntity(holder.version,MAPPER.writeValueAsString(configuration()))));
         assertEquals(configuration(),service.get(projectId,holder.version.getId()));
         assertThrows(ForbiddenException.class,()->service.evaluate(projectId,holder.version.getId()));
     }
@@ -90,7 +92,12 @@ class EconomicServiceTest {
     void editorCanSaveValidatedConfiguration() {
         grant(ProjectMemberPermission.EDIT_PROJECT);
         assertEquals(configuration(),service.save(projectId,holder.version.getId(),configuration()));
-        verify(configs).save(any(EconomicConfigurationEntity.class));
+        var saved=org.mockito.ArgumentCaptor.forClass(EconomicConfigurationEntity.class);
+        verify(configs).save(saved.capture());
+        // Double write: the row also records the default scenario of its version.
+        assertEquals(org.enerscope.scenario.model.Scenario.DEFAULT_NAME,saved.getValue().getScenario().getName());
+        assertTrue(saved.getValue().getScenario().isDefaultScenario());
+        assertSame(holder.version,saved.getValue().getScenario().getVersion());
     }
 
     @Test
@@ -112,12 +119,12 @@ class EconomicServiceTest {
     void evaluationIsScopedToVersion() {
         grant(ProjectMemberPermission.VIEW_PROJECT);UUID evaluation=UUID.randomUUID();
         assertThrows(EntityNotFoundException.class,()->service.getEvaluation(projectId,holder.version.getId(),evaluation));
-        verify(evaluations).findByIdAndVersionId(evaluation,holder.version.getId());
+        verify(evaluations).findByIdAndScenarioId(evaluation,scenarioIdOf(holder.version.getId()));
     }
 
     @Test void newEvaluationStoresVersionTwoAndSimulatesOnce() throws Exception {
         grant(ProjectMemberPermission.EDIT_PROJECT);
-        when(configs.findByVersionId(holder.version.getId())).thenReturn(Optional.of(
+        when(configs.findByScenarioId(scenarioIdOf(holder.version.getId()))).thenReturn(Optional.of(
                 new EconomicConfigurationEntity(holder.version, MAPPER.writeValueAsString(configuration()))));
         when(evaluations.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
         var evaluation = service.evaluate(projectId, holder.version.getId());
@@ -129,6 +136,7 @@ class EconomicServiceTest {
         var stored = MAPPER.readTree(captor.getValue().getSnapshotJson());
         assertEquals("STORED", stored.at("/result/indicators/origin").asText());
         assertEquals(2, stored.path("schemaVersion").asInt());
+        assertEquals(org.enerscope.scenario.model.Scenario.DEFAULT_NAME, captor.getValue().getScenario().getName());
     }
 
     private EconomicEvaluation historical(java.util.function.Consumer<com.fasterxml.jackson.databind.node.ObjectNode> change) {
@@ -138,9 +146,20 @@ class EconomicServiceTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode) tree.get("result")).remove("indicators");
         change.accept(tree);
         var entity = new EconomicEvaluation(holder.version, tree.toString());
-        when(evaluations.findByIdAndVersionId(entity.getId(), holder.version.getId())).thenReturn(Optional.of(entity));
-        when(evaluations.findByVersionIdOrderByCreatedAtDesc(holder.version.getId())).thenReturn(List.of(entity));
+        when(evaluations.findByIdAndScenarioId(entity.getId(), scenarioIdOf(holder.version.getId()))).thenReturn(Optional.of(entity));
+        when(evaluations.findByScenarioIdOrderByCreatedAtDesc(scenarioIdOf(holder.version.getId()))).thenReturn(List.of(entity));
         return entity;
+    }
+
+    @Test void readingAVersionWithoutAScenarioFindsNothingAndNeverCreatesOne() {
+        grant(ProjectMemberPermission.VIEW_PROJECT);
+        when(scenarioDefaults.existing(holder.version.getId())).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class,()->service.get(projectId,holder.version.getId()));
+        assertNull(service.getDraft(projectId,holder.version.getId()));
+        assertTrue(service.list(projectId,holder.version.getId()).isEmpty());
+        verify(scenarioDefaults,never()).forVersion(any());
+        verifyNoInteractions(configs,drafts,evaluations);
     }
 
     @Test void historyDerivesFromSnapshotWithoutSimulationConfigurationLookupOrWrites() {
@@ -159,8 +178,8 @@ class EconomicServiceTest {
         assertEquals(5, indicators.discountedPayback().period());
         assertEquals(original, entity.getSnapshotJson());
         verifyNoInteractions(configs, simulator);
-        verify(evaluations).findByIdAndVersionId(entity.getId(), holder.version.getId());
-        verify(evaluations).findByVersionIdOrderByCreatedAtDesc(holder.version.getId());
+        verify(evaluations).findByIdAndScenarioId(entity.getId(), scenarioIdOf(holder.version.getId()));
+        verify(evaluations).findByScenarioIdOrderByCreatedAtDesc(scenarioIdOf(holder.version.getId()));
         verifyNoMoreInteractions(evaluations);
     }
 
@@ -241,7 +260,7 @@ class EconomicServiceTest {
 
     @Test void savedInvalidExportCannotRunSimulation() throws Exception {
         grant(ProjectMemberPermission.EDIT_PROJECT);
-        when(configs.findByVersionId(holder.version.getId())).thenReturn(Optional.of(
+        when(configs.findByScenarioId(scenarioIdOf(holder.version.getId()))).thenReturn(Optional.of(
                 new EconomicConfigurationEntity(holder.version, MAPPER.writeValueAsString(exportConfiguration()))));
         assertThrows(IllegalArgumentException.class, () -> service.evaluate(projectId, holder.version.getId()));
         verifyNoInteractions(simulator, evaluations);
@@ -303,7 +322,7 @@ class EconomicServiceTest {
     @Test void viewerReadsDraftButCannotSaveIt() throws Exception {
         grant(ProjectMemberPermission.VIEW_PROJECT);
         var draft = incompleteDraft();
-        when(drafts.findByVersionId(holder.version.getId())).thenReturn(Optional.of(new EconomicDraftEntity(holder.version, MAPPER.writeValueAsString(draft))));
+        when(drafts.findByScenarioId(scenarioIdOf(holder.version.getId()))).thenReturn(Optional.of(new EconomicDraftEntity(holder.version, MAPPER.writeValueAsString(draft))));
         assertEquals(draft, service.getDraft(projectId, holder.version.getId()));
         assertThrows(ForbiddenException.class, () -> service.saveDraft(projectId, holder.version.getId(), draft));
         verify(drafts, never()).save(any());
@@ -325,7 +344,7 @@ class EconomicServiceTest {
     @Test void validatedConfigurationSaveClearsDraft() {
         grant(ProjectMemberPermission.EDIT_PROJECT);
         service.save(projectId, holder.version.getId(), configuration());
-        verify(drafts).deleteByVersionId(holder.version.getId());
+        verify(drafts).deleteByScenarioId(scenarioIdOf(holder.version.getId()));
     }
 
     private void grantVersionRole(org.enerscope.version.model.enums.VersionMemberType type,
@@ -339,7 +358,7 @@ class EconomicServiceTest {
     @Test void projectEditorWithVersionSimulatorRoleCanEvaluateButCannotSaveConfigurationOrDraft() throws Exception {
         grant(ProjectMemberPermission.EDIT_PROJECT,ProjectMemberPermission.VIEW_PROJECT);
         grantVersionRole(org.enerscope.version.model.enums.VersionMemberType.SIMULATOR,null);
-        when(configs.findByVersionId(holder.version.getId())).thenReturn(Optional.of(
+        when(configs.findByScenarioId(scenarioIdOf(holder.version.getId()))).thenReturn(Optional.of(
                 new EconomicConfigurationEntity(holder.version, MAPPER.writeValueAsString(configuration()))));
         when(evaluations.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
 
@@ -354,7 +373,7 @@ class EconomicServiceTest {
     @Test void projectEditorWithVersionSimulatorRoleCanReadConfigurationDraftAndHistory() throws Exception {
         grant(ProjectMemberPermission.EDIT_PROJECT,ProjectMemberPermission.VIEW_PROJECT);
         grantVersionRole(org.enerscope.version.model.enums.VersionMemberType.SIMULATOR,null);
-        when(configs.findByVersionId(holder.version.getId())).thenReturn(Optional.of(
+        when(configs.findByScenarioId(scenarioIdOf(holder.version.getId()))).thenReturn(Optional.of(
                 new EconomicConfigurationEntity(holder.version, MAPPER.writeValueAsString(configuration()))));
 
         assertEquals(configuration(),service.get(projectId,holder.version.getId()));
@@ -365,7 +384,7 @@ class EconomicServiceTest {
     @Test void versionEditorOfOneVerticalCanSaveConfigurationAndEvaluate() throws Exception {
         grant(ProjectMemberPermission.EDIT_PROJECT,ProjectMemberPermission.VIEW_PROJECT);
         grantVersionRole(org.enerscope.version.model.enums.VersionMemberType.EDITOR,org.enerscope.node.model.enums.VerticalEnum.EXTRACTION);
-        when(configs.findByVersionId(holder.version.getId())).thenReturn(Optional.of(
+        when(configs.findByScenarioId(scenarioIdOf(holder.version.getId()))).thenReturn(Optional.of(
                 new EconomicConfigurationEntity(holder.version, MAPPER.writeValueAsString(configuration()))));
         when(evaluations.saveAndFlush(any())).thenAnswer(call -> call.getArgument(0));
 

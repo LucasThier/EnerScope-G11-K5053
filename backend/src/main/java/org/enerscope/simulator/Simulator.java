@@ -111,11 +111,8 @@ public class Simulator {
     private void step(SimBaseNode node, int time) {
         if (operatingStartYear != null) {
             BaseNode physical = physicalNodes.get(node.getId());
-            LocalDate start = physical.getStartupDate() == null ? LocalDate.of(operatingStartYear, 1, 1)
-                    : physical.getStartupDate().atZone(ZoneOffset.UTC).toLocalDate();
-            long startHour = (long) (start.getYear() - operatingStartYear) * HOURS_PER_YEAR
-                    + Math.min(start.getDayOfYear() - 1, 364) * 24L;
-            long endHour = startHour + Math.round(physical.getLifespanInMonths() * HOURS_PER_YEAR / 12.0);
+            long startHour = startHour(physical);
+            long endHour = endHour(physical, startHour);
             node.setCalendarControlled(true);
             node.setOperatingAgeHours(Math.toIntExact(time - startHour));
             if (!physical.isActive() || time < startHour || time >= endHour) {
@@ -123,6 +120,38 @@ public class Simulator {
             }
         }
         node.simulate(time);
+    }
+
+    /** The hour, counted from the start of the operating year, at which a node begins to operate. */
+    private long startHour(BaseNode physical) {
+        LocalDate start = physical.getStartupDate() == null ? LocalDate.of(operatingStartYear, 1, 1)
+                : physical.getStartupDate().atZone(ZoneOffset.UTC).toLocalDate();
+        return (long) (start.getYear() - operatingStartYear) * HOURS_PER_YEAR
+                + Math.min(start.getDayOfYear() - 1, 364) * 24L;
+    }
+
+    private static long endHour(BaseNode physical, long startHour) {
+        return startHour + Math.round(physical.getLifespanInMonths() * HOURS_PER_YEAR / 12.0);
+    }
+
+    /**
+     * Fails now, with a reason, where {@link #simulate} would fail later with a {@link NullPointerException}: an LNG
+     * carrier that operates at some hour of the horizon needs the seaport terminal or FLNG unit it loads from. A
+     * carrier that never operates within the horizon is left alone, because that run succeeds.
+     */
+    public void requireTerminalForOperatingCarriers(int years) {
+        for (SimBaseNode node : executionOrder) {
+            if (node instanceof SimLNGCarrier carrier && carrier.getSimSeaportTerminal() == null
+                    && operatesWithin(physicalNodes.get(node.getId()), years)) {
+                throw new InvalidSimulationGraphException(InvalidSimulationGraphException.CARRIER_WITHOUT_TERMINAL);
+            }
+        }
+    }
+
+    private boolean operatesWithin(BaseNode physical, int years) {
+        if (operatingStartYear == null) return true;
+        long start = startHour(physical);
+        return physical.isActive() && Math.max(start, 0) < Math.min(endHour(physical, start), (long) years * HOURS_PER_YEAR);
     }
 
     private void captureYear(int period) {

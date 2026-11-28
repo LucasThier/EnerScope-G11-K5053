@@ -289,6 +289,10 @@ export interface NodeBaseValues {
   operatingCosts: number;
   lifespanInMonths: number;
   maintenanceIntervalInDays: number;
+  /** Hours. */
+  maintenanceDuration: number;
+  /** ISO instant as loaded from the node; sent back untouched so an edit never erases it. */
+  startupDate?: string | null;
   wastePercentage: number;
 }
 
@@ -300,7 +304,24 @@ export function defaultBaseValues(): NodeBaseValues {
     operatingCosts: 0,
     lifespanInMonths: 0,
     maintenanceIntervalInDays: 30,
+    maintenanceDuration: 0,
     wastePercentage: 0,
+  };
+}
+
+/** The edit form's base values from a loaded node: every stored value round-trips, startup date included. */
+export function baseValuesFromDetail(detail: import('../../types/diagram').NodeDetail): NodeBaseValues {
+  return {
+    name: detail.name,
+    declineCurve: detail.declineCurve ?? undefined,
+    state: detail.state,
+    upkeepCosts: detail.upkeepCosts,
+    operatingCosts: detail.operatingCosts,
+    lifespanInMonths: detail.lifespanInMonths,
+    maintenanceIntervalInDays: detail.maintenanceIntervalInDays,
+    maintenanceDuration: detail.maintenanceDuration ?? 0,
+    startupDate: detail.startupDate ?? null,
+    wastePercentage: detail.wastePercentage,
   };
 }
 
@@ -328,6 +349,9 @@ export function buildNodePayload(
     operatingCosts: base.operatingCosts,
     lifespanInMonths: base.lifespanInMonths,
     maintenanceIntervalInDays: base.maintenanceIntervalInDays,
+    maintenanceDuration: base.maintenanceDuration,
+    // Absent (not null) when there is none: the backend keeps the stored value when the field is missing.
+    ...(base.startupDate ? { startupDate: base.startupDate } : {}),
     wastePercentage: base.wastePercentage,
     investmentCost: { components: [] },
     graphData,

@@ -19,6 +19,25 @@ management** (JWT based), **organizations and projects** with scoped roles,
 **versions** of a project's value-chain model (with per-version roles, branches,
 merge and conflicts), and the **economic evaluation** of scenarios.
 
+### Vocabulary: Versión and Escenario
+
+Two different concepts, used the same way in the code, the docs and the screens:
+
+- **Versión = base física.** The network model of a project: nodes, connections and
+  branches (parent/child versions). It is what the value-chain editor edits.
+- **Escenario = configuración económica y de simulación.** The economic rules and the
+  simulation settings that rest on a version. Simulations, results and comparisons belong
+  to a scenario.
+
+> A version can hold **several scenarios** (up to 20, each with a name the person types, unique in the
+> version ignoring case; every version is created with an empty "Escenario base", and a branch does not inherit its parent's scenarios): the backend API for listing, creating, renaming, duplicating, deleting,
+> configuring and simulating them is in [`backend/README.md`](backend/README.md#scenario-api). The screens
+> follow the flow **version → its scenarios → one scenario** (list with status, *Nuevo escenario*, *Duplicar*,
+> *Renombrar*, *Eliminar*; see [`frontend/README.md`](frontend/README.md)), and comparisons compare **scenarios** (of the same or
+> different versions of a project, see [`docs/scenario-comparison.md`](docs/scenario-comparison.md)); a
+> scenario never creates a version. Node values ("Operación") belong to the version and are edited on the
+> node. See [`docs/considerations.md`](docs/considerations.md).
+
 - **Domain:** `enerscope.org`
 - **Backend:** Java 21 · Spring Boot 3.5 · PostgreSQL · Flyway · JWT · Swagger
 - **Frontend:** React 19 · Vite · TypeScript · Tailwind CSS (no hand-written CSS)
@@ -59,20 +78,41 @@ Tests:
 
 ```bash
 cd backend && mvn test        # JUnit, H2 — no database needed
+cd backend && mvn -B verify   # also the 10 *IT classes (failsafe) — needs a DISPOSABLE PostgreSQL
 cd frontend && npm test       # node:test unit suite
 cd frontend && npm run build  # type-check + build
 ```
 
-The five `*PostgreSqlIT` backend classes are **not** part of `mvn test`; they are
-run by hand against a disposable PostgreSQL (see
-[docs/testing.md](docs/testing.md) → *PostgreSQL classes*). Counts and the
-case-by-case catalog are in [docs/testing.md](docs/testing.md).
+`mvn -B verify` needs `ECONOMIC_TEST_DATABASE_URL` (and optionally `_USER` / `_PASSWORD`) pointing at a throwaway
+`enerscope_economic_test` database — never at one with real data. CI runs the same command in the `backend-it`
+job, which fails the build when an `*IT` fails. Last reported counts: backend 107 classes / 1818 executions
+(`mvn test`) and 11 classes / 111 executions (failsafe); frontend 296 tests in 35 files. The case-by-case catalog is in
+[docs/testing.md](docs/testing.md). The Playwright scripts `frontend/tests/*-browser.mjs` are not part of any of
+these and are out of date (see [docs/testing.md](docs/testing.md)).
+
+> Do not run `docker compose down -v`: it deletes the local database volume (`enerscope_pgdata`).
 
 A default administrator is seeded on first boot: `admin@enerscope.org`
 (password configurable via `ADMIN_PASSWORD`, default `admin12345`). It has the
 platform **`ADMIN`** role — registration is not self-service, so this account is
 the one that creates the first users (see [backend/README.md](backend/README.md)
 → Roles).
+
+## Demo data (local only)
+
+To try the whole flow without building it by hand, load the demo data into your **local** backend (on demand; nothing
+loads it on startup):
+
+```bash
+ENERSCOPE_SEED_LOCAL=yes ENERSCOPE_ADMIN_PASSWORD= ENERSCOPE_DEMO_PASSWORD= node docs/examples/seed-local-demo.mjs --simulate
+```
+
+Both passwords are mandatory and have no default: the admin one is the bootstrap admin's, the demo one becomes the
+password of the nine `…@enerscope.test` users. It creates the organization *Demo - EnerScope* with a user per role,
+two projects, a 13-node network with the 12 node types, a branch, three scenarios, a draft, two simulations and a
+saved comparison. It is idempotent, refuses any non-local API, and `--cleanup --dry-run` / `--cleanup --yes` remove
+it without touching anything else. Users, roles and details: [docs/demo-data.md](docs/demo-data.md). Never use
+`docker compose down -v` to "reset" it: that deletes the real local database.
 
 ## Documentation
 
@@ -84,6 +124,7 @@ the one that creates the first users (see [backend/README.md](backend/README.md)
 - [docs/technical-decisions.md](docs/technical-decisions.md) — technical decisions
 - [docs/considerations.md](docs/considerations.md) — running notes & expectations for future work
 - [docs/scenario-comparison.md](docs/scenario-comparison.md) — comparing the results of a project's scenarios
+- [docs/demo-data.md](docs/demo-data.md) — local demo data: what it creates, how to run and clean it up
 - [docs/deploy.md](docs/deploy.md) — deployment: pushes to `master` deploy the backend to AWS Lightsail and the frontend to Cloudflare Pages
 - [AGENTS.md](AGENTS.md) — guide for AI coding agents (and contributors)
 

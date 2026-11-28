@@ -216,16 +216,32 @@ class ScenarioComparisonCalculatorTest {
     }
 
     @Test
-    void scenariosFromDifferentProjectsAreNamedWithTheirProject() {
-        var base = scenario(PROJECT, "Cuenca Neuquina", "Base", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(NPV, "100"), Map.of());
-        var other = scenario(UUID.randomUUID(), "Cuenca Austral", "Base", "USD", 10, EvaluationMode.DETERMINISTIC,
-                Map.of(NPV, "300"), Map.of());
-        var result = compare(base, other);
+    void scenariosAreNamedByTheirScenarioNameAndTheVersionIsAddedWhenTheNamesRepeat() {
+        // The default scenarios of two versions share a name: the version tells them apart.
+        var base = namedScenario(scenario("Neuquina", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(NPV, "100"), Map.of()), "Escenario base", false);
+        var other = namedScenario(scenario("Austral", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(NPV, "300"), Map.of()), "Escenario base", false);
+        var finding = compare(base, other).findings().stream().filter(f -> f.metric() == NPV).findFirst().orElseThrow();
+        assertTrue(finding.message().contains("«Austral · Escenario base» es el mejor"), finding.message());
+        assertTrue(finding.message().contains("«Neuquina · Escenario base» el peor"), finding.message());
 
-        assertEquals("Cuenca Austral", result.scenarios().get(1).projectName());
-        var finding = result.findings().stream().filter(f -> f.metric() == NPV).findFirst().orElseThrow();
-        assertTrue(finding.message().contains("«Base (Cuenca Austral)» es el mejor"), finding.message());
-        assertTrue(finding.message().contains("«Base (Cuenca Neuquina)» el peor"), finding.message());
+        // Distinct scenario names of the same version read as just the scenario name.
+        var conservative = namedScenario(scenario("Neuquina", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(NPV, "100"), Map.of()), "Conservador", false);
+        var ambitious = namedScenario(scenario("Neuquina", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(NPV, "300"), Map.of()), "Ambicioso", false);
+        var named = compare(conservative, ambitious);
+        assertTrue(named.findings().stream().filter(f -> f.metric() == NPV).findFirst().orElseThrow().message().contains("«Ambicioso» es el mejor"));
+        assertEquals("Conservador", named.scenarios().get(0).scenarioName());
+    }
+
+    @Test
+    void theDeletedFlagTravelsToTheResultAndAScenarioWithoutAnameFallsBackToItsVersion() {
+        var gone = namedScenario(scenario("Base", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(NPV, "100"), Map.of()), "Borrado", true);
+        var legacy = scenario("Ampliación", "USD", 10, EvaluationMode.DETERMINISTIC, Map.of(NPV, "300"), Map.of());
+
+        var result = compare(gone, legacy);
+
+        assertTrue(result.scenarios().get(0).deleted());
+        assertFalse(result.scenarios().get(1).deleted());
+        assertTrue(result.findings().stream().filter(f -> f.metric() == NPV).findFirst().orElseThrow().message().contains("«Ampliación» es el mejor"));
     }
 
     @Test

@@ -16,5 +16,7 @@ export interface ScenarioConfiguration {
  nodes: OperationalNode[]; draft: ScenarioSave | null;
  legacyDraft: { schemaVersion: number; draft: EconomicDraft } | null;
  errors: string[];
+ /** A stored draft carries node values that are no longer applied from a scenario (they belong to the version). */
+ draftOperationsIgnored?: boolean;
 }
 export interface ScenarioReadiness { versionId: string; ready: boolean; errors: string[] }

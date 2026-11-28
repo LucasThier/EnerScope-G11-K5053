@@ -70,7 +70,7 @@ function AppShell() {
         <div
           aria-hidden="true"
           className={
-            'fixed inset-x-0 bottom-0 top-14 z-30 touch-none bg-scrim/40 transition-opacity ' +
+            'fixed inset-x-0 bottom-0 top-14 z-30 touch-none bg-scrim/40 transition-opacity lg:top-16 ' +
             'duration-200 motion-reduce:transition-none ' +
             (isDrawer && isVisible ? 'opacity-100' : 'pointer-events-none opacity-0')
           }

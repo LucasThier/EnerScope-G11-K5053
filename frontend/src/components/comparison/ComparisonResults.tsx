@@ -5,7 +5,9 @@ import {
   SECONDARY_METRICS,
   STANDING_LABELS,
   TONE_CLASSES,
+  DELETED_NOTE,
   cellText,
+  deletedCount,
   formatMetric,
   gapText,
   rankLabel,
@@ -30,7 +32,12 @@ import { MetricBars } from './MetricBars';
  */
 export function ComparisonResults({ result }: { result: ComparisonResult }) {
   const names = scenarioNames(result);
+  const gone = deletedCount(result);
   return <div className="space-y-8">
+    {gone > 0 && <Alert tone="info">
+      <p className="font-semibold">{gone === 1 ? '1 escenario eliminado' : `${gone} escenarios eliminados`}</p>
+      <p className="mt-1">Se {DELETED_NOTE} Los marcados «(eliminado)» ya no existen, pero la comparación conserva su simulación.</p>
+    </Alert>}
     <ExecutiveSummary result={result} names={names} />
 
     {result.warnings.length > 0 && <Alert tone="warning">
@@ -41,7 +48,7 @@ export function ComparisonResults({ result }: { result: ComparisonResult }) {
     </Alert>}
 
     <section aria-labelledby="key-indicators" className="space-y-4">
-      <h2 id="key-indicators" className="text-xl font-semibold text-ink-800">Indicadores clave</h2>
+      <h2 id="key-indicators" className="text-lg font-semibold text-ink-800">Indicadores clave</h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {KEY_METRICS.map(metric => <MetricBars key={metric} result={result} metric={metric} names={names} />)}
       </div>
@@ -53,7 +60,7 @@ export function ComparisonResults({ result }: { result: ComparisonResult }) {
     </div>
 
     <section aria-labelledby="more-indicators" className="space-y-4">
-      <h2 id="more-indicators" className="text-xl font-semibold text-ink-800">Más indicadores</h2>
+      <h2 id="more-indicators" className="text-lg font-semibold text-ink-800">Más indicadores</h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {SECONDARY_METRICS.map(metric => <MetricBars key={metric} result={result} metric={metric} names={names} size="sm" />)}
       </div>

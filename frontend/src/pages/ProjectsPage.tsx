@@ -1,6 +1,9 @@
 import { useId, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
+import { EmptyState } from '../components/ui/EmptyState';
+import { LoadingState } from '../components/ui/LoadingState';
+import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { FilterSelect } from '../components/ui/FilterSelect';
@@ -61,18 +64,16 @@ export function ProjectsPage() {
 
   return (
     <div>
-      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink-800">Proyectos</h1>
-          <p className="mt-1 text-sm text-ink-500">
-            Los proyectos de los que formás parte, con su organización y su equipo.
-          </p>
-        </div>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <PlusIcon className="h-4 w-4" />
-          Nuevo proyecto
-        </Button>
-      </header>
+      <PageHeader
+        title="Proyectos"
+        description="Los proyectos de los que formás parte, con su organización y su equipo."
+        actions={
+          <Button onClick={() => setIsModalOpen(true)}>
+            <PlusIcon className="h-4 w-4" />
+            Nuevo proyecto
+          </Button>
+        }
+      />
 
       <Card padded={false} className="overflow-hidden">
         <div className="flex flex-wrap items-center gap-3 border-b border-ink-100 px-4 py-4">
@@ -99,23 +100,24 @@ export function ProjectsPage() {
         </div>
 
         {isLoading ? (
-          <p className="px-4 py-8 text-center text-sm text-ink-500">Cargando proyectos…</p>
+          <LoadingState>Cargando proyectos…</LoadingState>
         ) : error ? (
           <div className="px-4 py-6">
             <Alert tone="error">{error}</Alert>
           </div>
         ) : projects.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <p className="text-sm text-ink-500">Todavía no hay proyectos.</p>
-            <Button className="mt-4" onClick={() => setIsModalOpen(true)}>
-              <PlusIcon className="h-4 w-4" />
-              Nuevo proyecto
-            </Button>
-          </div>
+          <EmptyState
+            action={
+              <Button onClick={() => setIsModalOpen(true)}>
+                  <PlusIcon className="h-4 w-4" />
+                  Nuevo proyecto
+                </Button>
+            }
+          >
+            Todavía no hay proyectos.
+          </EmptyState>
         ) : visibleProjects.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-ink-500">
-            Ningún proyecto coincide con la búsqueda.
-          </p>
+          <EmptyState>Ningún proyecto coincide con la búsqueda.</EmptyState>
         ) : (
           <ProjectsTable
             projects={visibleProjects}

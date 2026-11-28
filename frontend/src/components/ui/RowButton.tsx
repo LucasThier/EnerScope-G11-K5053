@@ -23,7 +23,10 @@ export function RowButton({ label, title, onClick, disabled = false, children }:
       aria-label={label}
       title={title ?? label}
       className={
-        'inline-flex rounded-lg p-1 text-ink-500 transition-colors hover:bg-ink-50 ' +
+        'inline-flex rounded-control p-1 text-ink-500 transition-colors hover:bg-ink-50 ' +
+        // 24px of button (p-1 + a 16px icon) + 10px above and below = a 44px-tall touch area. It is not
+        // widened (inset-x-0): the buttons of a row sit 4px apart and a wider area would overlap.
+        'relative after:absolute after:inset-x-0 after:-inset-y-2.5 ' +
         'hover:text-ink-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus ' +
         (disabled
           ? 'cursor-not-allowed opacity-60 hover:bg-transparent hover:text-ink-500'

@@ -2,6 +2,7 @@ package org.enerscope.node.service;
 
 import org.enerscope.money.MoneyAmount;
 import org.enerscope.node.dto.*;
+import org.enerscope.node.model.BaseNode;
 import org.enerscope.node.model.GeographicalPosition;
 import org.enerscope.node.model.GraphPosition;
 import org.enerscope.node.model.InvestmentCost;
@@ -134,6 +135,30 @@ public class NodeService {
 
    }
 
+   /**
+    * Edits never erase an optional base value: a DTO without {@code startupDate} (or without
+    * {@code maintenanceDuration}) keeps the stored one. A clone-on-write copy already carries it.
+    * Consequence: the start-up date cannot be cleared by sending {@code null}.
+    */
+   private static void keepOptionalBaseValues(BaseNode node, BaseNodeDTO dto) {
+      if (dto.getStartupDate() != null) {
+         node.setStartupDate(dto.getStartupDate());
+      }
+      applyMaintenanceDuration(node, dto);
+   }
+
+   /** Applies {@code maintenanceDuration} (hours) when the DTO carries it; the node constructors do not take it. */
+   private static void applyMaintenanceDuration(BaseNode node, BaseNodeDTO dto) {
+      Integer duration = dto.getMaintenanceDuration();
+      if (duration == null) {
+         return;
+      }
+      if (duration < 0) {
+         throw new IllegalArgumentException("La duración del mantenimiento no puede ser negativa");
+      }
+      node.setMaintenanceDuration(duration);
+   }
+
    public Well saveWell(WellDTO data) {
       Well well = new Well(data.getName(), data.getState(), data.getStartupDate(), data.getLifespanInMonths(),
             MoneyAmount.of(data.getUpkeepCosts()),
@@ -143,6 +168,8 @@ public class NodeService {
             (data.getIdentity() != null) ? data.getIdentity() : UUID.randomUUID(),
             this.DTOtoEntity(data.getType()), data.getMaxCollectionCapacity(), this.DTOtoEntity(data.getDeclineCurve()),
             data.getGasRichness(), data.getDTMTime(), MoneyAmount.of(data.getDTMCost()), data.getSurface());
+
+      applyMaintenanceDuration(well, data);
 
       Well saved = wellRepository.save(well);
 
@@ -159,6 +186,8 @@ public class NodeService {
             data.getLossPerMeter(),
             data.getConnectedWells());
 
+      applyMaintenanceDuration(gatheringNetwork, data);
+
       GatheringNetwork saved = gatheringNetworkRepository.save(gatheringNetwork);
 
       return saved;
@@ -173,6 +202,8 @@ public class NodeService {
             this.DTOtoEntity(data.getType()), data.getMaxTreatmentCapacity(), data.getContaminantWaste(),
             data.getIntermediateStorage(), MoneyAmount.of(data.getTreatmentCost()));
 
+      applyMaintenanceDuration(treatmentPlant, data);
+
       TreatmentPlant saved = treatmentPlantRepository.save(treatmentPlant);
 
       return saved;
@@ -186,6 +217,8 @@ public class NodeService {
             this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), data.getIdentity(),
             this.DTOtoEntity(data.getType()), data.getMaxFlowCapacity(), data.getLength(), data.getLossPerKm());
 
+      applyMaintenanceDuration(pipeline, data);
+
       Pipeline saved = pipelineRepository.save(pipeline);
 
       return saved;
@@ -198,6 +231,8 @@ public class NodeService {
             data.getMaintenanceIntervalInDays(), MoneyAmount.of(data.getOperatingCosts()), data.getWastePercentage(),
             this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), data.getIdentity(),
             this.DTOtoEntity(data.getType()), data.getTransferCapacity(), data.getOutputPriority());
+
+      applyMaintenanceDuration(pipelineConnection, data);
 
       PipelineConnection saved = pipelineConnectionRepository.save(pipelineConnection);
 
@@ -213,6 +248,8 @@ public class NodeService {
             this.DTOtoEntity(data.getType()), data.getMaxCompressionCapacity(), data.getProcessWaste(),
             data.getGasConsumption());
 
+      applyMaintenanceDuration(compressingPlant, data);
+
       CompressingPlant saved = compressingPlantRepository.save(compressingPlant);
 
       return saved;
@@ -226,6 +263,8 @@ public class NodeService {
             this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), data.getIdentity(),
             this.DTOtoEntity(data.getType()), data.getMaxProcessingCapacity(), data.getMTPARatio(),
             data.getIntermediateStorage(), data.getGasConsumption());
+
+      applyMaintenanceDuration(groundBasedLiquefactionPlant, data);
 
       GroundBasedLiquefactionPlant saved = gblpRepository.save(groundBasedLiquefactionPlant);
 
@@ -242,6 +281,8 @@ public class NodeService {
             data.getIntermediateStorage(),
             data.getVesselDepth(), MoneyAmount.of(data.getHiringCost()),data.getShipCapacity(), data.getGasConsumption());
 
+      applyMaintenanceDuration(flngUnit, data);
+
       FLNGUnit saved = flngUnitRepository.save(flngUnit);
 
       return saved;
@@ -257,6 +298,8 @@ public class NodeService {
             data.getFullLoadTime(),
             MoneyAmount.of(data.getHiringCost()), data.getTimeToDestination());
 
+      applyMaintenanceDuration(lngCarrier, data);
+
       LNGCarrier saved = lngCarrierRepository.save(lngCarrier);
 
       return saved;
@@ -270,6 +313,8 @@ public class NodeService {
             this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), data.getIdentity(),
             this.DTOtoEntity(data.getType()), data.getIntermediateStorage(), data.getPortDepth(),
             data.getShipCapacity());
+
+      applyMaintenanceDuration(seaportTerminal, data);
 
       SeaportTerminal saved = seaportTerminalRepository.save(seaportTerminal);
 
@@ -296,6 +341,8 @@ public class NodeService {
               this.DTOtoEntity(data.getType()), data.getConsumptionSummer(), data.getConsumptionAutumn(),
               data.getConsumptionWinter(), data.getConsumptionSpring());
 
+      applyMaintenanceDuration(internalConsumption, data);
+
       InternalConsumption saved = internalConsumptionRepository.save(internalConsumption);
 
       return saved;
@@ -308,6 +355,8 @@ public class NodeService {
               data.getMaintenanceIntervalInDays(), MoneyAmount.of(data.getOperatingCosts()), data.getWastePercentage(),
               this.DTOtoEntity(data.getInvestmentCost()), this.DTOtoEntity(data.getGraphData()), data.getIdentity(),
               this.DTOtoEntity(data.getType()), data.getConsumption());
+
+      applyMaintenanceDuration(industrialConsumption, data);
 
       IndustrialConsumption saved = industrialConsumptionRepository.save(industrialConsumption);
 
@@ -328,7 +377,7 @@ public class NodeService {
       // Update basic fields inherited from BaseNode
       well.setName(dto.getName());
       well.setState(dto.getState());
-      well.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(well, dto);
       well.setLifespanInMonths(dto.getLifespanInMonths());
       well.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       well.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
@@ -368,7 +417,7 @@ public class NodeService {
       // Update basic fields inherited from BaseNode
       network.setName(dto.getName());
       network.setState(dto.getState());
-      network.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(network, dto);
       network.setLifespanInMonths(dto.getLifespanInMonths());
       network.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       network.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
@@ -399,7 +448,7 @@ public class NodeService {
       // Update basic fields inherited from BaseNode
       plant.setName(dto.getName());
       plant.setState(dto.getState());
-      plant.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(plant, dto);
       plant.setLifespanInMonths(dto.getLifespanInMonths());
       plant.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       plant.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
@@ -429,7 +478,7 @@ public class NodeService {
       // Update basic fields inherited from BaseNode
       pipeline.setName(dto.getName());
       pipeline.setState(dto.getState());
-      pipeline.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(pipeline, dto);
       pipeline.setLifespanInMonths(dto.getLifespanInMonths());
       pipeline.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       pipeline.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
@@ -459,7 +508,7 @@ public class NodeService {
       // Update basic fields inherited from BaseNode
       plant.setName(dto.getName());
       plant.setState(dto.getState());
-      plant.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(plant, dto);
       plant.setLifespanInMonths(dto.getLifespanInMonths());
       plant.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       plant.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
@@ -490,7 +539,7 @@ public class NodeService {
       // Update basic fields inherited from BaseNode
       plant.setName(dto.getName());
       plant.setState(dto.getState());
-      plant.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(plant, dto);
       plant.setLifespanInMonths(dto.getLifespanInMonths());
       plant.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       plant.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
@@ -521,7 +570,7 @@ public class NodeService {
       // Update basic fields inherited from BaseNode
       unit.setName(dto.getName());
       unit.setState(dto.getState());
-      unit.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(unit, dto);
       unit.setLifespanInMonths(dto.getLifespanInMonths());
       unit.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       unit.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
@@ -555,7 +604,7 @@ public class NodeService {
       // Update basic fields inherited from BaseNode
       carrier.setName(dto.getName());
       carrier.setState(dto.getState());
-      carrier.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(carrier, dto);
       carrier.setLifespanInMonths(dto.getLifespanInMonths());
       carrier.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       carrier.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
@@ -587,7 +636,7 @@ public class NodeService {
       // Update basic fields inherited from BaseNode
       terminal.setName(dto.getName());
       terminal.setState(dto.getState());
-      terminal.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(terminal, dto);
       terminal.setLifespanInMonths(dto.getLifespanInMonths());
       terminal.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       terminal.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
@@ -617,7 +666,7 @@ public class NodeService {
       // Update basic fields inherited from BaseNode
       connection.setName(dto.getName());
       connection.setState(dto.getState());
-      connection.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(connection, dto);
       connection.setLifespanInMonths(dto.getLifespanInMonths());
       connection.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       connection.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
@@ -645,7 +694,7 @@ public class NodeService {
    public InternalConsumption editInternalConsumption(InternalConsumption internalConsumption, InternalConsumptionDTO dto){
       internalConsumption.setName(dto.getName());
       internalConsumption.setState(dto.getState());
-      internalConsumption.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(internalConsumption, dto);
       internalConsumption.setLifespanInMonths(dto.getLifespanInMonths());
       internalConsumption.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       internalConsumption.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());
@@ -678,7 +727,7 @@ public class NodeService {
    public IndustrialConsumption editIndustrialConsumption(IndustrialConsumption industrialConsumption, IndustrialConsumptionDTO dto){
       industrialConsumption.setName(dto.getName());
       industrialConsumption.setState(dto.getState());
-      industrialConsumption.setStartupDate(dto.getStartupDate());
+      keepOptionalBaseValues(industrialConsumption, dto);
       industrialConsumption.setLifespanInMonths(dto.getLifespanInMonths());
       industrialConsumption.setUpkeepCosts(dto.getUpkeepCosts() != null ? MoneyAmount.of(dto.getUpkeepCosts()) : null);
       industrialConsumption.setMaintenanceIntervalInDays(dto.getMaintenanceIntervalInDays());

@@ -25,8 +25,12 @@ public class EconomicSimulationAdapter {
                 source.getNodeSnapshot() == null ? List.of() : List.copyOf(source.getNodeSnapshot()),
                 source.getConnectionSnapshot() == null ? List.of() : List.copyOf(source.getConnectionSnapshot()),
                 new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-        Simulator simulator = new Simulator(isolated, c.startYear() + 1, roundSeed);
-        simulator.simulate(c.years());
+        Simulator simulator = InvalidSimulationGraphException.translating(() -> {
+            Simulator built = new Simulator(isolated, c.startYear() + 1, roundSeed);
+            built.requireTerminalForOperatingCarriers(c.years());
+            built.simulate(c.years());
+            return built;
+        });
         List<OperationalMetric> converted = new ArrayList<>();
         for (MetricConversion conversion : c.conversions()) {
             for (int t = 0; t <= c.years(); t++) {

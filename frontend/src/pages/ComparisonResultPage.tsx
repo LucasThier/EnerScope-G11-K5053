@@ -4,8 +4,10 @@ import { comparisonsApi } from '../api/comparisons';
 import { getErrorMessage } from '../api/errors';
 import { ComparisonResults } from '../components/comparison/ComparisonResults';
 import { Alert } from '../components/ui/Alert';
+import { ButtonLink } from '../components/ui/ButtonLink';
+import { PageHeader } from '../components/ui/PageHeader';
 import type { ComparisonResult, SavedComparison } from '../types/comparison';
-import { PREVIEW_ID, selectionToQuery } from '../utils/comparison';
+import { PREVIEW_ID, scenarioNames, selectionToQuery } from '../utils/comparison';
 
 type State = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; comparison: SavedComparison };
 
@@ -26,20 +28,22 @@ function UnsavedResultView({ projectId, result }: { projectId: string; result: C
     <Alert tone="info">Esta comparación no se guardó y ya no está disponible. Volvé a elegir los escenarios.</Alert>
     <Link to={back} className="text-sm font-semibold text-brand-800 hover:underline">← Volver a elegir escenarios</Link>
   </div>;
-  const again = back + '?escenarios=' + encodeURIComponent(selectionToQuery(result.scenarios.map(s => ({
-    projectId: s.projectId, versionId: s.versionId }))));
+  const again = back + '?escenarios=' + encodeURIComponent(selectionToQuery(result.scenarios
+    .filter(s => s.scenarioId && !s.deleted).map(s => ({ projectId, scenarioId: s.scenarioId as string }))));
+  const names = scenarioNames(result);
   return <div className="relative space-y-6">
-    <header className="flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
-        <Link to={back} className="text-sm font-semibold text-brand-800 hover:underline">← Comparar otros escenarios</Link>
-        <p className="mt-3 text-sm font-semibold text-brand-800">Paso 2 de 2 · Resultado</p>
-        <h1 className="mt-1 text-3xl font-semibold text-ink-800">{result.scenarios.map(s => s.versionName).join(' vs ')}</h1>
-        <p className="mt-1 text-sm text-ink-500">Tu rol en el proyecto es de solo lectura: esta comparación no se guarda.</p>
-      </div>
-      <Link to={again} className="inline-flex h-control items-center rounded-control border border-control-border bg-surface px-4 text-sm font-semibold text-ink-800 hover:bg-ink-50">
-        Modificar la selección
-      </Link>
-    </header>
+    <PageHeader
+      spaced={false}
+      back={{ to: back, label: '← Comparar otros escenarios' }}
+      eyebrow="Paso 2 de 2 · Resultado"
+      title={result.scenarios.map(s => names[s.evaluationId]).join(' vs ')}
+      description="Tu rol en el proyecto es de solo lectura: esta comparación no se guarda."
+      actions={
+        <ButtonLink to={again} variant="secondary">
+          Modificar la selección
+        </ButtonLink>
+      }
+    />
     <ComparisonResults result={result} />
   </div>;
 }
@@ -64,24 +68,26 @@ function ComparisonResultView({ projectId, comparisonId }: { projectId: string; 
   </div>;
 
   const { comparison } = state;
-  const again = back + '?escenarios=' + encodeURIComponent(selectionToQuery(comparison.result.scenarios.map(s => ({
-    projectId: s.projectId, versionId: s.versionId }))));
+  // Deleted scenarios cannot be chosen again, so they are left out of "Modificar la selección".
+  const again = back + '?escenarios=' + encodeURIComponent(selectionToQuery(comparison.result.scenarios
+    .filter(s => s.scenarioId && !s.deleted).map(s => ({ projectId, scenarioId: s.scenarioId as string }))));
 
   return <div className="relative space-y-6">
-    <header className="flex flex-wrap items-end justify-between gap-4">
-      <div className="min-w-0">
-        <Link to={back} className="text-sm font-semibold text-brand-800 hover:underline">← Comparar otros escenarios</Link>
-        <p className="mt-3 text-sm font-semibold text-brand-800">Paso 2 de 2 · Resultado</p>
-        <h1 className="mt-1 text-3xl font-semibold text-ink-800">{comparison.name}</h1>
-        <p className="mt-1 text-sm text-ink-500">
+    <PageHeader
+      spaced={false}
+      back={{ to: back, label: '← Comparar otros escenarios' }}
+      eyebrow="Paso 2 de 2 · Resultado"
+      title={comparison.name}
+      description={<>
           Comparación hecha el {new Date(comparison.createdAt).toLocaleString('es-AR', { dateStyle: 'long', timeStyle: 'short' })},
           con la última simulación que tenía cada escenario en ese momento.
-        </p>
-      </div>
-      <Link to={again} className="inline-flex h-control items-center rounded-control border border-control-border bg-surface px-4 text-sm font-semibold text-ink-800 hover:bg-ink-50">
-        Modificar la selección
-      </Link>
-    </header>
+        </>}
+      actions={
+        <ButtonLink to={again} variant="secondary">
+          Modificar la selección
+        </ButtonLink>
+      }
+    />
     <ComparisonResults result={comparison.result} />
   </div>;
 }

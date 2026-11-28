@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
+import { EmptyState } from '../components/ui/EmptyState';
+import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { BuildingIcon } from '../components/ui/icons';
@@ -26,15 +28,17 @@ export function MyOrganizationsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink-800">Mis organizaciones</h1>
-        <p className="mt-1 text-sm text-ink-500">Las organizaciones a las que pertenecés.</p>
+      <PageHeader
+        spaced={false}
+        title="Mis organizaciones"
+        description="Las organizaciones a las que pertenecés."
+      >
         {isMemberOnly && (
           <p className="mt-2 text-sm text-ink-500">
             Solo los propietarios pueden gestionar los integrantes de una organización.
           </p>
         )}
-      </header>
+      </PageHeader>
 
       <Card padded={false}>
         {loading ? (
@@ -54,9 +58,7 @@ export function MyOrganizationsPage() {
             </Button>
           </div>
         ) : memberships.length === 0 ? (
-          <p className="px-6 py-8 text-sm text-ink-500">
-            Todavía no pertenecés a ninguna organización.
-          </p>
+          <EmptyState>Todavía no pertenecés a ninguna organización.</EmptyState>
         ) : (
           <ul>
             {memberships.map((membership) => {

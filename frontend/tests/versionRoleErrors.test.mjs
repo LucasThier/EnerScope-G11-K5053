@@ -113,7 +113,7 @@ test('400, 404 and lineage messages are translated', () => {
   const cases = {
     'Resource not found': 'No se encontró el recurso pedido.',
     'Node vertical does not match its type: SOURCE belongs to EXTRACTION, not EXPORT':
-      'La vertical del nodo no corresponde a su tipo.',
+      'SOURCE debe tener la vertical EXTRACTION (el archivo dice EXPORT)',
     'The versions belong to different projects':
       'No se pueden relacionar versiones de proyectos distintos.',
     'Parent version must belong to the same project':

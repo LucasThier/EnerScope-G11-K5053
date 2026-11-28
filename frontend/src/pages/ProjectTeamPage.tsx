@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
+import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { PageLoader } from '../components/ui/PageLoader';
@@ -172,25 +173,18 @@ export function ProjectTeamPage() {
 
   return (
     <div>
-      <header className="mb-6">
-        <Link to="/projects" className="text-sm font-semibold text-brand-800 hover:underline">
-          ← Proyectos
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-ink-800">
-          {project?.name ?? 'Integrantes del proyecto'}
-        </h1>
-        <p className="mt-1 text-sm text-ink-500">
-          Quiénes integran el proyecto y qué puede hacer cada persona en cada versión. Los
-          Administradores del proyecto gestionan el equipo, asignan los roles de cada versión y
-          administran todas las versiones.
-        </p>
+      <PageHeader
+        back={{ to: '/projects', label: '← Proyectos' }}
+        title={project?.name ?? 'Integrantes del proyecto'}
+        description="Quiénes integran el proyecto y qué puede hacer cada persona en cada versión. Los Administradores del proyecto gestionan el equipo, asignan los roles de cada versión y administran todas las versiones."
+      >
         {callerRoleLabel && (
           <p className="mt-1 text-sm text-ink-700">
             Tu rol en el proyecto:{' '}
             <span className="font-semibold text-ink-800">{callerRoleLabel}</span>.
           </p>
         )}
-      </header>
+      </PageHeader>
 
       <AccessFailureAlert message={accessFailure} onRetry={() => void reloadAccess()} />
 

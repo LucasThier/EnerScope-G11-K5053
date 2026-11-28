@@ -65,12 +65,12 @@ export function ExecutiveSummary({ result, names }: { result: ComparisonResult; 
               <span aria-hidden="true" className={`mt-1.5 h-3 w-3 shrink-0 rounded-full ${seriesColor(indexOf(s.evaluationId)).bg}`} />
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <span className="font-medium text-ink-800">{s.versionName}</span>
+                  <span className="font-medium text-ink-800">{names[s.evaluationId] ?? s.versionName}</span>
                   <span className="text-sm font-semibold text-ink-800 tabular-nums">
                     {cell.value.value != null ? compactMetric('CURRENCY', cell.value.value, s.currency) : statusText(cell.value.status)}</span>
                 </span>
                 <span className="block text-xs text-ink-500">
-                  {s.projectName} · {s.mode === 'PROBABILISTIC' ? `${s.rounds} rondas` : 'determinista'} · simulado el{' '}
+                  {s.versionName} · {s.mode === 'PROBABILISTIC' ? `${s.rounds} rondas` : 'determinista'} · simulado el{' '}
                   {new Date(s.evaluatedAt).toLocaleDateString('es-AR')}
                 </span>
                 {s.bestIn.length > 0 && <span className="block text-xs text-ink-600">Mejor en {s.bestIn.length} indicador{s.bestIn.length === 1 ? '' : 'es'}</span>}

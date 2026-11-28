@@ -56,8 +56,8 @@ class ScenarioComparisonControllerTest {
     final UUID comparison = UUID.randomUUID();
     final String path = "/projects/" + project + "/comparisons";
     final UUID otherVersion = UUID.randomUUID();
-    final String body = "{\"name\":\"Base vs B\",\"relevanceThreshold\":0.1,\"items\":[{\"versionId\":\"" + version
-            + "\"},{\"versionId\":\"" + otherVersion + "\"}]}";
+    final String body = "{\"name\":\"Base vs B\",\"relevanceThreshold\":0.1,\"items\":[{\"scenarioId\":\"" + version
+            + "\"},{\"scenarioId\":\"" + otherVersion + "\"}]}";
 
     @BeforeEach
     void authenticate() {
@@ -84,12 +84,24 @@ class ScenarioComparisonControllerTest {
     }
 
     @Test
+    void aRequestThatNamesOnlyAVersionStillBindsForCompatibility() throws Exception {
+        when(service.preview(eq(project), any())).thenReturn(emptyResult());
+        String legacy = "{\"items\":[{\"versionId\":\"" + version + "\"},{\"versionId\":\"" + otherVersion + "\"}]}";
+
+        mvc.perform(post(path + "/preview").header("Authorization", "Bearer test")
+                        .contentType("application/json").content(legacy))
+                .andExpect(status().isOk());
+        verify(service).preview(project, new ComparisonRequestDTO(null, null, null, null,
+                List.of(ComparisonRequestDTO.Item.ofVersion(version), ComparisonRequestDTO.Item.ofVersion(otherVersion))));
+    }
+
+    @Test
     void saveAnswers201AndReadRoutesKeepTheScopedIdentifiers() throws Exception {
         var saved = new SavedComparisonDTO(comparison, "Base vs B", null, new BigDecimal("0.1"), new BigDecimal("0.01"),
                 Instant.now(), List.of(), emptyResult());
         when(service.save(eq(project), any())).thenReturn(saved);
         when(service.get(project, comparison)).thenReturn(saved);
-        when(service.list(project)).thenReturn(List.of(new ComparisonSummaryDTO(comparison, "Base vs B", null, List.of("Base", "B"), Instant.now())));
+        when(service.list(project)).thenReturn(List.of(new ComparisonSummaryDTO(comparison, "Base vs B", null, List.of("Base", "B"), false, Instant.now())));
 
         mvc.perform(post(path).header("Authorization", "Bearer test").contentType("application/json").content(body))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.id").value(comparison.toString()));
@@ -105,7 +117,7 @@ class ScenarioComparisonControllerTest {
     @Test
     void scenarioStatusesAreListedForThePicker() throws Exception {
         when(statuses.list(project)).thenReturn(List.of(new ComparableScenarioDTO(project, "Proyecto", version, "Base",
-                ScenarioStatus.OUTDATED, evaluation, Instant.now(), null, null, true, List.of(), true, null)));
+                UUID.randomUUID(), "Escenario base", true, ScenarioStatus.OUTDATED, evaluation, Instant.now(), null, null, true, List.of(), true, null)));
 
         mvc.perform(get(path + "/scenarios").header("Authorization", "Bearer test"))
                 .andExpect(status().isOk())

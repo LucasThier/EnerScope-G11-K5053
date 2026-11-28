@@ -26,7 +26,11 @@ import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.scenario.dto.ScenarioConfigurationDTO.Readiness;
+import org.enerscope.scenario.service.ScenarioCheckFailures;
 import org.enerscope.scenario.service.ScenarioConfigurationService;
+import org.enerscope.simulator.InvalidSimulationGraphException;
+import org.enerscope.scenario.model.Scenario;
+import org.enerscope.scenario.service.ScenarioDefaults;
 import org.enerscope.version.service.VersionAccessService;
 import org.enerscope.version.model.Version;
 import org.springframework.stereotype.Service;
@@ -56,51 +60,153 @@ public class ScenarioStatusService {
     private final EconomicInputCodec codec;
     private final EconomicEvaluationRepository evaluations;
     private final EconomicJobRepository jobs;
+    private final ScenarioDefaults scenarioDefaults;
+    private final org.enerscope.scenario.repository.ScenarioRepository scenarioRepository;
     private final ObjectMapper mapper;
     private final AppLogger logger;
 
-    /** Every active scenario of a project with its comparison status. Needs {@code VIEW_PROJECT}. */
+    /**
+     * Every active scenario of every active version of a project, grouped by version (versions oldest first, then their
+     * scenarios oldest first), each with the status of its own latest simulation. Needs {@code VIEW_PROJECT}.
+     */
     public List<ComparableScenarioDTO> list(UUID projectId) {
         Project project = economics.authorizeProject(projectId, ProjectMemberPermission.VIEW_PROJECT);
         // The same per-version rule that authorizes submitting a simulation (version roles, then project).
         Map<UUID, Boolean> canSimulate = new HashMap<>();
         access.resolveForProject(projectId).versions().forEach(v -> canSimulate.put(v.versionId(), v.canSimulate()));
-        Map<UUID, Readiness> readiness = new HashMap<>();
-        scenarios.readiness(projectId).forEach(r -> readiness.put(r.versionId(), r));
-        return project.getVersions().stream()
+        List<Version> versions = project.getVersions().stream()
                 .filter(Version::isActive)
                 .sorted(Comparator.comparing(BaseEntity::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())))
-                .map(version -> describe(project, version, readiness.get(version.getId()),
-                        canSimulate.getOrDefault(version.getId(), false)))
                 .toList();
+        Map<UUID, List<Scenario>> byVersion = new HashMap<>();
+        if (!versions.isEmpty()) {
+            scenarioRepository.findByVersionIdInAndActiveTrueOrderByCreatedAtAscIdAsc(versions.stream().map(Version::getId).toList())
+                    .forEach(s -> byVersion.computeIfAbsent(s.getVersion().getId(), id -> new ArrayList<>()).add(s));
+        }
+        List<ComparableScenarioDTO> result = new ArrayList<>();
+        for (Version version : versions) {
+            for (Scenario scenario : byVersion.getOrDefault(version.getId(), List.of())) {
+                try {
+                    result.add(describe(project, version, scenario, scenarios.readinessOf(version, scenario),
+                            canSimulate.getOrDefault(version.getId(), false)));
+                } catch (RuntimeException unexpected) {
+                    logUnexpected(unexpected, version, scenario);
+                    result.add(unchecked(project, version, scenario));
+                }
+            }
+        }
+        return result;
+    }
+
+    /** The status of one scenario's latest simulation and when it was made. */
+    public record Standing(ScenarioStatus status, java.time.Instant latestEvaluatedAt) {}
+
+    /**
+     * Where one scenario stands: simulating, never simulated, up to date or outdated. Outdated means its configuration, or
+     * its version's nodes and connections, changed since the simulation: a node edit outdates every scenario of the version.
+     */
+    public Standing standingOf(Version version, Scenario scenario) {
+        try {
+            return checkedStandingOf(version, scenario);
+        } catch (RuntimeException unexpected) {
+            logUnexpected(unexpected, version, scenario);
+            // A result that cannot be checked does not stand for the scenario.
+            return latestOf(scenario).map(e -> new Standing(ScenarioStatus.OUTDATED, e.getCreatedAt()))
+                    .orElseGet(() -> new Standing(ScenarioStatus.NEVER_SIMULATED, null));
+        }
+    }
+
+    private Optional<EconomicEvaluation> latestOf(Scenario scenario) {
+        return evaluations.findByScenarioIdOrderByCreatedAtDesc(scenario.getId()).stream().findFirst();
+    }
+
+    /** Rethrows what is not about this scenario's data; otherwise records the failure, with its stack trace. */
+    private void logUnexpected(RuntimeException unexpected, Version version, Scenario scenario) {
+        ScenarioCheckFailures.rethrowUnlessScenarioSpecific(unexpected);
+        logger.error("Scenario {} of version {} could not be checked", scenario.getId(), version.getId(), unexpected);
+    }
+
+    /** The entry of a scenario that could not be checked: not ready, with no result offered and nothing to run. */
+    private ComparableScenarioDTO unchecked(Project project, Version version, Scenario scenario) {
+        Optional<EconomicEvaluation> latest = latestOf(scenario);
+        return new ComparableScenarioDTO(project.getId(), project.getName(), version.getId(), version.getName(),
+                scenario.getId(), scenario.getName(), scenario.isDefaultScenario(),
+                latest.isPresent() ? ScenarioStatus.OUTDATED : ScenarioStatus.NEVER_SIMULATED,
+                null, latest.map(BaseEntity::getCreatedAt).orElse(null), null, null,
+                false, List.of(ScenarioCheckFailures.NOT_CHECKED), false, null);
+    }
+
+    private Standing checkedStandingOf(Version version, Scenario scenario) {
+        Optional<EconomicEvaluation> latest = evaluations.findByScenarioIdOrderByCreatedAtDesc(scenario.getId()).stream().findFirst();
+        java.time.Instant when = latest.map(BaseEntity::getCreatedAt).orElse(null);
+        if (jobs.existsByScenarioIdAndStatusIn(scenario.getId(), List.of(EconomicJobStatus.QUEUED, EconomicJobStatus.RUNNING))) {
+            return new Standing(ScenarioStatus.SIMULATING, when);
+        }
+        if (latest.isEmpty()) return new Standing(ScenarioStatus.NEVER_SIMULATED, null);
+        EvaluationDTO evaluation = economics.evaluationOf(scenario, latest.get().getId());
+        EconomicConfiguration current;
+        try {
+            current = economics.configuration(scenario);
+        } catch (EntityNotFoundException missing) {
+            return new Standing(ScenarioStatus.OUTDATED, when);
+        }
+        return new Standing(matches(version, current, evaluation.snapshot()) ? ScenarioStatus.UP_TO_DATE : ScenarioStatus.OUTDATED, when);
+    }
+
+    /** True when the snapshot was simulated on this scenario's current configuration and its version's physical model. */
+    public boolean isUpToDate(Version version, Scenario scenario, EvaluationDTO.Snapshot snapshot) {
+        if (snapshot == null || snapshot.configuration() == null || snapshot.physicalNodes() == null) return false;
+        try {
+            return matches(version, economics.configuration(scenario), snapshot);
+        } catch (EntityNotFoundException invalid) {
+            logger.debug("Scenario {} cannot be checked against its latest simulation: {}", scenario.getId(), invalid.getMessage());
+            return false;
+        } catch (RuntimeException unexpected) {
+            logUnexpected(unexpected, version, scenario);
+            return false;
+        }
     }
 
     /** True when the snapshot was simulated on the scenario's current configuration and physical model. */
     public boolean isUpToDate(Version version, EvaluationDTO.Snapshot snapshot) {
         if (snapshot == null || snapshot.configuration() == null || snapshot.physicalNodes() == null) return false;
         try {
-            EconomicConfiguration current = economics.configuration(version.getId());
-            var input = codec.freeze(version, current, 1, 0);
-            return canonical(snapshot.configuration()).equals(canonical(current))
-                    && canonical(snapshot.physicalNodes()).equals(canonical(codec.displayNodes(input)))
-                    && canonical(snapshot.physicalConnections()).equals(canonical(input.connections()));
-        } catch (EntityNotFoundException | IllegalArgumentException invalid) {
-            // No configuration, or one the simulator rejects: the old result cannot stand for the scenario.
-            logger.debug("Scenario {} cannot be checked against its latest simulation: {}", version.getId(), invalid.getMessage());
+            return matches(version, economics.configuration(version.getId()), snapshot);
+        } catch (EntityNotFoundException invalid) {
+            // No configuration: the old result cannot stand for the scenario.
+            logger.debug("Scenario of version {} cannot be checked against its latest simulation: {}", version.getId(), invalid.getMessage());
             return false;
         }
     }
 
-    private ComparableScenarioDTO describe(Project project, Version version, Readiness readiness, boolean canSimulate) {
-        Optional<EconomicEvaluation> latest = evaluations.findByVersionIdOrderByCreatedAtDesc(version.getId()).stream().findFirst();
-        Optional<EconomicJob> lastJob = jobs.findByVersionIdOrderByCreatedAtDesc(version.getId()).stream().findFirst();
+    private boolean matches(Version version, EconomicConfiguration current, EvaluationDTO.Snapshot snapshot) {
+        if (snapshot == null || snapshot.configuration() == null || snapshot.physicalNodes() == null) return false;
+        try {
+            var input = codec.freeze(version, current, 1, 0);
+            return canonical(snapshot.configuration()).equals(canonical(current))
+                    && canonical(snapshot.physicalNodes()).equals(canonical(codec.displayNodes(input)))
+                    && canonical(snapshot.physicalConnections()).equals(canonical(input.connections()));
+        } catch (InvalidSimulationGraphException broken) {
+            logger.warn("Version {} cannot be checked against a simulation: {} (cause: {})", version.getId(),
+                    broken.getMessage(), broken.getCause() == null ? "none" : broken.getCause().getClass().getSimpleName());
+            return false;
+        } catch (EntityNotFoundException | IllegalArgumentException invalid) {
+            // No configuration, or one the simulator rejects: the old result cannot stand for the scenario.
+            logger.debug("Version {} cannot be checked against a simulation: {}", version.getId(), invalid.getMessage());
+            return false;
+        }
+    }
+
+    private ComparableScenarioDTO describe(Project project, Version version, Scenario scenario, Readiness readiness, boolean canSimulate) {
+        Optional<EconomicEvaluation> latest = evaluations.findByScenarioIdOrderByCreatedAtDesc(scenario.getId()).stream().findFirst();
+        Optional<EconomicJob> lastJob = jobs.findByScenarioIdOrderByCreatedAtDesc(scenario.getId()).stream().findFirst();
         boolean running = lastJob.map(job -> job.getStatus() == EconomicJobStatus.QUEUED
                 || job.getStatus() == EconomicJobStatus.RUNNING).orElse(false);
 
-        EvaluationDTO evaluation = latest.map(e -> economics.getEvaluation(project.getId(), version.getId(), e.getId())).orElse(null);
+        EvaluationDTO evaluation = latest.map(e -> economics.evaluationOf(scenario, e.getId())).orElse(null);
         ScenarioStatus status = running ? ScenarioStatus.SIMULATING
                 : evaluation == null ? ScenarioStatus.NEVER_SIMULATED
-                : isUpToDate(version, evaluation.snapshot()) ? ScenarioStatus.UP_TO_DATE
+                : isUpToDate(version, scenario, evaluation.snapshot()) ? ScenarioStatus.UP_TO_DATE
                 : ScenarioStatus.OUTDATED;
 
         // Show the job while it runs, or when it failed after the result the comparison would use.
@@ -111,11 +217,12 @@ public class ScenarioStatusService {
 
         EvaluationDTO.Snapshot snapshot = evaluation == null ? null : evaluation.snapshot();
         boolean probabilistic = snapshot != null && (snapshot.schemaVersion() >= 3 || snapshot.summary() != null);
-        return new ComparableScenarioDTO(project.getId(), project.getName(), version.getId(), version.getName(), status,
+        return new ComparableScenarioDTO(project.getId(), project.getName(), version.getId(), version.getName(),
+                scenario.getId(), scenario.getName(), scenario.isDefaultScenario(), status,
                 evaluation == null ? null : evaluation.id(), evaluation == null ? null : evaluation.createdAt(),
                 snapshot == null ? null : probabilistic ? EvaluationMode.PROBABILISTIC : EvaluationMode.DETERMINISTIC,
                 snapshot == null || snapshot.simulation() == null ? null : snapshot.simulation().rounds(),
-                readiness != null && readiness.ready(), readiness == null ? List.of() : readiness.errors(), canSimulate, job);
+                readiness.ready(), readiness.errors(), canSimulate, job);
     }
 
     /** JSON text round trip, then volatile keys dropped and arrays of entities sorted by id. */

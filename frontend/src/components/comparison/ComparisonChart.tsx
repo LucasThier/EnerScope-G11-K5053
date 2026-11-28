@@ -77,11 +77,11 @@ export function ComparisonChart({ result, names }: { result: ComparisonResult; n
           {scale.ticks.map(tick => <g key={tick}>
             <line x1={LEFT} x2={WIDTH - RIGHT} y1={y(tick)} y2={y(tick)} className={tick === 0 ? 'stroke-ink-400' : 'stroke-ink-100'}
               strokeWidth={tick === 0 ? 1.5 : 1} />
-            <text x={LEFT - 10} y={y(tick) + 4} textAnchor="end" className="fill-ink-500 text-[12px]">
+            <text x={LEFT - 10} y={y(tick) + 4} textAnchor="end" className="fill-ink-500 text-xs">
               {compactMetric(definition.unit, tick, null)}</text>
           </g>)}
           {years.map((at, i) => i % labelEvery === 0 &&
-            <text key={at} x={x(at)} y={HEIGHT - 10} textAnchor="middle" className="fill-ink-500 text-[12px]">{at}</text>)}
+            <text key={at} x={x(at)} y={HEIGHT - 10} textAnchor="middle" className="fill-ink-500 text-xs">{at}</text>)}
           {year != null && <line x1={x(year)} x2={x(year)} y1={TOP} y2={HEIGHT - BOTTOM} className="stroke-ink-300" strokeWidth={1} />}
           {result.annual.map((series, index) => {
             const color = seriesColor(index);
