@@ -19,4 +19,15 @@ export const controlFile =
   `h-control pr-3 ${shared} ` +
   'file:mr-3 file:h-full file:cursor-pointer file:rounded-l-control file:border-0 ' +
   'file:bg-ink-50 file:px-3 file:text-sm file:font-semibold file:text-ink-700 ' +
-  'file:disabled:cursor-not-allowed'
+  'file:disabled:cursor-not-allowed';
+
+/** The visible box of `FilePicker`; it mirrors the state of the hidden input that precedes it (`peer`). */
+export const controlFilePicker =
+  'flex h-control items-center gap-3 rounded-control border border-control-border bg-surface pr-3 text-sm ' +
+  'text-ink-800 transition-colors hover:border-ink-500 ' +
+  'peer-focus-visible:border-focus peer-focus-visible:ring-2 peer-focus-visible:ring-focus/60 ' +
+  'peer-disabled:bg-ink-50 peer-disabled:text-ink-400 peer-disabled:hover:border-control-border ' +
+  'peer-disabled:[&>label]:cursor-not-allowed motion-reduce:transition-none';
+
+export const controlFilePickerAction =
+  'flex h-full shrink-0 cursor-pointer items-center rounded-l-control bg-ink-50 px-3 text-sm font-semibold text-ink-700';

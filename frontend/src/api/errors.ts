@@ -36,6 +36,16 @@ const KNOWN_BACKEND_MESSAGES: Record<string, string> = {
     'Esa versión no puede ser su propia ancestra: el padre elegido deriva de ella.',
   'Simulation graph contains a cycle':
     'El diagrama tiene un ciclo: revisá las conexiones antes de simular.',
+  'Invalid or duplicate connection':
+    'El diagrama tiene una conexión repetida o no válida: revisá las conexiones antes de simular.',
+  'The value chain graph has a connection the simulator cannot process':
+    'El grafo tiene una conexión no válida: revisá las conexiones del diagrama.',
+  'An LNG carrier has no seaport terminal or FLNG unit connected before it':
+    'Hay un buque metanero sin una terminal portuaria o una unidad FLNG conectada antes.',
+  'The simulator could not process the value chain graph; review its nodes and connections':
+    'El simulador no pudo procesar el grafo: revisá los nodos y las conexiones del diagrama.',
+  'The scenario could not be checked; review the server log':
+    'No se pudo verificar este escenario. Avisá a quien administra el sistema.',
   'You are not allowed to manage this version': 'No tenés permiso para administrar esta versión.',
   'You are not allowed to delete one or more versions below this one':
     'No podés eliminar esta versión porque tiene versiones derivadas que no tenés permiso para eliminar.',
@@ -149,6 +159,9 @@ function csvKind(kind: string): string {
 
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 
+/** The editor's "add connection" call refuses an identity the version already has. */
+const REPEATED_CONNECTION_IDENTITY = new RegExp(`^Connection identity (${UUID}) already exists in this version$`);
+
 const CSV_ROW_RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [
     new RegExp(`^Invalid CSV record (\\d+) \\(NODE\\): identity (${UUID}) already exists in this version$`),
@@ -160,6 +173,17 @@ const CSV_ROW_RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
     new RegExp(`^Invalid CSV record (\\d+) \\(NODE\\): identity (${UUID}) is repeated in the file$`),
     (m) =>
       `Línea ${m[1]}: la identidad ${m[2]} aparece repetida en el archivo. Cada nodo debe tener una identidad única.`,
+  ],
+  [
+    new RegExp(`^Invalid CSV record (\\d+) \\(CONNECTION\\): identity (${UUID}) already exists in this version$`),
+    (m) =>
+      `Línea ${m[1]}: la identidad ${m[2]} ya la tiene una conexión de esta versión. El importador no reemplaza ` +
+      'conexiones: quitá esa fila o dejá la columna identity vacía.',
+  ],
+  [
+    new RegExp(`^Invalid CSV record (\\d+) \\(CONNECTION\\): identity (${UUID}) is repeated in the file$`),
+    (m) =>
+      `Línea ${m[1]}: la identidad ${m[2]} aparece en más de una conexión del archivo. Cada conexión debe tener una identidad única.`,
   ],
   [
     /^CSV record (\d+) has (\d+) fields; expected (\d+)$/,
@@ -325,6 +349,10 @@ export function translateBackendMessage(message: string): string {
   const prefixed = KNOWN_BACKEND_PREFIXES.find(([prefix]) => message.startsWith(prefix));
   if (prefixed) {
     return prefixed[1];
+  }
+  const repeatedConnection = REPEATED_CONNECTION_IDENTITY.exec(message);
+  if (repeatedConnection) {
+    return `Ya hay una conexión con la identidad ${repeatedConnection[1]} en esta versión. No se guardó nada.`;
   }
   return translateCsvImportMessage(message) ?? message;
 }

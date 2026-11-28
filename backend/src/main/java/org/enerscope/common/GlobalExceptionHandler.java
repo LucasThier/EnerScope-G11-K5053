@@ -62,6 +62,15 @@ public class GlobalExceptionHandler {
         return Responses.badRequest(ex.getMessage());
     }
 
+    /** A stored graph the simulator cannot process: the caller gets the reason, the log keeps what failed. */
+    @ExceptionHandler(org.enerscope.simulator.InvalidSimulationGraphException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidSimulationGraph(
+            org.enerscope.simulator.InvalidSimulationGraphException ex) {
+        logger.warn("Rejected a simulation: {} (cause: {})", ex.getMessage(),
+                ex.getCause() == null ? "none" : ex.getCause().getClass().getSimpleName());
+        return Responses.badRequest(ex.getMessage());
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleNotFound() {
         return Responses.notFound("Resource not found");

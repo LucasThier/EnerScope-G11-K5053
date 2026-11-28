@@ -82,8 +82,23 @@ El orden de errores no cambia (401, `400` por archivo vacío o de más de 10 MB,
 403/404 por permisos, y recién después los errores de contenido). Solo se
 compara con la versión destino: la misma `identity` en otra versión (por ejemplo
 la versión padre) es válida. Un archivo sin columna `identity`, o con la celda
-vacía, se importa como siempre y recibe identidades nuevas. La columna
-`identity` de las filas `CONNECTION` no se verifica.
+vacía, se importa como siempre y recibe identidades nuevas.
+
+### `identity` de conexión repetida o ya existente
+
+Las filas `CONNECTION` siguen la misma regla, con su propio espacio de nombres
+(se comparan solo con otras conexiones): se rechaza una `identity` que ya tenga
+una conexión de la versión destino (incluidas las heredadas por una rama) o que
+aparezca en dos filas `CONNECTION`, sin importar qué nodos unan.
+
+```text
+Invalid CSV record 6 (CONNECTION): identity 6f1c2a9e-0b7d-4c1e-9a52-3d8f7e4b1a10 is repeated in the file
+Invalid CSV record 4 (CONNECTION): identity 6f1c2a9e-0b7d-4c1e-9a52-3d8f7e4b1a10 already exists in this version
+```
+
+Es un `400` y no se guarda nada. La pantalla lo traduce a «Línea N: …». Que
+una identidad esté repetida entre conexiones todavía no se detecta en el
+navegador: lo informa el servidor al importar.
 
 Además, cada `nodeKind` requiere los siguientes encabezados y valores no vacíos:
 
@@ -297,7 +312,24 @@ original como detalle. Antes de enviar, la pantalla ya detecta en el cliente
 una `identity` repetida en el archivo o que no es un UUID; que una `identity`
 ya exista en la versión solo lo sabe el backend.
 
-Las plantillas descargables de la pantalla (`plantilla-nodos.csv` y
-`plantilla-nodos-con-economia.csv`) no incluyen la columna `identity`: es
-opcional y, si viene, no puede existir ya en la versión ni repetirse en el
-archivo.
+## Plantillas descargables
+
+Se sube **un solo archivo**: nodos, conexiones y economía van juntos. Las tres
+plantillas de la pantalla son ejemplos **alternativos**, cada uno completo por
+sí mismo:
+
+| Enlace en la pantalla | Archivo | Contenido |
+| --- | --- | --- |
+| *Descargar plantilla (nodos y conexiones)* | `plantilla-nodos-y-conexiones.csv` | `TREATMENT_PLANT` y `PIPELINE` con su conexión, sin economía. No requiere permiso de economía. |
+| *solo nodos* | `plantilla-nodos.csv` | Un `WELL`. |
+| *con economía* | `plantilla-nodos-con-economia.csv` | Los mismos dos nodos y la conexión, con un `economicProfile` por nodo y la fila `SCENARIO`. El enlace se deshabilita sin permiso para editar la economía. |
+
+La conexión de los ejemplos es `TREATMENT_PLANT → PIPELINE`, un par que el
+editor permite (`ALLOWED_CONNECTIONS` en
+`frontend/src/components/editor/nodeCatalog.ts`); un test comprueba que toda
+conexión de toda plantilla cumpla `canConnect`. Esa regla vive solo en el
+frontend: el importador **no** valida los pares de tipos. El ejemplo es un tramo
+de la cadena, sin pozo que lo alimente.
+
+Ninguna plantilla incluye la columna `identity`: es opcional y, si viene, no
+puede existir ya en la versión ni repetirse en el archivo.

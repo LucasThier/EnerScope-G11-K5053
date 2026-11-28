@@ -12,6 +12,7 @@ public class SimLNGCarrier extends SimBaseNode{
     private float shipCapacity;
     private float fullLoadTime;
     private int timeToDestination;
+    @lombok.Getter
     private ISeaTerminal simSeaportTerminal;
     private boolean isInPort;
     private float amountToTake;

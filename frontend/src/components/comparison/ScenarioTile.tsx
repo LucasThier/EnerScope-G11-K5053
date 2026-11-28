@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import type { ComparableScenario } from '../../types/comparison';
 import { scenarioLabel } from '../../utils/comparison';
-import { scenarioConfigurationPath } from '../../utils/scenarioRoutes';
+import { scenarioConfigurationPath, versionOperationPath } from '../../utils/scenarioRoutes';
+import { readinessView } from '../../utils/readiness';
 import { TONE_CLASSES, scenarioStatusView, seriesColor } from '../../utils/comparison';
 import { Button } from '../ui/Button';
 import { Spinner } from '../ui/Spinner';
@@ -24,6 +25,7 @@ export function ScenarioTile({ scenario, position, disabled, starting, error, on
   const view = scenarioStatusView(scenario);
   const simulating = scenario.status === 'SIMULATING' || starting;
   const needsRun = scenario.status === 'OUTDATED' || scenario.status === 'NEVER_SIMULATED';
+  const blocked = scenario.ready ? null : readinessView(scenario.readinessErrors);
   const Icon = view.tone === 'good' ? CheckIcon : view.tone === 'bad' ? AlertIcon : InfoIcon;
 
   return <li className={`relative flex flex-col rounded-card border bg-surface shadow-raise transition-colors motion-reduce:transition-none ${
@@ -54,10 +56,13 @@ export function ScenarioTile({ scenario, position, disabled, starting, error, on
 
     {(needsRun || error) && !simulating && <div className="flex flex-col gap-2 border-t border-ink-100 px-4 py-3">
       {error && <p className="text-xs text-danger-700">{error}</p>}
-      {needsRun && (!scenario.ready ? <p className="text-xs text-ink-600">
-          No se puede simular todavía: {scenario.readinessErrors.join(' ') || 'la configuración está incompleta.'}{' '}
-          <Link className="text-brand-800 underline" to={scenarioConfigurationPath(scenario.projectId, scenario.versionId, scenario.scenarioId)}>
-            Completar configuración</Link>
+      {needsRun && (blocked ? <p className="text-xs text-ink-600">
+          No se puede simular todavía: {blocked.reason}{' '}
+          {blocked.fix === 'diagram' && <Link className="text-brand-800 underline" to={versionOperationPath(scenario.versionId)}>
+            Revisar el diagrama</Link>}
+          {blocked.fix === 'configuration' && <Link className="text-brand-800 underline"
+            to={scenarioConfigurationPath(scenario.projectId, scenario.versionId, scenario.scenarioId)}>
+            Completar configuración</Link>}
         </p>
         : !scenario.canSimulate ? <p className="text-xs text-ink-600">No tenés permiso para simular en este proyecto.</p>
         : <Button size="compact" variant="secondary" className="self-start" onClick={onSimulate}>

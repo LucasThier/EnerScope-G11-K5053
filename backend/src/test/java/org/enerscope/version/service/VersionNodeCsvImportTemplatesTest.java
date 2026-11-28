@@ -7,6 +7,7 @@ import jakarta.persistence.EntityManager;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -34,8 +35,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * The two example files the frontend offers on «Importar CSV» ({@code plantilla-nodos.csv} and
- * {@code plantilla-nodos-con-economia.csv}, copied byte for byte, BOM included, from what
+ * The three example files the frontend offers on «Importar CSV» ({@code plantilla-nodos.csv},
+ * {@code plantilla-nodos-y-conexiones.csv} and {@code plantilla-nodos-con-economia.csv}, copied byte for byte, BOM
+ * included, from what
  * {@code frontend/src/utils/versionCsvImport.ts} generates into {@code src/test/resources/csv-templates}) go through the real
  * {@link VersionNodeCsvImportService} into an empty version. If the frontend templates change, regenerate the copies.
  * Runs on H2 and, through {@code VersionNodeCsvImportTemplatesPostgreSqlIT}, on PostgreSQL.
@@ -115,6 +117,31 @@ class VersionNodeCsvImportTemplatesTest {
         assertEquals(1, scenarios.countByVersionIdAndActiveTrue(version.getId()));
     }
 
+    /** Asserts the two nodes of the connected examples and the single edge between them. */
+    private Map<String, UUID> assertPlantFeedsPipeline(Version after) {
+        var byName = after.getNodeSnapshot().stream().collect(Collectors.toMap(BaseNode::getName, BaseNode::getId));
+        assertEquals(Set.of("Planta de tratamiento 1", "Gasoducto 1"), byName.keySet());
+
+        assertEquals(1, after.getConnectionSnapshot().size());
+        var connection = after.getConnectionSnapshot().getFirst();
+        assertEquals(byName.get("Planta de tratamiento 1"), connection.getFromNodeId());
+        assertEquals(byName.get("Gasoducto 1"), connection.getToNodeId());
+        return byName;
+    }
+
+    @Test
+    void theConnectionsTemplateImportsTwoNodesAndOneConnectionWithoutEconomics() throws IOException {
+        Version version = emptyVersion("Plantilla de nodos y conexiones");
+
+        int imported = csvImport.importNodes(version.getId(), template("plantilla-nodos-y-conexiones.csv"));
+
+        assertEquals(2, imported, "the count is of nodes; the connection is not counted");
+        assertPlantFeedsPipeline(reload(version.getId()));
+        assertTrue(configurations.findByScenarioId(baseScenario(version.getId()).getId()).isEmpty(),
+                "no SCENARIO row: the Escenario base keeps no configuration");
+        assertEquals(1, scenarios.countByVersionIdAndActiveTrue(version.getId()));
+    }
+
     @Test
     void theEconomicsTemplateImportsTwoNodesOneConnectionAndTheEconomicsOfTheBaseScenario() throws IOException {
         Version version = emptyVersion("Plantilla con economía");
@@ -122,14 +149,7 @@ class VersionNodeCsvImportTemplatesTest {
         int imported = csvImport.importNodes(version.getId(), template("plantilla-nodos-con-economia.csv"));
 
         assertEquals(2, imported, "the count is of nodes; the connection and the SCENARIO row are not counted");
-        Version after = reload(version.getId());
-        var byName = after.getNodeSnapshot().stream().collect(Collectors.toMap(BaseNode::getName, BaseNode::getId));
-        assertEquals(Set.of("Pozo Norte", "Gasoducto 1"), byName.keySet());
-
-        assertEquals(1, after.getConnectionSnapshot().size());
-        var connection = after.getConnectionSnapshot().getFirst();
-        assertEquals(byName.get("Pozo Norte"), connection.getFromNodeId());
-        assertEquals(byName.get("Gasoducto 1"), connection.getToNodeId());
+        var byName = assertPlantFeedsPipeline(reload(version.getId()));
 
         Scenario base = baseScenario(version.getId());
         assertEquals(Scenario.DEFAULT_NAME, base.getName());

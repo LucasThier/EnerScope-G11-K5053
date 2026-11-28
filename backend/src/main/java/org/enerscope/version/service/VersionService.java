@@ -619,6 +619,23 @@ public class VersionService {
         return identities;
     }
 
+    /** The cross-version identities of the connections currently in {@code versionId}'s own snapshot. */
+    @Transactional(readOnly = true)
+    public Set<UUID> connectionIdentities(UUID versionId) {
+        Objects.requireNonNull(versionId, "Version ID cannot be null");
+        Version version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new VersionNotFoundException(versionId));
+        Set<UUID> identities = new HashSet<>();
+        if (version.getConnectionSnapshot() != null) {
+            for (NodeConnection connection : version.getConnectionSnapshot()) {
+                if (connection != null && connection.getIdentityId() != null) {
+                    identities.add(connection.getIdentityId());
+                }
+            }
+        }
+        return identities;
+    }
+
     @Transactional
     public BaseNode addNodeToVersion(UUID versionId, BaseNodeDTO nodeDTO) {
         Objects.requireNonNull(versionId, "Version ID cannot be null");
@@ -689,6 +706,16 @@ public class VersionService {
                 .orElseThrow(() -> new VersionNotFoundException(versionId));
         lockScenario(version);
 
+        // Refused before anything is saved: reusing an identity of this version used to drop the connection that had
+        // it, without any DELETE in the history, and a later merge carried that loss into the parent.
+        UUID requestedIdentity = connectionDTO.getIdentity();
+        if (requestedIdentity != null
+                && findConnectionByIdentity(version.getConnectionSnapshot(), requestedIdentity).isPresent()) {
+            logger.warn("Refused a connection with identity {}: version {} already has it", requestedIdentity, versionId);
+            throw new IllegalArgumentException(
+                    "Connection identity %s already exists in this version".formatted(requestedIdentity));
+        }
+
         nodeRepository.findById(connectionDTO.getFromNodeId())
                 .orElseThrow(
                         () -> new EntityNotFoundException("Node not found with id: " + connectionDTO.getFromNodeId()));
@@ -697,13 +724,6 @@ public class VersionService {
                         () -> new EntityNotFoundException("Node not found with id: " + connectionDTO.getToNodeId()));
 
         NodeConnection savedConnection = nodeService.saveConnection(connectionDTO);
-
-        // Guard against ending up with two rows for one identity in this version's
-        // own snapshot, same as addNodeToVersion.
-        UUID connectionIdentityId = savedConnection.getIdentityId();
-        version.getConnectionSnapshot()
-                .removeIf(existing -> existing != null && connectionIdentityId != null
-                        && connectionIdentityId.equals(existing.getIdentityId()));
         version.getConnectionSnapshot().add(savedConnection);
 
         ConnectionChange connectionChange = new ConnectionChange();

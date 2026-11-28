@@ -23,6 +23,7 @@ import org.enerscope.scenario.repository.EconomicDraftRepository;
 import org.enerscope.scenario.repository.ScenarioDraftRepository;
 import org.enerscope.version.model.Version;
 import org.enerscope.logging.AppLogger;
+import org.enerscope.simulator.InvalidSimulationGraphException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -172,7 +173,8 @@ public class ScenarioConfigurationService {
    errors.add("Hay un borrador pendiente en Configuración del Escenario.");
   try {
    var config=economics.configuration(scenario);economics.validateConfiguration(config,version);codec.freeze(version,config,1,0);
-  } catch(EntityNotFoundException | IllegalArgumentException e) { errors.add(e.getMessage()); }
+  } catch(EntityNotFoundException | IllegalArgumentException e) { errors.add(reason(e,version,scenario)); }
+  catch(RuntimeException unexpected) { errors.add(notChecked(unexpected,version,scenario)); }
   return new Readiness(version.getId(),errors.isEmpty(),errors);
  }
 
@@ -200,9 +202,26 @@ public class ScenarioConfigurationService {
     String json=scenario==null ? null : stored.get(scenario.getId());
     if(json==null) throw new EntityNotFoundException("Economic configuration not found");
     var config=read(json,EconomicConfiguration.class);economics.validateConfiguration(config,v);codec.freeze(v,config,1,0);
-   } catch(EntityNotFoundException | IllegalArgumentException e) { errors.add(e.getMessage()); }
+   } catch(EntityNotFoundException | IllegalArgumentException e) { errors.add(reason(e,v,scenario)); }
+   catch(RuntimeException unexpected) { errors.add(notChecked(unexpected,v,scenario)); }
    return new Readiness(v.getId(),errors.isEmpty(),errors);
   }).toList();
+ }
+
+ /** The reason a scenario is not ready. A graph the simulator cannot process is also logged: it is bad stored data. */
+ private String reason(RuntimeException rejection,Version version,Scenario scenario) {
+  if(rejection instanceof InvalidSimulationGraphException)
+   logger.warn("Scenario {} of version {} is not ready: {} (cause: {})",scenario==null ? null : scenario.getId(),version.getId(),
+       rejection.getMessage(),rejection.getCause()==null ? "none" : rejection.getCause().getClass().getSimpleName());
+  return rejection.getMessage();
+ }
+
+ /** An unforeseen failure checking ONE scenario: that one is not ready, the others are still answered. */
+ private String notChecked(RuntimeException unexpected,Version version,Scenario scenario) {
+  ScenarioCheckFailures.rethrowUnlessScenarioSpecific(unexpected);
+  logger.error("Readiness of scenario {} of version {} could not be checked",
+      scenario==null ? null : scenario.getId(),version.getId(),unexpected);
+  return ScenarioCheckFailures.NOT_CHECKED;
  }
 
  private String source(Version version,EconomicConfiguration configuration) {

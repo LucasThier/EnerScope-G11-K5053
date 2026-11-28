@@ -42,4 +42,29 @@ class GlobalExceptionHandlerTest {
         assertFalse(response.getBody().success());
         assertEquals("Malformed multipart request", response.getBody().message());
     }
+
+    @org.springframework.web.bind.annotation.RestController
+    static class BrokenGraphController {
+        @org.springframework.web.bind.annotation.GetMapping("/simulate")
+        void simulate() {
+            throw new org.enerscope.simulator.InvalidSimulationGraphException(
+                    org.enerscope.simulator.InvalidSimulationGraphException.INVALID_CONNECTION,
+                    new ClassCastException("internal detail"));
+        }
+    }
+
+    @Test
+    void anInvalidSimulationGraphAnswers400WithItsReasonAndLogsItsCause() throws Exception {
+        AppLogger logger = mock(AppLogger.class);
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(new BrokenGraphController())
+                .setControllerAdvice(new GlobalExceptionHandler(logger)).build();
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/simulate"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.message")
+                        .value("The value chain graph has a connection the simulator cannot process"));
+
+        org.mockito.Mockito.verify(logger).warn("Rejected a simulation: {} (cause: {})",
+                "The value chain graph has a connection the simulator cannot process", "ClassCastException");
+    }
 }

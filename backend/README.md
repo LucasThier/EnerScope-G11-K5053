@@ -170,6 +170,37 @@ economic data rolls back the entire import. The response count includes only
 nodes, not connection or scenario rows. Invalid input returns `400`; a request
 over the server multipart limit returns `413`.
 
+A `CONNECTION` row's optional `identity` must be new: one that another
+connection of the destination version already has, or that two rows share,
+refuses the whole file (`Invalid CSV record N (CONNECTION): identity <uuid> …`).
+
+### Connection identity (`POST /version/{versionId}/connection`)
+
+`identity` stays optional; omit it to get a new one. **Behaviour change
+(2026-11-28):** sending an identity that a connection of the version already has
+now answers `400 Connection identity <uuid> already exists in this version`. It
+used to answer `200` and silently replace that connection. To change a
+connection use `PATCH /version/{versionId}/connection/{connectionId}`.
+
+### Graphs the simulator cannot process
+
+Connections are not validated against node types, so a stored graph may be one
+the simulator cannot run. Such a scenario no longer fails whole requests:
+
+- `GET /projects/{projectId}/comparisons/scenarios` and
+  `GET /projects/{projectId}/versions/simulation-readiness` answer for every
+  scenario and mark the affected one `ready: false` with a reason;
+- the version's scenario list reports a previous simulation of it as `OUTDATED`;
+- asking to simulate it (immediately or as a job) answers `400` with the reason,
+  and saving its configuration keeps a draft with that reason.
+
+Reasons: `The value chain graph has a connection the simulator cannot process`,
+`An LNG carrier has no seaport terminal or FLNG unit connected before it`,
+`The simulator could not process the value chain graph; review its nodes and
+connections`, and, for an unforeseen failure checking one scenario, `The scenario
+could not be checked; review the server log` (logged with ids and stack trace).
+Database, transaction and access errors are not contained: they fail the request.
+
 ### Bulk user registration (`POST /organizations/{id}/users/bulk`)
 
 Upload a CSV (`multipart/form-data`, form field **`file`**) to create many users

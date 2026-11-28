@@ -6,11 +6,15 @@ change a test, update the matching entry here (see `AGENTS.md` → Definition of
 done).
 
 Run the backend with `cd backend && mvn test` (H2, no database), and with `cd backend && mvn -B verify` to also run the
-twelve `*IT` classes (failsafe) against a **disposable** PostgreSQL pointed to by `ECONOMIC_TEST_DATABASE_URL` (see
+thirteen `*IT` classes (failsafe) against a **disposable** PostgreSQL pointed to by `ECONOMIC_TEST_DATABASE_URL` (see
 [*PostgreSQL classes*](#postgresql-classes-it-by-hand)). CI runs `mvn --batch-mode verify` in the `backend-it` job.
 Last reported counts, verified on 2026-11-22 from `backend/target/{surefire,failsafe}-reports` and `npm test`:
-Surefire **108 classes / 1822 executions**, failsafe **12 classes / 113 executions**, frontend **435 tests in 46 files**
-(`npm test`, 2026-11-23), all with 0 failures, errors and skips.
+Surefire **108 classes / 1822 executions**, failsafe **12 classes / 113 executions**, all with 0 failures, errors and
+skips. Current totals (2026-11-28, see
+[*Identity de conexión y grafo inválido*](#identity-de-conexión-y-grafo-inválido--2026-11-28)): Surefire
+**112 classes / 1863 executions** (`mvn -o -B test`, 0 failures, errors and skips); failsafe **13 classes / 124
+executions**, of which the changes of that date were not run on PostgreSQL locally. Frontend **458 tests in 48 files**
+(`npm test`), 0 failures and skips.
 Run on 2026-11-22 with `mvn -B verify` against a throwaway PostgreSQL 16 on port 55432: Surefire 1822 run / 0 failures / 0 errors / 0 skipped,
 failsafe 113 run / 0 failures / 0 errors / 0 skipped, `BUILD SUCCESS`.
 
@@ -92,11 +96,12 @@ executions differ; for every other class they are the same number. No class uses
 | `common.CsvUtilTest` | Unit | 8 | 8 |
 | `comparison.controller.ScenarioComparisonControllerTest` | Web | 6 | 6 |
 | `comparison.repository.ScenarioComparisonMigrationTest` | Data (JDBC/H2) | 3 | 3 |
+| `comparison.service.BrokenGraphScenarioTest` | Integration | 10 | 15 |
 | `comparison.service.ScenarioComparisonCalculatorTest` | Unit | 16 | 16 |
 | `comparison.service.ScenarioComparisonServiceTest` | Unit | 22 | 22 |
 | `comparison.service.ScenarioMetricsExtractorTest` | Unit | 6 | 6 |
 | `comparison.service.ScenarioStatusServiceTest` | Unit | 6 | 6 |
-| `common.GlobalExceptionHandlerTest` | Unit | 3 | 3 |
+| `common.GlobalExceptionHandlerTest` | Unit | 4 | 4 |
 | `comparison.controller.ScenarioComparisonHttpTest` | Integration | 10 | 15 |
 | `economic.controller.EconomicControllerTest` | Web | 12 | 12 |
 | `economic.controller.EconomicJobControllerTest` | Web | 4 | 4 |
@@ -141,6 +146,7 @@ executions differ; for every other class they are the same number. No class uses
 | `scenario.controller.ScenarioApiHttpTest` | Integration | 17 | 79 |
 | `scenario.service.ScenarioAccessTest` | Unit | 7 | 7 |
 | `scenario.service.ScenarioChangeScopeTest` | Unit | 16 | 16 |
+| `scenario.service.ScenarioCheckFailuresTest` | Unit | 4 | 4 |
 | `scenario.service.ScenarioDefaultsTest` | Unit | 4 | 4 |
 | `scenario.service.ScenarioLifecycleTest` | Unit | 20 | 20 |
 | `scenario.service.ScenarioLimitsTest` | Unit | 2 | 2 |
@@ -148,6 +154,7 @@ executions differ; for every other class they are the same number. No class uses
 | `scenario.service.VersionDefaultScenarioTest` | Unit | 6 | 6 |
 | `session.service.SessionServiceTest` | Unit | 9 | 9 |
 | `simulator.EconomicMetricsTest` | Unit | 7 | 7 |
+| `simulator.InvalidSimulationGraphExceptionTest` | Unit | 5 | 5 |
 | `simulator.ResultMappingTest` | Data | 8 | 8 |
 | `simulator.ResultPerRoundTest` | Unit | 12 | 12 |
 | `simulator.SimulatorTest` | Unit | 15 | 15 |
@@ -166,7 +173,7 @@ executions differ; for every other class they are the same number. No class uses
 | `version.controller.VersionAccessHttpTest` | Integration | 15 | 15 |
 | `version.controller.VersionBranchAccessHttpTest` | Integration | 25 | 29 |
 | `version.controller.VersionConflictsListAccessHttpTest` | Integration | 8 | 8 |
-| `version.controller.VersionControllerTest` | Web | 27 | 27 |
+| `version.controller.VersionControllerTest` | Web | 28 | 28 |
 | `version.controller.VersionGetJsonOpenInViewHttpTest` | Integration | 1 | 1 |
 | `version.controller.VersionGetJsonWithoutOpenInViewHttpTest` | Integration | 3 | 3 |
 | `version.controller.VersionInactiveAccessHttpTest` | Integration | 5 | 5 |
@@ -185,15 +192,16 @@ executions differ; for every other class they are the same number. No class uses
 | `version.service.VersionAccessTest` | Unit | 11 | 11 |
 | `version.service.VersionConflictIntegrationTest` | Integration | 11 | 11 |
 | `version.service.VersionConflictServiceTest` | Unit | 30 | 30 |
+| `version.service.VersionConnectionIdentityTest` | Integration | 9 | 10 |
 | `version.service.VersionDeletionTest` | Unit | 9 | 9 |
 | `version.service.VersionLineageTest` | Unit | 10 | 10 |
 | `version.service.VersionMemberServiceTest` | Unit | 39 | 39 |
 | `version.service.VersionNodeCsvImportAllKindsTest` | Integration | 2 | 2 |
 | `version.service.VersionNodeCsvImportIdentityTest` | Integration | 7 | 7 |
-| `version.service.VersionNodeCsvImportServiceTest` | Unit | 34 | 45 |
-| `version.service.VersionNodeCsvImportTemplatesTest` | Integration | 2 | 2 |
+| `version.service.VersionNodeCsvImportServiceTest` | Unit | 36 | 48 |
+| `version.service.VersionNodeCsvImportTemplatesTest` | Integration | 3 | 3 |
 | `version.service.VersionQueryServiceTest` | Unit | 10 | 10 |
-| `version.service.VersionServiceTest` | Unit | 69 | 69 |
+| `version.service.VersionServiceTest` | Unit | 70 | 70 |
 | **Total (108 classes)** | | **1525** | **1822** |
 
 > **`mvn test` on 2026-11-15 (13:35, run for this update): 1362 executions,
@@ -325,12 +333,13 @@ five classes** from a manual run on 2026-11-15; that figure is history and no lo
 | `scenario.repository.ScenarioMigrationIT` | 13 | 13 |
 | `scenario.service.ScenarioLifecyclePostgreSqlIT` | 20 inherited from `ScenarioLifecycleTest` | 20 |
 | `scenario.service.VersionDefaultScenarioPostgreSqlIT` | 6 inherited from `VersionDefaultScenarioTest` | 6 |
+| `version.service.VersionConnectionIdentityPostgreSqlIT` | 10 inherited from `VersionConnectionIdentityTest` (no test transaction) | 10 |
 | `version.service.VersionDeletionPostgreSqlIT` | 9 inherited from `VersionDeletionTest` | 9 |
 | `version.service.VersionNodeCsvImportAllKindsPostgreSqlIT` | 2 inherited from `VersionNodeCsvImportAllKindsTest` | 2 |
 | `version.service.VersionNodeCsvImportIdentityPostgreSqlIT` | 7 inherited from `VersionNodeCsvImportIdentityTest` | 7 |
-| `version.service.VersionNodeCsvImportTemplatesPostgreSqlIT` | 2 inherited from `VersionNodeCsvImportTemplatesTest` | 2 |
+| `version.service.VersionNodeCsvImportTemplatesPostgreSqlIT` | 3 inherited from `VersionNodeCsvImportTemplatesTest` | 3 |
 | `version.repository.VersionMemberRepositoryPostgreSqlIT` | 16 | 16 |
-| **Total (12 classes)** | | **113** |
+| **Total (13 classes)** | | **124** |
 
 `ProjectRepositoryPostgreSqlIT` and `ProjectVersionCreationPostgreSqlIT` are new
 in the 2026-11-15 section; the two new `VersionMemberRepositoryPostgreSqlIT`
@@ -2952,7 +2961,9 @@ which add up to the same 173). The previous pass recorded 157 in 24 files; the
 | `summaryVisuals.test.mjs` | 9 | Summary charts. |
 | `uiLegibility.test.mjs` | 8 | New 2026-11-23. Static scan of `src/`: the scan reaches the app; `text-ink-300` / `text-ink-400` is not a text colour except in an exact list of decorative uses (two chevron icons, the search icon, an `aria-hidden` separator); the tabs are 44px tall (padding 2×8 + `text-sm` 20 + `::after` 2×4) and the area does not widen; a `RowButton` is 24px with a 24×44 area (`after:-inset-y-2.5`, `after:inset-x-0`) that stays inside a standard row (extension 10px ≤ the 12px of cell padding); no `<Button>` carries a colour, border or radius its variant already sets (only `!` overrides); arbitrary pixel font sizes appear only in the six documented places; no `space-y-5` or `space-y-10`; and no `h2` is `text-xl`. |
 | `versionAccessApi.test.mjs` | 4 | `versionAccessApi`: `GET /projects/{id}/access`, list members, grant a role (with the vertical when there is one), revoke by member and role id. |
-| `versionCsvImport.test.mjs` | 46 (was 27; the `type` check added 17, the `INDUSTRIAL_CONSUMPTION` fix 2) | New file. Node CSV import into a version: the identity messages (exists / repeated, with uuid, upper-case uuid, without a record number, malformed uuid) and the other importer messages translated by regex, previous translations unchanged; the CSV parser (quotes, BOM, CRLF, blank lines) and the analysis (line numbering, identity, file-level problems, kinds, connections, scenario row); both example files clean and without an `identity` column; the identity help text; permissions (deny by default, verticals, connections, economics); confirmation warnings; start conditions; failure classification (rejected vs uncertain); result messages and destinations. Type / role / vertical coherence of each `NODE` row against a hand-written `NodeTypeEnum` matrix (the `type.nodeType` enum spelling included): every kind clean, every wrong role and every wrong vertical for every kind with its expected value and line, the "line 9" message, several errors in one file in order with the header as line 1, empty / non-JSON / non-object / missing-key `type`, case-insensitive kind, no check without a `type` column or on non-`NODE` rows, the 50-problem cap with the remaining count, no import with problems, the help text, the templates agreeing with the rules; `NODE_KIND_VERTICAL` (the edit-permission vertical) equal to the `NodeTypeEnum` vertical for every kind, and an `INDUSTRIAL_CONSUMPTION` file needing *Consumo interno*, not *Exportación*; and the backend `Node role/vertical does not match its type` messages translated (wrapped with a record number or not, unknown shape left alone). |
+| `importVersionCsvModal.test.mjs` | 9 | Import window markup: Spanish file picker, templates, collapsed help, economic permission, confirm button. |
+| `scenarioReadiness.test.mjs` | 6 | Reasons a scenario cannot be simulated, and the comparison tile. |
+| `versionCsvImport.test.mjs` | 54 (was 27; connection identity messages 2; the `type` check added 17, the `INDUSTRIAL_CONSUMPTION` fix 2, templates and confirm button 6) | New file. Node CSV import into a version: the identity messages (exists / repeated, with uuid, upper-case uuid, without a record number, malformed uuid) and the other importer messages translated by regex, previous translations unchanged; the CSV parser (quotes, BOM, CRLF, blank lines) and the analysis (line numbering, identity, file-level problems, kinds, connections, scenario row); both example files clean and without an `identity` column; the identity help text; permissions (deny by default, verticals, connections, economics); confirmation warnings; start conditions; failure classification (rejected vs uncertain); result messages and destinations. Type / role / vertical coherence of each `NODE` row against a hand-written `NodeTypeEnum` matrix (the `type.nodeType` enum spelling included): every kind clean, every wrong role and every wrong vertical for every kind with its expected value and line, the "line 9" message, several errors in one file in order with the header as line 1, empty / non-JSON / non-object / missing-key `type`, case-insensitive kind, no check without a `type` column or on non-`NODE` rows, the 50-problem cap with the remaining count, no import with problems, the help text, the templates agreeing with the rules; `NODE_KIND_VERTICAL` (the edit-permission vertical) equal to the `NodeTypeEnum` vertical for every kind, and an `INDUSTRIAL_CONSUMPTION` file needing *Consumo interno*, not *Exportación*; and the backend `Node role/vertical does not match its type` messages translated (wrapped with a record number or not, unknown shape left alone). |
 | `versionAccessRules.test.mjs` | 14 (was catalogued as 5; this change adds 1) | `utils/versionAccessRules.ts`: merging needs to manage the parent (`canMergeIntoParent`), branching needs to edit the chosen parent (`canBranchFromParent`), `uneditableVerticals` lists the scenario verticals the caller cannot edit, a node of an unknown type blocks that check, and `VersionTree` shows *Mergear* only where the parent can be managed and *Importar CSV* only on the versions the caller can import into. |
 | `versionRoleErrors.test.mjs` | 9 | The Spanish translation of the version endpoints' `403`/`400`/`404` messages, including "ask a project administrator" for managing roles and the cascading-delete `403` that names no version; and, new, the branch / merge / vertical `403`s (*edit this version*, *this vertical's nodes*, *simulate*, *manage this project*) and the `400`/`404` ones (*Resource not found*, *Node vertical does not match its type* (now translated with the type and the expected vertical), versions of different projects, parent of another project, a version as its own ancestor, a cycle in the simulation graph). |
 | `versionRoles.test.mjs` | 18 | `utils/versionRoles.ts`: role labels, grant ordering, "project administrator administers every version", explicit versus inherited access, `canManageRoles` (not `canManage`) deciding who manages roles, assignable people, role choices, one request per vertical, last-role detection, the version tree and its filters, default version, sorting. |
@@ -4008,16 +4019,17 @@ frontend `npm test` **268 cases** (one translation case extended), `tsc -b`, `es
 Also: `scenario.controller.ScenarioApiHttpTest.deletingAVersionThatHasSavedResultsIs409WithAClearMessageAndNothingIsDeleted` (79 executions, was 78) checks the
 `409` envelope over HTTP (`success: false` and the message), that the scenarios are still listed, and that a Simulador gets `403`.
 
-### `version.service.VersionNodeCsvImportTemplatesTest` — real services on H2 (2); `VersionNodeCsvImportTemplatesPostgreSqlIT` runs the same 2 on PostgreSQL
+### `version.service.VersionNodeCsvImportTemplatesTest` — real services on H2 (3); `VersionNodeCsvImportTemplatesPostgreSqlIT` runs the same 3 on PostgreSQL
 
-The two example files of the frontend's «Importar CSV» screen, copied byte for byte (BOM included) from what
+The three example files of the frontend's «Importar CSV» screen, copied byte for byte (BOM included) from what
 `frontend/src/utils/versionCsvImport.ts` generates into `backend/src/test/resources/csv-templates/` (regenerate them if the
 frontend templates change), go through the real `VersionNodeCsvImportService` into an empty version made with `ProjectService.saveVersion`.
 
 | Case | Verifies |
 | --- | --- |
 | `theNodesTemplateImportsOneWellAndNoConnectionsNorEconomics` | `plantilla-nodos.csv` imports without error: 1 node («Pozo Norte»), no connections, no configuration in the «Escenario base», still one scenario. |
-| `theEconomicsTemplateImportsTwoNodesOneConnectionAndTheEconomicsOfTheBaseScenario` | `plantilla-nodos-con-economia.csv` imports without error: count 2, nodes «Pozo Norte» and «Gasoducto 1», one connection between them, one scenario («Escenario base») whose configuration (2030, 5 years, USD, boundary `empresa-1`) holds a profile for each generated node id. |
+| `theConnectionsTemplateImportsTwoNodesAndOneConnectionWithoutEconomics` | `plantilla-nodos-y-conexiones.csv` imports without error: count 2, one connection from «Planta de tratamiento 1» to «Gasoducto 1», no configuration, still one scenario. |
+| `theEconomicsTemplateImportsTwoNodesOneConnectionAndTheEconomicsOfTheBaseScenario` | `plantilla-nodos-con-economia.csv` imports without error: count 2, nodes «Planta de tratamiento 1» and «Gasoducto 1», one connection between them, one scenario («Escenario base») whose configuration (2030, 5 years, USD, boundary `empresa-1`) holds a profile for each generated node id. |
 
 ### `version.service.VersionNodeCsvImportAllKindsTest` — real services on H2 (2); `VersionNodeCsvImportAllKindsPostgreSqlIT` runs the same 2 on PostgreSQL
 
@@ -4145,3 +4157,108 @@ APP_URL=http://127.0.0.1:5199 PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs no
 
 `PW_CHANNEL=chrome` uses an installed Chrome instead of Playwright's Chromium; `SHOT_DIR=/some/dir` also saves a screenshot per
 theme and size. Run on 2026-11-23: PASS (it does not need a Vite on 5173 or the backend).
+
+
+## Importador CSV: plantillas y ventana de carga — 2026-11-28
+
+Frontend total after this change: **450 tests in 47 files** (435 before, plus the 15 below), 0 failures, 0 skips; `tsc -b`,
+`eslint .` and `npm run build` clean. Backend: only `VersionNodeCsvImportTemplatesTest` was run for this change
+(`mvn -o test -Dtest=VersionNodeCsvImportTemplatesTest`, H2, 3 run, 0 failures). Its PostgreSQL variant was not run
+locally, and the full backend suite was not re-run: the totals at the top add the one new case to each backend count.
+
+### `frontend/tests/importVersionCsvModal.test.mjs` — rendered markup, **9 cases** (`ImportVersionCsvModal`, `FilePicker`)
+
+The window is rendered to static markup with the import flow replaced by a fixed state. Keyboard behaviour, focus ring,
+sizes and downloads are not covered here.
+
+| Case | Verification |
+| --- | --- |
+| the file picker speaks Spanish and leaves no browser-written text on screen | «Elegir archivo», «Ningún archivo seleccionado», no English text; the native input is `sr-only`, not removed from the tab order or hidden. |
+| the hidden file input keeps its label, its status text and a visible focus ring | The «Archivo CSV» label points at the input, `aria-describedby` points at the status text, the box has a peer focus ring. |
+| a chosen file shows its name in the picker | The name replaces the empty text. |
+| the window asks for a single file and offers one main template plus two other examples | One file input without `multiple`; order of the three template links. |
+| the column help is a closed disclosure that keeps both texts unchanged | `<details>` without `open`, its summary, `NODE_TYPE_HELP` and `IDENTITY_HELP` verbatim. |
+| with economic permission the economics example can be downloaded | The link is enabled and no note is shown. |
+| without economic permission only the economics example is disabled, and the window says why | Disabled and described by the note, also with `access` null; the other two stay enabled. |
+| the confirm button carries what the chosen file brings | «Importar» without a file; «Importar 2 nodos y 1 conexión» with one. |
+| a file ready to confirm hides the examples and the help; a blocked one keeps them | Hidden only when clean and without blockers; the picker stays. |
+
+### Added to `frontend/tests/versionCsvImport.test.mjs` — **6 cases**
+
+| Case | Verification |
+| --- | --- |
+| every connection of every example file is one the editor allows | Each `CONNECTION` of the three templates joins two nodes of the file and satisfies `canConnect`. |
+| the nodes-and-connections example has no economics and needs no economic permission | No economic columns, no `SCENARIO`; clean analysis (2 nodes, 1 connection) and no blockers without the permission. |
+| the copies the backend imports are byte for byte what the screen downloads | `backend/src/test/resources/csv-templates/` equals the three generated files, BOM included. |
+| the button says plain "Importar" without a file, with problems or with no nodes | `importButtonLabel` fallback. |
+| the button counts nodes and mentions connections only when the file has them | Singular and plural for 1/N nodes and 0/1/M connections. |
+| the button writes large counts the Argentine way | Counts formatted with `es-AR`. |
+
+## Identity de conexión y grafo inválido — 2026-11-28
+
+Totals after this change: Surefire **112 classes / 1863 executions** (`mvn -o -B test`, H2, 0 failures, errors and skips);
+frontend **458 tests in 48 files** (`npm test`), with `tsc -b`, `eslint .` and `npm run build` clean. Failsafe becomes
+**13 classes / 124 executions** with the new `VersionConnectionIdentityPostgreSqlIT`, which was written but **not run**
+locally (no PostgreSQL); CI runs it.
+
+### `version.service.VersionConnectionIdentityTest` — Integration, H2, **no test transaction** (10); `VersionConnectionIdentityPostgreSqlIT` runs the same 10 on PostgreSQL
+
+State (snapshots, change history and table row counts) is read back after each real commit or rollback.
+
+| Case | Verification |
+| --- | --- |
+| `csvWithTheSameConnectionIdentityInTwoRowsIsRefusedAndWritesNothing` (2 executions: other pair, same pair) | `Invalid CSV record 6 (CONNECTION): identity <uuid> is repeated in the file`; nothing changes. |
+| `csvWithAConnectionIdentityAlreadyInTheVersionIsRefusedAndKeepsTheExistingConnection` | `… record 4 (CONNECTION): identity <uuid> already exists in this version`; the existing connection and history are intact. |
+| `csvIntoABranchRefusesAnInheritedConnectionIdentityAndNeitherBranchNorParentChanges` | An identity inherited by a branch is refused; branch and parent unchanged. |
+| `csvMayReuseAConnectionIdentityThatOnlyAnUnrelatedVersionHas` | Only the destination version counts. |
+| `anImportThatFailsAfterWritingNodesAndConnectionsLeavesNoData` | A `SCENARIO` rejected after nodes and connections were saved rolls everything back, rows included. |
+| `addingAConnectionWithAnIdentityAlreadyInTheVersionIsRefusedAndWritesNothing` | The editor call answers `Connection identity <uuid> already exists in this version`; nothing changes. |
+| `addingAConnectionToABranchRefusesAnInheritedIdentityAndTheMergeLosesNothing` | Refused in the branch, and the parent keeps its connection after the merge. |
+| `addingConnectionsWithoutAnIdentityStillGeneratesOneForEach` | Omitting `identity` works as before. |
+| `addingAConnectionWithANewExplicitIdentityKeepsIt` | A new explicit identity is accepted and kept. |
+
+### Added to existing classes (connection identity)
+
+| Class and case | Verification |
+| --- | --- |
+| `VersionNodeCsvImportServiceTest.rejectsAConnectionIdentityRepeatedInTheFileBeforePersisting` (2 executions) | Refused with its record number before any node or connection is added. |
+| `VersionNodeCsvImportServiceTest.rejectsAConnectionIdentityThatAlreadyExistsInTheVersionBeforePersisting` | The same for an identity of the version; no economics saved. |
+| `VersionServiceTest.addConnectionToVersionRefusesAnIdentityTheVersionAlreadyHasWithoutSaving` | Nothing saved, snapshot and history untouched. |
+| `VersionControllerTest.addingAConnectionWithARepeatedIdentityAnswers400WithTheServiceMessage` | `POST /version/{id}/connection` answers `400` with the message. |
+| `versionCsvImport.test.mjs` (2 cases) | Spanish text of both CSV messages (with line and uuid) and of the editor message. |
+
+### `comparison.service.BrokenGraphScenarioTest` — Integration, H2, **no test transaction** (10 cases, 15 executions)
+
+Real services. Cases marked ×2 run for a wrong predecessor (`WELL → TREATMENT_PLANT`) and for an LNG carrier with no terminal.
+
+| Case | Verification |
+| --- | --- |
+| `theComparisonScenarioListReturnsEveryVersionAndMarksOnlyTheBrokenOne` ×2 | Every version is listed; only the broken one is not ready, with its reason. |
+| `simulationReadinessReturnsEveryVersionAndMarksOnlyTheBrokenOne` ×2 | The same for `/simulation-readiness`. |
+| `askingToSimulateTheBrokenScenarioIsAControlledErrorWithItsReason` ×2 | Immediate and queued simulation throw `IllegalArgumentException` (400); no job is stored. |
+| `runningTheSimulatorOnTheBrokenGraphThrowsOnlyAControlledError` ×2 | The worker's path (no `freeze`) is controlled too. |
+| `savingTheConfigurationOfABrokenGraphKeepsItAsADraftWithTheReason` ×2 | Saving answers the reason and keeps a draft. |
+| `aSimulatedScenarioWhoseGraphLaterBreaksIsListedAsOutdated` | A later bad connection makes it outdated in both scenario lists. |
+| `anUnreadableStoredConfigurationMarksOnlyItsScenario` | An unforeseen failure marks only its scenario; no `UnexpectedRollbackException`. |
+| `anUnreadableStoredSimulationMarksOnlyItsScenario` | The same for an unreadable result, which is not offered for comparison. |
+| `aCarrierThatNeverStartsWithinTheHorizonStillSimulates` | No over-rejection: a run that used to succeed still does. |
+| `noPairOfNodeKindsLeaksAnUncontrolledExceptionFromTheSimulator` | All 144 two-node pairs: freeze and run throw nothing but `IllegalArgumentException`. |
+
+### Containment units
+
+| Class (type, cases) | Verification |
+| --- | --- |
+| `simulator.InvalidSimulationGraphExceptionTest` (Unit, 5) | Cast → invalid connection; other runtime failures → unprocessable graph; the simulator's own rejections, interruptions and `Error`s pass through. |
+| `scenario.service.ScenarioCheckFailuresTest` (Unit, 4) | Database, transaction and access failures are rethrown, wrapped or not; data failures are contained; readiness propagates a database failure and logs an unforeseen one with ids and stack trace. |
+| `common.GlobalExceptionHandlerTest.anInvalidSimulationGraphAnswers400WithItsReasonAndLogsItsCause` | Routed to `400` (not `500`) and logged with the cause type. |
+
+### `frontend/tests/scenarioReadiness.test.mjs` — **6 cases** (`utils/readiness.ts`, `ScenarioTile`, `ScenarioStatusChip`)
+
+| Case | Verification |
+| --- | --- |
+| every new reason is shown in Spanish, both in the list and when the simulate call answers 400 | The four new messages. |
+| a diagram problem sends to the editor, an incomplete configuration to the scenario, and an unchecked one nowhere | `readinessView(...).fix`. |
+| the comparison tile of a broken graph shows the reason and links to the diagram, not to the configuration | Rendered tile. |
+| an outdated simulation on a broken graph shows the reason instead of the simulate button | Rendered tile. |
+| other tiles keep their behaviour: configuration link, no link when unchecked, the button when ready | Rendered tile. |
+| the shared status chip is unaffected: no new status, and a broken scenario renders with the existing ones | `ScenarioStatusChip`. |

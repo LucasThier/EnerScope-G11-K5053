@@ -101,7 +101,10 @@ public class EconomicService {
         return save(projectId, versionId, configuration);
     }
 
-    @Transactional(noRollbackFor = IllegalArgumentException.class)
+    // noRollbackFor RuntimeException on the three reads a scenario list makes per element (this one, configuration and
+    // evaluationOf): the list contains a failure to its scenario, which would otherwise leave the shared transaction
+    // rollback-only and fail the whole request at commit. A failure that propagates still rolls back its caller.
+    @Transactional(noRollbackFor = RuntimeException.class)
     public void validateConfiguration(EconomicConfiguration configuration, Version version) {
         validator.validate(configuration, nodeIds(version));
         validateExportNodes(configuration, version);
@@ -197,7 +200,7 @@ public class EconomicService {
     }
 
     /** One evaluation of a scenario; another scenario's evaluation is a 404. */
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, noRollbackFor = RuntimeException.class)
     public EvaluationDTO evaluationOf(Scenario scenario, UUID evaluationId) {
         return dto(evaluations.findByIdAndScenarioId(evaluationId, scenario.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Economic evaluation not found")));
@@ -211,7 +214,7 @@ public class EconomicService {
     }
 
     /** The published economic configuration of a scenario. */
-    @Transactional(noRollbackFor = EntityNotFoundException.class)
+    @Transactional(noRollbackFor = RuntimeException.class)
     public EconomicConfiguration configuration(Scenario scenario) {
         return read(configurations.findByScenarioId(scenario.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Economic configuration not found")).getConfigurationJson(), EconomicConfiguration.class);

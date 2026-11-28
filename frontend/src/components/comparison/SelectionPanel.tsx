@@ -47,7 +47,7 @@ export function SelectionPanel({ selected, starting, comparing, onRemove, onSimu
     </Button>}
     {check.blocked.length > 0 && <p className="text-xs text-ink-600">
       {check.blocked.map(scenarioLabel).join(', ')} no se {check.blocked.length === 1 ? 'puede' : 'pueden'} simular
-      desde acá: revisá su configuración o tus permisos.
+      desde acá: revisá el motivo en cada escenario o tus permisos.
     </p>}
 
     <div className="flex flex-col gap-2">

@@ -339,14 +339,28 @@ inside the `MyOrganizationsProvider` and the sidebar provider.
      prueba que no se importó**: el mensaje manda a revisar la versión en el editor antes de
      reintentar.
   5. Resultado con la cantidad de nodos y los botones **Ver en el editor** y **Ver escenarios**.
-  Dos plantillas descargables (`plantilla-nodos.csv` y `plantilla-nodos-con-economia.csv`), **sin
-  columna `identity`** para que un ejemplo no choque; el texto de ayuda aclara que `identity` es
-  opcional y, si viene, no puede existir ya en la versión ni repetirse en el archivo. Los errores
+  Se sube **un solo archivo** (nodos y, opcionalmente, conexiones y economía). El selector es
+  `components/ui/FilePicker`: el input nativo queda oculto solo a la vista (conserva foco, etiqueta,
+  Enter y Espacio) y los textos son propios, en español. Tres plantillas alternativas: la principal,
+  `plantilla-nodos-y-conexiones.csv` (sin economía), y los ejemplos secundarios `plantilla-nodos.csv`
+  y `plantilla-nodos-con-economia.csv` (este deshabilitado sin `canEditEconomicConfiguration`). Las
+  conexiones de ejemplo (`TREATMENT_PLANT → PIPELINE`) cumplen `canConnect`. Van **sin columna
+  `identity`** para que un ejemplo no choque. La ayuda sobre `type` e `identity` está en un
+  desplegable cerrado; aclara que `identity` es opcional y, si viene, no puede existir ya en la
+  versión ni repetirse en el archivo. Con un archivo listo para confirmar, las plantillas y la ayuda
+  se ocultan (así la ventana entra en 1280×720) y el botón dice qué se importa («Importar 2 nodos y
+  1 conexión»). Los errores
   del backend (en inglés, uno por vez) se traducen en `api/errors.ts` por expresión regular
   (`translateCsvImportMessage`, `describeCsvImportError`): «Línea N: …» con el motivo; lo que no se
-  reconoce se muestra con un texto genérico y el original como detalle. Ambas plantillas se
+  reconoce se muestra con un texto genérico y el original como detalle. Las tres plantillas se
   verifican contra el importador real en `VersionNodeCsvImportTemplatesTest` (copias en
-  `backend/src/test/resources/csv-templates/`: regenerarlas si cambian las plantillas).
+  `backend/src/test/resources/csv-templates/`: regenerarlas si cambian las plantillas; un test del
+  frontend falla si no son idénticas byte a byte).
+- **Escenario que no se puede simular** (Comparaciones, `components/comparison/ScenarioTile` y
+  `utils/readiness.ts`): los motivos del backend (`readinessErrors`) se muestran traducidos. Si son
+  del diagrama (conexión no válida, buque metanero sin terminal, ciclo) el enlace es *Revisar el
+  diagrama* (editor de la versión); si falta configuración, *Completar configuración*; si el
+  escenario no se pudo verificar, no hay enlace. No hay estados nuevos: `ScenarioStatusChip` no cambia.
 - **Importación de usuarios por CSV** (`components/import`, `hooks/useCsvUserImport`,
   `utils/csvImport*.ts`). Opened with **Agregar integrantes** on an organization
   (*Administración → Organizaciones*) or from the organization's team screen.

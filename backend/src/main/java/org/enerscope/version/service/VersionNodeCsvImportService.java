@@ -125,6 +125,7 @@ public class VersionNodeCsvImportService {
         List<PendingConnection> pendingConnections = new ArrayList<>();
         Set<String> externalNodeIds = new HashSet<>();
         NodeIdentityGuard identityGuard = new NodeIdentityGuard(versionId);
+        ConnectionIdentityGuard connectionIdentityGuard = new ConnectionIdentityGuard(versionId);
         PendingScenario scenarioConfiguration = null;
         boolean hasRecordType = headers.contains(RECORD_TYPE_HEADER);
         for (int rowIndex = 1; rowIndex < rows.size(); rowIndex++) {
@@ -152,7 +153,9 @@ public class VersionNodeCsvImportService {
                 continue;
             }
             if (recordType == RecordType.CONNECTION) {
-                pendingConnections.add(parseConnection(values, headers, recordNumber));
+                PendingConnection connection = parseConnection(values, headers, recordNumber);
+                connectionIdentityGuard.check(connection.identity(), recordNumber);
+                pendingConnections.add(connection);
                 continue;
             }
 
@@ -279,6 +282,39 @@ public class VersionNodeCsvImportService {
             if (inVersion.contains(identity)) {
                 throw new IllegalArgumentException(
                         "Invalid CSV record %d (NODE): identity %s already exists in this version"
+                                .formatted(recordNumber, identity));
+            }
+        }
+    }
+
+    /**
+     * The same rule for CONNECTION rows, in their own namespace: an {@code identity} already in the destination version
+     * or repeated in the file is refused while the rows are validated, before anything is written.
+     */
+    private final class ConnectionIdentityGuard {
+        private final UUID versionId;
+        private final Set<UUID> inFile = new HashSet<>();
+        private Set<UUID> inVersion;
+
+        private ConnectionIdentityGuard(UUID versionId) {
+            this.versionId = versionId;
+        }
+
+        void check(UUID identity, int recordNumber) {
+            if (identity == null) {
+                return;
+            }
+            if (!inFile.add(identity)) {
+                throw new IllegalArgumentException(
+                        "Invalid CSV record %d (CONNECTION): identity %s is repeated in the file"
+                                .formatted(recordNumber, identity));
+            }
+            if (inVersion == null) {
+                inVersion = versionService.connectionIdentities(versionId);
+            }
+            if (inVersion.contains(identity)) {
+                throw new IllegalArgumentException(
+                        "Invalid CSV record %d (CONNECTION): identity %s already exists in this version"
                                 .formatted(recordNumber, identity));
             }
         }

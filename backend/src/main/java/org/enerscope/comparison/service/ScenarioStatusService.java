@@ -26,7 +26,9 @@ import org.enerscope.logging.AppLogger;
 import org.enerscope.project.model.Project;
 import org.enerscope.project.model.enums.ProjectMemberPermission;
 import org.enerscope.scenario.dto.ScenarioConfigurationDTO.Readiness;
+import org.enerscope.scenario.service.ScenarioCheckFailures;
 import org.enerscope.scenario.service.ScenarioConfigurationService;
+import org.enerscope.simulator.InvalidSimulationGraphException;
 import org.enerscope.scenario.model.Scenario;
 import org.enerscope.scenario.service.ScenarioDefaults;
 import org.enerscope.version.service.VersionAccessService;
@@ -84,8 +86,13 @@ public class ScenarioStatusService {
         List<ComparableScenarioDTO> result = new ArrayList<>();
         for (Version version : versions) {
             for (Scenario scenario : byVersion.getOrDefault(version.getId(), List.of())) {
-                result.add(describe(project, version, scenario, scenarios.readinessOf(version, scenario),
-                        canSimulate.getOrDefault(version.getId(), false)));
+                try {
+                    result.add(describe(project, version, scenario, scenarios.readinessOf(version, scenario),
+                            canSimulate.getOrDefault(version.getId(), false)));
+                } catch (RuntimeException unexpected) {
+                    logUnexpected(unexpected, version, scenario);
+                    result.add(unchecked(project, version, scenario));
+                }
             }
         }
         return result;
@@ -99,6 +106,37 @@ public class ScenarioStatusService {
      * its version's nodes and connections, changed since the simulation: a node edit outdates every scenario of the version.
      */
     public Standing standingOf(Version version, Scenario scenario) {
+        try {
+            return checkedStandingOf(version, scenario);
+        } catch (RuntimeException unexpected) {
+            logUnexpected(unexpected, version, scenario);
+            // A result that cannot be checked does not stand for the scenario.
+            return latestOf(scenario).map(e -> new Standing(ScenarioStatus.OUTDATED, e.getCreatedAt()))
+                    .orElseGet(() -> new Standing(ScenarioStatus.NEVER_SIMULATED, null));
+        }
+    }
+
+    private Optional<EconomicEvaluation> latestOf(Scenario scenario) {
+        return evaluations.findByScenarioIdOrderByCreatedAtDesc(scenario.getId()).stream().findFirst();
+    }
+
+    /** Rethrows what is not about this scenario's data; otherwise records the failure, with its stack trace. */
+    private void logUnexpected(RuntimeException unexpected, Version version, Scenario scenario) {
+        ScenarioCheckFailures.rethrowUnlessScenarioSpecific(unexpected);
+        logger.error("Scenario {} of version {} could not be checked", scenario.getId(), version.getId(), unexpected);
+    }
+
+    /** The entry of a scenario that could not be checked: not ready, with no result offered and nothing to run. */
+    private ComparableScenarioDTO unchecked(Project project, Version version, Scenario scenario) {
+        Optional<EconomicEvaluation> latest = latestOf(scenario);
+        return new ComparableScenarioDTO(project.getId(), project.getName(), version.getId(), version.getName(),
+                scenario.getId(), scenario.getName(), scenario.isDefaultScenario(),
+                latest.isPresent() ? ScenarioStatus.OUTDATED : ScenarioStatus.NEVER_SIMULATED,
+                null, latest.map(BaseEntity::getCreatedAt).orElse(null), null, null,
+                false, List.of(ScenarioCheckFailures.NOT_CHECKED), false, null);
+    }
+
+    private Standing checkedStandingOf(Version version, Scenario scenario) {
         Optional<EconomicEvaluation> latest = evaluations.findByScenarioIdOrderByCreatedAtDesc(scenario.getId()).stream().findFirst();
         java.time.Instant when = latest.map(BaseEntity::getCreatedAt).orElse(null);
         if (jobs.existsByScenarioIdAndStatusIn(scenario.getId(), List.of(EconomicJobStatus.QUEUED, EconomicJobStatus.RUNNING))) {
@@ -123,6 +161,9 @@ public class ScenarioStatusService {
         } catch (EntityNotFoundException invalid) {
             logger.debug("Scenario {} cannot be checked against its latest simulation: {}", scenario.getId(), invalid.getMessage());
             return false;
+        } catch (RuntimeException unexpected) {
+            logUnexpected(unexpected, version, scenario);
+            return false;
         }
     }
 
@@ -145,9 +186,13 @@ public class ScenarioStatusService {
             return canonical(snapshot.configuration()).equals(canonical(current))
                     && canonical(snapshot.physicalNodes()).equals(canonical(codec.displayNodes(input)))
                     && canonical(snapshot.physicalConnections()).equals(canonical(input.connections()));
+        } catch (InvalidSimulationGraphException broken) {
+            logger.warn("Version {} cannot be checked against a simulation: {} (cause: {})", version.getId(),
+                    broken.getMessage(), broken.getCause() == null ? "none" : broken.getCause().getClass().getSimpleName());
+            return false;
         } catch (EntityNotFoundException | IllegalArgumentException invalid) {
             // No configuration, or one the simulator rejects: the old result cannot stand for the scenario.
-            logger.debug("Scenario {} cannot be checked against its latest simulation: {}", version.getId(), invalid.getMessage());
+            logger.debug("Version {} cannot be checked against a simulation: {}", version.getId(), invalid.getMessage());
             return false;
         }
     }

@@ -451,6 +451,19 @@ export function canStartImport(input: {
   );
 }
 
+/** The confirm button: it says what the file carries once the file is readable and clean. */
+export function importButtonLabel(analysis: CsvAnalysis | null): string {
+  if (!analysis || analysis.problems.length > 0 || analysis.nodeCount === 0) {
+    return 'Importar';
+  }
+  const nodes = `${analysis.nodeCount.toLocaleString('es-AR')} ${analysis.nodeCount === 1 ? 'nodo' : 'nodos'}`;
+  if (analysis.connectionCount === 0) {
+    return `Importar ${nodes}`;
+  }
+  const connections = analysis.connectionCount === 1 ? 'conexión' : 'conexiones';
+  return `Importar ${nodes} y ${analysis.connectionCount.toLocaleString('es-AR')} ${connections}`;
+}
+
 // --- results -----------------------------------------------------------------------------------------------------
 
 export function importedNodesMessage(count: number): string {
@@ -528,13 +541,14 @@ export const UNCERTAIN_RESULT_MESSAGE =
 
 // --- templates ---------------------------------------------------------------------------------------------------
 
-export type TemplateKind = 'operational' | 'full';
+export type TemplateKind = 'operational' | 'connections' | 'full';
 
 const COMMON = [
   'nodeKind', 'name', 'state', 'lifespanInMonths', 'upkeepCosts', 'maintenanceIntervalInDays', 'operatingCosts',
   'wastePercentage', 'type', 'investmentCost',
 ];
 const WELL = ['maxCollectionCapacity', 'declineCurve', 'gasRichness', 'dtmTime', 'dtmCost', 'surface'];
+const TREATMENT = ['maxTreatmentCapacity', 'contaminantWaste', 'intermediateStorage', 'treatmentCost'];
 const PIPELINE = ['maxFlowCapacity', 'length', 'lossPerKm'];
 
 function quote(value: string): string {
@@ -546,6 +560,7 @@ function line(values: string[]): string {
 }
 
 const WELL_TYPE = '{"vertical":"EXTRACTION","role":"GENERATOR","nodeType":"WELL"}';
+const TREATMENT_TYPE = '{"vertical":"EXTRACTION","role":"INTERMEDIATE","nodeType":"TREATMENT_PLANT"}';
 const PIPELINE_TYPE = '{"vertical":"TRANSPORTATION","role":"INTERMEDIATE","nodeType":"PIPELINE"}';
 const NO_COSTS = '{"components":[]}';
 
@@ -561,6 +576,9 @@ const WELL_SPECIFIC = {
   maxCollectionCapacity: '1000000', declineCurve: '{"type":"CONSTANT","val_a":0.25}', gasRichness: '0.85', dtmTime: '0',
   dtmCost: '500', surface: '1200',
 };
+const TREATMENT_SPECIFIC = {
+  maxTreatmentCapacity: '800000', contaminantWaste: '0.01', intermediateStorage: '100', treatmentCost: '1',
+};
 const PIPELINE_SPECIFIC = { maxFlowCapacity: '800000', length: '120', lossPerKm: '0.001' };
 
 const SCENARIO_JSON =
@@ -571,15 +589,21 @@ const SCENARIO_JSON =
 const PROFILE_JSON = '{"ownership":[{"taxEntityId":"empresa-1","share":1}],"rules":[]}';
 
 /**
- * Example files. Neither has an `identity` column on purpose: it is optional, and an identity copied from another
- * file would be rejected when it already exists in the version.
+ * Example files, each one a complete file on its own: `operational` (nodes only), `connections` (nodes and their
+ * connection) and `full` (the same plus the economics). Every CONNECTION follows the editor's value-chain rules
+ * (`canConnect`; a test checks it). None has an `identity` column on purpose: it is optional, and an identity copied
+ * from another file would be rejected when it already exists in the version.
  */
 export function buildTemplateCsv(kind: TemplateKind): string {
   if (kind === 'operational') {
     const columns = [...COMMON, ...WELL];
     return [line(columns), line(nodeValues('WELL', 'Pozo Norte', WELL_TYPE, WELL_SPECIFIC, columns))].join('\r\n') + '\r\n';
   }
-  const columns = ['recordType', 'id', 'fromNodeId', 'toNodeId', ...COMMON, ...WELL, ...PIPELINE, 'economicProfile', 'economicScenario'];
+  const economic = kind === 'full';
+  const columns = [
+    'recordType', 'id', 'fromNodeId', 'toNodeId', ...COMMON, ...TREATMENT, ...PIPELINE,
+    ...(economic ? ['economicProfile', 'economicScenario'] : []),
+  ];
   const row = (values: Record<string, string>) => line(columns.map((column) => values[column] ?? ''));
   const node = (id: string, kind: string, name: string, type: string, specific: Record<string, string>) => {
     const cells = nodeValues(kind, name, type, specific, columns);
@@ -587,30 +611,36 @@ export function buildTemplateCsv(kind: TemplateKind): string {
       ...Object.fromEntries(columns.map((column, index) => [column, cells[index]])),
       recordType: 'NODE',
       id,
-      economicProfile: PROFILE_JSON,
+      ...(economic ? { economicProfile: PROFILE_JSON } : {}),
     });
   };
   return (
     [
       line(columns),
-      node('pozo-norte', 'WELL', 'Pozo Norte', WELL_TYPE, WELL_SPECIFIC),
+      node('planta-1', 'TREATMENT_PLANT', 'Planta de tratamiento 1', TREATMENT_TYPE, TREATMENT_SPECIFIC),
       node('gasoducto-1', 'PIPELINE', 'Gasoducto 1', PIPELINE_TYPE, PIPELINE_SPECIFIC),
-      row({ recordType: 'CONNECTION', fromNodeId: 'pozo-norte', toNodeId: 'gasoducto-1' }),
-      row({ recordType: 'SCENARIO', economicScenario: SCENARIO_JSON }),
+      row({ recordType: 'CONNECTION', fromNodeId: 'planta-1', toNodeId: 'gasoducto-1' }),
+      ...(economic ? [row({ recordType: 'SCENARIO', economicScenario: SCENARIO_JSON })] : []),
     ].join('\r\n') + '\r\n'
   );
 }
 
+const TEMPLATE_FILE_NAMES: Record<TemplateKind, string> = {
+  operational: 'plantilla-nodos.csv',
+  connections: 'plantilla-nodos-y-conexiones.csv',
+  full: 'plantilla-nodos-con-economia.csv',
+};
+
 export function templateFileName(kind: TemplateKind): string {
-  return kind === 'operational' ? 'plantilla-nodos.csv' : 'plantilla-nodos-con-economia.csv';
+  return TEMPLATE_FILE_NAMES[kind];
 }
 
-/** Help text under the file picker about the optional `identity` column. */
+/** Collapsed help in the import window about the optional `identity` column. */
 export const IDENTITY_HELP =
   'La columna identity es opcional. Si la incluís, cada valor tiene que ser un UUID que no exista ya en esta versión ' +
   'y que no se repita en el archivo; si la dejás vacía, el sistema genera una identidad nueva.';
 
-/** Help text under the file picker about `type`: the vertical and the role follow from the node type. */
+/** Collapsed help in the import window about `type`: the vertical and the role follow from the node type. */
 export const NODE_TYPE_HELP =
   'En la columna type, el rol y la vertical se deducen del tipo de nodo: tienen que coincidir con nodeKind ' +
   '(por ejemplo, un SEAPORT_TERMINAL es siempre SINK de la vertical EXPORT). Las plantillas traen el valor correcto.';

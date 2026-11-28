@@ -4,15 +4,17 @@ import { Button } from '../ui/Button';
 import { Field } from '../ui/Field';
 import { Modal, ModalFooter } from '../ui/Modal';
 import { useField } from '../ui/useField';
-import { controlFile } from '../ui/controlClasses';
+import { FilePicker } from '../ui/FilePicker';
 import { DownloadIcon } from '../ui/icons';
 import { useVersionCsvImport } from '../../hooks/useVersionCsvImport';
 import {
+  BASE_SCENARIO_NAME,
   IDENTITY_HELP,
   MAX_DATA_ROWS,
   NODE_TYPE_HELP,
   formatProblem,
   hiddenProblemsMessage,
+  importButtonLabel,
   importDestinations,
   importSummary,
   importedNodesMessage,
@@ -41,6 +43,10 @@ export function ImportVersionCsvModal({ projectId, version, access, onImported, 
   const destinations = importDestinations(projectId, version.id);
   const analysis = flow.analysis;
   const clean = analysis !== null && analysis.problems.length === 0;
+  const canEditEconomics = access?.canEditEconomicConfiguration === true;
+  const economicsHintId = `${fieldId}-economics-template`;
+  // Once a file is ready to confirm, the examples and the column help give their room to the warnings.
+  const readyToConfirm = clean && flow.blockers.length === 0;
 
   function go(path: string) {
     onClose();
@@ -88,35 +94,61 @@ export function ImportVersionCsvModal({ projectId, version, access, onImported, 
           ) : null}
 
           <p className="text-sm text-ink-700">
-            Subí un archivo <code className="font-mono text-ink-800">.csv</code> con los nodos que querés{' '}
-            <span className="font-medium text-ink-800">agregar</span> a esta versión. Puede incluir conexiones y la
-            configuración económica del «Escenario base». Hasta 10 MB y {MAX_DATA_ROWS.toLocaleString('es-AR')} filas.
+            Subí un solo archivo <code className="font-mono text-ink-800">.csv</code>. En el mismo archivo van los nodos
+            y, si querés, sus conexiones y la economía del «{BASE_SCENARIO_NAME}». Se{' '}
+            <span className="font-medium text-ink-800">agregan</span> a esta versión. Hasta 10 MB y{' '}
+            {MAX_DATA_ROWS.toLocaleString('es-AR')} filas.
           </p>
 
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-1">
-            <Field label="Archivo CSV" fieldId={fieldId} hintId={hintId} errorId={errorId} className="min-w-0 flex-1">
-              <input
-                {...controlProps}
-                type="file"
-                accept=".csv,text/csv"
-                disabled={sending || access === null || !access.canEdit}
-                onChange={(event) => flow.selectFile(event.target.files?.[0] ?? null)}
-                className={`${controlFile} w-full`}
-              />
-            </Field>
-          </div>
-          <div className="-mt-2 flex flex-wrap gap-x-4 gap-y-1">
-            <Button variant="link" onClick={() => flow.downloadTemplate('operational')}>
-              <DownloadIcon className="h-4 w-4" />
-              Plantilla de nodos
-            </Button>
-            <Button variant="link" onClick={() => flow.downloadTemplate('full')}>
-              <DownloadIcon className="h-4 w-4" />
-              Plantilla con conexiones y economía
-            </Button>
-          </div>
-          <p className="text-sm text-ink-500">{NODE_TYPE_HELP}</p>
-          <p className="text-sm text-ink-500">{IDENTITY_HELP}</p>
+          <Field label="Archivo CSV" fieldId={fieldId} hintId={hintId} errorId={errorId}>
+            <FilePicker
+              controlProps={controlProps}
+              accept=".csv,text/csv"
+              fileName={flow.fileName}
+              disabled={sending || access === null || !access.canEdit}
+              onSelect={flow.selectFile}
+            />
+          </Field>
+          {!readyToConfirm && (
+            <>
+              <div className="-mt-2 flex flex-col items-start gap-1">
+                <Button variant="link" className="min-h-6" onClick={() => flow.downloadTemplate('connections')}>
+                  <DownloadIcon className="h-4 w-4 shrink-0" />
+                  Descargar plantilla (nodos y conexiones)
+                </Button>
+                <div className="flex flex-wrap items-center gap-x-2 text-sm text-ink-600">
+                  <span>Otros ejemplos:</span>
+                  <Button variant="link" className="min-h-6" onClick={() => flow.downloadTemplate('operational')}>
+                    solo nodos
+                  </Button>
+                  <span aria-hidden="true">·</span>
+                  <Button
+                    variant="link"
+                    className="min-h-6"
+                    disabled={!canEditEconomics}
+                    aria-describedby={canEditEconomics ? undefined : economicsHintId}
+                    onClick={() => flow.downloadTemplate('full')}
+                  >
+                    con economía
+                  </Button>
+                  {!canEditEconomics && (
+                    <span id={economicsHintId} className="text-ink-500">
+                      (necesita permiso para editar la economía)
+                    </span>
+                  )}
+                </div>
+              </div>
+              <details className="text-sm">
+                <summary className="min-h-6 cursor-pointer rounded-control py-0.5 font-medium text-ink-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus">
+                  Ayuda sobre las columnas type e identity
+                </summary>
+                <div className="mt-2 flex flex-col gap-2 text-ink-500">
+                  <p>{NODE_TYPE_HELP}</p>
+                  <p>{IDENTITY_HELP}</p>
+                </div>
+              </details>
+            </>
+          )}
 
           {flow.readError && <Alert tone="error">{flow.readError}</Alert>}
 
@@ -198,8 +230,14 @@ export function ImportVersionCsvModal({ projectId, version, access, onImported, 
             <Button variant="ghost" onClick={sending ? flow.cancel : onClose}>
               {sending ? 'Cancelar importación' : 'Cancelar'}
             </Button>
-            <Button onClick={() => void flow.submit()} disabled={!flow.canSubmit} loading={sending}>
-              {sending ? 'Importando…' : analysis && clean ? `Importar ${analysis.nodeCount} ${analysis.nodeCount === 1 ? 'nodo' : 'nodos'}` : 'Importar'}
+            <Button
+              onClick={() => void flow.submit()}
+              disabled={!flow.canSubmit}
+              loading={sending}
+              // A long count wraps onto a second line instead of overflowing a narrow window.
+              className="h-auto! min-h-control max-w-full py-2 text-center"
+            >
+              {sending ? 'Importando…' : importButtonLabel(analysis)}
             </Button>
           </ModalFooter>
         </div>

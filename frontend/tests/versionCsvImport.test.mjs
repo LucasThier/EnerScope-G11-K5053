@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createLoader } from './loadModule.mjs';
 
@@ -181,6 +182,27 @@ test('a file with no node rows, or economic profiles without a scenario row, is 
   assert.deepEqual(profile.problems.map((p) => p.message), ['Hay nodos con economicProfile, pero falta la fila SCENARIO con economicScenario.']);
 });
 
+test('a refused connection identity is translated with its line and uuid, from the file and from the version', () => {
+  const repeated = `Invalid CSV record 6 (CONNECTION): identity ${UUID} is repeated in the file`;
+  const repeatedText = `Línea 6: la identidad ${UUID} aparece en más de una conexión del archivo. Cada conexión debe tener una identidad única.`;
+  assert.deepEqual(errors.describeCsvImportError(repeated), { line: 6, text: repeatedText, detail: null });
+
+  const existing = `Invalid CSV record 4 (CONNECTION): identity ${OTHER_UUID} already exists in this version`;
+  const existingText =
+    `Línea 4: la identidad ${OTHER_UUID} ya la tiene una conexión de esta versión. El importador no reemplaza ` +
+    'conexiones: quitá esa fila o dejá la columna identity vacía.';
+  assert.deepEqual(errors.describeCsvImportError(existing), { line: 4, text: existingText, detail: null });
+  const failure = csv.classifyImportFailure({ status: 400, canceled: false, message: existing, fallback: 'fallback' });
+  assert.deepEqual([failure.kind, failure.line, failure.text], ['rejected', 4, existingText]);
+});
+
+test('the editor call that repeats a connection identity is translated too', () => {
+  assert.equal(
+    errors.translateBackendMessage(`Connection identity ${UUID} already exists in this version`),
+    `Ya hay una conexión con la identidad ${UUID} en esta versión. No se guardó nada.`,
+  );
+});
+
 // ---- templates ------------------------------------------------------------------------------------------------------
 
 test('the example files analyse clean and carry no identity column that could collide', () => {
@@ -204,9 +226,10 @@ test('the JSON cells of the example files survive the CSV round trip', () => {
   assert.deepEqual(parsed.boundary, ['empresa-1']);
   assert.equal(parsed.taxEntities[0].id, 'empresa-1');
   const node = records[1];
-  assert.equal(JSON.parse(node[header.indexOf('type')]).nodeType, 'WELL');
+  assert.equal(JSON.parse(node[header.indexOf('type')]).nodeType, 'TREATMENT_PLANT');
   assert.deepEqual(JSON.parse(node[header.indexOf('economicProfile')]).ownership, [{ taxEntityId: 'empresa-1', share: 1 }]);
   assert.equal(csv.templateFileName('operational'), 'plantilla-nodos.csv');
+  assert.equal(csv.templateFileName('connections'), 'plantilla-nodos-y-conexiones.csv');
   assert.equal(csv.templateFileName('full'), 'plantilla-nodos-con-economia.csv');
 });
 
@@ -214,6 +237,59 @@ test('the help text states that identity is optional and what it may not be', ()
   assert.match(csv.IDENTITY_HELP, /opcional/);
   assert.match(csv.IDENTITY_HELP, /no exista ya en esta versión/);
   assert.match(csv.IDENTITY_HELP, /no se repita en el archivo/);
+});
+
+const TEMPLATE_KINDS = ['operational', 'connections', 'full'];
+const { canConnect } = load(resolve(root, 'components/editor/nodeCatalog.ts'));
+
+/** The CONNECTION rows of a template as [source nodeType, target nodeType], in the spelling of `NodeTypeEnum`. */
+function templateConnections(kind) {
+  const { records } = csv.parseCsvRecords(csv.buildTemplateCsv(kind));
+  const [header, ...rows] = records;
+  const cell = (record, name) => record[header.indexOf(name)];
+  const typeById = new Map(
+    rows
+      .filter((r) => cell(r, 'recordType') === 'NODE')
+      .map((r) => [cell(r, 'id'), csv.NODE_TYPE_RULES[cell(r, 'nodeKind')].nodeType]),
+  );
+  return rows
+    .filter((r) => cell(r, 'recordType') === 'CONNECTION')
+    .map((r) => [typeById.get(cell(r, 'fromNodeId')), typeById.get(cell(r, 'toNodeId'))]);
+}
+
+test('every connection of every example file is one the editor allows', () => {
+  for (const kind of TEMPLATE_KINDS) {
+    const connections = templateConnections(kind);
+    assert.equal(connections.length, kind === 'operational' ? 0 : 1, kind);
+    for (const [from, to] of connections) {
+      assert.ok(from && to, `${kind}: both ends are nodes of the file`);
+      assert.equal(canConnect(from, to), true, `${kind}: ${from} -> ${to}`);
+    }
+  }
+});
+
+test('the nodes-and-connections example has no economics and needs no economic permission', () => {
+  const text = csv.buildTemplateCsv('connections');
+  const { records } = csv.parseCsvRecords(text);
+  assert.ok(!records[0].includes('economicProfile'));
+  assert.ok(!records[0].includes('economicScenario'));
+  assert.ok(!records[0].includes('identity'));
+  assert.ok(!records.some((record) => record.includes('SCENARIO')));
+  const analysis = csv.analyzeNodesCsv(text);
+  assert.deepEqual(analysis.problems, []);
+  assert.deepEqual([analysis.nodeCount, analysis.connectionCount, analysis.scenarioCount, analysis.hasEconomicProfiles], [2, 1, 0, false]);
+  assert.deepEqual(csv.importPermissionBlockers(analysis, version({ canEditEconomicConfiguration: false })), []);
+});
+
+test('the copies the backend imports are byte for byte what the screen downloads', () => {
+  const { withBom } = load(resolve(root, 'utils/csvImport.ts'));
+  for (const kind of TEMPLATE_KINDS) {
+    const copy = readFileSync(
+      new URL(`../../backend/src/test/resources/csv-templates/${csv.templateFileName(kind)}`, import.meta.url),
+      'utf8',
+    );
+    assert.equal(copy, withBom(csv.buildTemplateCsv(kind)), kind);
+  }
 });
 
 // ---- permissions ---------------------------------------------------------------------------------------------------
@@ -483,6 +559,31 @@ test('the example files agree with the type rules', () => {
     const rule = csv.NODE_TYPE_RULES[record[header.indexOf('nodeKind')]];
     assert.deepEqual(JSON.parse(record[header.indexOf('type')]), { vertical: rule.vertical, role: rule.role, nodeType: rule.nodeType });
   }
+});
+
+// ---- the confirm button --------------------------------------------------------------------------------------------
+
+const counted = (nodeCount, connectionCount, problems = []) => ({ nodeCount, connectionCount, problems });
+
+test('the button says plain "Importar" without a file, with problems or with no nodes', () => {
+  assert.equal(csv.importButtonLabel(null), 'Importar');
+  assert.equal(csv.importButtonLabel(counted(2, 1, [{ line: 2, message: 'x' }])), 'Importar');
+  assert.equal(csv.importButtonLabel(counted(0, 0)), 'Importar');
+  assert.equal(csv.importButtonLabel(counted(0, 3)), 'Importar');
+});
+
+test('the button counts nodes and mentions connections only when the file has them', () => {
+  assert.equal(csv.importButtonLabel(counted(1, 0)), 'Importar 1 nodo');
+  assert.equal(csv.importButtonLabel(counted(5, 0)), 'Importar 5 nodos');
+  assert.equal(csv.importButtonLabel(counted(1, 1)), 'Importar 1 nodo y 1 conexión');
+  assert.equal(csv.importButtonLabel(counted(1, 4)), 'Importar 1 nodo y 4 conexiones');
+  assert.equal(csv.importButtonLabel(counted(7, 1)), 'Importar 7 nodos y 1 conexión');
+  assert.equal(csv.importButtonLabel(counted(12, 30)), 'Importar 12 nodos y 30 conexiones');
+});
+
+test('the button writes large counts the Argentine way', () => {
+  const big = (n) => n.toLocaleString('es-AR');
+  assert.equal(csv.importButtonLabel(counted(10000, 9999)), `Importar ${big(10000)} nodos y ${big(9999)} conexiones`);
 });
 
 // ---- the backend's own messages for the same rule -----------------------------------------------------------------

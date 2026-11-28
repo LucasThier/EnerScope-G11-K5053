@@ -1642,6 +1642,30 @@ class VersionServiceTest {
     }
 
     @Test
+    void addConnectionToVersionRefusesAnIdentityTheVersionAlreadyHasWithoutSaving() {
+        UUID versionId = UUID.randomUUID();
+        UUID identity = UUID.randomUUID();
+        org.enerscope.node.model.NodeConnection existing = new org.enerscope.node.model.NodeConnection(
+                identity, UUID.randomUUID(), UUID.randomUUID());
+        Version version = new Version("v", null, new java.util.ArrayList<>(),
+                new java.util.ArrayList<>(java.util.List.of(existing)), new java.util.ArrayList<>(),
+                new java.util.ArrayList<>(), new java.util.ArrayList<>());
+        when(versionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        org.enerscope.node.dto.ConnectionDTO dto = connectionDto();
+        dto.setIdentity(identity);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> versionService.addConnectionToVersion(versionId, dto));
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "Connection identity " + identity + " already exists in this version", error.getMessage());
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(existing), version.getConnectionSnapshot());
+        org.junit.jupiter.api.Assertions.assertTrue(version.getConnectionChanges().isEmpty());
+        verifyNoInteractions(nodeService);
+        org.mockito.Mockito.verify(versionRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void editConnectionInVersionIsRefusedBeforeTouchingAnythingWhenTheCallerCannotEditConnections() {
         UUID versionId = UUID.randomUUID();
         org.mockito.Mockito.doThrow(denied()).when(accessGuard).assertCanEditConnection(versionId);
